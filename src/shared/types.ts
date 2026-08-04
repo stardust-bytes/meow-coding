@@ -55,6 +55,7 @@ export interface NewAgentInput {
   name: string
   templateId: string
   cwd: string
+  kind?: AgentKind
 }
 
 export interface ChatMessage {

@@ -8,8 +8,12 @@ import { PtyManager } from './pty-manager'
 import { LogManager } from './log-manager'
 import { GitStatusService } from './git-status-service'
 import { AlertService } from './alert-service'
+import { SessionStore } from './agent/session'
+import type { StoredSession } from './agent/session'
+import { createDefaultTools } from './agent/tools/registry'
+import { MeowAgentManager } from './meow-agent-manager'
 import { Channels } from '../shared/ipc'
-import type { AgentState, NewAgentInput, Template, Workspace, WorkspaceRuntime } from '../shared/types'
+import type { AgentState, NewAgentInput, PromptResponse, Template, Workspace, WorkspaceRuntime } from '../shared/types'
 
 let win: BrowserWindow | null = null
 
@@ -25,6 +29,11 @@ class MainApp {
   logs = new LogManager(path.join(app.getPath('userData'), 'logs'))
   git = new GitStatusService()
   alerts = new AlertService()
+  meowAgent = new MeowAgentManager({
+    configPath: path.join(app.getPath('userData'), 'meow.json'),
+    store: new SessionStore(createJsonStore<StoredSession>(path.join(app.getPath('userData'), 'sessions.json'))),
+    tools: createDefaultTools()
+  })
 
   private states = new Map<string, AgentState>()
   private gitTimer: ReturnType<typeof setInterval> | null = null
@@ -58,6 +67,9 @@ class MainApp {
         ? { status: 'exited' as const, alert: 'normal' as const, exitCode }
         : { status: 'error' as const, alert: 'error' as const, exitCode }
       this.setState(agentId, patch)
+    })
+    this.meowAgent.setOnEvent(event => {
+      win?.webContents.send(Channels.EventChat, event)
     })
   }
 
@@ -96,6 +108,7 @@ class MainApp {
     const ws = this.findWorkspaceByAgent(agentId)
     const agent = ws?.agents.find(a => a.id === agentId)
     if (!agent) return
+    if (agent.kind === 'native') return
     const tmpl = this.templates.list().find(t => t.id === agent.templateId)
     if (!tmpl) {
       const message = `[meow] Không tìm thấy template "${agent.templateId}" cho agent "${agent.name}". Thêm template đó hoặc xóa agent này.\n`
@@ -134,6 +147,7 @@ class MainApp {
       this.resetActiveProject()
     }
     this.activeProject = projectPath
+    this.meowAgent.init(ws.agents)
     for (const agent of ws.agents) {
       await this.startAgent(agent.id)
     }
@@ -164,6 +178,7 @@ class MainApp {
 
   resetActiveProject(): void {
     this.stopGitPoll()
+    this.meowAgent.stopAll()
     this.activeProject = null
     this.states.clear()
     this.alerts.clearAll()
@@ -200,7 +215,17 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(Channels.WorkspaceAdd, (_e, projectPath: string, name: string) => {
     const ws = mainApp.workspaces.add(projectPath, name)
-    return mainApp.runtimeFor(ws)
+    if (ws.agents.length === 0) {
+      mainApp.workspaces.addAgent(projectPath, {
+        name: 'meow',
+        templateId: 'meow',
+        cwd: projectPath,
+        kind: 'native'
+      })
+    }
+    const fresh = mainApp.workspaces.get(projectPath)!
+    mainApp.meowAgent.init(fresh.agents)
+    return mainApp.runtimeFor(fresh)
   })
 
   ipcMain.handle(Channels.WorkspaceRemove, async (_e, projectPath: string) => {
@@ -220,13 +245,17 @@ function registerIpcHandlers(): void {
     mainApp.openWorkspace(projectPath))
 
   ipcMain.handle(Channels.AgentAdd, async (_e, projectPath: string, input: NewAgentInput) => {
-    const ws = mainApp.workspaces.addAgent(projectPath, input)
+    const tmpl = mainApp.templates.list().find(t => t.id === input.templateId)
+    const agentInput = tmpl?.kind ? { ...input, kind: tmpl.kind } : input
+    const ws = mainApp.workspaces.addAgent(projectPath, agentInput)
     const added = ws.agents[ws.agents.length - 1]
+    mainApp.meowAgent.addAgent(added)
     await mainApp.startAgent(added.id)
     return mainApp.runtimeFor(ws)
   })
 
   ipcMain.handle(Channels.AgentRemove, async (_e, projectPath: string, agentId: string) => {
+    mainApp.meowAgent.removeAgent(agentId)
     await mainApp.pty.stop(agentId)
     mainApp.workspaces.removeAgent(projectPath, agentId)
   })
@@ -257,6 +286,13 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.LogOpen, (_e, agentId: string) => {
     void shell.openPath(mainApp.logs.pathFor(agentId))
   })
+  ipcMain.handle(Channels.ChatSend, (_e, agentId: string, text: string) =>
+    mainApp.meowAgent.send(agentId, text))
+  ipcMain.handle(Channels.ChatStop, (_e, agentId: string) => mainApp.meowAgent.stop(agentId))
+  ipcMain.handle(Channels.ChatNewSession, (_e, agentId: string) => mainApp.meowAgent.newSession(agentId))
+  ipcMain.handle(Channels.ChatListMessages, (_e, agentId: string) => mainApp.meowAgent.listMessages(agentId))
+  ipcMain.handle(Channels.ChatRespondPrompt, (_e, agentId: string, promptId: string, resp: PromptResponse) =>
+    mainApp.meowAgent.respondPrompt(agentId, promptId, resp))
   ipcMain.handle(Channels.AppQuit, () => app.quit())
 }
 
@@ -274,6 +310,7 @@ app.on('before-quit', (event) => {
   event.preventDefault()
   cleaningUp = true
   mainApp.stopGitPoll()
+  mainApp.meowAgent.stopAll()
   mainApp.pty
     .stopAll()
     .finally(() => app.exit(0))
