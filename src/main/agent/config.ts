@@ -23,6 +23,7 @@ export interface MeowConfig {
   agents: Record<string, MeowAgentConfig>
   permission: Record<string, PermissionRule>
   mcp: Record<string, McpServerConfig>
+  maxContextChars: number
 }
 
 export interface ResolvedAgentConfig {
@@ -32,6 +33,8 @@ export interface ResolvedAgentConfig {
   baseUrl?: string
   systemPrompt: string
 }
+
+export const DEFAULT_MAX_CONTEXT_CHARS = 30000
 
 export const DEFAULT_MEOW_CONFIG: MeowConfig = {
   provider: {
@@ -58,7 +61,8 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
     bash: 'ask',
     question: 'ask'
   },
-  mcp: {}
+  mcp: {},
+  maxContextChars: DEFAULT_MAX_CONTEXT_CHARS
 }
 
 function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
@@ -69,7 +73,8 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     model: raw.model ?? DEFAULT_MEOW_CONFIG.model,
     agents,
     permission: raw.permission ?? {},
-    mcp: raw.mcp ?? {}
+    mcp: raw.mcp ?? {},
+    maxContextChars: raw.maxContextChars ?? DEFAULT_MAX_CONTEXT_CHARS
   }
 }
 
@@ -142,7 +147,8 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
     model: defaultProvider,
     agents: base.agents ?? DEFAULT_MEOW_CONFIG.agents,
     permission: base.permission ?? {},
-    mcp: base.mcp ?? {}
+    mcp: base.mcp ?? {},
+    maxContextChars: base.maxContextChars ?? DEFAULT_MAX_CONTEXT_CHARS
   }
 }
 

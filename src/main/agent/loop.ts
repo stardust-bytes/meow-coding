@@ -6,6 +6,7 @@ import { toLlmMessages } from './message'
 import type { TranscriptItem } from './message'
 import type { ToolContext, ToolDefinition } from './tools/types'
 import type { PermissionDecision } from './permission'
+import { pruneTranscript } from './compact'
 
 export interface LoopDeps {
   agentId: string
@@ -17,6 +18,7 @@ export interface LoopDeps {
   decidePermission: (toolName: string) => PermissionDecision
   ask: (promptId: string) => Promise<PromptResponse | null>
   maxSteps?: number
+  maxContextChars?: number
   onEvent: (e: ChatEvent) => void
   getItems: () => TranscriptItem[]
   appendMessage: (msg: ChatMessage) => void
@@ -46,7 +48,7 @@ export class SessionRunner {
       }
       steps++
 
-      const llmMessages = toLlmMessages(this.deps.getItems())
+      const llmMessages = this.buildMessages()
       let hasToolCall = false
       let textBuffer = ''
       const calls: ToolCallData[] = []
@@ -160,5 +162,20 @@ export class SessionRunner {
     }
     this.deps.appendTool(call)
     this.deps.onEvent({ type: 'tool-result', agentId, call })
+  }
+
+  private buildMessages(): ReturnType<typeof toLlmMessages> {
+    const items = this.deps.getItems()
+    const maxChars = this.deps.maxContextChars
+    if (maxChars === undefined || maxChars <= 0) return toLlmMessages(items)
+    const pruned = pruneTranscript(items, maxChars)
+    const messages = toLlmMessages(pruned)
+    if (pruned.length < items.length) {
+      return [
+        { role: 'user', content: '[Earlier conversation was truncated to fit the context window.]' },
+        ...messages
+      ]
+    }
+    return messages
   }
 }

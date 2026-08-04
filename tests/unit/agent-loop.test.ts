@@ -202,4 +202,29 @@ describe('SessionRunner', () => {
     const resultEvent = h.events.find(e => e.type === 'tool-result') as Extract<ChatEvent, { type: 'tool-result' }>
     expect(resultEvent.call.output).toBe('got: yes')
   })
+
+  it('prunes the transcript when over the context budget', async () => {
+    const h = makeHarness({
+      tools: new Map<string, ToolDefinition>(),
+      maxContextChars: 100,
+      maxSteps: 1
+    })
+    h.items.push({
+      kind: 'message',
+      message: { id: 'old', role: 'user', text: 'old '.repeat(200), createdAt: 1 }
+    })
+    h.items.push({
+      kind: 'message',
+      message: { id: 'recent', role: 'user', text: 'latest prompt', createdAt: 2 }
+    })
+    h.llm.queue = [textParts('ok')]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 20))
+    const firstMessages = h.llm.calls[0]?.messages ?? []
+    const texts = firstMessages
+      .filter((m): m is { role: 'user'; content: string } => m.role === 'user' && typeof m.content === 'string')
+      .map(m => m.content)
+    expect(texts[0]).toContain('truncated')
+    expect(texts[texts.length - 1]).toBe('latest prompt')
+  })
 })

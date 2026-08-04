@@ -205,6 +205,7 @@ export class MeowAgentManager {
       tools: this.tools,
       decidePermission: (tool) => decidePermission(cfg.permission, tool),
       ask: (promptId) => this.awaitPrompt(agent.id, promptId),
+      maxContextChars: cfg.maxContextChars,
       onEvent: (e) => this.emit(e),
       getItems: () => this.deps.store.get(agent.id)?.items ?? [],
       appendMessage: (msg) => this.deps.store.appendMessage(agent.id, msg),
