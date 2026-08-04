@@ -210,7 +210,7 @@ class MainApp {
     }
   }
 
-  setAgentVariant(agentId: string, variant: 'low' | 'medium' | 'high' | 'max'): void {
+  setAgentVariant(agentId: string, variant: 'medium' | 'high' | 'max'): void {
     this.meowAgent.setVariant(agentId, variant)
     const ws = this.findWorkspaceByAgent(agentId)
     if (ws) {
@@ -315,7 +315,7 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(Channels.AgentSetMode, (_e, agentId: string, mode: 'build' | 'plan') =>
     mainApp.setAgentMode(agentId, mode))
-  ipcMain.handle(Channels.AgentSetVariant, (_e, agentId: string, variant: 'low' | 'medium' | 'high' | 'max') =>
+  ipcMain.handle(Channels.AgentSetVariant, (_e, agentId: string, variant: 'medium' | 'high' | 'max') =>
     mainApp.setAgentVariant(agentId, variant))
   ipcMain.handle(Channels.AgentSetModel, (_e, agentId: string, provider: string, model: string) =>
     mainApp.setAgentModel(agentId, provider, model))
@@ -323,6 +323,11 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.ProviderModels, () => mainApp.meowAgent.getProviderModels())
   ipcMain.handle(Channels.ProviderFetchModels, (_e, providerId: string) =>
     mainApp.meowAgent.fetchProviderModels(providerId))
+  ipcMain.handle(Channels.ProviderCatalog, () => mainApp.meowAgent.listProviderCatalog())
+  ipcMain.handle(Channels.ProviderConnect, (_e, providerId: string, apiKey: string, baseUrl?: string) =>
+    mainApp.meowAgent.connectProvider(providerId, apiKey, baseUrl))
+  ipcMain.handle(Channels.ProviderDisconnect, (_e, providerId: string) =>
+    mainApp.meowAgent.disconnectProvider(providerId))
 
   ipcMain.handle(Channels.TemplateList, () => mainApp.templates.list())
   ipcMain.handle(Channels.TemplateSave, (_e, t: Template) => mainApp.templates.save(t))

@@ -33,7 +33,6 @@ export interface LlmClient {
 type StreamProviderOptions = NonNullable<Parameters<typeof streamText>[0]['providerOptions']>
 
 const ANTHROPIC_THINKING_BUDGET: Record<ModelVariant, number> = {
-  low: 4096,
   medium: 8192,
   high: 16384,
   max: 32000

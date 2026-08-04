@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { ChatEvent, ChatMessage, ChatTranscriptItem, McpServerStatus, MeowSettings, PromptResponse, TodoItem } from '../shared/types'
-import type { AgentConfig, AgentMode, ModelRef, ModelVariant } from '../shared/types'
+import type { AgentConfig, AgentMode, CatalogProviderSummary, ModelRef, ModelVariant } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, settingsToConfig, writeMeowConfig,
   type ResolvedAgentConfig
@@ -285,6 +285,35 @@ export class MeowAgentManager {
     return providers[providerId]?.models ?? []
   }
 
+  async listProviderCatalog(): Promise<CatalogProviderSummary[]> {
+    if (!this.deps.catalog) return []
+    return this.deps.catalog.list()
+  }
+
+  async connectProvider(providerId: string, apiKey: string, baseUrl?: string): Promise<MeowSettings> {
+    const catalog = await this.deps.catalog?.fetch() ?? {}
+    const models = catalog[providerId]?.models ?? []
+    const settings = this.getSettings()
+    const existing = settings.providers.find(p => p.id === providerId)
+    const nextProviders = [
+      ...settings.providers.filter(p => p.id !== providerId),
+      { id: providerId, apiKey, baseUrl: baseUrl || catalog[providerId]?.api, models }
+    ]
+    const defaultProvider = settings.providers.some(p => p.id === settings.defaultProvider)
+      ? settings.defaultProvider
+      : providerId
+    return this.saveSettings({ providers: nextProviders, defaultProvider })
+  }
+
+  async disconnectProvider(providerId: string): Promise<MeowSettings> {
+    const settings = this.getSettings()
+    const nextProviders = settings.providers.filter(p => p.id !== providerId)
+    const defaultProvider = nextProviders.some(p => p.id === settings.defaultProvider)
+      ? settings.defaultProvider
+      : (nextProviders[0]?.id ?? '')
+    return this.saveSettings({ providers: nextProviders, defaultProvider })
+  }
+
   getSettings(): MeowSettings {
     return configToSettings(loadMeowConfig(this.deps.configPath))
   }
@@ -374,7 +403,7 @@ export class MeowAgentManager {
         this.deps.store.setTodos(this.activeSessionId(agent.id), todos)
         this.emit({ type: 'todo-updated', agentId: agent.id, todos })
       },
-      variant: agent.variant
+      variant: agent.variant ?? 'high'
     })
     this.runners.set(agent.id, runner)
   }

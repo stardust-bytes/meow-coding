@@ -62,11 +62,22 @@ test('native meow agent renders a chat panel and sends a message', async () => {
   }
 })
 
-test('settings dialog adds a provider and saves', async () => {
+test('providers dialog connects a provider and syncs models', async () => {
   const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
   const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
   try {
     writeFileSync(path.join(userData, 'workspaces.json'), JSON.stringify([]))
+    // seed the models.dev cache so the test works offline
+    writeFileSync(path.join(userData, 'models.json'), JSON.stringify({
+      fetchedAt: Date.now(),
+      providers: {
+        deepseek: {
+          name: 'DeepSeek',
+          api: 'https://api.deepseek.com',
+          models: ['deepseek-chat', 'deepseek-reasoner']
+        }
+      }
+    }))
 
     const app = await electron.launch({
       args: ['.'],
@@ -75,17 +86,19 @@ test('settings dialog adds a provider and saves', async () => {
     const window = await app.firstWindow()
     try {
       await window.getByRole('button', { name: 'menu' }).click()
-      await window.getByRole('button', { name: 'settings' }).click()
-      await expect(window.locator('.settings-dialog')).toBeVisible()
+      await window.getByRole('button', { name: 'providers' }).click()
+      await expect(window.locator('.providers-dialog')).toBeVisible()
       await expect(window.locator('.mcp-status')).toBeVisible()
 
-      await window.getByRole('button', { name: 'Add provider' }).click()
-      const row = window.locator('.provider-row').last()
-      await row.locator('input[type="password"]').fill('sk-test')
-      await row.locator('input.provider-models').fill('deepseek-chat, deepseek-reasoner')
+      await window.locator('.provider-search').fill('deepseek')
+      await window.locator('.provider-catalog-row', { hasText: 'deepseek' }).getByRole('button', { name: 'connect' }).click()
+      await window.locator('.provider-key').fill('sk-test')
+      await window.locator('.provider-connect-form button').click()
 
-      await window.getByRole('button', { name: 'Save' }).click()
-      await expect(window.locator('.settings-dialog')).toHaveCount(0)
+      await expect(window.locator('.provider-connected')).toContainText('deepseek')
+      await expect(window.locator('.provider-connected')).toContainText('2 models')
+      await window.getByRole('button', { name: 'Close' }).click()
+      await expect(window.locator('.providers-dialog')).toHaveCount(0)
     } finally {
       await app.close()
     }

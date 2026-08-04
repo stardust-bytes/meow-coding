@@ -398,6 +398,39 @@ select.input { width: 100%; }
 
 /* Settings dialog */
 .settings-dialog { width: 640px; max-height: 80vh; overflow-y: auto; }
+.providers-dialog { width: 560px; max-height: 80vh; overflow-y: auto; }
+.provider-actions { display: flex; align-items: center; gap: 8px; }
+.provider-manual { display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--bg); }
+.provider-manual-id, .provider-manual-key, .provider-manual-baseurl { width: 100%; }
+.provider-connect { display: flex; flex-direction: column; gap: 6px; }
+.provider-search { width: 100%; }
+.provider-catalog {
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: 220px; overflow-y: auto; border-top: 1px solid var(--hairline); padding-top: 6px;
+}
+.provider-catalog-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; }
+.provider-catalog-row:hover { background: var(--bg-hover); }
+.provider-catalog-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.9375rem; }
+.provider-catalog-name code { color: var(--text-faint); font-family: var(--font-mono); }
+.provider-catalog-meta { color: var(--text-faint); font-size: 0.875rem; font-family: var(--font-mono); white-space: nowrap; }
+.provider-catalog-connected { color: var(--green); font-size: 0.875rem; }
+.provider-connect-form { display: flex; gap: 4px; align-items: center; flex: 1; min-width: 0; }
+.provider-connect-form .provider-key { flex: 1; min-width: 0; }
+.provider-connect-form .provider-baseurl { flex: 1.2; min-width: 0; }
+.provider-connected { border-top: 1px solid var(--hairline); padding-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.provider-connected h4 { margin: 0 0 4px; font-size: 0.9375rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-faint); }
+.provider-connected-row { display: flex; align-items: center; gap: 8px; }
+.provider-connected-toggle {
+  display: inline-flex; align-items: center; gap: 8px; flex: 1; min-width: 0;
+  background: transparent; border: none; color: var(--text); cursor: pointer; padding: 4px 6px; font-size: 0.9375rem;
+}
+.provider-connected-toggle:hover { background: var(--bg-hover); }
+.provider-connected-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.provider-connected-meta { color: var(--text-faint); font-size: 0.875rem; font-family: var(--font-mono); white-space: nowrap; }
+.provider-models { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 6px 8px 20px; }
+.provider-models code {
+  background: var(--bg-code); padding: 2px 6px; font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-dim);
+}
 .settings-hint { color: var(--text-dim); font-size: 0.9375rem; line-height: 1.5; margin: 0; }
 .settings-hint code { color: var(--yellow); font-family: var(--font-mono); }
 .provider-row { display: grid; grid-template-columns: 110px 1fr 1fr 1fr auto auto auto; gap: 6px; align-items: center; }
@@ -460,12 +493,19 @@ select.input { width: 100%; }
 .model-caret { color: var(--text-dim); font-size: 0.75rem; }
 .model-menu {
   position: absolute; bottom: calc(100% + 4px); left: 0; z-index: 40;
-  min-width: 240px; max-width: 340px; max-height: 300px; overflow-y: auto;
+  width: 300px; max-height: 340px;
   background: var(--bg-panel); box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45), 0 8px 24px rgba(0, 0, 0, 0.45);
-  padding: 4px; display: flex; flex-direction: column; gap: 2px;
+  padding: 6px; display: flex; flex-direction: column; gap: 4px;
+}
+.model-search { width: 100%; }
+.model-list { overflow-y: auto; display: flex; flex-direction: column; gap: 4px; max-height: 280px; }
+.model-group { display: flex; flex-direction: column; gap: 2px; }
+.model-group-head {
+  padding: 4px 6px; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--text-faint);
 }
 .model-item {
-  text-align: left; padding: 6px 10px; background: transparent; border: none;
+  text-align: left; padding: 5px 10px; background: transparent; border: none;
   color: var(--text); cursor: pointer; font-size: 0.875rem; font-family: var(--font-mono);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }

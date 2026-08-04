@@ -25,13 +25,17 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.AgentRemove, projectPath, agentId),
   setAgentMode: (agentId: string, mode: 'build' | 'plan') =>
     ipcRenderer.invoke(Channels.AgentSetMode, agentId, mode),
-  setAgentVariant: (agentId: string, variant: 'low' | 'medium' | 'high' | 'max') =>
+  setAgentVariant: (agentId: string, variant: 'medium' | 'high' | 'max') =>
     ipcRenderer.invoke(Channels.AgentSetVariant, agentId, variant),
   setAgentModel: (agentId: string, provider: string, model: string) =>
     ipcRenderer.invoke(Channels.AgentSetModel, agentId, provider, model),
   getAgentModel: (agentId: string) => ipcRenderer.invoke(Channels.AgentGetModel, agentId),
   getProviderModels: () => ipcRenderer.invoke(Channels.ProviderModels),
   fetchProviderModels: (providerId: string) => ipcRenderer.invoke(Channels.ProviderFetchModels, providerId),
+  listProviderCatalog: () => ipcRenderer.invoke(Channels.ProviderCatalog),
+  connectProvider: (providerId: string, apiKey: string, baseUrl?: string) =>
+    ipcRenderer.invoke(Channels.ProviderConnect, providerId, apiKey, baseUrl),
+  disconnectProvider: (providerId: string) => ipcRenderer.invoke(Channels.ProviderDisconnect, providerId),
   listTemplates: () => ipcRenderer.invoke(Channels.TemplateList),
   saveTemplate: (template: Template) => ipcRenderer.invoke(Channels.TemplateSave, template),
   removeTemplate: (id: string) => ipcRenderer.invoke(Channels.TemplateRemove, id),

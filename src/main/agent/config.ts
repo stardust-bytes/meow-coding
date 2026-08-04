@@ -190,7 +190,7 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
   const providers: Record<string, MeowProviderConfig> = {}
   for (const p of settings.providers) {
     const models = (p.models ?? []).filter(m => typeof m === 'string' && m.trim() !== '')
-    if (!p.id.trim() || models.length === 0) continue
+    if (!p.id.trim()) continue
     providers[p.id.trim()] = {
       apiKey: p.apiKey || undefined,
       baseUrl: p.baseUrl || undefined,

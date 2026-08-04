@@ -1,17 +1,34 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import type { CatalogProviderSummary } from '../shared/types'
+import snapshot from './models-snapshot.json'
 
 export interface CatalogProvider {
   name: string
+  api?: string
   models: string[]
 }
 
+const SNAPSHOT = snapshot as unknown as Record<string, CatalogProvider>
 const CATALOG_URL = 'https://models.dev/api.json'
 const TTL_MS = 5 * 60_000
 
 interface CacheEntry {
   fetchedAt: number
   providers: Record<string, CatalogProvider>
+}
+
+function mapProviders(json: Record<string, { name?: string; api?: string; models?: Record<string, unknown> }>): Record<string, CatalogProvider> {
+  const providers: Record<string, CatalogProvider> = {}
+  for (const [id, p] of Object.entries(json)) {
+    if (typeof p !== 'object' || p === null) continue
+    providers[id] = {
+      name: p.name ?? id,
+      api: p.api,
+      models: Object.keys(p.models ?? {})
+    }
+  }
+  return providers
 }
 
 export class ModelsCatalog {
@@ -23,23 +40,29 @@ export class ModelsCatalog {
   async fetch(): Promise<Record<string, CatalogProvider>> {
     const cached = this.loadCache()
     if (cached) return cached
+    let live: Record<string, CatalogProvider> | null = null
     try {
       const res = await this.fetchFn(CATALOG_URL, { signal: AbortSignal.timeout(10_000) })
-      if (!res.ok) return {}
-      const json = (await res.json()) as Record<string, { name?: string; models?: Record<string, unknown> }>
-      const providers: Record<string, CatalogProvider> = {}
-      for (const [id, p] of Object.entries(json)) {
-        if (typeof p !== 'object' || p === null) continue
-        providers[id] = {
-          name: p.name ?? id,
-          models: Object.keys(p.models ?? {})
-        }
+      if (res.ok) {
+        const json = (await res.json()) as Record<string, { name?: string; api?: string; models?: Record<string, unknown> }>
+        live = mapProviders(json)
       }
-      this.writeCache(providers)
-      return providers
     } catch {
-      return {}
+      /* offline: fall back to the bundled snapshot */
     }
+    const providers = live && Object.keys(live).length > 0 ? { ...SNAPSHOT, ...live } : SNAPSHOT
+    this.writeCache(providers)
+    return providers
+  }
+
+  async list(): Promise<CatalogProviderSummary[]> {
+    const providers = await this.fetch()
+    return Object.entries(providers).map(([id, p]) => ({
+      id,
+      name: p.name,
+      api: p.api,
+      modelCount: p.models.length
+    }))
   }
 
   private loadCache(): Record<string, CatalogProvider> | null {

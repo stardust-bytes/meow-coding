@@ -185,7 +185,7 @@ describe('configToSettings / settingsToConfig', () => {
     expect(cfg.model).toBe('')
   })
 
-  it('drops providers without an id or models', () => {
+  it('drops providers without an id', () => {
     const cfg = settingsToConfig({
       defaultProvider: '',
       providers: [
@@ -194,6 +194,15 @@ describe('configToSettings / settingsToConfig', () => {
       ]
     }, DEFAULT_MEOW_CONFIG)
     expect(Object.keys(cfg.provider)).toEqual(['ok'])
+  })
+
+  it('keeps a provider with no models (models sync later)', () => {
+    const cfg = settingsToConfig({
+      defaultProvider: 'x',
+      providers: [{ id: 'x', apiKey: 'k', models: [] }]
+    }, DEFAULT_MEOW_CONFIG)
+    expect(cfg.provider.x.models).toEqual([])
+    expect(cfg.provider.x.apiKey).toBe('k')
   })
 
   it('writeMeowConfig persists a config that loadMeowConfig can read', () => {

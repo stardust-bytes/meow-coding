@@ -34,7 +34,7 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
   const [items, setItems] = useState<FeedItem[]>([])
   const [running, setRunning] = useState(false)
   const [currentMode, setCurrentMode] = useState<AgentMode>(mode)
-  const [currentVariant, setCurrentVariant] = useState<ModelVariant>(variant ?? 'medium')
+  const [currentVariant, setCurrentVariant] = useState<ModelVariant>(variant ?? 'high')
   const [pendingPrompt, setPendingPrompt] = useState<PendingPrompt | null>(null)
   const [selectedAction, setSelectedAction] = useState(0)
   const [questionText, setQuestionText] = useState('')
@@ -452,7 +452,6 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
                 onVariantChange?.(v)
               }}
             >
-              <option value="low">low</option>
               <option value="medium">medium</option>
               <option value="high">high</option>
               <option value="max">max</option>

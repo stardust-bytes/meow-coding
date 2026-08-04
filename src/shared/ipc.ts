@@ -1,6 +1,6 @@
 import type {
-  AgentState, ChatEvent, ChatMessage, ChatTranscriptItem, GitStatus, McpServerStatus, MeowSettings,
-  ModelRef, NewAgentInput, PromptResponse, SessionSummary, Template, TodoItem, WorkspaceRuntime, WorkspaceSummary
+  AgentState, CatalogProviderSummary, ChatEvent, ChatMessage, ChatTranscriptItem, GitStatus, McpServerStatus,
+  MeowSettings, ModelRef, NewAgentInput, PromptResponse, SessionSummary, Template, TodoItem, WorkspaceRuntime, WorkspaceSummary
 } from './types'
 
 export const Channels = {
@@ -17,6 +17,9 @@ export const Channels = {
   AgentGetModel: 'agent:get-model',
   ProviderModels: 'provider:models',
   ProviderFetchModels: 'provider:fetch-models',
+  ProviderCatalog: 'provider:catalog',
+  ProviderConnect: 'provider:connect',
+  ProviderDisconnect: 'provider:disconnect',
   TemplateList: 'template:list',
   TemplateSave: 'template:save',
   TemplateRemove: 'template:remove',
@@ -63,11 +66,14 @@ export interface AgentApi {
   addAgent(projectPath: string, input: NewAgentInput): Promise<WorkspaceRuntime>
   removeAgent(projectPath: string, agentId: string): Promise<void>
   setAgentMode(agentId: string, mode: 'build' | 'plan'): Promise<void>
-  setAgentVariant(agentId: string, variant: 'low' | 'medium' | 'high' | 'max'): Promise<void>
+  setAgentVariant(agentId: string, variant: 'medium' | 'high' | 'max'): Promise<void>
   setAgentModel(agentId: string, provider: string, model: string): Promise<void>
   getAgentModel(agentId: string): Promise<ModelRef | null>
   getProviderModels(): Promise<ModelRef[]>
   fetchProviderModels(providerId: string): Promise<string[]>
+  listProviderCatalog(): Promise<CatalogProviderSummary[]>
+  connectProvider(providerId: string, apiKey: string, baseUrl?: string): Promise<MeowSettings>
+  disconnectProvider(providerId: string): Promise<MeowSettings>
   listTemplates(): Promise<Template[]>
   saveTemplate(template: Template): Promise<Template>
   removeTemplate(id: string): Promise<void>

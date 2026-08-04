@@ -6,6 +6,7 @@ import { MeowAgentManager } from '../../src/main/meow-agent-manager'
 import { SessionStore } from '../../src/main/agent/session'
 import type { StoredSession } from '../../src/main/agent/session'
 import type { JsonStore } from '../../src/main/json-store'
+import { ModelsCatalog } from '../../src/main/models-catalog'
 import { createDefaultTools } from '../../src/main/agent/tools/registry'
 import { SnapshotStore } from '../../src/main/agent/snapshot'
 import type { SnapshotEntry } from '../../src/main/agent/snapshot'
@@ -26,7 +27,7 @@ interface StubLlmOptions {
   partsQueue?: LlmStreamPart[][]
 }
 
-async function makeManager(opts: StubLlmOptions & { configPath?: string } = {}) {
+async function makeManager(opts: StubLlmOptions & { configPath?: string; catalog?: ModelsCatalog } = {}) {
   const cfgDir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-cfg-'))
   const defaultCfg = path.join(cfgDir, 'meow.json')
   if (!opts.configPath) {
@@ -84,6 +85,7 @@ async function makeManager(opts: StubLlmOptions & { configPath?: string } = {}) 
     savedPermissions,
     tools: createDefaultTools(),
     createLlm,
+    catalog: opts.catalog,
     env: { ANTHROPIC_API_KEY: 'sk-test' } as NodeJS.ProcessEnv
   })
   manager.setOnEvent(e => events.push(e))
@@ -264,13 +266,55 @@ describe('MeowAgentManager', () => {
     expect(llmSystems[1]).toMatch(/PLAN MODE/)
   })
 
-  it('setVariant passes the variant to the llm stream', async () => {
+  it('setVariant passes the variant to the llm stream (default high)', async () => {
     const { manager, llmVariants } = await makeManager()
     await manager.send('a1', 'first')
-    expect(llmVariants[0]).toBeUndefined()
-    manager.setVariant('a1', 'high')
+    expect(llmVariants[0]).toBe('high')
+    manager.setVariant('a1', 'max')
     await manager.send('a1', 'second')
-    expect(llmVariants[1]).toBe('high')
+    expect(llmVariants[1]).toBe('max')
+  })
+
+  it('connectProvider syncs models and baseUrl from the catalog', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-conn-'))
+    try {
+      const catalog = new ModelsCatalog(path.join(dir, 'models.json'), async () =>
+        ({ ok: true, json: async () => ({
+          deepseek: { name: 'DeepSeek', api: 'https://api.deepseek.com', models: { 'deepseek-chat': {}, 'deepseek-reasoner': {} } }
+        }) }) as unknown as Response)
+      const { manager } = await makeManager({ configPath: path.join(dir, 'meow.json'), catalog })
+      const settings = await manager.connectProvider('deepseek', 'sk-ds')
+      expect(settings.providers).toHaveLength(1)
+      expect(settings.providers[0]).toMatchObject({
+        id: 'deepseek', apiKey: 'sk-ds', baseUrl: 'https://api.deepseek.com',
+        models: ['deepseek-chat', 'deepseek-reasoner']
+      })
+      expect(settings.defaultProvider).toBe('deepseek')
+      const catalogList = await manager.listProviderCatalog()
+      expect(catalogList.find(c => c.id === 'deepseek')).toMatchObject({ id: 'deepseek', modelCount: 2 })
+      expect(catalogList.find(c => c.id === 'openai')).toBeDefined()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('disconnectProvider removes a provider and fixes the default', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-conn-'))
+    try {
+      const catalog = new ModelsCatalog(path.join(dir, 'models.json'), async () =>
+        ({ ok: true, json: async () => ({
+          deepseek: { name: 'DeepSeek', api: 'https://api.deepseek.com', models: { a: {} } },
+          openai: { name: 'OpenAI', api: 'https://api.openai.com/v1', models: { b: {} } }
+        }) }) as unknown as Response)
+      const { manager } = await makeManager({ configPath: path.join(dir, 'meow.json'), catalog })
+      await manager.connectProvider('deepseek', 'sk-ds')
+      await manager.connectProvider('openai', 'sk-oa')
+      const settings = await manager.disconnectProvider('deepseek')
+      expect(settings.providers.map(p => p.id)).toEqual(['openai'])
+      expect(settings.defaultProvider).toBe('openai')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('plan mode hides write tools from the model', async () => {

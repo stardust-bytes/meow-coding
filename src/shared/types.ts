@@ -2,7 +2,7 @@ export type AgentStatus = 'spawning' | 'running' | 'idle' | 'exited' | 'stopped'
 export type AlertLevel = 'normal' | 'attention' | 'error'
 export type AgentKind = 'pty' | 'native'
 export type AgentMode = 'build' | 'plan'
-export type ModelVariant = 'low' | 'medium' | 'high' | 'max'
+export type ModelVariant = 'medium' | 'high' | 'max'
 export type ChatRole = 'user' | 'assistant'
 
 export interface Template {
@@ -155,6 +155,13 @@ export interface MeowSettings {
 export interface ModelRef {
   provider: string
   model: string
+}
+
+export interface CatalogProviderSummary {
+  id: string
+  name: string
+  api?: string
+  modelCount: number
 }
 
 export interface McpServerStatus {

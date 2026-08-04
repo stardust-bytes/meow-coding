@@ -29,12 +29,26 @@ describe('ModelsCatalog', () => {
     expect(providers.openai.models).toEqual(['gpt-4o', 'gpt-4o-mini'])
   })
 
-  it('returns [] for an unknown provider and {} for network failure', async () => {
+  it('returns [] for an unknown provider and falls back to the snapshot offline', async () => {
     const catalog = new ModelsCatalog(path.join(dir, 'models.json'), async () => jsonResponse({}))
     const providers = await catalog.fetch()
     expect(providers.unknown).toBeUndefined()
     const failing = new ModelsCatalog(path.join(dir, 'models2.json'), async () => { throw new Error('offline') })
-    expect(await failing.fetch()).toEqual({})
+    const snapshot = await failing.fetch()
+    expect(snapshot.openai).toBeDefined()
+    expect(snapshot.deepseek).toBeDefined()
+    expect(snapshot.openai.models.length).toBeGreaterThan(0)
+  })
+
+  it('merges live data over the bundled snapshot', async () => {
+    const fetchFn = async () => jsonResponse({
+      deepseek: { name: 'DeepSeek', models: { 'deepseek-chat': {}, 'deepseek-reasoner': {} } }
+    })
+    const catalog = new ModelsCatalog(path.join(dir, 'models.json'), fetchFn)
+    const providers = await catalog.fetch()
+    expect(providers.deepseek.models).toEqual(['deepseek-chat', 'deepseek-reasoner'])
+    // providers not in the live response still come from the snapshot
+    expect(providers.openai).toBeDefined()
   })
 
   it('serves the cache within ttl without refetching', async () => {

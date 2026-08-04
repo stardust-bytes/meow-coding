@@ -8,6 +8,7 @@ describe('IPC contract', () => {
     const required: (keyof AgentApi)[] = [
       'listWorkspaces', 'addWorkspace', 'removeWorkspace', 'openWorkspace', 'openInEditor',
       'addAgent', 'removeAgent', 'setAgentMode', 'setAgentVariant', 'setAgentModel', 'getAgentModel', 'getProviderModels', 'fetchProviderModels',
+      'listProviderCatalog', 'connectProvider', 'disconnectProvider',
       'listTemplates', 'saveTemplate', 'removeTemplate',
       'pickFolder', 'startAgent', 'stopAgent', 'restartAgent',
       'writeInput', 'injectPrompt', 'resizePty', 'openLog', 'getLogPath', 'quit',
@@ -31,6 +32,9 @@ describe('IPC contract', () => {
       getAgentModel: async () => null,
       getProviderModels: async () => [],
       fetchProviderModels: async () => [],
+      listProviderCatalog: async () => [],
+      connectProvider: async () => ({ providers: [], defaultProvider: '' }),
+      disconnectProvider: async () => ({ providers: [], defaultProvider: '' }),
       listTemplates: async () => [],
       saveTemplate: async (t) => t,
       removeTemplate: async () => {},
@@ -92,6 +96,9 @@ describe('IPC contract', () => {
     expect(Channels.AgentGetModel).toBe('agent:get-model')
     expect(Channels.ProviderModels).toBe('provider:models')
     expect(Channels.ProviderFetchModels).toBe('provider:fetch-models')
+    expect(Channels.ProviderCatalog).toBe('provider:catalog')
+    expect(Channels.ProviderConnect).toBe('provider:connect')
+    expect(Channels.ProviderDisconnect).toBe('provider:disconnect')
     expect(Channels.McpStatus).toBe('mcp:status')
   })
 
