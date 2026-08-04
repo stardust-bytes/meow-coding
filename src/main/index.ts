@@ -13,7 +13,7 @@ import type { StoredSession } from './agent/session'
 import { createDefaultTools } from './agent/tools/registry'
 import { MeowAgentManager } from './meow-agent-manager'
 import { Channels } from '../shared/ipc'
-import type { AgentState, NewAgentInput, PromptResponse, Template, Workspace, WorkspaceRuntime } from '../shared/types'
+import type { AgentState, MeowSettings, NewAgentInput, PromptResponse, Template, Workspace, WorkspaceRuntime } from '../shared/types'
 
 let win: BrowserWindow | null = null
 
@@ -295,6 +295,9 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.ChatListMessages, (_e, agentId: string) => mainApp.meowAgent.listMessages(agentId))
   ipcMain.handle(Channels.ChatRespondPrompt, (_e, agentId: string, promptId: string, resp: PromptResponse) =>
     mainApp.meowAgent.respondPrompt(agentId, promptId, resp))
+  ipcMain.handle(Channels.SettingsGet, () => mainApp.meowAgent.getSettings())
+  ipcMain.handle(Channels.SettingsSave, (_e, settings: MeowSettings) =>
+    mainApp.meowAgent.saveSettings(settings))
   ipcMain.handle(Channels.AppQuit, () => app.quit())
 }
 
