@@ -86,6 +86,24 @@ describe('createAnthropicLlm', () => {
     }
     expect(out).toEqual([{ kind: 'error', error: 'Error: boom' }])
   })
+
+  it('maps reasoning deltas and finish tokens', async () => {
+    streamTextMock.mockReturnValue({
+      fullStream: fakeFullStream([
+        { type: 'reasoning-delta', id: 'r1', text: 'think ' },
+        { type: 'reasoning-delta', id: 'r2', text: 'more' },
+        { type: 'finish', finishReason: 'stop', totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 } }
+      ])
+    })
+    const llm = createAnthropicLlm('sk-test')
+    const out: LlmStreamPart[] = []
+    for await (const p of llm.stream({ model: 'm', system: 's', messages: [], tools: [] })) {
+      out.push(p)
+    }
+    expect(out[0]).toEqual({ kind: 'reasoning', text: 'think ' })
+    expect(out[1]).toEqual({ kind: 'reasoning', text: 'more' })
+    expect(out[2]).toEqual({ kind: 'finish', finishReason: 'stop', tokens: { input: 10, output: 5, total: 15 } })
+  })
 })
 
 describe('formatLlmError', () => {

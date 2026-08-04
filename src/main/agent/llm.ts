@@ -6,13 +6,14 @@ import { toToolDefinition } from './message'
 import type { ToolDefinition } from './tools/types'
 
 export interface LlmStreamPart {
-  kind: 'text' | 'tool-call' | 'finish' | 'error'
+  kind: 'text' | 'reasoning' | 'tool-call' | 'finish' | 'error'
   text?: string
   toolName?: string
   toolCallId?: string
   toolInput?: Record<string, unknown>
   finishReason?: string
   error?: string
+  tokens?: { input: number; output: number; total: number }
 }
 
 export interface LlmStreamOptions {
@@ -60,6 +61,9 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string): L
           case 'text-delta':
             yield { kind: 'text', text: part.text }
             break
+          case 'reasoning-delta':
+            yield { kind: 'reasoning', text: part.text }
+            break
           case 'tool-call':
             yield {
               kind: 'tool-call',
@@ -69,7 +73,17 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string): L
             }
             break
           case 'finish':
-            yield { kind: 'finish', finishReason: part.finishReason }
+            yield {
+              kind: 'finish',
+              finishReason: part.finishReason,
+              tokens: part.totalUsage
+                ? {
+                    input: part.totalUsage.inputTokens ?? 0,
+                    output: part.totalUsage.outputTokens ?? 0,
+                    total: part.totalUsage.totalTokens ?? 0
+                  }
+                : undefined
+            }
             break
           case 'error':
             yield { kind: 'error', error: formatLlmError(part.error) }

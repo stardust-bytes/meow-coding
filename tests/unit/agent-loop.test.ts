@@ -222,6 +222,45 @@ describe('SessionRunner', () => {
     expect(h.events.some(e => e.type === 'done')).toBe(true)
   })
 
+  it('streams reasoning and persists it on the assistant message', async () => {
+    const h = makeHarness()
+    h.llm.queue = [[{ kind: 'reasoning', text: 'let me think' }, ...textParts('answer')]]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 20))
+    expect(h.events.some(e => e.type === 'reasoning-delta')).toBe(true)
+    const assistant = h.items
+      .filter((i): i is { kind: 'message'; message: ChatMessage } => i.kind === 'message')
+      .map(i => i.message)
+      .find(m => m.role === 'assistant')
+    expect(assistant?.text).toBe('answer')
+    expect(assistant?.reasoning).toBe('let me think')
+  })
+
+  it('reports token usage in the done event', async () => {
+    const h = makeHarness()
+    h.llm.queue = [[textParts('hi'), { kind: 'finish', tokens: { input: 3, output: 4, total: 7 } }]]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 20))
+    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
+    expect(done.tokens).toEqual({ input: 3, output: 4, total: 7 })
+  })
+
+  it('disables tools and appends a final-step notice on the last step', async () => {
+    const h = makeHarness({ maxSteps: 2 })
+    h.llm.queue = []
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 50))
+    expect(h.llm.calls).toHaveLength(2)
+    const lastCall = h.llm.calls[1]
+    expect(lastCall.tools).toHaveLength(0)
+    const userTexts = lastCall.messages
+      .filter((m): m is { role: 'user'; content: string } => m.role === 'user' && typeof m.content === 'string')
+      .map(m => m.content)
+    expect(userTexts.some(t => /Final step/.test(t))).toBe(true)
+    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
+    expect(done.reason).toBe('max-steps')
+  })
+
   it('asks the user through the question tool and feeds the answer back', async () => {
     const h = makeHarness({
       tools: new Map([['question', stubTool('question', async (_i, ctx) => {
@@ -264,6 +303,6 @@ describe('SessionRunner', () => {
       .filter((m): m is { role: 'user'; content: string } => m.role === 'user' && typeof m.content === 'string')
       .map(m => m.content)
     expect(texts[0]).toContain('truncated')
-    expect(texts[texts.length - 1]).toBe('latest prompt')
+    expect(texts).toContain('latest prompt')
   })
 })

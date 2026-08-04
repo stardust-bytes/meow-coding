@@ -65,6 +65,7 @@ export interface ChatMessage {
   id: string
   role: ChatRole
   text: string
+  reasoning?: string
   createdAt: number
 }
 
@@ -83,12 +84,19 @@ export type ChatTranscriptItem =
 
 export type ChatEvent =
   | { type: 'text-delta'; agentId: string; delta: string }
+  | { type: 'reasoning-delta'; agentId: string; delta: string }
   | { type: 'tool-start'; agentId: string; call: ToolCallData }
   | { type: 'tool-result'; agentId: string; call: ToolCallData }
   | { type: 'prompt-request'; agentId: string; promptId: string
       kind: 'permission' | 'question'; call?: ToolCallData; question?: string }
-  | { type: 'done'; agentId: string; reason: string }
+  | { type: 'done'; agentId: string; reason: string; tokens?: TokenUsage }
   | { type: 'error'; agentId: string; message: string }
+
+export interface TokenUsage {
+  input: number
+  output: number
+  total: number
+}
 
 export interface PromptResponse {
   allow: boolean

@@ -6,7 +6,7 @@ import ToolCallCard from './ToolCallCard'
 import MarkdownText from './MarkdownText'
 
 type FeedItem =
-  | { kind: 'message'; id: string; role: ChatMessage['role']; text: string }
+  | { kind: 'message'; id: string; role: ChatMessage['role']; text: string; reasoning?: string }
   | { kind: 'tool'; id: string; call: ToolCallData }
   | { kind: 'error'; id: string; text: string }
 
@@ -30,6 +30,7 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
   const [pendingPrompt, setPendingPrompt] = useState<PendingPrompt | null>(null)
   const [selectedAction, setSelectedAction] = useState(0)
   const [questionText, setQuestionText] = useState('')
+  const [lastTokens, setLastTokens] = useState<{ input: number; output: number; total: number } | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const promptRef = useRef<HTMLDivElement>(null)
 
@@ -42,7 +43,7 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
   useEffect(() => {
     void window.api.listChatTranscript(agentId).then(items => {
       setItems(items.map(it => it.kind === 'message'
-        ? { kind: 'message', id: it.message.id, role: it.message.role, text: it.message.text }
+        ? { kind: 'message', id: it.message.id, role: it.message.role, text: it.message.text, reasoning: it.message.reasoning }
         : { kind: 'tool', id: it.tool.id, call: { ...it.tool } }
       ))
     })
@@ -59,6 +60,7 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
     if (e.agentId !== agentId) return
     if (e.type === 'done' || e.type === 'error') {
       setRunning(false)
+      if (e.type === 'done' && e.tokens) setLastTokens(e.tokens)
       if (e.type === 'error') {
         setItems(prev => [...prev, { kind: 'error', id: 'err-' + Date.now(), text: e.message }])
       }
@@ -78,6 +80,13 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
         } else {
           next.push({ kind: 'message', id: 'a-' + Date.now(), role: 'assistant', text: e.delta })
         }
+      } else if (e.type === 'reasoning-delta') {
+        const last = next[next.length - 1]
+        if (last && last.kind === 'message' && last.role === 'assistant') {
+          last.reasoning = appendStreamDelta(last.reasoning ?? '', e.delta)
+        } else {
+          next.push({ kind: 'message', id: 'a-' + Date.now(), role: 'assistant', text: '', reasoning: e.delta })
+        }
       } else if (e.type === 'tool-start') {
         next.push({ kind: 'tool', id: e.call.id, call: { ...e.call } })
       } else if (e.type === 'tool-result') {
@@ -91,6 +100,7 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
   const send = useCallback((text: string) => {
     setItems(prev => [...prev, { kind: 'message', id: 'u-' + Date.now(), role: 'user', text }])
     setRunning(true)
+    setLastTokens(null)
     void window.api.sendChat(agentId, text)
   }, [agentId])
 
@@ -152,12 +162,20 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
       <div className="chat-feed">
         {items.map(item => {
           if (item.kind === 'message') {
-            if (item.role === 'assistant' && item.text.trim() === '') return null
+            if (item.role === 'assistant' && item.text.trim() === '' && !item.reasoning) return null
             return (
               <div key={item.id} className={`chat-msg ${item.role}`}>
-                {item.role === 'assistant'
-                  ? <MarkdownText text={item.text} />
-                  : <div className="chat-text">{item.text}</div>}
+                {item.role === 'assistant' ? (
+                  <>
+                    {item.reasoning ? (
+                      <details className="chat-reasoning">
+                        <summary>Thinking</summary>
+                        <div className="chat-reasoning-text">{item.reasoning}</div>
+                      </details>
+                    ) : null}
+                    <MarkdownText text={item.text} />
+                  </>
+                ) : <div className="chat-text">{item.text}</div>}
               </div>
             )
           }
@@ -167,6 +185,11 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
           return <div key={item.id} className="chat-error">{item.text}</div>
         })}
         {running && <div className="chat-running">Meow is working…</div>}
+        {lastTokens && !running && (
+          <div className="chat-tokens">
+            tokens: {lastTokens.total} ({lastTokens.input} in / {lastTokens.output} out)
+          </div>
+        )}
         <div ref={endRef} />
       </div>
       <div className="chat-composer">

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ChatEvent, ChatMessage, PromptResponse, ToolCallData } from '../../shared/types'
+import type { ChatEvent, ChatMessage, PromptResponse, TokenUsage, ToolCallData } from '../../shared/types'
 import { appendStreamDelta } from '../../shared/text'
 import type { LlmClient, LlmStreamPart } from './llm'
 import { toLlmMessages } from './message'
@@ -28,6 +28,7 @@ export interface LoopDeps {
 }
 
 const DEFAULT_MAX_STEPS = 50
+const MAX_STEPS_PROMPT = 'Final step: wrap up and provide your final answer now. Tool calls are disabled.'
 
 export class SessionRunner {
   private readonly maxSteps: number
@@ -44,20 +45,23 @@ export class SessionRunner {
         this.deps.onEvent({ type: 'done', agentId, reason: 'stopped' })
         return
       }
-      if (steps >= this.maxSteps) {
-        this.deps.onEvent({ type: 'done', agentId, reason: 'max-steps' })
-        return
-      }
       steps++
+      const isLastStep = steps >= this.maxSteps
 
-      const llmMessages = this.buildMessages()
+      const llmMessages = this.buildMessages(isLastStep)
       let hasToolCall = false
       let textBuffer = ''
+      let reasoningBuffer = ''
+      let tokens: TokenUsage | undefined
       const calls: ToolCallData[] = []
       const persistPartial = () => {
-        if (!textBuffer) return
+        if (!textBuffer && !reasoningBuffer) return
         this.deps.appendMessage({
-          id: randomUUID(), role: 'assistant', text: textBuffer, createdAt: Date.now()
+          id: randomUUID(),
+          role: 'assistant',
+          text: textBuffer,
+          reasoning: reasoningBuffer || undefined,
+          createdAt: Date.now()
         })
       }
       try {
@@ -65,7 +69,7 @@ export class SessionRunner {
           model: this.deps.model,
           system: this.deps.system,
           messages: llmMessages,
-          tools: [...this.deps.tools.values()],
+          tools: isLastStep ? [] : [...this.deps.tools.values()],
           signal
         })
         for await (const part of stream) {
@@ -79,6 +83,11 @@ export class SessionRunner {
             const delta = next.slice(textBuffer.length)
             textBuffer = next
             this.deps.onEvent({ type: 'text-delta', agentId, delta })
+          } else if (part.kind === 'reasoning') {
+            const next = appendStreamDelta(reasoningBuffer, part.text ?? '')
+            const delta = next.slice(reasoningBuffer.length)
+            reasoningBuffer = next
+            this.deps.onEvent({ type: 'reasoning-delta', agentId, delta })
           } else if (part.kind === 'tool-call') {
             hasToolCall = true
             const call: ToolCallData = {
@@ -89,6 +98,8 @@ export class SessionRunner {
             }
             calls.push(call)
             this.deps.onEvent({ type: 'tool-start', agentId, call })
+          } else if (part.kind === 'finish') {
+            tokens = part.tokens
           } else if (part.kind === 'error') {
             persistPartial()
             this.deps.onEvent({ type: 'error', agentId, message: part.error ?? 'llm error' })
@@ -111,11 +122,12 @@ export class SessionRunner {
         return
       }
 
-      if (textBuffer || calls.length > 0) {
+      if (textBuffer || calls.length > 0 || reasoningBuffer) {
         this.deps.appendMessage({
           id: randomUUID(),
           role: 'assistant',
           text: textBuffer,
+          reasoning: reasoningBuffer || undefined,
           createdAt: Date.now()
         })
       }
@@ -125,7 +137,11 @@ export class SessionRunner {
       }
 
       if (!hasToolCall) {
-        this.deps.onEvent({ type: 'done', agentId, reason: 'complete' })
+        this.deps.onEvent({ type: 'done', agentId, reason: 'complete', tokens })
+        return
+      }
+      if (isLastStep) {
+        this.deps.onEvent({ type: 'done', agentId, reason: 'max-steps', tokens })
         return
       }
     }
@@ -180,17 +196,26 @@ export class SessionRunner {
     this.deps.onEvent({ type: 'tool-result', agentId, call })
   }
 
-  private buildMessages(): ReturnType<typeof toLlmMessages> {
+  private buildMessages(isLastStep = false): ReturnType<typeof toLlmMessages> {
     const items = this.deps.getItems()
     const maxChars = this.deps.maxContextChars
-    if (maxChars === undefined || maxChars <= 0) return toLlmMessages(items)
-    const pruned = pruneTranscript(items, maxChars)
-    const messages = toLlmMessages(pruned)
-    if (pruned.length < items.length) {
-      return [
+    let pruned = false
+    let messages: ReturnType<typeof toLlmMessages>
+    if (maxChars !== undefined && maxChars > 0) {
+      const trimmed = pruneTranscript(items, maxChars)
+      pruned = trimmed.length < items.length
+      messages = toLlmMessages(trimmed)
+    } else {
+      messages = toLlmMessages(items)
+    }
+    if (pruned) {
+      messages = [
         { role: 'user', content: '[Earlier conversation was truncated to fit the context window.]' },
         ...messages
       ]
+    }
+    if (isLastStep) {
+      messages = [...messages, { role: 'user', content: MAX_STEPS_PROMPT }]
     }
     return messages
   }
