@@ -4,9 +4,12 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import {
   DEFAULT_MEOW_CONFIG,
+  configToSettings,
   loadMeowConfig,
   resolveAgentConfig,
-  resolveApiKey
+  resolveApiKey,
+  settingsToConfig,
+  writeMeowConfig
 } from '../../src/main/agent/config'
 
 let dir: string
@@ -97,5 +100,71 @@ describe('resolveAgentConfig', () => {
   it('exposes defaults exported for reuse', () => {
     expect(DEFAULT_MEOW_CONFIG.agents.meow).toBeDefined()
     expect(DEFAULT_MEOW_CONFIG.provider.anthropic).toBeDefined()
+  })
+})
+
+describe('configToSettings / settingsToConfig', () => {
+  it('round-trips providers and the default provider', () => {
+    const cfg = loadMeowConfig(file)
+    const settings = configToSettings(cfg)
+    expect(settings.defaultProvider).toBe('anthropic')
+    expect(settings.providers.map(p => p.id)).toContain('anthropic')
+    expect(settings.providers.map(p => p.id)).toContain('openai')
+    const back = settingsToConfig(settings, cfg)
+    expect(back.model).toBe('anthropic')
+    expect(back.provider.anthropic.model).toBe(cfg.provider.anthropic.model)
+  })
+
+  it('maps an inline apiKey and clears apiKeyEnv', () => {
+    const settings = {
+      defaultProvider: 'deepseek',
+      providers: [
+        { id: 'deepseek', apiKey: 'sk-ds', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat' }
+      ]
+    }
+    const cfg = settingsToConfig(settings, DEFAULT_MEOW_CONFIG)
+    expect(cfg.provider.deepseek.apiKey).toBe('sk-ds')
+    expect(cfg.provider.deepseek.apiKeyEnv).toBeUndefined()
+    expect(cfg.provider.deepseek.model).toBe('deepseek-chat')
+  })
+
+  it('keeps the env fallback when apiKey is empty', () => {
+    const settings = {
+      defaultProvider: 'anthropic',
+      providers: [{ id: 'anthropic', apiKey: '', model: 'claude-x' }]
+    }
+    const cfg = settingsToConfig(settings, DEFAULT_MEOW_CONFIG)
+    expect(cfg.provider.anthropic.apiKey).toBeUndefined()
+    expect(cfg.provider.anthropic.apiKeyEnv).toBe('ANTHROPIC_API_KEY')
+  })
+
+  it('preserves agents and permission from the base config', () => {
+    const base = loadMeowConfig(file)
+    base.permission = { bash: 'deny' }
+    const settings = {
+      defaultProvider: 'openai',
+      providers: [{ id: 'openai', apiKey: 'k', model: 'gpt-4o' }]
+    }
+    const cfg = settingsToConfig(settings, base)
+    expect(cfg.permission.bash).toBe('deny')
+    expect(cfg.agents.meow.systemPrompt).toBe(base.agents.meow.systemPrompt)
+  })
+
+  it('falls back to defaults when no provider remains', () => {
+    const cfg = settingsToConfig({ defaultProvider: '', providers: [] }, DEFAULT_MEOW_CONFIG)
+    expect(cfg.provider.anthropic).toBeDefined()
+  })
+
+  it('writeMeowConfig persists a config that loadMeowConfig can read', () => {
+    const cfg = settingsToConfig({
+      defaultProvider: 'deepseek',
+      providers: [
+        { id: 'deepseek', apiKey: 'sk', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat' }
+      ]
+    }, DEFAULT_MEOW_CONFIG)
+    writeMeowConfig(file, cfg)
+    const read = loadMeowConfig(file)
+    expect(read.model).toBe('deepseek')
+    expect(read.provider.deepseek?.apiKey).toBe('sk')
   })
 })

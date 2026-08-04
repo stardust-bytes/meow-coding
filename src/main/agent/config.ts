@@ -1,4 +1,6 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
+import type { MeowSettings } from '../../shared/types'
 
 export type PermissionRule = 'allow' | 'ask' | 'deny'
 
@@ -43,7 +45,17 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
         'editing them, run tests after changes, and keep answers concise.'
     }
   },
-  permission: {}
+  permission: {
+    read: 'allow',
+    write: 'allow',
+    edit: 'allow',
+    glob: 'allow',
+    grep: 'allow',
+    'apply-patch': 'allow',
+    todowrite: 'allow',
+    bash: 'ask',
+    question: 'ask'
+  }
 }
 
 function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
@@ -93,4 +105,43 @@ export function resolveAgentConfig(
     baseUrl: provider.baseUrl,
     systemPrompt: agent.systemPrompt
   }
+}
+
+export function configToSettings(cfg: MeowConfig): MeowSettings {
+  return {
+    providers: Object.entries(cfg.provider).map(([id, p]) => ({
+      id,
+      apiKey: p.apiKey ?? '',
+      baseUrl: p.baseUrl,
+      model: p.model
+    })),
+    defaultProvider: cfg.model
+  }
+}
+
+export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFAULT_MEOW_CONFIG): MeowConfig {
+  if (settings.providers.length === 0) return mergeDefaults({})
+  const providers: Record<string, MeowProviderConfig> = {}
+  for (const p of settings.providers) {
+    providers[p.id] = {
+      apiKey: p.apiKey || undefined,
+      baseUrl: p.baseUrl || undefined,
+      model: p.model,
+      apiKeyEnv: p.apiKey ? undefined : `${p.id.toUpperCase()}_API_KEY`
+    }
+  }
+  const defaultProvider = providers[settings.defaultProvider]
+    ? settings.defaultProvider
+    : settings.providers[0].id
+  return {
+    provider: providers,
+    model: defaultProvider,
+    agents: base.agents ?? DEFAULT_MEOW_CONFIG.agents,
+    permission: base.permission ?? {}
+  }
+}
+
+export function writeMeowConfig(filePath: string, cfg: MeowConfig): void {
+  mkdirSync(path.dirname(filePath), { recursive: true })
+  writeFileSync(filePath, JSON.stringify(cfg, null, 2))
 }
