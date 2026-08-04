@@ -38,7 +38,17 @@ class MainApp {
       win?.webContents.send(Channels.EventPtyData, { agentId, data })
     })
     this.pty.on('exit', ({ agentId, exitCode }) => {
-      this.alerts.onExit(agentId, exitCode ?? -1)
+      const code = exitCode ?? -1
+      if (code !== 0 && !this.logs.exists(agentId)) {
+        const ws = this.findWorkspaceByAgent(agentId)
+        const agent = ws?.agents.find(a => a.id === agentId)
+        const tmpl = agent ? this.templates.list().find(t => t.id === agent.templateId) : undefined
+        const label = tmpl ? `${tmpl.command} ${tmpl.args.join(' ')}`.trim() : (agent?.name ?? agentId)
+        const hint = `[meow] Agent thoát với exit code ${code} và không có output. Kiểm tra lệnh "${label}" có trong PATH không, rồi dùng restart.\n`
+        this.logs.append(agentId, hint)
+        win?.webContents.send(Channels.EventPtyData, { agentId, data: hint })
+      }
+      this.alerts.onExit(agentId, code)
     })
     this.alerts.on('idle', ({ agentId }) => {
       this.setState(agentId, { status: 'idle', alert: 'attention' })
@@ -88,6 +98,9 @@ class MainApp {
     if (!agent) return
     const tmpl = this.templates.list().find(t => t.id === agent.templateId)
     if (!tmpl) {
+      const message = `[meow] Không tìm thấy template "${agent.templateId}" cho agent "${agent.name}". Thêm template đó hoặc xóa agent này.\n`
+      this.logs.append(agentId, message)
+      win?.webContents.send(Channels.EventPtyData, { agentId, data: message })
       this.setState(agentId, { status: 'error', alert: 'error' })
       return
     }
@@ -95,7 +108,10 @@ class MainApp {
     try {
       this.pty.start(agentId, agent.name, tmpl.command, tmpl.args, agent.cwd)
       this.alerts.track(agentId)
-    } catch {
+    } catch (err) {
+      const message = `[meow] Không thể khởi động agent "${agent.name}" (${tmpl.command} ${tmpl.args.join(' ')}): ${String(err)}\n`
+      this.logs.append(agentId, message)
+      win?.webContents.send(Channels.EventPtyData, { agentId, data: message })
       this.setState(agentId, { status: 'error', alert: 'error' })
     }
   }
