@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChatEvent, ChatMessage, ToolCallData } from '@shared/types'
+import { appendStreamDelta } from '@shared/text'
 import ChatInput from './ChatInput'
 import ToolCallCard from './ToolCallCard'
+import MarkdownText from './MarkdownText'
 
 type FeedItem =
   | { kind: 'message'; id: string; role: ChatMessage['role']; text: string }
@@ -46,7 +48,7 @@ export default function ChatPanel({ agentId }: Props) {
       if (e.type === 'text-delta') {
         const last = next[next.length - 1]
         if (last && last.kind === 'message' && last.role === 'assistant') {
-          last.text += e.delta
+          last.text = appendStreamDelta(last.text, e.delta)
         } else {
           next.push({ kind: 'message', id: 'a-' + Date.now(), role: 'assistant', text: e.delta })
         }
@@ -83,7 +85,9 @@ export default function ChatPanel({ agentId }: Props) {
           if (item.kind === 'message') {
             return (
               <div key={item.id} className={`chat-msg ${item.role}`}>
-                <div className="chat-text">{item.text}</div>
+                {item.role === 'assistant'
+                  ? <MarkdownText text={item.text} />
+                  : <div className="chat-text">{item.text}</div>}
               </div>
             )
           }

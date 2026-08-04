@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { ChatEvent, ChatMessage, PromptResponse, ToolCallData } from '../../shared/types'
+import { appendStreamDelta } from '../../shared/text'
 import type { LlmClient, LlmStreamPart } from './llm'
 import { toLlmMessages } from './message'
 import type { TranscriptItem } from './message'
@@ -63,8 +64,10 @@ export class SessionRunner {
             return
           }
           if (part.kind === 'text') {
-            textBuffer += part.text ?? ''
-            this.deps.onEvent({ type: 'text-delta', agentId, delta: part.text ?? '' })
+            const next = appendStreamDelta(textBuffer, part.text ?? '')
+            const delta = next.slice(textBuffer.length)
+            textBuffer = next
+            this.deps.onEvent({ type: 'text-delta', agentId, delta })
           } else if (part.kind === 'tool-call') {
             hasToolCall = true
             const call: ToolCallData = {
@@ -86,6 +89,11 @@ export class SessionRunner {
         } else {
           this.deps.onEvent({ type: 'error', agentId, message: String(err) })
         }
+        return
+      }
+
+      if (signal?.aborted) {
+        this.deps.onEvent({ type: 'done', agentId, reason: 'stopped' })
         return
       }
 

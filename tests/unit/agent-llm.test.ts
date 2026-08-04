@@ -6,7 +6,7 @@ vi.mock('ai', () => ({
   streamText: (...args: unknown[]) => streamTextMock(...args)
 }))
 
-import { createAnthropicLlm, createOpenAICompatibleLlm } from '../../src/main/agent/llm'
+import { createAnthropicLlm, createOpenAICompatibleLlm, formatLlmError } from '../../src/main/agent/llm'
 import type { LlmStreamPart } from '../../src/main/agent/llm'
 
 function fakeFullStream(parts: Array<Record<string, unknown>>) {
@@ -83,6 +83,27 @@ describe('createAnthropicLlm', () => {
       out.push(p)
     }
     expect(out).toEqual([{ kind: 'error', error: 'Error: boom' }])
+  })
+})
+
+describe('formatLlmError', () => {
+  it('extracts the response body message for an API call error', () => {
+    const err = {
+      name: 'APICallError',
+      statusCode: 401,
+      url: 'https://api.deepseek.com/chat/completions',
+      responseBody: '{"error":{"message":"Authentication Fails, Your api key is invalid"}}'
+    }
+    expect(formatLlmError(err)).toBe('Authentication Fails, Your api key is invalid')
+  })
+
+  it('falls back to a concise status line when the body is not JSON', () => {
+    const err = { name: 'APICallError', statusCode: 429, responseBody: 'rate limited' }
+    expect(formatLlmError(err)).toBe('rate limited')
+  })
+
+  it('returns the raw string for plain errors', () => {
+    expect(formatLlmError('boom')).toBe('boom')
   })
 })
 

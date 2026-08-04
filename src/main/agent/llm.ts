@@ -72,7 +72,7 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string): L
             yield { kind: 'finish', finishReason: part.finishReason }
             break
           case 'error':
-            yield { kind: 'error', error: String(part.error) }
+            yield { kind: 'error', error: formatLlmError(part.error) }
             break
           default:
             break
@@ -80,4 +80,25 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string): L
       }
     }
   }
+}
+
+export function formatLlmError(err: unknown): string {
+  if (err && typeof err === 'object') {
+    const e = err as { name?: string; statusCode?: number; url?: string; responseBody?: string; message?: string }
+    if (typeof e.statusCode === 'number') {
+      let detail = e.message ?? ''
+      if (typeof e.responseBody === 'string') {
+        try {
+          const parsed = JSON.parse(e.responseBody) as { error?: { message?: string } }
+          if (parsed?.error?.message) detail = parsed.error.message
+        } catch {
+          if (!detail && !/^[\[{]/.test(e.responseBody.trim())) detail = e.responseBody.trim()
+        }
+      }
+      const url = e.url ? ` (${e.url})` : ''
+      return detail || `${e.name ?? 'API'} error (${e.statusCode})${url}`
+    }
+    if (e.name === 'AbortError') return 'aborted'
+  }
+  return String(err)
 }

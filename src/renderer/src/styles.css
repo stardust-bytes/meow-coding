@@ -224,3 +224,27 @@ select.input { width: 100%; }
 .settings-actions { display: flex; gap: 8px; align-items: center; }
 .settings-actions .spacer { flex: 1; }
 .settings-status { color: var(--green); font-size: 12px; }
+
+
+/* Markdown content */
+.chat-md { user-select: text; }
+.chat-md p { margin: 0 0 8px; }
+.chat-md p:last-child { margin-bottom: 0; }
+.chat-md h1, .chat-md h2, .chat-md h3, .chat-md h4 { margin: 8px 0 6px; color: var(--text); }
+.chat-md ul, .chat-md ol { margin: 4px 0; padding-left: 20px; }
+.chat-md li { margin: 2px 0; }
+.chat-md code {
+  background: #1a1a1a; border: 1px solid var(--border); border-radius: 3px;
+  padding: 1px 4px; font-size: 12px; font-family: var(--font-mono);
+}
+.chat-md pre {
+  background: #1a1a1a; border: 1px solid var(--border); border-radius: 6px;
+  padding: 10px; overflow-x: auto; margin: 8px 0;
+}
+.chat-md pre code { background: transparent; border: none; padding: 0; }
+.chat-md a { color: var(--accent); }
+.chat-md blockquote {
+  margin: 8px 0; padding-left: 10px; border-left: 3px solid var(--border); color: var(--text-dim);
+}
+.chat-md table { border-collapse: collapse; margin: 8px 0; }
+.chat-md th, .chat-md td { border: 1px solid var(--border); padding: 4px 8px; }
