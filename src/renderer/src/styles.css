@@ -212,6 +212,7 @@ select.input { width: 100%; }
 .chat-input-field:focus { outline: none; border-color: var(--accent); }
 .chat-input-send { padding: 8px 16px; border: 1px solid var(--accent); background: transparent; color: var(--accent); border-radius: 6px; cursor: pointer; }
 .chat-input-send:disabled { opacity: 0.4; cursor: default; }
+.chat-input-send.running { border-color: var(--red); color: var(--red); }
 
 
 /* Settings dialog */

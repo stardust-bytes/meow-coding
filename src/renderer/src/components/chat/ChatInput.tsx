@@ -1,16 +1,17 @@
 import { useState } from 'react'
 
 interface Props {
-  disabled: boolean
+  running: boolean
   onSubmit(text: string): void
+  onStop(): void
 }
 
-export default function ChatInput({ disabled, onSubmit }: Props) {
+export default function ChatInput({ running, onSubmit, onStop }: Props) {
   const [value, setValue] = useState('')
 
   const submit = () => {
     const text = value.trim()
-    if (!text || disabled) return
+    if (!text || running) return
     setValue('')
     onSubmit(text)
   }
@@ -22,7 +23,7 @@ export default function ChatInput({ disabled, onSubmit }: Props) {
         value={value}
         placeholder="Message Meow..."
         rows={2}
-        disabled={disabled}
+        disabled={running}
         onChange={e => setValue(e.target.value)}
         onKeyDown={e => {
           if (e.key === 'Enter' && !e.shiftKey) {
@@ -31,8 +32,11 @@ export default function ChatInput({ disabled, onSubmit }: Props) {
           }
         }}
       />
-      <button className="chat-input-send" onClick={submit} disabled={disabled}>
-        Send
+      <button
+        className={`chat-input-send ${running ? 'running' : ''}`}
+        onClick={running ? onStop : submit}
+      >
+        {running ? 'Stop' : 'Send'}
       </button>
     </div>
   )

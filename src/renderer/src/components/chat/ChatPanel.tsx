@@ -155,9 +155,6 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
         <div ref={endRef} />
       </div>
       <div className="chat-composer">
-        {running && (
-          <button className="chat-stop" onClick={() => void window.api.stopChat(agentId)}>Stop</button>
-        )}
         <div className="chat-mode">
           <span className="chat-mode-label">mode</span>
           <button
@@ -174,7 +171,11 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
           </button>
           {currentMode === 'plan' && <span className="chat-mode-hint">read-only — edits denied</span>}
         </div>
-        <ChatInput disabled={running} onSubmit={send} />
+        <ChatInput
+          running={running}
+          onSubmit={send}
+          onStop={() => void window.api.stopChat(agentId)}
+        />
       </div>
     </div>
   )
