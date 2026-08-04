@@ -58,6 +58,8 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
     grep: 'allow',
     'apply-patch': 'allow',
     todowrite: 'allow',
+    task: 'allow',
+    revert: 'allow',
     bash: 'ask',
     question: 'ask'
   },

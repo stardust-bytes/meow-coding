@@ -257,3 +257,11 @@ select.input { width: 100%; }
 .diff-line.del { background: rgba(244, 135, 113, 0.12); color: var(--red); }
 .diff-line.add { background: rgba(78, 201, 176, 0.12); color: var(--green); }
 .diff-sign { flex: 0 0 auto; }
+
+
+/* Mode bar */
+.chat-mode { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--border); background: var(--bg-panel); }
+.chat-mode-label { font-size: 11px; text-transform: uppercase; color: var(--text-dim); }
+.chat-mode .btn.active { border-color: var(--accent); color: var(--accent); }
+.chat-mode-hint { font-size: 11px; color: var(--yellow); margin-left: 6px; }
+.chat-prompt-actions button.always { border-color: var(--accent); color: var(--accent); }

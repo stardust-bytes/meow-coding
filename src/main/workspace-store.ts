@@ -50,4 +50,14 @@ export class WorkspaceStore {
     this.store.save(all)
     return ws
   }
+
+  updateAgent(projectPath: string, agentId: string, patch: Partial<AgentConfig>): Workspace {
+    const all = this.store.load()
+    const ws = all.find(w => w.projectPath === projectPath)
+    if (!ws) throw new Error(`Workspace not found: ${projectPath}`)
+    const agent = ws.agents.find(a => a.id === agentId)
+    if (agent) Object.assign(agent, patch)
+    this.store.save(all)
+    return ws
+  }
 }

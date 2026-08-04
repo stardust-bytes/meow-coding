@@ -1,6 +1,7 @@
 export type AgentStatus = 'spawning' | 'running' | 'idle' | 'exited' | 'stopped' | 'error'
 export type AlertLevel = 'normal' | 'attention' | 'error'
 export type AgentKind = 'pty' | 'native'
+export type AgentMode = 'build' | 'plan'
 export type ChatRole = 'user' | 'assistant'
 
 export interface Template {
@@ -18,6 +19,7 @@ export interface AgentConfig {
   templateId: string
   cwd: string
   kind?: AgentKind
+  mode?: AgentMode
 }
 
 export interface Workspace {
@@ -56,6 +58,7 @@ export interface NewAgentInput {
   templateId: string
   cwd: string
   kind?: AgentKind
+  mode?: AgentMode
 }
 
 export interface ChatMessage {
@@ -86,6 +89,7 @@ export type ChatEvent =
 export interface PromptResponse {
   allow: boolean
   text?: string
+  always?: boolean
 }
 
 export interface ProviderSettings {

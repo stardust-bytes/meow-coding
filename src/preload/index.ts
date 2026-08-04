@@ -21,6 +21,8 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.AgentAdd, projectPath, input),
   removeAgent: (projectPath: string, agentId: string) =>
     ipcRenderer.invoke(Channels.AgentRemove, projectPath, agentId),
+  setAgentMode: (agentId: string, mode: 'build' | 'plan') =>
+    ipcRenderer.invoke(Channels.AgentSetMode, agentId, mode),
   listTemplates: () => ipcRenderer.invoke(Channels.TemplateList),
   saveTemplate: (template: Template) => ipcRenderer.invoke(Channels.TemplateSave, template),
   removeTemplate: (id: string) => ipcRenderer.invoke(Channels.TemplateRemove, id),

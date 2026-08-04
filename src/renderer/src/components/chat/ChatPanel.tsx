@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ChatEvent, ChatMessage, ToolCallData } from '@shared/types'
+import type { AgentMode, ChatEvent, ChatMessage, ToolCallData } from '@shared/types'
 import { appendStreamDelta } from '@shared/text'
 import ChatInput from './ChatInput'
 import ToolCallCard from './ToolCallCard'
@@ -13,11 +13,14 @@ type FeedItem =
 
 interface Props {
   agentId: string
+  mode?: AgentMode
+  onModeChange?: (mode: AgentMode) => void
 }
 
-export default function ChatPanel({ agentId }: Props) {
+export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Props) {
   const [items, setItems] = useState<FeedItem[]>([])
   const [running, setRunning] = useState(false)
+  const [currentMode, setCurrentMode] = useState<AgentMode>(mode)
   const [questionText, setQuestionText] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
 
@@ -73,13 +76,29 @@ export default function ChatPanel({ agentId }: Props) {
     void window.api.sendChat(agentId, text)
   }, [agentId])
 
-  const respond = useCallback((promptId: string, allow: boolean, text?: string) => {
-    void window.api.respondPrompt(agentId, promptId, { allow, text })
+  const respond = useCallback((promptId: string, allow: boolean, text?: string, always = false) => {
+    void window.api.respondPrompt(agentId, promptId, { allow, text, always })
     setItems(prev => prev.filter(i => !(i.kind === 'prompt' && i.promptId === promptId)))
   }, [agentId])
 
   return (
     <div className="chat-panel">
+      <div className="chat-mode">
+        <span className="chat-mode-label">mode</span>
+        <button
+          className={`btn small ${currentMode === 'build' ? 'active' : ''}`}
+          onClick={() => { setCurrentMode('build'); onModeChange?.('build') }}
+        >
+          build
+        </button>
+        <button
+          className={`btn small ${currentMode === 'plan' ? 'active' : ''}`}
+          onClick={() => { setCurrentMode('plan'); onModeChange?.('plan') }}
+        >
+          plan
+        </button>
+        {currentMode === 'plan' && <span className="chat-mode-hint">read-only — edits denied</span>}
+      </div>
       <div className="chat-feed">
         {items.map(item => {
           if (item.kind === 'message') {
@@ -107,6 +126,7 @@ export default function ChatPanel({ agentId }: Props) {
                   <pre className="tool-call-input">{JSON.stringify(item.call?.input ?? {}, null, 2)}</pre>
                   <div className="chat-prompt-actions">
                     <button className="allow" onClick={() => respond(item.promptId, true)}>Allow</button>
+                    <button className="always" onClick={() => respond(item.promptId, true, undefined, true)}>Always</button>
                     <button onClick={() => respond(item.promptId, false)}>Deny</button>
                   </div>
                 </>

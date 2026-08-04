@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { ChatEvent, ChatMessage, MeowSettings, PromptResponse } from '../shared/types'
-import type { AgentConfig } from '../shared/types'
+import type { AgentConfig, AgentMode } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, settingsToConfig, writeMeowConfig,
   type ResolvedAgentConfig
@@ -16,6 +16,7 @@ import { loadUserTools } from './agent/plugin'
 import { instructionsText, loadInstructions } from './agent/instructions'
 import { expandReferences } from './agent/references'
 import { SnapshotStore } from './agent/snapshot'
+import { SavedPermissions } from './agent/saved-permissions'
 import { revertTool } from './agent/tools/revert'
 import { createTaskTool } from './agent/tools/task'
 import type { ToolDefinition } from './agent/tools/types'
@@ -30,6 +31,7 @@ export interface MeowAgentManagerDeps {
   userToolsDir?: string
   userInstructionsDir?: string
   snapshots: SnapshotStore
+  savedPermissions: SavedPermissions
 }
 
 export class MeowAgentManager {
@@ -37,9 +39,10 @@ export class MeowAgentManager {
   private agents = new Map<string, AgentConfig>()
   private resolved = new Map<string, ResolvedAgentConfig>()
   private controllers = new Map<string, AbortController>()
-  private pendingPrompts = new Map<string, { agentId: string; resolve: (resp: PromptResponse | null) => void }>()
+  private pendingPrompts = new Map<string, { agentId: string; tool?: string; resolve: (resp: PromptResponse | null) => void }>()
   private running = new Set<string>()
   private tools: Map<string, ToolDefinition>
+  private modes = new Map<string, AgentMode>()
   private mcp = new McpManager()
   private onEvent: (e: ChatEvent) => void = () => {}
 
@@ -149,7 +152,20 @@ export class MeowAgentManager {
     const entry = this.pendingPrompts.get(promptId)
     if (entry && entry.agentId === agentId) {
       this.pendingPrompts.delete(promptId)
+      if (resp.always && resp.allow && entry.tool) {
+        const agent = this.agents.get(agentId)
+        if (agent) this.deps.savedPermissions.save(agent.cwd, entry.tool)
+      }
       entry.resolve(resp)
+    }
+  }
+
+  setMode(agentId: string, mode: AgentMode): void {
+    this.modes.set(agentId, mode)
+    const agent = this.agents.get(agentId)
+    if (agent) {
+      agent.mode = mode
+      this.agents.set(agentId, agent)
     }
   }
 
@@ -207,6 +223,8 @@ export class MeowAgentManager {
     const runnerTools = new Map<string, ToolDefinition>([...this.tools])
     runnerTools.set('task', taskTool)
     runnerTools.set('revert', revertTool)
+    const mode = agent.mode ?? 'build'
+    this.modes.set(agent.id, mode)
     const runner = new SessionRunner({
       agentId: agent.id,
       model: resolved.model,
@@ -214,8 +232,13 @@ export class MeowAgentManager {
       cwd: agent.cwd,
       llm: llmClient,
       tools: runnerTools,
-      decidePermission: (tool) => decidePermission(cfg.permission, tool),
-      ask: (promptId) => this.awaitPrompt(agent.id, promptId),
+      decidePermission: (tool) => decidePermission(
+        this.modes.get(agent.id) ?? 'build',
+        cfg.permission,
+        (t) => this.deps.savedPermissions.isAllowed(agent.cwd, t),
+        tool
+      ),
+      ask: (promptId, tool) => this.awaitPrompt(agent.id, promptId, tool),
       maxContextChars: cfg.maxContextChars,
       snapshots: this.deps.snapshots,
       onEvent: (e) => this.emit(e),
@@ -226,9 +249,9 @@ export class MeowAgentManager {
     this.runners.set(agent.id, runner)
   }
 
-  private awaitPrompt(agentId: string, promptId: string): Promise<PromptResponse | null> {
+  private awaitPrompt(agentId: string, promptId: string, tool?: string): Promise<PromptResponse | null> {
     return new Promise(resolve => {
-      this.pendingPrompts.set(promptId, { agentId, resolve })
+      this.pendingPrompts.set(promptId, { agentId, tool, resolve })
       if (this.controllers.get(agentId)?.signal.aborted) {
         this.pendingPrompts.delete(promptId)
         resolve(null)

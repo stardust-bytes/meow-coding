@@ -17,7 +17,7 @@ export interface LoopDeps {
   llm: LlmClient
   tools: Map<string, ToolDefinition>
   decidePermission: (toolName: string) => PermissionDecision
-  ask: (promptId: string) => Promise<PromptResponse | null>
+  ask: (promptId: string, tool?: string) => Promise<PromptResponse | null>
   maxSteps?: number
   maxContextChars?: number
   snapshots?: SnapshotStore
@@ -130,7 +130,7 @@ export class SessionRunner {
     } else {
       const promptId = randomUUID()
       this.deps.onEvent({ type: 'prompt-request', agentId, promptId, kind: 'permission', call })
-      const resp = await this.deps.ask(promptId)
+      const resp = await this.deps.ask(promptId, call.tool)
       allowed = resp?.allow ?? false
     }
 

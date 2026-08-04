@@ -9,6 +9,8 @@ import type { JsonStore } from '../../src/main/json-store'
 import { createDefaultTools } from '../../src/main/agent/tools/registry'
 import { SnapshotStore } from '../../src/main/agent/snapshot'
 import type { SnapshotEntry } from '../../src/main/agent/snapshot'
+import { SavedPermissions } from '../../src/main/agent/saved-permissions'
+import type { SavedPermission } from '../../src/main/agent/saved-permissions'
 import type { LlmClient, LlmStreamOptions, LlmStreamPart } from '../../src/main/agent/llm'
 import type { AgentConfig, ChatEvent, PromptResponse } from '../../src/shared/types'
 
@@ -36,6 +38,11 @@ async function makeManager(opts: StubLlmOptions & { configPath?: string } = {}) 
     load: () => snapshotEntries,
     save: (next) => snapshotEntries.splice(0, snapshotEntries.length, ...next)
   })
+  const permEntries: SavedPermission[] = []
+  const savedPermissions = new SavedPermissions({
+    load: () => permEntries,
+    save: (next) => permEntries.splice(0, permEntries.length, ...next)
+  })
   const events: ChatEvent[] = []
   let llmClient: LlmClient
   const llm = (): LlmClient => llmClient
@@ -61,13 +68,14 @@ async function makeManager(opts: StubLlmOptions & { configPath?: string } = {}) 
     configPath: opts.configPath ?? '/nonexistent/meow.json',
     store,
     snapshots,
+    savedPermissions,
     tools: createDefaultTools(),
     createLlm,
     env: { ANTHROPIC_API_KEY: 'sk-test' } as NodeJS.ProcessEnv
   })
   manager.setOnEvent(e => events.push(e))
   await manager.init([MEOW_AGENT, PTY_AGENT])
-  return { manager, store, events, createLlm }
+  return { manager, store, events, createLlm, savedPermissions }
 }
 
 describe('MeowAgentManager', () => {
@@ -96,11 +104,14 @@ describe('MeowAgentManager', () => {
     const store = new SessionStore({ load: () => sessions, save: (n) => sessions.splice(0, sessions.length, ...n) })
     const snapEntries: SnapshotEntry[] = []
     const snapshots = new SnapshotStore({ load: () => snapEntries, save: (n) => snapEntries.splice(0, snapEntries.length, ...n) })
+    const permEntries: SavedPermission[] = []
+    const savedPermissions = new SavedPermissions({ load: () => permEntries, save: (n) => permEntries.splice(0, permEntries.length, ...n) })
     const evts: ChatEvent[] = []
     const m2 = new MeowAgentManager({
       configPath: '/nonexistent/meow.json',
       store,
       snapshots,
+      savedPermissions,
       tools: createDefaultTools(),
       createLlm: () => ({ async *stream() { yield { kind: 'finish' } } }),
       env: {}
@@ -189,5 +200,51 @@ describe('MeowAgentManager', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+
+  it('plan mode denies a write tool call', async () => {
+    const { manager, events } = await makeManager({
+      partsQueue: [
+        [{ kind: 'tool-call', toolCallId: 'tc1', toolName: 'write', toolInput: { file_path: 'x', content: 'y' } }, { kind: 'finish' }],
+        [{ kind: 'text', text: 'ok' }, { kind: 'finish' }]
+      ]
+    })
+    manager.setMode('a1', 'plan')
+    await manager.send('a1', 'write x')
+    const result = events.find(e => e.type === 'tool-result') as Extract<ChatEvent, { type: 'tool-result' }>
+    expect(result.call.permission).toBe('denied')
+    expect(result.call.error).toBe('permission denied')
+  })
+
+  it('always allow saves the permission for the next turn', async () => {
+    const { manager, events } = await makeManager({
+      partsQueue: [
+        [{ kind: 'tool-call', toolCallId: 'tc1', toolName: 'bash', toolInput: { command: 'echo hi' } }, { kind: 'finish' }],
+        [{ kind: 'text', text: 'done' }, { kind: 'finish' }],
+        [{ kind: 'tool-call', toolCallId: 'tc2', toolName: 'bash', toolInput: { command: 'echo hi' } }, { kind: 'finish' }],
+        [{ kind: 'text', text: 'done2' }, { kind: 'finish' }]
+      ]
+    })
+    manager.newSession('a1')
+
+    const first = manager.send('a1', 'run bash')
+    await new Promise<void>(resolve => {
+      const t = setInterval(() => {
+        const p = events.find(e => e.type === 'prompt-request') as Extract<ChatEvent, { type: 'prompt-request' }> | undefined
+        if (p) {
+          clearInterval(t)
+          manager.respondPrompt('a1', p.promptId, { allow: true, always: true })
+          resolve()
+        }
+      }, 5)
+    })
+    await first
+    expect(events.some(e => e.type === 'prompt-request')).toBe(true)
+
+    events.length = 0
+    await manager.send('a1', 'run bash again')
+    expect(events.some(e => e.type === 'prompt-request')).toBe(false)
+    const result = events.find(e => e.type === 'tool-result') as Extract<ChatEvent, { type: 'tool-result' }>
+    expect(result.call.permission).toBe('allowed')
   })
 })

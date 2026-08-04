@@ -7,7 +7,7 @@ describe('IPC contract', () => {
   it('defines all channels used by the preload api', () => {
     const required: (keyof AgentApi)[] = [
       'listWorkspaces', 'addWorkspace', 'removeWorkspace', 'openWorkspace',
-      'addAgent', 'removeAgent', 'listTemplates', 'saveTemplate', 'removeTemplate',
+      'addAgent', 'removeAgent', 'setAgentMode', 'listTemplates', 'saveTemplate', 'removeTemplate',
       'pickFolder', 'startAgent', 'stopAgent', 'restartAgent',
       'writeInput', 'injectPrompt', 'resizePty', 'openLog', 'getLogPath', 'quit',
       'onPtyData', 'onAgentState', 'onGitStatus',
@@ -21,6 +21,7 @@ describe('IPC contract', () => {
       openWorkspace: async () => ({ workspace: { projectPath: '', name: '', agents: [] }, agents: [], git: null }),
       addAgent: async () => ({ workspace: { projectPath: '', name: '', agents: [] }, agents: [], git: null }),
       removeAgent: async () => {},
+      setAgentMode: async () => {},
       listTemplates: async () => [],
       saveTemplate: async (t) => t,
       removeTemplate: async () => {},
@@ -64,6 +65,7 @@ describe('IPC contract', () => {
     expect(Channels.EventChat).toBe('chat:event')
     expect(Channels.SettingsGet).toBe('settings:get')
     expect(Channels.SettingsSave).toBe('settings:save')
+    expect(Channels.AgentSetMode).toBe('agent:set-mode')
   })
 
   it('types event payloads without runtime error', () => {

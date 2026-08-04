@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { SnapshotStore } from '../../src/main/agent/snapshot'
 import type { SnapshotEntry } from '../../src/main/agent/snapshot'
+import { SavedPermissions } from '../../src/main/agent/saved-permissions'
+import type { SavedPermission } from '../../src/main/agent/saved-permissions'
 import { writeTool } from '../../src/main/agent/tools/write'
 import { editTool } from '../../src/main/agent/tools/edit'
 import { revertTool } from '../../src/main/agent/tools/revert'
@@ -33,6 +35,20 @@ describe('SnapshotStore', () => {
     expect(entries).toHaveLength(1)
     store.clear('a2')
     expect(entries).toHaveLength(0)
+  })
+})
+
+describe('SavedPermissions', () => {
+  it('saves and checks always-allow rules per project', () => {
+    const entries: SavedPermission[] = []
+    const store = new SavedPermissions({
+      load: () => entries,
+      save: (next) => entries.splice(0, entries.length, ...next)
+    })
+    expect(store.isAllowed('/proj/a', 'bash')).toBe(false)
+    store.save('/proj/a', 'bash')
+    expect(store.isAllowed('/proj/a', 'bash')).toBe(true)
+    expect(store.isAllowed('/proj/b', 'bash')).toBe(false)
   })
 })
 

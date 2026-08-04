@@ -54,4 +54,12 @@ describe('WorkspaceStore', () => {
     store.remove('/proj/a')
     expect(store.list()).toHaveLength(0)
   })
+
+  it('updates an agent mode', () => {
+    store.add('/proj/a', 'Project A')
+    const ws = store.addAgent('/proj/a', { name: 'meow', templateId: 'meow', cwd: '/proj/a', kind: 'native' })
+    const agentId = ws.agents[0].id
+    store.updateAgent('/proj/a', agentId, { mode: 'plan' })
+    expect(store.get('/proj/a')?.agents[0].mode).toBe('plan')
+  })
 })

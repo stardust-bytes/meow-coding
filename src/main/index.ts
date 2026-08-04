@@ -12,6 +12,8 @@ import { SessionStore } from './agent/session'
 import type { StoredSession } from './agent/session'
 import { SnapshotStore } from './agent/snapshot'
 import type { SnapshotEntry } from './agent/snapshot'
+import { SavedPermissions } from './agent/saved-permissions'
+import type { SavedPermission } from './agent/saved-permissions'
 import { createDefaultTools } from './agent/tools/registry'
 import { MeowAgentManager } from './meow-agent-manager'
 import { Channels } from '../shared/ipc'
@@ -40,7 +42,8 @@ class MainApp {
     userSkillsDir: path.join(app.getPath('userData'), 'skills'),
     userToolsDir: path.join(app.getPath('userData'), 'tools'),
     userInstructionsDir: app.getPath('userData'),
-    snapshots: new SnapshotStore(createJsonStore<SnapshotEntry>(path.join(app.getPath('userData'), 'snapshots.json')))
+    snapshots: new SnapshotStore(createJsonStore<SnapshotEntry>(path.join(app.getPath('userData'), 'snapshots.json'))),
+    savedPermissions: new SavedPermissions(createJsonStore<SavedPermission>(path.join(app.getPath('userData'), 'permissions.json')))
   })
 
   private states = new Map<string, AgentState>()
@@ -184,6 +187,14 @@ class MainApp {
     return this.activeProject === projectPath
   }
 
+  setAgentMode(agentId: string, mode: 'build' | 'plan'): void {
+    this.meowAgent.setMode(agentId, mode)
+    const ws = this.findWorkspaceByAgent(agentId)
+    if (ws) {
+      this.workspaces.updateAgent(ws.projectPath, agentId, { mode })
+    }
+  }
+
   resetActiveProject(): void {
     this.stopGitPoll()
     this.meowAgent.stopAll()
@@ -267,6 +278,9 @@ function registerIpcHandlers(): void {
     await mainApp.pty.stop(agentId)
     mainApp.workspaces.removeAgent(projectPath, agentId)
   })
+
+  ipcMain.handle(Channels.AgentSetMode, (_e, agentId: string, mode: 'build' | 'plan') =>
+    mainApp.setAgentMode(agentId, mode))
 
   ipcMain.handle(Channels.TemplateList, () => mainApp.templates.list())
   ipcMain.handle(Channels.TemplateSave, (_e, t: Template) => mainApp.templates.save(t))

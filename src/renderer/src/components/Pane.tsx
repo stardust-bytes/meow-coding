@@ -38,7 +38,11 @@ export default function Pane({
         onOpenLog={() => void window.api.openLog(id)}
       />
       {native ? (
-        <ChatPanel agentId={id} />
+        <ChatPanel
+          agentId={id}
+          mode={pane.agent.mode ?? 'build'}
+          onModeChange={m => void window.api.setAgentMode(id, m)}
+        />
       ) : (
         <XtermHost
           agentId={id}

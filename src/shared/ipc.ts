@@ -10,6 +10,7 @@ export const Channels = {
   WorkspaceOpen: 'workspace:open',
   AgentAdd: 'agent:add',
   AgentRemove: 'agent:remove',
+  AgentSetMode: 'agent:set-mode',
   TemplateList: 'template:list',
   TemplateSave: 'template:save',
   TemplateRemove: 'template:remove',
@@ -47,6 +48,7 @@ export interface AgentApi {
   openWorkspace(projectPath: string): Promise<WorkspaceRuntime>
   addAgent(projectPath: string, input: NewAgentInput): Promise<WorkspaceRuntime>
   removeAgent(projectPath: string, agentId: string): Promise<void>
+  setAgentMode(agentId: string, mode: 'build' | 'plan'): Promise<void>
   listTemplates(): Promise<Template[]>
   saveTemplate(template: Template): Promise<Template>
   removeTemplate(id: string): Promise<void>
