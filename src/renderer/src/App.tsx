@@ -56,8 +56,11 @@ export default function App() {
   }, [])
 
   const openWorkspace = useCallback(async (path: string) => {
-    setRuntime(await window.api.openWorkspace(path))
-    buffersRef.current.clear()
+    const rt = await window.api.openWorkspace(path)
+    setRuntime(rt)
+    for (const id of buffersRef.current.keys()) {
+      if (!rt.workspace.agents.some(a => a.id === id)) buffersRef.current.delete(id)
+    }
   }, [])
 
   const registerTerminal = useCallback((agentId: string, term: Terminal) => {
