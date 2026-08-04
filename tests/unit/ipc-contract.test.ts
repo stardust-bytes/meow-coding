@@ -12,7 +12,8 @@ describe('IPC contract', () => {
       'writeInput', 'injectPrompt', 'resizePty', 'openLog', 'getLogPath', 'quit',
       'onPtyData', 'onAgentState', 'onGitStatus',
       'sendChat', 'stopChat', 'newChatSession', 'listChatMessages', 'listChatTranscript', 'respondPrompt',
-      'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus'
+      'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus',
+      'listSessions', 'createSession', 'switchSession', 'deleteSession'
     ]
     const api: AgentApi = {
       listWorkspaces: async () => [],
@@ -41,14 +42,18 @@ describe('IPC contract', () => {
       onGitStatus: () => () => {},
       sendChat: async () => {},
       stopChat: async () => {},
-      newChatSession: async () => {},
+      newChatSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),
       listChatMessages: async () => [],
       listChatTranscript: async () => [],
       respondPrompt: async () => {},
       onChatEvent: () => () => {},
       getSettings: async () => ({ providers: [], defaultProvider: '' }),
       saveSettings: async (s) => s,
-      getMcpStatus: async () => []
+      getMcpStatus: async () => [],
+      listSessions: async () => [],
+      createSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),
+      switchSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),
+      deleteSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 })
     }
     for (const key of required) {
       expect(typeof api[key]).toBe('function')
@@ -67,6 +72,10 @@ describe('IPC contract', () => {
     expect(Channels.ChatListTranscript).toBe('chat:list-transcript')
     expect(Channels.ChatRespondPrompt).toBe('chat:respond-prompt')
     expect(Channels.EventChat).toBe('chat:event')
+    expect(Channels.SessionList).toBe('session:list')
+    expect(Channels.SessionCreate).toBe('session:create')
+    expect(Channels.SessionSwitch).toBe('session:switch')
+    expect(Channels.SessionDelete).toBe('session:delete')
     expect(Channels.SettingsGet).toBe('settings:get')
     expect(Channels.SettingsSave).toBe('settings:save')
     expect(Channels.AgentSetMode).toBe('agent:set-mode')

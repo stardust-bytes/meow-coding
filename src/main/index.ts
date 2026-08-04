@@ -332,6 +332,12 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.ChatListTranscript, (_e, agentId: string) => mainApp.meowAgent.listTranscript(agentId))
   ipcMain.handle(Channels.ChatRespondPrompt, (_e, agentId: string, promptId: string, resp: PromptResponse) =>
     mainApp.meowAgent.respondPrompt(agentId, promptId, resp))
+  ipcMain.handle(Channels.SessionList, (_e, agentId: string) => mainApp.meowAgent.listSessions(agentId))
+  ipcMain.handle(Channels.SessionCreate, (_e, agentId: string) => mainApp.meowAgent.createSession(agentId))
+  ipcMain.handle(Channels.SessionSwitch, (_e, agentId: string, sessionId: string) =>
+    mainApp.meowAgent.switchSession(agentId, sessionId))
+  ipcMain.handle(Channels.SessionDelete, (_e, agentId: string, sessionId: string) =>
+    mainApp.meowAgent.deleteSession(agentId, sessionId))
   ipcMain.handle(Channels.SettingsGet, () => mainApp.meowAgent.getSettings())
   ipcMain.handle(Channels.SettingsSave, (_e, settings: MeowSettings) =>
     mainApp.meowAgent.saveSettings(settings))

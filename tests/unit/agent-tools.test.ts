@@ -15,7 +15,7 @@ import type { ToolContext } from '../../src/main/agent/tools/types'
 let dir: string
 const ctx: ToolContext = {
   cwd: '',
-  ask: async (q) => (q === 'what is your name?' ? 'meow' : null)
+  ask: async (q) => (q.question === 'what is your name?' ? 'meow' : null)
 }
 
 beforeEach(() => {
@@ -121,6 +121,19 @@ describe('question', () => {
   it('returns the user answer via ctx.ask', async () => {
     const r = await questionTool.run({ question: 'what is your name?' }, ctx)
     expect(r.output).toContain('meow')
+  })
+
+  it('forwards options to ctx.ask and returns the selected label', async () => {
+    const optCtx: ToolContext = {
+      cwd: '',
+      ask: async (q) => (q.options?.some(o => o.label === 'Plan') ? 'Plan' : null)
+    }
+    const r = await questionTool.run({
+      question: 'Which mode?',
+      options: [{ label: 'Build', description: 'make changes' }, { label: 'Plan', description: 'read-only' }],
+      multiple: true
+    }, optCtx)
+    expect(r.output).toContain('Plan')
   })
 
   it('errors when the user does not answer', async () => {

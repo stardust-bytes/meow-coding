@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { AgentMode, ChatEvent, ChatMessage, ToolCallData } from '@shared/types'
+import type { AgentMode, ChatEvent, ChatMessage, QuestionOption, SessionSummary, ToolCallData } from '@shared/types'
 import { appendStreamDelta } from '@shared/text'
 import ChatInput from './ChatInput'
 import ToolCallCard from './ToolCallCard'
 import MarkdownText from './MarkdownText'
+import SessionBar from './SessionBar'
 
 type FeedItem =
   | { kind: 'message'; id: string; role: ChatMessage['role']; text: string; reasoning?: string }
@@ -15,6 +16,9 @@ interface PendingPrompt {
   promptType: 'permission' | 'question'
   call?: ToolCallData
   question?: string
+  options?: QuestionOption[]
+  multiple?: boolean
+  custom?: boolean
 }
 
 interface Props {
@@ -30,7 +34,11 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
   const [pendingPrompt, setPendingPrompt] = useState<PendingPrompt | null>(null)
   const [selectedAction, setSelectedAction] = useState(0)
   const [questionText, setQuestionText] = useState('')
+  const [selectedOptions, setSelectedOptions] = useState<string[]>([])
+  const [customInput, setCustomInput] = useState(false)
   const [lastTokens, setLastTokens] = useState<{ input: number; output: number; total: number } | null>(null)
+  const [sessions, setSessions] = useState<SessionSummary[]>([])
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const promptRef = useRef<HTMLDivElement>(null)
 
@@ -40,13 +48,37 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
     }
   }, [pendingPrompt])
 
-  useEffect(() => {
+  const loadTranscript = useCallback(() => {
     void window.api.listChatTranscript(agentId).then(items => {
       setItems(items.map(it => it.kind === 'message'
         ? { kind: 'message', id: it.message.id, role: it.message.role, text: it.message.text, reasoning: it.message.reasoning }
         : { kind: 'tool', id: it.tool.id, call: { ...it.tool } }
       ))
     })
+  }, [agentId])
+
+  const reloadSessions = useCallback(() => {
+    void window.api.listSessions(agentId).then(list => {
+      setSessions(list)
+      setActiveSessionId(list[0]?.id ?? null)
+    })
+  }, [agentId])
+
+  const resetView = useCallback(() => {
+    setItems([])
+    setRunning(false)
+    setPendingPrompt(null)
+    setSelectedAction(0)
+    setQuestionText('')
+    setSelectedOptions([])
+    setCustomInput(false)
+    setLastTokens(null)
+    loadTranscript()
+  }, [loadTranscript])
+
+  useEffect(() => {
+    reloadSessions()
+    loadTranscript()
     const off = window.api.onChatEvent(e => applyEvent(e))
     return off
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -67,8 +99,19 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
       return
     }
     if (e.type === 'prompt-request') {
-      setPendingPrompt({ promptId: e.promptId, promptType: e.kind, call: e.call, question: e.question })
+      setPendingPrompt({
+        promptId: e.promptId,
+        promptType: e.kind,
+        call: e.call,
+        question: e.question,
+        options: e.options,
+        multiple: e.multiple,
+        custom: e.custom
+      })
       setSelectedAction(0)
+      setSelectedOptions([])
+      setCustomInput(false)
+      setQuestionText('')
       return
     }
     setItems(prev => {
@@ -102,14 +145,57 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
     setRunning(true)
     setLastTokens(null)
     void window.api.sendChat(agentId, text)
-  }, [agentId])
+    reloadSessions()
+  }, [agentId, reloadSessions])
+
+  const handleCreateSession = useCallback(() => {
+    void window.api.createSession(agentId).then(() => {
+      resetView()
+      reloadSessions()
+    })
+  }, [agentId, resetView, reloadSessions])
+
+  const handleSelectSession = useCallback((sessionId: string) => {
+    if (sessionId === activeSessionId) return
+    void window.api.switchSession(agentId, sessionId).then(() => {
+      resetView()
+      reloadSessions()
+    })
+  }, [agentId, activeSessionId, resetView, reloadSessions])
+
+  const handleDeleteSession = useCallback((sessionId: string) => {
+    void window.api.deleteSession(agentId, sessionId).then(() => {
+      resetView()
+      reloadSessions()
+    })
+  }, [agentId, resetView, reloadSessions])
 
   const respond = useCallback((promptId: string, allow: boolean, text?: string, always = false) => {
     void window.api.respondPrompt(agentId, promptId, { allow, text, always })
     setPendingPrompt(null)
     setSelectedAction(0)
     setQuestionText('')
+    setSelectedOptions([])
+    setCustomInput(false)
   }, [agentId])
+
+  const toggleOption = useCallback((label: string) => {
+    setSelectedOptions(prev => prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label])
+  }, [])
+
+  const submitQuestion = useCallback(() => {
+    if (!pendingPrompt || pendingPrompt.promptType !== 'question') return
+    const parts = [...selectedOptions]
+    if (customInput && questionText.trim()) parts.push(questionText.trim())
+    const text = parts.join(', ')
+    if (!text.trim()) return
+    respond(pendingPrompt.promptId, true, text)
+  }, [pendingPrompt, selectedOptions, customInput, questionText, respond])
+
+  const startCustomInput = useCallback(() => {
+    setCustomInput(v => !v)
+    if (pendingPrompt && !pendingPrompt.multiple) setSelectedOptions([])
+  }, [pendingPrompt])
 
   const switchMode = useCallback((m: AgentMode) => {
     setCurrentMode(m)
@@ -159,6 +245,13 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
 
   return (
     <div className="chat-panel" onKeyDown={onPanelKeyDown}>
+      <SessionBar
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        onSelect={handleSelectSession}
+        onCreate={handleCreateSession}
+        onDelete={handleDeleteSession}
+      />
       <div className="chat-feed">
         {items.map(item => {
           if (item.kind === 'message') {
@@ -220,23 +313,71 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
               </>
             ) : (
               <>
-                <div className="chat-prompt-text">{pendingPrompt.question}</div>
-                <div className="chat-prompt-actions">
-                  <input
-                    autoFocus
-                    className="chat-prompt-input"
-                    value={questionText}
-                    placeholder="Answer..."
-                    onChange={e => setQuestionText(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        respond(pendingPrompt.promptId, true, questionText)
-                      }
-                    }}
-                  />
-                  <button onClick={() => respond(pendingPrompt.promptId, true, questionText)}>Send</button>
+                <div className="chat-prompt-text">
+                  {pendingPrompt.question}
+                  {pendingPrompt.multiple && <span className="chat-prompt-multi-hint"> (select all that apply)</span>}
                 </div>
+                {pendingPrompt.options && pendingPrompt.options.length > 0 && (
+                  <div className="chat-options">
+                    {pendingPrompt.options.map((opt, i) => {
+                      const selected = selectedOptions.includes(opt.label)
+                      const mark = pendingPrompt.multiple ? (selected ? '[✓]' : '[ ]') : `${i + 1}.`
+                      return (
+                        <button
+                          key={opt.label + i}
+                          className={`chat-option ${selected ? 'selected' : ''}`}
+                          onClick={() => (pendingPrompt.multiple
+                            ? toggleOption(opt.label)
+                            : respond(pendingPrompt.promptId, true, opt.label))}
+                        >
+                          <span className="chat-option-mark">{mark}</span>
+                          <span className="chat-option-text">
+                            <span className="chat-option-label">{opt.label}</span>
+                            {opt.description && <span className="chat-option-desc">{opt.description}</span>}
+                          </span>
+                        </button>
+                      )
+                    })}
+                    {pendingPrompt.custom !== false && (
+                      <button
+                        className={`chat-option custom ${customInput ? 'selected' : ''}`}
+                        onClick={startCustomInput}
+                      >
+                        <span className="chat-option-mark">
+                          {pendingPrompt.multiple
+                            ? (customInput ? '[✓]' : '[ ]')
+                            : `${(pendingPrompt.options?.length ?? 0) + 1}.`}
+                        </span>
+                        <span className="chat-option-text">
+                          <span className="chat-option-label">Type your own answer</span>
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                )}
+                {(customInput || !pendingPrompt.options?.length) && (
+                  <div className="chat-prompt-actions">
+                    <input
+                      autoFocus
+                      className="chat-prompt-input"
+                      value={questionText}
+                      placeholder="Answer..."
+                      onChange={e => setQuestionText(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          submitQuestion()
+                        }
+                      }}
+                    />
+                    <button onClick={submitQuestion}>Send</button>
+                  </div>
+                )}
+                {!!pendingPrompt.options?.length && pendingPrompt.multiple && !customInput && (
+                  <div className="chat-prompt-actions">
+                    <button onClick={submitQuestion} disabled={selectedOptions.length === 0}>Send</button>
+                  </div>
+                )}
               </>
             )}
           </div>

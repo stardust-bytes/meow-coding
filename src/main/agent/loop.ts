@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ChatEvent, ChatMessage, PromptResponse, TokenUsage, ToolCallData } from '../../shared/types'
+import type { ChatEvent, ChatMessage, PromptResponse, QuestionPrompt, TokenUsage, ToolCallData } from '../../shared/types'
 import { appendStreamDelta } from '../../shared/text'
 import type { LlmClient, LlmStreamPart } from './llm'
 import { toLlmMessages } from './message'
@@ -179,9 +179,18 @@ export class SessionRunner {
           signal,
           agentId: this.deps.agentId,
           snapshots: this.deps.snapshots,
-          ask: async (question) => {
+          ask: async (question: QuestionPrompt) => {
             const promptId = randomUUID()
-            this.deps.onEvent({ type: 'prompt-request', agentId, promptId, kind: 'question', question })
+            this.deps.onEvent({
+              type: 'prompt-request',
+              agentId,
+              promptId,
+              kind: 'question',
+              question: question.question,
+              options: question.options,
+              multiple: question.multiple,
+              custom: question.custom
+            })
             const resp = await this.deps.ask(promptId)
             return resp?.text ?? null
           }

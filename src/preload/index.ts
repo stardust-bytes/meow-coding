@@ -49,6 +49,12 @@ const api: AgentApi = {
   listChatTranscript: (agentId: string) => ipcRenderer.invoke(Channels.ChatListTranscript, agentId),
   respondPrompt: (agentId: string, promptId: string, resp: PromptResponse) =>
     ipcRenderer.invoke(Channels.ChatRespondPrompt, agentId, promptId, resp),
+  listSessions: (agentId: string) => ipcRenderer.invoke(Channels.SessionList, agentId),
+  createSession: (agentId: string) => ipcRenderer.invoke(Channels.SessionCreate, agentId),
+  switchSession: (agentId: string, sessionId: string) =>
+    ipcRenderer.invoke(Channels.SessionSwitch, agentId, sessionId),
+  deleteSession: (agentId: string, sessionId: string) =>
+    ipcRenderer.invoke(Channels.SessionDelete, agentId, sessionId),
   getSettings: () => ipcRenderer.invoke(Channels.SettingsGet),
   saveSettings: (settings: MeowSettings) => ipcRenderer.invoke(Channels.SettingsSave, settings),
   getMcpStatus: () => ipcRenderer.invoke(Channels.McpStatus),

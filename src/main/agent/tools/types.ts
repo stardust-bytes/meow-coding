@@ -1,5 +1,6 @@
 import type { z } from 'zod'
 import type { SnapshotStore } from '../snapshot'
+import type { QuestionPrompt } from '../../../shared/types'
 
 export type ToolSchema = z.ZodType | Record<string, unknown>
 
@@ -12,7 +13,7 @@ export interface ToolDefinition {
 
 export interface ToolContext {
   cwd: string
-  ask(question: string): Promise<string | null>
+  ask(question: QuestionPrompt): Promise<string | null>
   signal?: AbortSignal
   agentId?: string
   snapshots?: SnapshotStore

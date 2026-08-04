@@ -10,6 +10,7 @@ import { createLlm } from './agent/llm'
 import type { LlmClient } from './agent/llm'
 import { decidePermission } from './agent/permission'
 import { SessionStore } from './agent/session'
+import type { SessionSummary, StoredSession } from './agent/session'
 import { McpManager } from './agent/mcp/manager'
 import { collectSkills, skillListText } from './agent/skill'
 import { loadUserTools } from './agent/plugin'
@@ -41,6 +42,7 @@ export class MeowAgentManager {
   private controllers = new Map<string, AbortController>()
   private pendingPrompts = new Map<string, { agentId: string; tool?: string; resolve: (resp: PromptResponse | null) => void }>()
   private running = new Set<string>()
+  private activeSessions = new Map<string, string>()
   private tools: Map<string, ToolDefinition>
   private modes = new Map<string, AgentMode>()
   private mcp = new McpManager()
@@ -81,7 +83,62 @@ export class MeowAgentManager {
     this.runners.delete(agentId)
     this.agents.delete(agentId)
     this.resolved.delete(agentId)
+    this.activeSessions.delete(agentId)
     this.deps.snapshots.clear(agentId)
+  }
+
+  private summary(session: StoredSession): SessionSummary {
+    return {
+      id: session.id,
+      agentId: session.agentId,
+      title: session.title,
+      messageCount: session.items.length,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt
+    }
+  }
+
+  private activeSessionId(agentId: string): string {
+    const existing = this.activeSessions.get(agentId)
+    if (existing && this.deps.store.get(existing)) return existing
+    const latest = this.deps.store.latest(agentId)
+    const id = latest?.id ?? this.deps.store.create(agentId, this.agents.get(agentId)?.cwd ?? '').id
+    this.activeSessions.set(agentId, id)
+    return id
+  }
+
+  listSessions(agentId: string): SessionSummary[] {
+    return this.deps.store.list(agentId)
+  }
+
+  createSession(agentId: string): SessionSummary {
+    this.stop(agentId)
+    const session = this.deps.store.create(agentId, this.agents.get(agentId)?.cwd ?? '')
+    this.activeSessions.set(agentId, session.id)
+    return this.summary(session)
+  }
+
+  switchSession(agentId: string, sessionId: string): SessionSummary | null {
+    const session = this.deps.store.get(sessionId)
+    if (!session || session.agentId !== agentId) return null
+    this.stop(agentId)
+    this.activeSessions.set(agentId, sessionId)
+    this.deps.store.touch(sessionId)
+    return this.summary(session)
+  }
+
+  deleteSession(agentId: string, sessionId: string): SessionSummary {
+    const wasActive = this.activeSessions.get(agentId) === sessionId
+    this.deps.store.delete(sessionId)
+    let next: StoredSession
+    if (wasActive) {
+      next = this.deps.store.latest(agentId) ?? this.deps.store.create(agentId, this.agents.get(agentId)?.cwd ?? '')
+    } else {
+      next = this.deps.store.get(this.activeSessions.get(agentId) ?? '')
+        ?? this.deps.store.create(agentId, this.agents.get(agentId)?.cwd ?? '')
+    }
+    this.activeSessions.set(agentId, next.id)
+    return this.summary(next)
   }
 
   async send(agentId: string, text: string): Promise<void> {
@@ -89,7 +146,7 @@ export class MeowAgentManager {
     if (!agent) return
     if (this.running.has(agentId)) return
 
-    this.deps.store.appendMessage(agentId, {
+    this.deps.store.appendMessage(this.activeSessionId(agentId), {
       id: randomUUID(),
       role: 'user',
       text: expandReferences(agent.cwd, text),
@@ -134,14 +191,12 @@ export class MeowAgentManager {
     for (const id of [...this.controllers.keys()]) this.stop(id)
   }
 
-  newSession(agentId: string): void {
-    this.stop(agentId)
-    this.deps.store.clear(agentId)
-    this.deps.snapshots.clear(agentId)
+  newSession(agentId: string): SessionSummary {
+    return this.createSession(agentId)
   }
 
   listMessages(agentId: string): ChatMessage[] {
-    const session = this.deps.store.get(agentId)
+    const session = this.deps.store.get(this.activeSessionId(agentId))
     if (!session) return []
     return session.items
       .filter((i): i is { kind: 'message'; message: ChatMessage } => i.kind === 'message')
@@ -149,7 +204,7 @@ export class MeowAgentManager {
   }
 
   listTranscript(agentId: string): ChatTranscriptItem[] {
-    return this.deps.store.transcript(agentId)
+    return this.deps.store.transcript(this.activeSessionId(agentId))
   }
 
   respondPrompt(agentId: string, promptId: string, resp: PromptResponse): void {
@@ -262,9 +317,9 @@ export class MeowAgentManager {
       maxContextChars: cfg.maxContextChars,
       snapshots: this.deps.snapshots,
       onEvent: (e) => this.emit(e),
-      getItems: () => this.deps.store.get(agent.id)?.items ?? [],
-      appendMessage: (msg) => this.deps.store.appendMessage(agent.id, msg),
-      appendTool: (tool) => this.deps.store.appendTool(agent.id, tool)
+      getItems: () => this.deps.store.get(this.activeSessionId(agent.id))?.items ?? [],
+      appendMessage: (msg) => this.deps.store.appendMessage(this.activeSessionId(agent.id), msg),
+      appendTool: (tool) => this.deps.store.appendTool(this.activeSessionId(agent.id), tool)
     })
     this.runners.set(agent.id, runner)
   }

@@ -187,12 +187,15 @@ describe('MeowAgentManager', () => {
     expect(result.call.error).toMatch(/TAVILY_API_KEY/)
   })
 
-  it('newSession clears persisted messages', async () => {
+  it('newSession creates a new empty session and keeps history', async () => {
     const { manager, store } = await makeManager()
     await manager.send('a1', 'x')
+    expect(manager.listSessions('a1')).toHaveLength(1)
     manager.newSession('a1')
     expect(manager.listMessages('a1')).toEqual([])
-    expect(store.get('a1')?.items).toEqual([])
+    expect(manager.listSessions('a1')).toHaveLength(2)
+    const old = manager.listSessions('a1')[1]
+    expect(store.get(old.id)?.items.length).toBeGreaterThan(0)
   })
 
   it('getSettings returns the default providers', async () => {

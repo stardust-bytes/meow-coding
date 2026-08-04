@@ -1,6 +1,6 @@
 import type {
   AgentState, ChatEvent, ChatMessage, ChatTranscriptItem, GitStatus, McpServerStatus, MeowSettings,
-  NewAgentInput, PromptResponse, Template, WorkspaceRuntime, WorkspaceSummary
+  NewAgentInput, PromptResponse, SessionSummary, Template, WorkspaceRuntime, WorkspaceSummary
 } from './types'
 
 export const Channels = {
@@ -31,6 +31,10 @@ export const Channels = {
   ChatListMessages: 'chat:list-messages',
   ChatListTranscript: 'chat:list-transcript',
   ChatRespondPrompt: 'chat:respond-prompt',
+  SessionList: 'session:list',
+  SessionCreate: 'session:create',
+  SessionSwitch: 'session:switch',
+  SessionDelete: 'session:delete',
   SettingsGet: 'settings:get',
   SettingsSave: 'settings:save',
   McpStatus: 'mcp:status',
@@ -68,10 +72,14 @@ export interface AgentApi {
   quit(): Promise<void>
   sendChat(agentId: string, text: string): Promise<void>
   stopChat(agentId: string): Promise<void>
-  newChatSession(agentId: string): Promise<void>
+  newChatSession(agentId: string): Promise<SessionSummary>
   listChatMessages(agentId: string): Promise<ChatMessage[]>
   listChatTranscript(agentId: string): Promise<ChatTranscriptItem[]>
   respondPrompt(agentId: string, promptId: string, resp: PromptResponse): Promise<void>
+  listSessions(agentId: string): Promise<SessionSummary[]>
+  createSession(agentId: string): Promise<SessionSummary>
+  switchSession(agentId: string, sessionId: string): Promise<SessionSummary | null>
+  deleteSession(agentId: string, sessionId: string): Promise<SessionSummary>
   getSettings(): Promise<MeowSettings>
   saveSettings(settings: MeowSettings): Promise<MeowSettings>
   getMcpStatus(): Promise<McpServerStatus[]>

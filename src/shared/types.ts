@@ -82,13 +82,23 @@ export type ChatTranscriptItem =
   | { kind: 'message'; message: ChatMessage }
   | { kind: 'tool'; tool: ToolCallData }
 
+export interface SessionSummary {
+  id: string
+  agentId: string
+  title: string
+  messageCount: number
+  createdAt: number
+  updatedAt: number
+}
+
 export type ChatEvent =
   | { type: 'text-delta'; agentId: string; delta: string }
   | { type: 'reasoning-delta'; agentId: string; delta: string }
   | { type: 'tool-start'; agentId: string; call: ToolCallData }
   | { type: 'tool-result'; agentId: string; call: ToolCallData }
   | { type: 'prompt-request'; agentId: string; promptId: string
-      kind: 'permission' | 'question'; call?: ToolCallData; question?: string }
+      kind: 'permission' | 'question'; call?: ToolCallData; question?: string
+      options?: QuestionOption[]; multiple?: boolean; custom?: boolean }
   | { type: 'done'; agentId: string; reason: string; tokens?: TokenUsage }
   | { type: 'error'; agentId: string; message: string }
 
@@ -96,6 +106,19 @@ export interface TokenUsage {
   input: number
   output: number
   total: number
+}
+
+export interface QuestionOption {
+  label: string
+  description?: string
+}
+
+export interface QuestionPrompt {
+  question: string
+  header?: string
+  options?: QuestionOption[]
+  multiple?: boolean
+  custom?: boolean
 }
 
 export interface PromptResponse {
