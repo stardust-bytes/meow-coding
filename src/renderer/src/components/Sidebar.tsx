@@ -1,4 +1,8 @@
-import type { Template, WorkspaceSummary } from '@shared/types'
+import { useState } from 'react'
+import type { NewAgentInput, Template, WorkspaceSummary } from '@shared/types'
+import AddProjectDialog from './AddProjectDialog'
+import AddAgentDialog from './AddAgentDialog'
+import TemplatesPanel from './TemplatesPanel'
 
 interface Props {
   workspaces: WorkspaceSummary[]
@@ -12,10 +16,35 @@ interface Props {
 export default function Sidebar({
   workspaces, templates, activePath, onOpen, onRefresh, onTemplatesChange
 }: Props) {
+  const [showAddProject, setShowAddProject] = useState(false)
+  const [showAddAgent, setShowAddAgent] = useState(false)
+  const [showTemplates, setShowTemplates] = useState(false)
+
+  const handleAddProject = async (projectPath: string, name: string) => {
+    await window.api.addWorkspace(projectPath, name)
+    setShowAddProject(false)
+    onRefresh()
+    onOpen(projectPath)
+  }
+
+  const handleRemoveProject = async (projectPath: string) => {
+    await window.api.removeWorkspace(projectPath)
+    onRefresh()
+  }
+
+  const handleAddAgent = async (input: NewAgentInput) => {
+    if (!activePath) return
+    await window.api.addAgent(activePath, input)
+    setShowAddAgent(false)
+    onOpen(activePath)
+  }
+
   return (
     <aside className="sidebar">
       <div className="panel-head">
         <span className="panel-title">Projects</span>
+        <button className="btn small" onClick={() => setShowAddProject(true)}>+ project</button>
+        <button className="btn small" onClick={() => setShowTemplates(v => !v)}>templates</button>
       </div>
       <ul className="project-list">
         {workspaces.map(ws => (
@@ -23,10 +52,29 @@ export default function Sidebar({
             <div className="project-row" onClick={() => onOpen(ws.projectPath)}>
               <span className="project-name">{ws.name}</span>
               <span className="project-count">{ws.agentCount}</span>
+              <button className="btn small" onClick={e => {
+                e.stopPropagation()
+                void handleRemoveProject(ws.projectPath)
+              }}>x</button>
             </div>
           </li>
         ))}
       </ul>
+      {activePath && (
+        <button className="btn" onClick={() => setShowAddAgent(true)}>+ agent</button>
+      )}
+      {showTemplates && <TemplatesPanel templates={templates} onChange={onTemplatesChange} />}
+      {showAddProject && (
+        <AddProjectDialog onAdd={(p, n) => void handleAddProject(p, n)} onClose={() => setShowAddProject(false)} />
+      )}
+      {showAddAgent && activePath && (
+        <AddAgentDialog
+          projectPath={activePath}
+          templates={templates}
+          onAdd={input => void handleAddAgent(input)}
+          onClose={() => setShowAddAgent(false)}
+        />
+      )}
     </aside>
   )
 }
