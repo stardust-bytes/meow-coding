@@ -1,20 +1,5 @@
-import { app, BrowserWindow, session } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import path from 'node:path'
-
-function setupCsp(): void {
-  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    const dev = Boolean(process.env['ELECTRON_RENDERER_URL'])
-    const csp = dev
-      ? "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
-      : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        'Content-Security-Policy': [csp]
-      }
-    })
-  })
-}
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -37,7 +22,6 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  setupCsp()
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
