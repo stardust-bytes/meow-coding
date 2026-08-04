@@ -248,3 +248,12 @@ select.input { width: 100%; }
 }
 .chat-md table { border-collapse: collapse; margin: 8px 0; }
 .chat-md th, .chat-md td { border: 1px solid var(--border); padding: 4px 8px; }
+
+
+/* Diff view */
+.tool-call-diff { color: var(--text); }
+.diff-view { font-family: var(--font-mono); font-size: 12px; user-select: text; max-height: 260px; overflow-y: auto; }
+.diff-line { display: flex; gap: 6px; padding: 0 10px; white-space: pre-wrap; word-break: break-word; }
+.diff-line.del { background: rgba(244, 135, 113, 0.12); color: var(--red); }
+.diff-line.add { background: rgba(78, 201, 176, 0.12); color: var(--green); }
+.diff-sign { flex: 0 0 auto; }
