@@ -7,7 +7,7 @@ export class GitStatusService {
       execFile(
         'git',
         ['status', '--porcelain=v2', '-b'],
-        { cwd: projectPath },
+        { cwd: projectPath, timeout: 5000, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024 * 4 },
         (err, stdout) => {
           if (err) return resolve(null)
           resolve(this.parse(stdout))

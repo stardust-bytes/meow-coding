@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -34,7 +34,7 @@ describe('GitStatusService.get', () => {
 
   beforeEach(() => {
     dir = mkdtempSync(path.join(tmpdir(), 'meow-git-'))
-    execFileSync('git', ['init', '-q'], { cwd: dir })
+    execFileSync('git', ['init', '-q', '--initial-branch=main'], { cwd: dir })
     execFileSync('git', ['config', 'user.email', 't@t'], { cwd: dir })
     execFileSync('git', ['config', 'user.name', 't'], { cwd: dir })
   })
@@ -58,7 +58,7 @@ describe('GitStatusService.get', () => {
     writeFileSync(path.join(dir, 'a.txt'), 'changed')
     const result = await new GitStatusService().get(dir)
     expect(result).not.toBeNull()
-    expect(result?.branch).toBe('master')
+    expect(result?.branch).toBe('main')
     expect(result!.dirtyCount).toBe(1)
   })
 })
