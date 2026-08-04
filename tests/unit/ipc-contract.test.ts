@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Channels } from '../../src/shared/ipc'
 import type { AgentApi, PtyDataEvent, AgentStateEvent, GitStatusEvent, ChatEvent } from '../../src/shared/ipc'
-import type { AgentConfig, ChatMessage } from '../../src/shared/types'
+import type { AgentConfig, ChatMessage, MeowSettings } from '../../src/shared/types'
 
 describe('IPC contract', () => {
   it('defines all channels used by the preload api', () => {
@@ -12,7 +12,7 @@ describe('IPC contract', () => {
       'writeInput', 'injectPrompt', 'resizePty', 'openLog', 'getLogPath', 'quit',
       'onPtyData', 'onAgentState', 'onGitStatus',
       'sendChat', 'stopChat', 'newChatSession', 'listChatMessages', 'respondPrompt',
-      'onChatEvent'
+      'onChatEvent', 'getSettings', 'saveSettings'
     ]
     const api: AgentApi = {
       listWorkspaces: async () => [],
@@ -42,7 +42,9 @@ describe('IPC contract', () => {
       newChatSession: async () => {},
       listChatMessages: async () => [],
       respondPrompt: async () => {},
-      onChatEvent: () => () => {}
+      onChatEvent: () => () => {},
+      getSettings: async () => ({ providers: [], defaultProvider: '' }),
+      saveSettings: async (s) => s
     }
     for (const key of required) {
       expect(typeof api[key]).toBe('function')
@@ -60,6 +62,8 @@ describe('IPC contract', () => {
     expect(Channels.ChatListMessages).toBe('chat:list-messages')
     expect(Channels.ChatRespondPrompt).toBe('chat:respond-prompt')
     expect(Channels.EventChat).toBe('chat:event')
+    expect(Channels.SettingsGet).toBe('settings:get')
+    expect(Channels.SettingsSave).toBe('settings:save')
   })
 
   it('types event payloads without runtime error', () => {
@@ -85,5 +89,14 @@ describe('IPC contract', () => {
     expect(cfg.kind).toBe('native')
     expect(evt.type).toBe('text-delta')
     expect(promptEvt.type === 'prompt-request' && promptEvt.call?.tool).toBe('bash')
+  })
+
+  it('types settings payloads without runtime error', () => {
+    const s: MeowSettings = {
+      providers: [{ id: 'deepseek', apiKey: 'k', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat' }],
+      defaultProvider: 'deepseek'
+    }
+    expect(s.providers[0].id).toBe('deepseek')
+    expect(s.defaultProvider).toBe('deepseek')
   })
 })

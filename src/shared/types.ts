@@ -87,3 +87,15 @@ export interface PromptResponse {
   allow: boolean
   text?: string
 }
+
+export interface ProviderSettings {
+  id: string
+  apiKey: string
+  baseUrl?: string
+  model: string
+}
+
+export interface MeowSettings {
+  providers: ProviderSettings[]
+  defaultProvider: string
+}

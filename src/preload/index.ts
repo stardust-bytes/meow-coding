@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
-import type { ChatEvent, NewAgentInput, PromptResponse, Template } from '../shared/types'
+import type { ChatEvent, MeowSettings, NewAgentInput, PromptResponse, Template } from '../shared/types'
 import type { AgentApi, AgentStateEvent, GitStatusEvent, PtyDataEvent } from '../shared/ipc'
 
 function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
@@ -44,6 +44,8 @@ const api: AgentApi = {
   listChatMessages: (agentId: string) => ipcRenderer.invoke(Channels.ChatListMessages, agentId),
   respondPrompt: (agentId: string, promptId: string, resp: PromptResponse) =>
     ipcRenderer.invoke(Channels.ChatRespondPrompt, agentId, promptId, resp),
+  getSettings: () => ipcRenderer.invoke(Channels.SettingsGet),
+  saveSettings: (settings: MeowSettings) => ipcRenderer.invoke(Channels.SettingsSave, settings),
   onPtyData: (cb: (e: PtyDataEvent) => void) => subscribe(Channels.EventPtyData, cb),
   onAgentState: (cb: (e: AgentStateEvent) => void) => subscribe(Channels.EventAgentState, cb),
   onGitStatus: (cb: (e: GitStatusEvent) => void) => subscribe(Channels.EventGitStatus, cb),

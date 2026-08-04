@@ -1,5 +1,5 @@
 import type {
-  AgentState, ChatEvent, ChatMessage, GitStatus, NewAgentInput, PromptResponse, Template,
+  AgentState, ChatEvent, ChatMessage, GitStatus, MeowSettings, NewAgentInput, PromptResponse, Template,
   WorkspaceRuntime, WorkspaceSummary
 } from './types'
 
@@ -28,6 +28,8 @@ export const Channels = {
   ChatNewSession: 'chat:new-session',
   ChatListMessages: 'chat:list-messages',
   ChatRespondPrompt: 'chat:respond-prompt',
+  SettingsGet: 'settings:get',
+  SettingsSave: 'settings:save',
   EventPtyData: 'pty:data',
   EventAgentState: 'agent:state',
   EventGitStatus: 'git:status',
@@ -63,6 +65,8 @@ export interface AgentApi {
   newChatSession(agentId: string): Promise<void>
   listChatMessages(agentId: string): Promise<ChatMessage[]>
   respondPrompt(agentId: string, promptId: string, resp: PromptResponse): Promise<void>
+  getSettings(): Promise<MeowSettings>
+  saveSettings(settings: MeowSettings): Promise<MeowSettings>
   onPtyData(cb: (e: PtyDataEvent) => void): () => void
   onAgentState(cb: (e: AgentStateEvent) => void): () => void
   onGitStatus(cb: (e: GitStatusEvent) => void): () => void
