@@ -3,7 +3,7 @@ import type { z } from 'zod'
 export interface ToolDefinition {
   name: string
   description: string
-  schema: z.ZodType<Record<string, unknown>>
+  schema: z.ZodType
   run(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolRunResult>
 }
 

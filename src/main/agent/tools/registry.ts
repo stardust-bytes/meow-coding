@@ -1,0 +1,25 @@
+import type { ToolDefinition } from './types'
+import { bashTool } from './bash'
+import { readTool } from './read'
+import { writeTool } from './write'
+import { editTool } from './edit'
+import { globTool } from './glob'
+import { grepTool } from './grep'
+import { applyPatchTool } from './apply-patch'
+import { todowriteTool } from './todowrite'
+import { questionTool } from './question'
+
+export function createDefaultTools(): Map<string, ToolDefinition> {
+  const tools = [
+    bashTool,
+    readTool,
+    writeTool,
+    editTool,
+    globTool,
+    grepTool,
+    applyPatchTool,
+    todowriteTool,
+    questionTool
+  ]
+  return new Map(tools.map(t => [t.name, t]))
+}
