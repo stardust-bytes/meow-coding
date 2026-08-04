@@ -2604,8 +2604,12 @@ select.input { width: 100%; }
   min-height: 0;
   min-width: 0;
 }
-.pane-zoom { flex: 1; display: flex; padding: 4px; }
-.pane.zoomed { flex: 1; }
+.pane-grid.zoom-mode .pane { display: none; }
+.pane-grid.zoom-mode .pane.zoomed {
+  display: flex;
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+}
 .pane-header {
   display: flex;
   align-items: center;
