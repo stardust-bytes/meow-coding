@@ -9,38 +9,46 @@ interface Props {
   templates: Template[]
   activePath: string | null
   onOpen: (path: string) => void
+  onRemove: (path: string) => void
   onRefresh: () => void
   onTemplatesChange: (templates: Template[]) => void
 }
 
 export default function Sidebar({
-  workspaces, templates, activePath, onOpen, onRefresh, onTemplatesChange
+  workspaces, templates, activePath, onOpen, onRemove, onRefresh, onTemplatesChange
 }: Props) {
   const [showAddProject, setShowAddProject] = useState(false)
   const [showAddAgent, setShowAddAgent] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
+  const [error, setError] = useState('')
 
   const handleAddProject = async (projectPath: string, name: string) => {
-    await window.api.addWorkspace(projectPath, name)
-    setShowAddProject(false)
-    onRefresh()
-    onOpen(projectPath)
-  }
-
-  const handleRemoveProject = async (projectPath: string) => {
-    await window.api.removeWorkspace(projectPath)
-    onRefresh()
+    try {
+      await window.api.addWorkspace(projectPath, name)
+      setShowAddProject(false)
+      setError('')
+      onRefresh()
+      onOpen(projectPath)
+    } catch (err) {
+      setError(String(err))
+    }
   }
 
   const handleAddAgent = async (input: NewAgentInput) => {
     if (!activePath) return
-    await window.api.addAgent(activePath, input)
-    setShowAddAgent(false)
-    onOpen(activePath)
+    try {
+      await window.api.addAgent(activePath, input)
+      setShowAddAgent(false)
+      setError('')
+      onOpen(activePath)
+    } catch (err) {
+      setError(String(err))
+    }
   }
 
   return (
     <aside className="sidebar">
+      {error && <div className="sidebar-error">{error}</div>}
       <div className="panel-head">
         <span className="panel-title">Projects</span>
         <button className="btn small" onClick={() => setShowAddProject(true)}>+ project</button>
@@ -54,7 +62,7 @@ export default function Sidebar({
               <span className="project-count">{ws.agentCount}</span>
               <button className="btn small" onClick={e => {
                 e.stopPropagation()
-                void handleRemoveProject(ws.projectPath)
+                onRemove(ws.projectPath)
               }}>x</button>
             </div>
           </li>

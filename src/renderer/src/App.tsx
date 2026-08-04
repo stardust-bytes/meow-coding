@@ -63,6 +63,16 @@ export default function App() {
     }
   }, [])
 
+  const removeWorkspace = useCallback(async (path: string) => {
+    try {
+      await window.api.removeWorkspace(path)
+    } catch {
+      /* surface via sidebar later; still refresh list */
+    }
+    setRuntime(prev => prev && prev.workspace.projectPath === path ? null : prev)
+    void refreshWorkspaces()
+  }, [refreshWorkspaces])
+
   const registerTerminal = useCallback((agentId: string, term: Terminal) => {
     termsRef.current.set(agentId, term)
     const buf = buffersRef.current.get(agentId)
@@ -95,6 +105,7 @@ export default function App() {
         templates={templates}
         activePath={runtime?.workspace.projectPath ?? null}
         onOpen={openWorkspace}
+        onRemove={removeWorkspace}
         onRefresh={refreshWorkspaces}
         onTemplatesChange={setTemplates}
       />
