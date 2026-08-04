@@ -260,7 +260,7 @@ select.input { width: 100%; }
 
 
 /* Mode bar */
-.chat-mode { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--border); background: var(--bg-panel); }
+.chat-mode { display: flex; align-items: center; gap: 6px; }
 .chat-mode-label { font-size: 11px; text-transform: uppercase; color: var(--text-dim); }
 .chat-mode .btn.active { border-color: var(--accent); color: var(--accent); }
 .chat-mode-hint { font-size: 11px; color: var(--yellow); margin-left: 6px; }

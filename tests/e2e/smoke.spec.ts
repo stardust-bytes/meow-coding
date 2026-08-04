@@ -42,6 +42,12 @@ test('native meow agent renders a chat panel and sends a message', async () => {
       await expect(window.locator('.chat-mode-hint')).toBeVisible()
       await window.getByRole('button', { name: 'build' }).click()
       await expect(window.locator('.chat-mode-hint')).toHaveCount(0)
+
+      await window.locator('.chat-input-field').focus()
+      await window.keyboard.press('Tab')
+      await expect(window.locator('.chat-mode-hint')).toBeVisible()
+      await window.keyboard.press('Tab')
+      await expect(window.locator('.chat-mode-hint')).toHaveCount(0)
     } finally {
       await app.close()
     }

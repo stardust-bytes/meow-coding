@@ -81,24 +81,21 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
     setItems(prev => prev.filter(i => !(i.kind === 'prompt' && i.promptId === promptId)))
   }, [agentId])
 
+  const switchMode = useCallback((mode: AgentMode) => {
+    setCurrentMode(mode)
+    onModeChange?.(mode)
+  }, [onModeChange])
+
   return (
-    <div className="chat-panel">
-      <div className="chat-mode">
-        <span className="chat-mode-label">mode</span>
-        <button
-          className={`btn small ${currentMode === 'build' ? 'active' : ''}`}
-          onClick={() => { setCurrentMode('build'); onModeChange?.('build') }}
-        >
-          build
-        </button>
-        <button
-          className={`btn small ${currentMode === 'plan' ? 'active' : ''}`}
-          onClick={() => { setCurrentMode('plan'); onModeChange?.('plan') }}
-        >
-          plan
-        </button>
-        {currentMode === 'plan' && <span className="chat-mode-hint">read-only — edits denied</span>}
-      </div>
+    <div
+      className="chat-panel"
+      onKeyDown={e => {
+        if (e.key === 'Tab') {
+          e.preventDefault()
+          switchMode(currentMode === 'build' ? 'plan' : 'build')
+        }
+      }}
+    >
       <div className="chat-feed">
         {items.map(item => {
           if (item.kind === 'message') {
@@ -161,6 +158,22 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
         {running && (
           <button className="chat-stop" onClick={() => void window.api.stopChat(agentId)}>Stop</button>
         )}
+        <div className="chat-mode">
+          <span className="chat-mode-label">mode</span>
+          <button
+            className={`btn small ${currentMode === 'build' ? 'active' : ''}`}
+            onClick={() => switchMode('build')}
+          >
+            build
+          </button>
+          <button
+            className={`btn small ${currentMode === 'plan' ? 'active' : ''}`}
+            onClick={() => switchMode('plan')}
+          >
+            plan
+          </button>
+          {currentMode === 'plan' && <span className="chat-mode-hint">read-only — edits denied</span>}
+        </div>
         <ChatInput disabled={running} onSubmit={send} />
       </div>
     </div>
