@@ -1,11 +1,9 @@
 import type { FlexibleSchema, ModelMessage, Tool } from 'ai'
 import { jsonSchema, tool } from 'ai'
-import type { ChatMessage, ToolCallData } from '../../shared/types'
+import type { ChatMessage, ChatTranscriptItem, ToolCallData } from '../../shared/types'
 import type { ToolDefinition, ToolSchema } from './tools/types'
 
-export type TranscriptItem =
-  | { kind: 'message'; message: ChatMessage }
-  | { kind: 'tool'; tool: ToolCallData }
+export type TranscriptItem = ChatTranscriptItem
 
 type AssistantPart = { type: 'text'; text: string } | { type: 'tool-call'; toolCallId: string; toolName: string; input: unknown }
 

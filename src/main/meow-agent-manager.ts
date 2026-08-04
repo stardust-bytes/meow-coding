@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ChatEvent, ChatMessage, McpServerStatus, MeowSettings, PromptResponse } from '../shared/types'
+import type { ChatEvent, ChatMessage, ChatTranscriptItem, McpServerStatus, MeowSettings, PromptResponse } from '../shared/types'
 import type { AgentConfig, AgentMode } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, settingsToConfig, writeMeowConfig,
@@ -146,6 +146,10 @@ export class MeowAgentManager {
     return session.items
       .filter((i): i is { kind: 'message'; message: ChatMessage } => i.kind === 'message')
       .map(i => i.message)
+  }
+
+  listTranscript(agentId: string): ChatTranscriptItem[] {
+    return this.deps.store.transcript(agentId)
   }
 
   respondPrompt(agentId: string, promptId: string, resp: PromptResponse): void {

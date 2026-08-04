@@ -1,11 +1,10 @@
 import type { JsonStore } from '../json-store'
-import type { ChatMessage, ToolCallData } from '../../shared/types'
-import type { TranscriptItem } from './message'
+import type { ChatMessage, ChatTranscriptItem, ToolCallData } from '../../shared/types'
 
 export interface StoredSession {
   id: string
   projectPath: string
-  items: TranscriptItem[]
+  items: ChatTranscriptItem[]
   updatedAt: number
 }
 
@@ -14,6 +13,10 @@ export class SessionStore {
 
   get(agentId: string): StoredSession | null {
     return this.store.load().find(s => s.id === agentId) ?? null
+  }
+
+  transcript(agentId: string): ChatTranscriptItem[] {
+    return this.get(agentId)?.items ?? []
   }
 
   ensure(agentId: string, projectPath: string): StoredSession {

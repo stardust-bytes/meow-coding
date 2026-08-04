@@ -1,6 +1,6 @@
 import type {
-  AgentState, ChatEvent, ChatMessage, GitStatus, McpServerStatus, MeowSettings, NewAgentInput,
-  PromptResponse, Template, WorkspaceRuntime, WorkspaceSummary
+  AgentState, ChatEvent, ChatMessage, ChatTranscriptItem, GitStatus, McpServerStatus, MeowSettings,
+  NewAgentInput, PromptResponse, Template, WorkspaceRuntime, WorkspaceSummary
 } from './types'
 
 export const Channels = {
@@ -28,6 +28,7 @@ export const Channels = {
   ChatStop: 'chat:stop',
   ChatNewSession: 'chat:new-session',
   ChatListMessages: 'chat:list-messages',
+  ChatListTranscript: 'chat:list-transcript',
   ChatRespondPrompt: 'chat:respond-prompt',
   SettingsGet: 'settings:get',
   SettingsSave: 'settings:save',
@@ -67,6 +68,7 @@ export interface AgentApi {
   stopChat(agentId: string): Promise<void>
   newChatSession(agentId: string): Promise<void>
   listChatMessages(agentId: string): Promise<ChatMessage[]>
+  listChatTranscript(agentId: string): Promise<ChatTranscriptItem[]>
   respondPrompt(agentId: string, promptId: string, resp: PromptResponse): Promise<void>
   getSettings(): Promise<MeowSettings>
   saveSettings(settings: MeowSettings): Promise<MeowSettings>

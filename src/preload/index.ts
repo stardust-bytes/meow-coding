@@ -44,6 +44,7 @@ const api: AgentApi = {
   stopChat: (agentId: string) => ipcRenderer.invoke(Channels.ChatStop, agentId),
   newChatSession: (agentId: string) => ipcRenderer.invoke(Channels.ChatNewSession, agentId),
   listChatMessages: (agentId: string) => ipcRenderer.invoke(Channels.ChatListMessages, agentId),
+  listChatTranscript: (agentId: string) => ipcRenderer.invoke(Channels.ChatListTranscript, agentId),
   respondPrompt: (agentId: string, promptId: string, resp: PromptResponse) =>
     ipcRenderer.invoke(Channels.ChatRespondPrompt, agentId, promptId, resp),
   getSettings: () => ipcRenderer.invoke(Channels.SettingsGet),

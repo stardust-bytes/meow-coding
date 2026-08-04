@@ -74,7 +74,7 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     provider,
     model: raw.model ?? DEFAULT_MEOW_CONFIG.model,
     agents,
-    permission: raw.permission ?? {},
+    permission: raw.permission ?? DEFAULT_MEOW_CONFIG.permission,
     mcp: raw.mcp ?? {},
     maxContextChars: raw.maxContextChars ?? DEFAULT_MAX_CONTEXT_CHARS
   }

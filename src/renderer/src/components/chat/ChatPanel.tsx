@@ -33,8 +33,11 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    void window.api.listChatMessages(agentId).then(msgs => {
-      setItems(msgs.map(m => ({ kind: 'message', id: m.id, role: m.role, text: m.text })))
+    void window.api.listChatTranscript(agentId).then(items => {
+      setItems(items.map(it => it.kind === 'message'
+        ? { kind: 'message', id: it.message.id, role: it.message.role, text: it.message.text }
+        : { kind: 'tool', id: it.tool.id, call: { ...it.tool } }
+      ))
     })
     const off = window.api.onChatEvent(e => applyEvent(e))
     return off

@@ -54,6 +54,12 @@ export class SessionRunner {
       let hasToolCall = false
       let textBuffer = ''
       const calls: ToolCallData[] = []
+      const persistPartial = () => {
+        if (!textBuffer) return
+        this.deps.appendMessage({
+          id: randomUUID(), role: 'assistant', text: textBuffer, createdAt: Date.now()
+        })
+      }
       try {
         const stream = this.deps.llm.stream({
           model: this.deps.model,
@@ -64,6 +70,7 @@ export class SessionRunner {
         })
         for await (const part of stream) {
           if (signal?.aborted) {
+            persistPartial()
             this.deps.onEvent({ type: 'done', agentId, reason: 'stopped' })
             return
           }
@@ -83,11 +90,13 @@ export class SessionRunner {
             calls.push(call)
             this.deps.onEvent({ type: 'tool-start', agentId, call })
           } else if (part.kind === 'error') {
+            persistPartial()
             this.deps.onEvent({ type: 'error', agentId, message: part.error ?? 'llm error' })
             return
           }
         }
       } catch (err) {
+        persistPartial()
         if (signal?.aborted) {
           this.deps.onEvent({ type: 'done', agentId, reason: 'stopped' })
         } else {
@@ -97,6 +106,7 @@ export class SessionRunner {
       }
 
       if (signal?.aborted) {
+        persistPartial()
         this.deps.onEvent({ type: 'done', agentId, reason: 'stopped' })
         return
       }

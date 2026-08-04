@@ -96,6 +96,26 @@ describe('MeowAgentManager', () => {
     expect(manager.isRunning('a1')).toBe(false)
   })
 
+  it('listTranscript returns the full transcript including tool steps', async () => {
+    const { manager } = await makeManager({
+      partsQueue: [
+        [
+          { kind: 'text', text: 'reading...' },
+          { kind: 'tool-call', toolCallId: 'tc1', toolName: 'read', toolInput: { file_path: 'x' } },
+          { kind: 'finish' }
+        ],
+        [{ kind: 'text', text: 'done' }, { kind: 'finish' }]
+      ]
+    })
+    manager.newSession('a1')
+    await manager.send('a1', 'read x')
+    const transcript = manager.listTranscript('a1')
+    const kinds = transcript.map(t => t.kind)
+    expect(kinds).toEqual(['message', 'message', 'tool', 'message'])
+    const toolItem = transcript.find(t => t.kind === 'tool')
+    expect(toolItem && toolItem.kind === 'tool' ? toolItem.tool.tool : '').toBe('read')
+  })
+
   it('emits an error when no api key is configured', async () => {
     const { manager, events } = await makeManager()
     manager.newSession('a1')
@@ -138,14 +158,14 @@ describe('MeowAgentManager', () => {
     const { manager: m2, events: evts } = await makeManager({
       partsQueue: [
         [
-          { kind: 'tool-call', toolCallId: 'tc1', toolName: 'read', toolInput: { file_path: 'x.ts' } },
+          { kind: 'tool-call', toolCallId: 'tc1', toolName: 'websearch', toolInput: { query: 'meow' } },
           { kind: 'finish' }
         ],
         [{ kind: 'text', text: 'ok' }, { kind: 'finish' }]
       ]
     })
     m2.newSession('a1')
-    const sendPromise = m2.send('a1', 'read x.ts')
+    const sendPromise = m2.send('a1', 'search web')
     // wait for prompt-request, then allow
     await new Promise<void>(resolve => {
       const t = setInterval(() => {
@@ -161,7 +181,7 @@ describe('MeowAgentManager', () => {
     const result = evts.find(e => e.type === 'tool-result') as Extract<ChatEvent, { type: 'tool-result' }>
     expect(result).toBeDefined()
     expect(result.call.permission).toBe('allowed')
-    expect(result.call.error).toMatch(/not found/)
+    expect(result.call.error).toMatch(/TAVILY_API_KEY/)
   })
 
   it('newSession clears persisted messages', async () => {

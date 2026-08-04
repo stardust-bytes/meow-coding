@@ -77,6 +77,10 @@ export interface ToolCallData {
   permission: 'pending' | 'allowed' | 'denied'
 }
 
+export type ChatTranscriptItem =
+  | { kind: 'message'; message: ChatMessage }
+  | { kind: 'tool'; tool: ToolCallData }
+
 export type ChatEvent =
   | { type: 'text-delta'; agentId: string; delta: string }
   | { type: 'tool-start'; agentId: string; call: ToolCallData }

@@ -11,7 +11,7 @@ describe('IPC contract', () => {
       'pickFolder', 'startAgent', 'stopAgent', 'restartAgent',
       'writeInput', 'injectPrompt', 'resizePty', 'openLog', 'getLogPath', 'quit',
       'onPtyData', 'onAgentState', 'onGitStatus',
-      'sendChat', 'stopChat', 'newChatSession', 'listChatMessages', 'respondPrompt',
+      'sendChat', 'stopChat', 'newChatSession', 'listChatMessages', 'listChatTranscript', 'respondPrompt',
       'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus'
     ]
     const api: AgentApi = {
@@ -42,6 +42,7 @@ describe('IPC contract', () => {
       stopChat: async () => {},
       newChatSession: async () => {},
       listChatMessages: async () => [],
+      listChatTranscript: async () => [],
       respondPrompt: async () => {},
       onChatEvent: () => () => {},
       getSettings: async () => ({ providers: [], defaultProvider: '' }),
@@ -62,6 +63,7 @@ describe('IPC contract', () => {
     expect(Channels.ChatStop).toBe('chat:stop')
     expect(Channels.ChatNewSession).toBe('chat:new-session')
     expect(Channels.ChatListMessages).toBe('chat:list-messages')
+    expect(Channels.ChatListTranscript).toBe('chat:list-transcript')
     expect(Channels.ChatRespondPrompt).toBe('chat:respond-prompt')
     expect(Channels.EventChat).toBe('chat:event')
     expect(Channels.SettingsGet).toBe('settings:get')

@@ -175,6 +175,33 @@ describe('SessionRunner', () => {
     expect(h.llm.calls.length).toBe(0)
   })
 
+  it('persists partial assistant text when stopped mid-stream', async () => {
+    const h = makeHarness({
+      llm: {
+        async *stream(opts: { signal?: AbortSignal }) {
+          yield { kind: 'text', text: 'partial ' }
+          yield { kind: 'text', text: 'answer' }
+          await new Promise<void>(resolve => {
+            if (opts.signal?.aborted) return resolve()
+            opts.signal?.addEventListener('abort', () => resolve(), { once: true })
+          })
+          yield { kind: 'finish' }
+        }
+      } as LlmClient
+    })
+    const controller = new AbortController()
+    const runPromise = h.runner.run(controller.signal)
+    await new Promise(r => setTimeout(r, 30))
+    controller.abort()
+    await runPromise
+    const assistant = h.items
+      .filter((i): i is { kind: 'message'; message: ChatMessage } => i.kind === 'message')
+      .map(i => i.message)
+      .find(m => m.role === 'assistant')
+    expect(assistant?.text).toBe('partial answer')
+    expect(h.events.some(e => e.type === 'done' && e.reason === 'stopped')).toBe(true)
+  })
+
   it('surfaces an llm error event', async () => {
     const h = makeHarness()
     h.llm.queue = [[{ kind: 'error', error: 'rate limited' }]]
