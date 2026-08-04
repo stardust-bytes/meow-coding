@@ -1,5 +1,7 @@
 export type AgentStatus = 'spawning' | 'running' | 'idle' | 'exited' | 'stopped' | 'error'
 export type AlertLevel = 'normal' | 'attention' | 'error'
+export type AgentKind = 'pty' | 'native'
+export type ChatRole = 'user' | 'assistant'
 
 export interface Template {
   id: string
@@ -7,6 +9,7 @@ export interface Template {
   command: string
   args: string[]
   icon?: string
+  kind?: AgentKind
 }
 
 export interface AgentConfig {
@@ -14,6 +17,7 @@ export interface AgentConfig {
   name: string
   templateId: string
   cwd: string
+  kind?: AgentKind
 }
 
 export interface Workspace {
@@ -51,4 +55,34 @@ export interface NewAgentInput {
   name: string
   templateId: string
   cwd: string
+}
+
+export interface ChatMessage {
+  id: string
+  role: ChatRole
+  text: string
+  createdAt: number
+}
+
+export interface ToolCallData {
+  id: string
+  tool: string
+  input: Record<string, unknown>
+  output?: string
+  error?: string
+  permission: 'pending' | 'allowed' | 'denied'
+}
+
+export type ChatEvent =
+  | { type: 'text-delta'; agentId: string; delta: string }
+  | { type: 'tool-start'; agentId: string; call: ToolCallData }
+  | { type: 'tool-result'; agentId: string; call: ToolCallData }
+  | { type: 'prompt-request'; agentId: string; promptId: string
+      kind: 'permission' | 'question'; call?: ToolCallData; question?: string }
+  | { type: 'done'; agentId: string; reason: string }
+  | { type: 'error'; agentId: string; message: string }
+
+export interface PromptResponse {
+  allow: boolean
+  text?: string
 }

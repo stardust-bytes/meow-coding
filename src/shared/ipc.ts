@@ -1,4 +1,7 @@
-import type { AgentState, GitStatus, NewAgentInput, Template, WorkspaceRuntime, WorkspaceSummary } from './types'
+import type {
+  AgentState, ChatEvent, ChatMessage, GitStatus, NewAgentInput, PromptResponse, Template,
+  WorkspaceRuntime, WorkspaceSummary
+} from './types'
 
 export const Channels = {
   WorkspaceList: 'workspace:list',
@@ -20,9 +23,15 @@ export const Channels = {
   LogOpen: 'log:open',
   LogPath: 'log:path',
   AppQuit: 'app:quit',
+  ChatSend: 'chat:send',
+  ChatStop: 'chat:stop',
+  ChatNewSession: 'chat:new-session',
+  ChatListMessages: 'chat:list-messages',
+  ChatRespondPrompt: 'chat:respond-prompt',
   EventPtyData: 'pty:data',
   EventAgentState: 'agent:state',
-  EventGitStatus: 'git:status'
+  EventGitStatus: 'git:status',
+  EventChat: 'chat:event'
 } as const
 
 export interface PtyDataEvent { agentId: string; data: string }
@@ -49,7 +58,13 @@ export interface AgentApi {
   openLog(agentId: string): Promise<void>
   getLogPath(agentId: string): Promise<string>
   quit(): Promise<void>
+  sendChat(agentId: string, text: string): Promise<void>
+  stopChat(agentId: string): Promise<void>
+  newChatSession(agentId: string): Promise<void>
+  listChatMessages(agentId: string): Promise<ChatMessage[]>
+  respondPrompt(agentId: string, promptId: string, resp: PromptResponse): Promise<void>
   onPtyData(cb: (e: PtyDataEvent) => void): () => void
   onAgentState(cb: (e: AgentStateEvent) => void): () => void
   onGitStatus(cb: (e: GitStatusEvent) => void): () => void
+  onChatEvent(cb: (e: ChatEvent) => void): () => void
 }

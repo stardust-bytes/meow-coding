@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Channels } from '../../src/shared/ipc'
-import type { AgentApi, PtyDataEvent, AgentStateEvent, GitStatusEvent } from '../../src/shared/ipc'
+import type { AgentApi, PtyDataEvent, AgentStateEvent, GitStatusEvent, ChatEvent } from '../../src/shared/ipc'
+import type { AgentConfig, ChatMessage } from '../../src/shared/types'
 
 describe('IPC contract', () => {
   it('defines all channels used by the preload api', () => {
@@ -9,7 +10,9 @@ describe('IPC contract', () => {
       'addAgent', 'removeAgent', 'listTemplates', 'saveTemplate', 'removeTemplate',
       'pickFolder', 'startAgent', 'stopAgent', 'restartAgent',
       'writeInput', 'injectPrompt', 'resizePty', 'openLog', 'getLogPath', 'quit',
-      'onPtyData', 'onAgentState', 'onGitStatus'
+      'onPtyData', 'onAgentState', 'onGitStatus',
+      'sendChat', 'stopChat', 'newChatSession', 'listChatMessages', 'respondPrompt',
+      'onChatEvent'
     ]
     const api: AgentApi = {
       listWorkspaces: async () => [],
@@ -33,7 +36,13 @@ describe('IPC contract', () => {
       quit: async () => {},
       onPtyData: () => () => {},
       onAgentState: () => () => {},
-      onGitStatus: () => () => {}
+      onGitStatus: () => () => {},
+      sendChat: async () => {},
+      stopChat: async () => {},
+      newChatSession: async () => {},
+      listChatMessages: async () => [],
+      respondPrompt: async () => {},
+      onChatEvent: () => () => {}
     }
     for (const key of required) {
       expect(typeof api[key]).toBe('function')
@@ -45,6 +54,12 @@ describe('IPC contract', () => {
     expect(Channels.EventAgentState).toBe('agent:state')
     expect(Channels.EventGitStatus).toBe('git:status')
     expect(Channels.PtyInput).toBe('pty:input')
+    expect(Channels.ChatSend).toBe('chat:send')
+    expect(Channels.ChatStop).toBe('chat:stop')
+    expect(Channels.ChatNewSession).toBe('chat:new-session')
+    expect(Channels.ChatListMessages).toBe('chat:list-messages')
+    expect(Channels.ChatRespondPrompt).toBe('chat:respond-prompt')
+    expect(Channels.EventChat).toBe('chat:event')
   })
 
   it('types event payloads without runtime error', () => {
@@ -56,5 +71,19 @@ describe('IPC contract', () => {
     expect(s.agentId).toBe('a1')
     expect(g.git.branch).toBe('main')
     expect(gNull.git).toBeNull()
+  })
+
+  it('types chat payloads without runtime error', () => {
+    const msg: ChatMessage = { id: 'm1', role: 'user', text: 'hi', createdAt: 1 }
+    const cfg: AgentConfig = { id: 'a1', name: 'meow', templateId: 'meow', cwd: '/p', kind: 'native' }
+    const evt: ChatEvent = { type: 'text-delta', agentId: 'a1', delta: 'x' }
+    const promptEvt: ChatEvent = {
+      type: 'prompt-request', agentId: 'a1', promptId: 'p1',
+      kind: 'permission', call: { id: 'c1', tool: 'bash', input: {}, permission: 'pending' }
+    }
+    expect(msg.role).toBe('user')
+    expect(cfg.kind).toBe('native')
+    expect(evt.type).toBe('text-delta')
+    expect(promptEvt.type === 'prompt-request' && promptEvt.call?.tool).toBe('bash')
   })
 })

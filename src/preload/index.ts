@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
-import type { NewAgentInput, Template } from '../shared/types'
+import type { ChatEvent, NewAgentInput, PromptResponse, Template } from '../shared/types'
 import type { AgentApi, AgentStateEvent, GitStatusEvent, PtyDataEvent } from '../shared/ipc'
 
 function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
@@ -37,9 +37,17 @@ const api: AgentApi = {
   openLog: (agentId: string) => ipcRenderer.invoke(Channels.LogOpen, agentId),
   getLogPath: (agentId: string) => ipcRenderer.invoke(Channels.LogPath, agentId),
   quit: () => ipcRenderer.invoke(Channels.AppQuit),
+  sendChat: (agentId: string, text: string) =>
+    ipcRenderer.invoke(Channels.ChatSend, agentId, text),
+  stopChat: (agentId: string) => ipcRenderer.invoke(Channels.ChatStop, agentId),
+  newChatSession: (agentId: string) => ipcRenderer.invoke(Channels.ChatNewSession, agentId),
+  listChatMessages: (agentId: string) => ipcRenderer.invoke(Channels.ChatListMessages, agentId),
+  respondPrompt: (agentId: string, promptId: string, resp: PromptResponse) =>
+    ipcRenderer.invoke(Channels.ChatRespondPrompt, agentId, promptId, resp),
   onPtyData: (cb: (e: PtyDataEvent) => void) => subscribe(Channels.EventPtyData, cb),
   onAgentState: (cb: (e: AgentStateEvent) => void) => subscribe(Channels.EventAgentState, cb),
-  onGitStatus: (cb: (e: GitStatusEvent) => void) => subscribe(Channels.EventGitStatus, cb)
+  onGitStatus: (cb: (e: GitStatusEvent) => void) => subscribe(Channels.EventGitStatus, cb),
+  onChatEvent: (cb: (e: ChatEvent) => void) => subscribe(Channels.EventChat, cb)
 }
 
 contextBridge.exposeInMainWorld('api', api)
