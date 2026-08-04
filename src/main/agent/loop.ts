@@ -164,7 +164,10 @@ export class SessionRunner {
 
     if (!allowed) {
       call.permission = 'denied'
-      call.error = 'permission denied'
+      const deniedReason = this.deps.decidePermission(call.tool)
+      call.error = deniedReason === 'deny'
+        ? `tool "${call.tool}" is not permitted in the current mode`
+        : 'permission denied by user'
     } else {
       call.permission = 'allowed'
       const def = this.deps.tools.get(call.tool)

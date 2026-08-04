@@ -128,7 +128,7 @@ describe('SessionRunner', () => {
     await new Promise(r => setTimeout(r, 30))
     expect(runSpy).not.toHaveBeenCalled()
     const resultEvent = h.events.find(e => e.type === 'tool-result') as Extract<ChatEvent, { type: 'tool-result' }>
-    expect(resultEvent.call.error).toBe('permission denied')
+    expect(resultEvent.call.error).toMatch(/not permitted/)
     expect(resultEvent.call.permission).toBe('denied')
   })
 

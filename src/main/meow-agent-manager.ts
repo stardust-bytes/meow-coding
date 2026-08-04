@@ -170,6 +170,13 @@ export class MeowAgentManager {
     if (agent) {
       agent.mode = mode
       this.agents.set(agentId, agent)
+      if (!this.running.has(agentId)) {
+        // Rebuild the runner so the system prompt reflects the new mode (e.g. plan-mode note)
+        // and the visible tool set is recomputed with the live mode.
+        this.runners.delete(agentId)
+        this.resolved.delete(agentId)
+        this.register(agent)
+      }
     }
   }
 
@@ -234,8 +241,9 @@ export class MeowAgentManager {
     const mode = agent.mode ?? 'build'
     this.modes.set(agent.id, mode)
     const modeNote = mode === 'plan'
-      ? '\n\nYou are in PLAN MODE: read-only analysis. Do not attempt to create, edit, or delete files — ' +
-        'write/edit/apply-patch tools are unavailable. Produce a plan or analysis instead.'
+      ? '\n\nYou are in PLAN MODE: read-only analysis. Do NOT create, edit, or delete files. ' +
+        'write/edit/apply-patch/revert/git/todowrite tools are unavailable, and do NOT use the bash tool ' +
+        'to modify the filesystem either. Produce a plan or analysis instead.'
       : ''
     const runner = new SessionRunner({
       agentId: agent.id,

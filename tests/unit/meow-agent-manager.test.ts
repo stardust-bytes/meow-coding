@@ -45,11 +45,13 @@ async function makeManager(opts: StubLlmOptions & { configPath?: string } = {}) 
   })
   const events: ChatEvent[] = []
   const llmCalls: string[][] = []
+  const llmSystems: string[] = []
   let llmClient: LlmClient
   const createLlm = vi.fn((): LlmClient => {
     llmClient = {
       async *stream(request: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
         llmCalls.push((request.tools ?? []).map(t => t.name))
+        llmSystems.push(request.system)
         if (opts.hangUntilAbort) {
           await new Promise<void>(resolve => {
             if (request.signal?.aborted) return resolve()
@@ -75,8 +77,8 @@ async function makeManager(opts: StubLlmOptions & { configPath?: string } = {}) 
     env: { ANTHROPIC_API_KEY: 'sk-test' } as NodeJS.ProcessEnv
   })
   manager.setOnEvent(e => events.push(e))
-  await manager.init([MEOW_AGENT, PTY_AGENT])
-  return { manager, store, events, createLlm, savedPermissions, llmCalls }
+  await manager.init([{ ...MEOW_AGENT }, { ...PTY_AGENT }])
+  return { manager, store, events, createLlm, savedPermissions, llmCalls, llmSystems }
 }
 
 describe('MeowAgentManager', () => {
@@ -138,7 +140,7 @@ describe('MeowAgentManager', () => {
       env: {}
     })
     m2.setOnEvent(e => evts.push(e))
-    await m2.init([MEOW_AGENT])
+    await m2.init([{ ...MEOW_AGENT }])
     await m2.send('a1', 'hi')
     expect(evts.some(e => e.type === 'error')).toBe(true)
     expect((evts.find(e => e.type === 'error') as Extract<ChatEvent, { type: 'error' }>).message).toContain('[meow]')
@@ -234,7 +236,18 @@ describe('MeowAgentManager', () => {
     await manager.send('a1', 'write x')
     const result = events.find(e => e.type === 'tool-result') as Extract<ChatEvent, { type: 'tool-result' }>
     expect(result.call.permission).toBe('denied')
-    expect(result.call.error).toBe('permission denied')
+    expect(result.call.error).toMatch(/not permitted in the current mode/)
+  })
+
+  it('setMode rebuilds the runner system prompt with a plan note', async () => {
+    const { manager, llmSystems } = await makeManager({
+      partsQueue: [[{ kind: 'text', text: 'a' }, { kind: 'finish' }], [{ kind: 'text', text: 'b' }, { kind: 'finish' }]]
+    })
+    await manager.send('a1', 'first')
+    expect(llmSystems[0]).not.toMatch(/PLAN MODE/)
+    manager.setMode('a1', 'plan')
+    await manager.send('a1', 'second')
+    expect(llmSystems[1]).toMatch(/PLAN MODE/)
   })
 
   it('plan mode hides write tools from the model', async () => {
