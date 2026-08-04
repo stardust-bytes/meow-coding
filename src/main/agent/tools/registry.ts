@@ -8,6 +8,8 @@ import { grepTool } from './grep'
 import { applyPatchTool } from './apply-patch'
 import { todowriteTool } from './todowrite'
 import { questionTool } from './question'
+import { webfetchTool } from './webfetch'
+import { websearchTool } from './websearch'
 
 export function createDefaultTools(): Map<string, ToolDefinition> {
   const tools = [
@@ -19,7 +21,9 @@ export function createDefaultTools(): Map<string, ToolDefinition> {
     grepTool,
     applyPatchTool,
     todowriteTool,
-    questionTool
+    questionTool,
+    webfetchTool,
+    websearchTool
   ]
   return new Map(tools.map(t => [t.name, t]))
 }
