@@ -44,7 +44,9 @@ export default function Pane({
         <ChatPanel
           agentId={id}
           mode={pane.agent.mode ?? 'build'}
+          variant={pane.agent.variant}
           onModeChange={m => void window.api.setAgentMode(id, m)}
+          onVariantChange={v => void window.api.setAgentVariant(id, v)}
         />
       ) : (
         <XtermHost

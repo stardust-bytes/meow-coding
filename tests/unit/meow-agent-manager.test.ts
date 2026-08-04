@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { MeowAgentManager } from '../../src/main/meow-agent-manager'
@@ -27,6 +27,14 @@ interface StubLlmOptions {
 }
 
 async function makeManager(opts: StubLlmOptions & { configPath?: string } = {}) {
+  const cfgDir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-cfg-'))
+  const defaultCfg = path.join(cfgDir, 'meow.json')
+  if (!opts.configPath) {
+    writeFileSync(defaultCfg, JSON.stringify({
+      provider: { test: { apiKey: 'sk-test', models: ['test-model'] } },
+      model: 'test'
+    }))
+  }
   const sessions: StoredSession[] = []
   const json: JsonStore<StoredSession> = {
     load: () => sessions,
@@ -46,12 +54,14 @@ async function makeManager(opts: StubLlmOptions & { configPath?: string } = {}) 
   const events: ChatEvent[] = []
   const llmCalls: string[][] = []
   const llmSystems: string[] = []
+  const llmVariants: Array<string | undefined> = []
   let llmClient: LlmClient
   const createLlm = vi.fn((): LlmClient => {
     llmClient = {
       async *stream(request: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
         llmCalls.push((request.tools ?? []).map(t => t.name))
         llmSystems.push(request.system)
+        llmVariants.push(request.variant)
         if (opts.hangUntilAbort) {
           await new Promise<void>(resolve => {
             if (request.signal?.aborted) return resolve()
@@ -68,7 +78,7 @@ async function makeManager(opts: StubLlmOptions & { configPath?: string } = {}) 
     return llmClient
   })
   const manager = new MeowAgentManager({
-    configPath: opts.configPath ?? '/nonexistent/meow.json',
+    configPath: opts.configPath ?? defaultCfg,
     store,
     snapshots,
     savedPermissions,
@@ -78,7 +88,7 @@ async function makeManager(opts: StubLlmOptions & { configPath?: string } = {}) 
   })
   manager.setOnEvent(e => events.push(e))
   await manager.init([{ ...MEOW_AGENT }, { ...PTY_AGENT }])
-  return { manager, store, events, createLlm, savedPermissions, llmCalls, llmSystems }
+  return { manager, store, events, createLlm, savedPermissions, llmCalls, llmSystems, llmVariants }
 }
 
 describe('MeowAgentManager', () => {
@@ -198,11 +208,12 @@ describe('MeowAgentManager', () => {
     expect(store.get(old.id)?.items.length).toBeGreaterThan(0)
   })
 
-  it('getSettings returns the default providers', async () => {
+  it('getSettings has no built-in provider presets', async () => {
     const { manager } = await makeManager()
     const s = manager.getSettings()
-    expect(s.defaultProvider).toBe('anthropic')
-    expect(s.providers.map(p => p.id)).toEqual(expect.arrayContaining(['anthropic', 'openai']))
+    expect(s.providers.map(p => p.id)).not.toContain('anthropic')
+    expect(s.providers.map(p => p.id)).not.toContain('openai')
+    expect(s.providers[0].models).toEqual(['test-model'])
   })
 
   it('saveSettings writes config and reloads with the new provider/key', async () => {
@@ -214,7 +225,7 @@ describe('MeowAgentManager', () => {
       const saved = await manager.saveSettings({
         defaultProvider: 'deepseek',
         providers: [
-          { id: 'deepseek', apiKey: 'sk-ds', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat' }
+          { id: 'deepseek', apiKey: 'sk-ds', baseUrl: 'https://api.deepseek.com/v1', models: ['deepseek-chat'] }
         ]
       })
       expect(saved.defaultProvider).toBe('deepseek')
@@ -251,6 +262,15 @@ describe('MeowAgentManager', () => {
     manager.setMode('a1', 'plan')
     await manager.send('a1', 'second')
     expect(llmSystems[1]).toMatch(/PLAN MODE/)
+  })
+
+  it('setVariant passes the variant to the llm stream', async () => {
+    const { manager, llmVariants } = await makeManager()
+    await manager.send('a1', 'first')
+    expect(llmVariants[0]).toBeUndefined()
+    manager.setVariant('a1', 'high')
+    await manager.send('a1', 'second')
+    expect(llmVariants[1]).toBe('high')
   })
 
   it('plan mode hides write tools from the model', async () => {

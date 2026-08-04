@@ -9,10 +9,11 @@ export interface MeowProviderConfig {
   apiKeyEnv?: string
   apiKey?: string
   baseUrl?: string
-  model: string
+  models: string[]
 }
 
 export interface MeowAgentConfig {
+  provider?: string
   model?: string
   systemPrompt: string
 }
@@ -37,11 +38,8 @@ export interface ResolvedAgentConfig {
 export const DEFAULT_MAX_CONTEXT_CHARS = 30000
 
 export const DEFAULT_MEOW_CONFIG: MeowConfig = {
-  provider: {
-    anthropic: { apiKeyEnv: 'ANTHROPIC_API_KEY', model: 'claude-sonnet-4-5' },
-    openai: { apiKeyEnv: 'OPENAI_API_KEY', model: 'gpt-4o' }
-  },
-  model: 'anthropic',
+  provider: {},
+  model: '',
   agents: {
     meow: {
       systemPrompt: 'You are Meow, a coding agent running inside the Meow Coding desktop app. ' +
@@ -67,13 +65,49 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
   maxContextChars: DEFAULT_MAX_CONTEXT_CHARS
 }
 
-function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
-  const provider = { ...DEFAULT_MEOW_CONFIG.provider, ...(raw.provider ?? {}) }
-  const agents = { ...DEFAULT_MEOW_CONFIG.agents, ...(raw.agents ?? {}) }
+type RawProvider = Partial<MeowProviderConfig> & Record<string, unknown>
+
+function normalizeProvider(raw: RawProvider): MeowProviderConfig {
+  const models = Array.isArray(raw.models)
+    ? (raw.models as string[]).filter(m => typeof m === 'string' && m.trim() !== '')
+    : typeof raw.model === 'string' && raw.model
+      ? [raw.model]
+      : []
   return {
-    provider,
+    apiKeyEnv: raw.apiKeyEnv,
+    apiKey: raw.apiKey,
+    baseUrl: raw.baseUrl,
+    models
+  }
+}
+
+function normalizeAgents(raw: Record<string, unknown> | undefined): Record<string, MeowAgentConfig> {
+  const base = DEFAULT_MEOW_CONFIG.agents
+  if (!raw) return base
+  const out: Record<string, MeowAgentConfig> = {}
+  for (const [name, value] of Object.entries(raw)) {
+    if (typeof value !== 'object' || value === null) continue
+    const v = value as Partial<MeowAgentConfig> & Record<string, unknown>
+    const legacyModel = typeof v.model === 'string' ? v.model : undefined
+    const isProviderRef = legacyModel !== undefined && !legacyModel.includes('/')
+    out[name] = {
+      provider: typeof v.provider === 'string' ? v.provider : (isProviderRef ? legacyModel : undefined),
+      model: typeof v.model === 'string' && !isProviderRef ? v.model : undefined,
+      systemPrompt: typeof v.systemPrompt === 'string' ? v.systemPrompt : (base[name]?.systemPrompt ?? base.meow.systemPrompt)
+    }
+  }
+  return { ...base, ...out }
+}
+
+function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
+  const providers: Record<string, MeowProviderConfig> = {}
+  for (const [id, p] of Object.entries(raw.provider ?? {})) {
+    providers[id] = normalizeProvider(p as RawProvider)
+  }
+  return {
+    provider: providers,
     model: raw.model ?? DEFAULT_MEOW_CONFIG.model,
-    agents,
+    agents: normalizeAgents(raw.agents),
     permission: raw.permission ?? DEFAULT_MEOW_CONFIG.permission,
     mcp: raw.mcp ?? {},
     maxContextChars: raw.maxContextChars ?? DEFAULT_MAX_CONTEXT_CHARS
@@ -103,15 +137,37 @@ export function resolveApiKey(
 export function resolveAgentConfig(
   cfg: MeowConfig,
   agentName: string,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  agentModel?: string
 ): ResolvedAgentConfig {
   const agent = cfg.agents[agentName] ?? cfg.agents.meow
-  const providerName = agent.model ?? cfg.model
+  let providerName = agent.provider ?? cfg.model
+  let modelName: string | undefined
+  if (agentModel) {
+    const slash = agentModel.indexOf('/')
+    if (slash > 0) {
+      providerName = agentModel.slice(0, slash)
+      modelName = agentModel.slice(slash + 1)
+    } else {
+      providerName = agentModel
+    }
+  } else if (agent.model) {
+    const slash = agent.model.indexOf('/')
+    if (slash > 0) {
+      providerName = agent.model.slice(0, slash)
+      modelName = agent.model.slice(slash + 1)
+    } else {
+      providerName = agent.model
+    }
+  }
   const provider = cfg.provider[providerName]
-  if (!provider) throw new Error(`Unknown provider "${providerName}" for agent "${agentName}"`)
+  if (!provider) {
+    return { provider: '', model: '', apiKey: null, systemPrompt: agent.systemPrompt }
+  }
+  const model = modelName && provider.models.includes(modelName) ? modelName : (provider.models[0] ?? '')
   return {
     provider: providerName,
-    model: provider.model,
+    model,
     apiKey: resolveApiKey(provider, env),
     baseUrl: provider.baseUrl,
     systemPrompt: agent.systemPrompt
@@ -124,26 +180,25 @@ export function configToSettings(cfg: MeowConfig): MeowSettings {
       id,
       apiKey: p.apiKey ?? '',
       baseUrl: p.baseUrl,
-      model: p.model
+      models: p.models
     })),
     defaultProvider: cfg.model
   }
 }
 
 export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFAULT_MEOW_CONFIG): MeowConfig {
-  if (settings.providers.length === 0) return mergeDefaults({})
   const providers: Record<string, MeowProviderConfig> = {}
   for (const p of settings.providers) {
-    providers[p.id] = {
+    const models = (p.models ?? []).filter(m => typeof m === 'string' && m.trim() !== '')
+    if (!p.id.trim() || models.length === 0) continue
+    providers[p.id.trim()] = {
       apiKey: p.apiKey || undefined,
       baseUrl: p.baseUrl || undefined,
-      model: p.model,
-      apiKeyEnv: p.apiKey ? undefined : `${p.id.toUpperCase()}_API_KEY`
+      models,
+      apiKeyEnv: p.apiKey ? undefined : `${p.id.trim().toUpperCase()}_API_KEY`
     }
   }
-  const defaultProvider = providers[settings.defaultProvider]
-    ? settings.defaultProvider
-    : settings.providers[0].id
+  const defaultProvider = providers[settings.defaultProvider] ? settings.defaultProvider : (Object.keys(providers)[0] ?? '')
   return {
     provider: providers,
     model: defaultProvider,

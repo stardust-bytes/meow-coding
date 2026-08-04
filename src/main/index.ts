@@ -208,6 +208,22 @@ class MainApp {
     }
   }
 
+  setAgentVariant(agentId: string, variant: 'low' | 'medium' | 'high' | 'max'): void {
+    this.meowAgent.setVariant(agentId, variant)
+    const ws = this.findWorkspaceByAgent(agentId)
+    if (ws) {
+      this.workspaces.updateAgent(ws.projectPath, agentId, { variant })
+    }
+  }
+
+  setAgentModel(agentId: string, provider: string, model: string): void {
+    this.meowAgent.setModel(agentId, provider, model)
+    const ws = this.findWorkspaceByAgent(agentId)
+    if (ws) {
+      this.workspaces.updateAgent(ws.projectPath, agentId, { model: `${provider}/${model}` })
+    }
+  }
+
   resetActiveProject(): void {
     this.stopGitPoll()
     this.meowAgent.stopAll()
@@ -297,6 +313,12 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(Channels.AgentSetMode, (_e, agentId: string, mode: 'build' | 'plan') =>
     mainApp.setAgentMode(agentId, mode))
+  ipcMain.handle(Channels.AgentSetVariant, (_e, agentId: string, variant: 'low' | 'medium' | 'high' | 'max') =>
+    mainApp.setAgentVariant(agentId, variant))
+  ipcMain.handle(Channels.AgentSetModel, (_e, agentId: string, provider: string, model: string) =>
+    mainApp.setAgentModel(agentId, provider, model))
+  ipcMain.handle(Channels.AgentGetModel, (_e, agentId: string) => mainApp.meowAgent.getAgentModel(agentId))
+  ipcMain.handle(Channels.ProviderModels, () => mainApp.meowAgent.getProviderModels())
 
   ipcMain.handle(Channels.TemplateList, () => mainApp.templates.list())
   ipcMain.handle(Channels.TemplateSave, (_e, t: Template) => mainApp.templates.save(t))
@@ -330,6 +352,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.ChatNewSession, (_e, agentId: string) => mainApp.meowAgent.newSession(agentId))
   ipcMain.handle(Channels.ChatListMessages, (_e, agentId: string) => mainApp.meowAgent.listMessages(agentId))
   ipcMain.handle(Channels.ChatListTranscript, (_e, agentId: string) => mainApp.meowAgent.listTranscript(agentId))
+  ipcMain.handle(Channels.ChatGetTodos, (_e, agentId: string) => mainApp.meowAgent.getTodos(agentId))
   ipcMain.handle(Channels.ChatRespondPrompt, (_e, agentId: string, promptId: string, resp: PromptResponse) =>
     mainApp.meowAgent.respondPrompt(agentId, promptId, resp))
   ipcMain.handle(Channels.SessionList, (_e, agentId: string) => mainApp.meowAgent.listSessions(agentId))

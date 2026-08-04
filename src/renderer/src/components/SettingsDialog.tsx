@@ -5,16 +5,12 @@ interface Props {
   onClose: () => void
 }
 
-interface Preset {
-  baseUrl?: string
-  model: string
+function modelsToText(models: string[]): string {
+  return models.join(', ')
 }
 
-const PRESETS: Record<string, Preset | undefined> = {
-  deepseek: { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
-  openai: { baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o' },
-  anthropic: { model: 'claude-sonnet-4-5' },
-  custom: undefined
+function textToModels(text: string): string[] {
+  return text.split(',').map(s => s.trim()).filter(Boolean)
 }
 
 export default function SettingsDialog({ onClose }: Props) {
@@ -22,7 +18,6 @@ export default function SettingsDialog({ onClose }: Props) {
   const [defaultProvider, setDefaultProvider] = useState('')
   const [mcp, setMcp] = useState<McpServerStatus[]>([])
   const [status, setStatus] = useState('')
-  const [preset, setPreset] = useState('')
 
   useEffect(() => {
     void window.api.getSettings().then(s => {
@@ -40,25 +35,23 @@ export default function SettingsDialog({ onClose }: Props) {
     setProviders(prev => prev.filter((_, i) => i !== index))
   }
 
-  const addPreset = () => {
-    const conf = PRESETS[preset]
-    const id = preset && preset !== 'custom' ? preset : `provider${providers.length + 1}`
-    setProviders(prev => [...prev, { id, apiKey: '', baseUrl: conf?.baseUrl, model: conf?.model ?? '' }])
+  const add = () => {
+    const id = `provider${providers.length + 1}`
+    setProviders(prev => [...prev, { id, apiKey: '', baseUrl: '', models: [] }])
     if (!defaultProvider) setDefaultProvider(id)
-    setPreset('')
   }
 
   const save = () => {
     const cleaned = providers
-      .filter(p => p.id.trim() !== '' && p.model.trim() !== '')
+      .filter(p => p.id.trim() !== '' && p.models.length > 0)
       .map(p => ({
         id: p.id.trim(),
         apiKey: p.apiKey,
         baseUrl: p.baseUrl?.trim() || undefined,
-        model: p.model.trim()
+        models: p.models
       }))
     if (cleaned.length === 0) {
-      setStatus('Add at least one provider with an id and model.')
+      setStatus('Add at least one provider with an id and at least one model.')
       return
     }
     const def = cleaned.some(p => p.id === defaultProvider)
@@ -76,9 +69,9 @@ export default function SettingsDialog({ onClose }: Props) {
       <div className="dialog settings-dialog" onClick={e => e.stopPropagation()}>
         <h3>AI Providers</h3>
         <p className="settings-hint">
-          Add providers (Anthropic, OpenAI, DeepSeek, local...). Empty api key falls back to the{' '}
-          <code>{"{ID}_API_KEY"}</code> environment variable. Provider is OpenAI-compatible unless id is
-          <code> anthropic</code>.
+          Add your own providers: each provider has an id, an API key (optional baseUrl for
+          OpenAI-compatible endpoints) and a list of models. Empty api key falls back to the{' '}
+          <code>{"{ID}_API_KEY"}</code> environment variable.
         </p>
         {providers.map((p, i) => (
           <div className="provider-row" key={p.id + i}>
@@ -90,9 +83,10 @@ export default function SettingsDialog({ onClose }: Props) {
             />
             <input
               className="input"
-              value={p.model}
-              placeholder="model (e.g. deepseek-chat)"
-              onChange={e => update(i, { model: e.target.value })}
+              type="password"
+              value={p.apiKey}
+              placeholder="api key"
+              onChange={e => update(i, { apiKey: e.target.value })}
             />
             <input
               className="input"
@@ -101,11 +95,10 @@ export default function SettingsDialog({ onClose }: Props) {
               onChange={e => update(i, { baseUrl: e.target.value })}
             />
             <input
-              className="input"
-              type="password"
-              value={p.apiKey}
-              placeholder="api key"
-              onChange={e => update(i, { apiKey: e.target.value })}
+              className="input provider-models"
+              value={modelsToText(p.models)}
+              placeholder="models (comma separated)"
+              onChange={e => update(i, { models: textToModels(e.target.value) })}
             />
             <label className="provider-default">
               <input
@@ -137,14 +130,7 @@ export default function SettingsDialog({ onClose }: Props) {
           ))}
         </div>
         <div className="settings-actions">
-          <select className="input" value={preset} onChange={e => setPreset(e.target.value)}>
-            <option value="">Add provider…</option>
-            <option value="deepseek">DeepSeek</option>
-            <option value="openai">OpenAI</option>
-            <option value="anthropic">Anthropic</option>
-            <option value="custom">Custom</option>
-          </select>
-          {preset && <button className="btn small" onClick={addPreset}>add</button>}
+          <button className="btn" onClick={add}>+ Add provider</button>
           <span className="spacer" />
           <button className="btn" onClick={save}>Save</button>
           <button className="btn" onClick={onClose}>Cancel</button>

@@ -79,9 +79,10 @@ test('settings dialog adds a provider and saves', async () => {
       await expect(window.locator('.settings-dialog')).toBeVisible()
       await expect(window.locator('.mcp-status')).toBeVisible()
 
-      await window.locator('.settings-actions select').selectOption('deepseek')
-      await window.getByRole('button', { name: 'add' }).click()
-      await window.locator('.provider-row').last().locator('input[type="password"]').fill('sk-test')
+      await window.getByRole('button', { name: 'Add provider' }).click()
+      const row = window.locator('.provider-row').last()
+      await row.locator('input[type="password"]').fill('sk-test')
+      await row.locator('input.provider-models').fill('deepseek-chat, deepseek-reasoner')
 
       await window.getByRole('button', { name: 'Save' }).click()
       await expect(window.locator('.settings-dialog')).toHaveCount(0)

@@ -7,13 +7,15 @@ describe('IPC contract', () => {
   it('defines all channels used by the preload api', () => {
     const required: (keyof AgentApi)[] = [
       'listWorkspaces', 'addWorkspace', 'removeWorkspace', 'openWorkspace', 'openInEditor',
-      'addAgent', 'removeAgent', 'setAgentMode', 'listTemplates', 'saveTemplate', 'removeTemplate',
+      'addAgent', 'removeAgent', 'setAgentMode', 'setAgentVariant', 'setAgentModel', 'getAgentModel', 'getProviderModels',
+      'listTemplates', 'saveTemplate', 'removeTemplate',
       'pickFolder', 'startAgent', 'stopAgent', 'restartAgent',
       'writeInput', 'injectPrompt', 'resizePty', 'openLog', 'getLogPath', 'quit',
       'onPtyData', 'onAgentState', 'onGitStatus',
       'sendChat', 'stopChat', 'newChatSession', 'listChatMessages', 'listChatTranscript', 'respondPrompt',
       'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus',
-      'listSessions', 'createSession', 'switchSession', 'deleteSession'
+      'listSessions', 'createSession', 'switchSession', 'deleteSession',
+      'getChatTodos'
     ]
     const api: AgentApi = {
       listWorkspaces: async () => [],
@@ -24,6 +26,10 @@ describe('IPC contract', () => {
       addAgent: async () => ({ workspace: { projectPath: '', name: '', agents: [] }, agents: [], git: null }),
       removeAgent: async () => {},
       setAgentMode: async () => {},
+      setAgentVariant: async () => {},
+      setAgentModel: async () => {},
+      getAgentModel: async () => null,
+      getProviderModels: async () => [],
       listTemplates: async () => [],
       saveTemplate: async (t) => t,
       removeTemplate: async () => {},
@@ -45,6 +51,7 @@ describe('IPC contract', () => {
       newChatSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),
       listChatMessages: async () => [],
       listChatTranscript: async () => [],
+      getChatTodos: async () => [],
       respondPrompt: async () => {},
       onChatEvent: () => () => {},
       getSettings: async () => ({ providers: [], defaultProvider: '' }),
@@ -79,6 +86,10 @@ describe('IPC contract', () => {
     expect(Channels.SettingsGet).toBe('settings:get')
     expect(Channels.SettingsSave).toBe('settings:save')
     expect(Channels.AgentSetMode).toBe('agent:set-mode')
+    expect(Channels.AgentSetVariant).toBe('agent:set-variant')
+    expect(Channels.AgentSetModel).toBe('agent:set-model')
+    expect(Channels.AgentGetModel).toBe('agent:get-model')
+    expect(Channels.ProviderModels).toBe('provider:models')
     expect(Channels.McpStatus).toBe('mcp:status')
   })
 

@@ -110,10 +110,19 @@ describe('apply-patch tool', () => {
 })
 
 describe('todowrite', () => {
-  it('returns the numbered list', async () => {
-    const r = await todowriteTool.run({ todos: ['a', 'b'] }, ctx)
-    expect(r.output).toContain('1. a')
-    expect(r.output).toContain('2. b')
+  it('stores todos via ctx.setTodos and returns them as json', async () => {
+    const saved: Array<{ content: string; status: string }> = []
+    const todoCtx: ToolContext = { cwd: '', ask: async () => null, setTodos: (t) => saved.push(...t) }
+    const r = await todowriteTool.run({
+      todos: [
+        { content: 'a', status: 'in_progress' },
+        { content: 'b', status: 'pending', priority: 'high' }
+      ]
+    }, todoCtx)
+    expect(r.output).toContain('"a"')
+    expect(saved).toHaveLength(2)
+    expect(saved[0]).toMatchObject({ content: 'a', status: 'in_progress' })
+    expect(saved[1]).toMatchObject({ content: 'b', status: 'pending', priority: 'high' })
   })
 })
 

@@ -17,7 +17,7 @@ export default function XtermHost({ agentId, onReady, onDispose, onInput, onResi
   useEffect(() => {
     const term = new Terminal({
       fontFamily: "'Cascadia Mono', 'Fira Code', Consolas, monospace",
-      fontSize: 13,
+      fontSize: 16,
       scrollback: 5000,
       theme: {
         background: '#1e1e1e',

@@ -96,6 +96,21 @@ describe('SessionStore', () => {
     expect(store.list('agent1').map(s => s.id)).toEqual([b.id])
   })
 
+  it('gets and sets todos per session', () => {
+    const store = makeStore(file)
+    const a = store.create('agent1', '/p')
+    expect(store.todos(a.id)).toEqual([])
+    store.setTodos(a.id, [
+      { content: 'fix login', status: 'in_progress' },
+      { content: 'run tests', status: 'pending', priority: 'high' }
+    ])
+    expect(store.todos(a.id)).toHaveLength(2)
+    expect(store.todos(a.id)[0]).toEqual({ content: 'fix login', status: 'in_progress' })
+    expect(store.todos(a.id)[1]).toEqual({ content: 'run tests', status: 'pending', priority: 'high' })
+    const other = store.create('agent1', '/p')
+    expect(store.todos(other.id)).toEqual([])
+  })
+
   it('migrates legacy entries (id = agentId, no title/createdAt)', () => {
     writeFileSync(file, JSON.stringify([
       { id: 'legacy1', projectPath: '/p', items: [

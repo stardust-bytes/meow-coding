@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import type { ChatEvent, ChatMessage, ChatTranscriptItem, McpServerStatus, MeowSettings, PromptResponse } from '../shared/types'
-import type { AgentConfig, AgentMode } from '../shared/types'
+import type { ChatEvent, ChatMessage, ChatTranscriptItem, McpServerStatus, MeowSettings, PromptResponse, TodoItem } from '../shared/types'
+import type { AgentConfig, AgentMode, ModelRef, ModelVariant } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, settingsToConfig, writeMeowConfig,
   type ResolvedAgentConfig
@@ -154,14 +154,11 @@ export class MeowAgentManager {
     })
     const config = this.resolved.get(agentId)
     if (!config?.apiKey) {
-      const provider = config?.provider ?? 'anthropic'
       this.emit({
         type: 'error',
         agentId,
         message:
-          '[meow] Chưa cấu hình API key. Đặt biến môi trường ' +
-          `(VD: ${provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'}) ` +
-          'hoặc tạo file meow.json trong thư mục dữ liệu ứng dụng.'
+          '[meow] Chưa cấu hình provider/API key. Mở Settings, thêm provider (id + API key + models) rồi thử lại.'
       })
       return
     }
@@ -207,6 +204,10 @@ export class MeowAgentManager {
     return this.deps.store.transcript(this.activeSessionId(agentId))
   }
 
+  getTodos(agentId: string): TodoItem[] {
+    return this.deps.store.todos(this.activeSessionId(agentId))
+  }
+
   respondPrompt(agentId: string, promptId: string, resp: PromptResponse): void {
     const entry = this.pendingPrompts.get(promptId)
     if (entry && entry.agentId === agentId) {
@@ -226,13 +227,54 @@ export class MeowAgentManager {
       agent.mode = mode
       this.agents.set(agentId, agent)
       if (!this.running.has(agentId)) {
-        // Rebuild the runner so the system prompt reflects the new mode (e.g. plan-mode note)
-        // and the visible tool set is recomputed with the live mode.
         this.runners.delete(agentId)
         this.resolved.delete(agentId)
         this.register(agent)
       }
     }
+  }
+
+  setVariant(agentId: string, variant: ModelVariant): void {
+    const agent = this.agents.get(agentId)
+    if (agent) {
+      agent.variant = variant
+      this.agents.set(agentId, agent)
+      if (!this.running.has(agentId)) {
+        this.runners.delete(agentId)
+        this.resolved.delete(agentId)
+        this.register(agent)
+      }
+    }
+  }
+
+  setModel(agentId: string, provider: string, model: string): void {
+    const agent = this.agents.get(agentId)
+    if (!agent) return
+    agent.model = `${provider}/${model}`
+    this.agents.set(agentId, agent)
+    if (!this.running.has(agentId)) {
+      this.runners.delete(agentId)
+      this.resolved.delete(agentId)
+      this.register(agent)
+    }
+  }
+
+  getAgentModel(agentId: string): ModelRef | null {
+    const agent = this.agents.get(agentId)
+    if (!agent) return null
+    const cfg = loadMeowConfig(this.deps.configPath)
+    const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env, agent.model)
+    if (!resolved.provider || !resolved.model) return null
+    return { provider: resolved.provider, model: resolved.model }
+  }
+
+  getProviderModels(): ModelRef[] {
+    const cfg = loadMeowConfig(this.deps.configPath)
+    const refs: ModelRef[] = []
+    for (const [provider, p] of Object.entries(cfg.provider)) {
+      for (const model of p.models) refs.push({ provider, model })
+    }
+    return refs
   }
 
   getSettings(): MeowSettings {
@@ -284,7 +326,7 @@ export class MeowAgentManager {
     this.agents.set(agent.id, agent)
     if (this.runners.has(agent.id)) return
     const cfg = loadMeowConfig(this.deps.configPath)
-    const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env)
+    const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env, agent.model)
     this.resolved.set(agent.id, resolved)
     const skills = collectSkills(agent.cwd, this.deps.userSkillsDir)
     const instructions = instructionsText(loadInstructions(agent.cwd, this.deps.userInstructionsDir))
@@ -319,7 +361,12 @@ export class MeowAgentManager {
       onEvent: (e) => this.emit(e),
       getItems: () => this.deps.store.get(this.activeSessionId(agent.id))?.items ?? [],
       appendMessage: (msg) => this.deps.store.appendMessage(this.activeSessionId(agent.id), msg),
-      appendTool: (tool) => this.deps.store.appendTool(this.activeSessionId(agent.id), tool)
+      appendTool: (tool) => this.deps.store.appendTool(this.activeSessionId(agent.id), tool),
+      setTodos: (todos) => {
+        this.deps.store.setTodos(this.activeSessionId(agent.id), todos)
+        this.emit({ type: 'todo-updated', agentId: agent.id, todos })
+      },
+      variant: agent.variant
     })
     this.runners.set(agent.id, runner)
   }

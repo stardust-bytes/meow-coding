@@ -4,6 +4,7 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { ModelMessage } from 'ai'
 import { toToolDefinition } from './message'
 import type { ToolDefinition } from './tools/types'
+import type { ModelVariant } from '../../shared/types'
 
 export interface LlmStreamPart {
   kind: 'text' | 'reasoning' | 'tool-call' | 'finish' | 'error'
@@ -22,10 +23,31 @@ export interface LlmStreamOptions {
   messages: ModelMessage[]
   tools: ToolDefinition[]
   signal?: AbortSignal
+  variant?: ModelVariant
 }
 
 export interface LlmClient {
   stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart>
+}
+
+type StreamProviderOptions = NonNullable<Parameters<typeof streamText>[0]['providerOptions']>
+
+const ANTHROPIC_THINKING_BUDGET: Record<ModelVariant, number> = {
+  low: 4096,
+  medium: 8192,
+  high: 16384,
+  max: 32000
+}
+
+function providerOptionsFor(provider: string, variant?: ModelVariant): StreamProviderOptions | undefined {
+  if (!variant) return undefined
+  if (provider === 'anthropic') {
+    return {
+      anthropic: { thinking: { type: 'enabled', budgetTokens: ANTHROPIC_THINKING_BUDGET[variant] } }
+    } as StreamProviderOptions
+  }
+  const reasoningEffort = variant === 'max' ? 'xhigh' : variant
+  return { openaiCompatible: { reasoningEffort } } as StreamProviderOptions
 }
 
 export function createAnthropicLlm(apiKey: string): LlmClient {
@@ -49,12 +71,14 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string): L
   return {
     async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
       const tools = Object.fromEntries(opts.tools.map(def => [def.name, toToolDefinition(def)]))
+      const providerOptions = providerOptionsFor(provider, opts.variant)
       const result = streamText({
         model: model(opts.model),
         system: opts.system,
         messages: opts.messages,
         tools,
-        abortSignal: opts.signal
+        abortSignal: opts.signal,
+        ...(providerOptions ? { providerOptions } : {})
       })
       for await (const part of result.fullStream) {
         switch (part.type) {

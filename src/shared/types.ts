@@ -2,6 +2,7 @@ export type AgentStatus = 'spawning' | 'running' | 'idle' | 'exited' | 'stopped'
 export type AlertLevel = 'normal' | 'attention' | 'error'
 export type AgentKind = 'pty' | 'native'
 export type AgentMode = 'build' | 'plan'
+export type ModelVariant = 'low' | 'medium' | 'high' | 'max'
 export type ChatRole = 'user' | 'assistant'
 
 export interface Template {
@@ -20,6 +21,8 @@ export interface AgentConfig {
   cwd: string
   kind?: AgentKind
   mode?: AgentMode
+  variant?: ModelVariant
+  model?: string
 }
 
 export interface Workspace {
@@ -101,6 +104,7 @@ export type ChatEvent =
       options?: QuestionOption[]; multiple?: boolean; custom?: boolean }
   | { type: 'done'; agentId: string; reason: string; tokens?: TokenUsage }
   | { type: 'error'; agentId: string; message: string }
+  | { type: 'todo-updated'; agentId: string; todos: TodoItem[] }
 
 export interface TokenUsage {
   input: number
@@ -121,6 +125,15 @@ export interface QuestionPrompt {
   custom?: boolean
 }
 
+export type TodoStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
+export type TodoPriority = 'high' | 'medium' | 'low'
+
+export interface TodoItem {
+  content: string
+  status: TodoStatus
+  priority?: TodoPriority
+}
+
 export interface PromptResponse {
   allow: boolean
   text?: string
@@ -131,12 +144,17 @@ export interface ProviderSettings {
   id: string
   apiKey: string
   baseUrl?: string
-  model: string
+  models: string[]
 }
 
 export interface MeowSettings {
   providers: ProviderSettings[]
   defaultProvider: string
+}
+
+export interface ModelRef {
+  provider: string
+  model: string
 }
 
 export interface McpServerStatus {

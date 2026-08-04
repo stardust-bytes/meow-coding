@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ChatEvent, ChatMessage, PromptResponse, QuestionPrompt, TokenUsage, ToolCallData } from '../../shared/types'
+import type { ChatEvent, ChatMessage, ModelVariant, PromptResponse, QuestionPrompt, TokenUsage, TodoItem, ToolCallData } from '../../shared/types'
 import { appendStreamDelta } from '../../shared/text'
 import type { LlmClient, LlmStreamPart } from './llm'
 import { toLlmMessages } from './message'
@@ -25,6 +25,8 @@ export interface LoopDeps {
   getItems: () => TranscriptItem[]
   appendMessage: (msg: ChatMessage) => void
   appendTool: (tool: ToolCallData) => void
+  setTodos?: (todos: TodoItem[]) => void
+  variant?: ModelVariant
 }
 
 const DEFAULT_MAX_STEPS = 50
@@ -70,7 +72,8 @@ export class SessionRunner {
           system: this.deps.system,
           messages: llmMessages,
           tools: isLastStep ? [] : this.visibleToolDefs(),
-          signal
+          signal,
+          variant: this.deps.variant
         })
         for await (const part of stream) {
           if (signal?.aborted) {
@@ -179,6 +182,7 @@ export class SessionRunner {
           signal,
           agentId: this.deps.agentId,
           snapshots: this.deps.snapshots,
+          setTodos: (todos) => this.deps.setTodos?.(todos),
           ask: async (question: QuestionPrompt) => {
             const promptId = randomUUID()
             this.deps.onEvent({

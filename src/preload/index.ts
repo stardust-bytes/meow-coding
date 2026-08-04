@@ -25,6 +25,12 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.AgentRemove, projectPath, agentId),
   setAgentMode: (agentId: string, mode: 'build' | 'plan') =>
     ipcRenderer.invoke(Channels.AgentSetMode, agentId, mode),
+  setAgentVariant: (agentId: string, variant: 'low' | 'medium' | 'high' | 'max') =>
+    ipcRenderer.invoke(Channels.AgentSetVariant, agentId, variant),
+  setAgentModel: (agentId: string, provider: string, model: string) =>
+    ipcRenderer.invoke(Channels.AgentSetModel, agentId, provider, model),
+  getAgentModel: (agentId: string) => ipcRenderer.invoke(Channels.AgentGetModel, agentId),
+  getProviderModels: () => ipcRenderer.invoke(Channels.ProviderModels),
   listTemplates: () => ipcRenderer.invoke(Channels.TemplateList),
   saveTemplate: (template: Template) => ipcRenderer.invoke(Channels.TemplateSave, template),
   removeTemplate: (id: string) => ipcRenderer.invoke(Channels.TemplateRemove, id),
@@ -47,6 +53,7 @@ const api: AgentApi = {
   newChatSession: (agentId: string) => ipcRenderer.invoke(Channels.ChatNewSession, agentId),
   listChatMessages: (agentId: string) => ipcRenderer.invoke(Channels.ChatListMessages, agentId),
   listChatTranscript: (agentId: string) => ipcRenderer.invoke(Channels.ChatListTranscript, agentId),
+  getChatTodos: (agentId: string) => ipcRenderer.invoke(Channels.ChatGetTodos, agentId),
   respondPrompt: (agentId: string, promptId: string, resp: PromptResponse) =>
     ipcRenderer.invoke(Channels.ChatRespondPrompt, agentId, promptId, resp),
   listSessions: (agentId: string) => ipcRenderer.invoke(Channels.SessionList, agentId),

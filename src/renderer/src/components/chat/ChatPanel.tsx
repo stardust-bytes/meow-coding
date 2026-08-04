@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { AgentMode, ChatEvent, ChatMessage, QuestionOption, SessionSummary, ToolCallData } from '@shared/types'
+import type { AgentMode, ChatEvent, ChatMessage, ModelVariant, QuestionOption, SessionSummary, TodoItem, TodoStatus, ToolCallData } from '@shared/types'
 import { appendStreamDelta } from '@shared/text'
 import ChatInput from './ChatInput'
 import ToolCallCard from './ToolCallCard'
 import MarkdownText from './MarkdownText'
 import SessionBar from './SessionBar'
+import ModelPicker from './ModelPicker'
 
 type FeedItem =
   | { kind: 'message'; id: string; role: ChatMessage['role']; text: string; reasoning?: string }
@@ -24,13 +25,16 @@ interface PendingPrompt {
 interface Props {
   agentId: string
   mode?: AgentMode
+  variant?: ModelVariant
   onModeChange?: (mode: AgentMode) => void
+  onVariantChange?: (variant: ModelVariant) => void
 }
 
-export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Props) {
+export default function ChatPanel({ agentId, mode = 'build', variant, onModeChange, onVariantChange }: Props) {
   const [items, setItems] = useState<FeedItem[]>([])
   const [running, setRunning] = useState(false)
   const [currentMode, setCurrentMode] = useState<AgentMode>(mode)
+  const [currentVariant, setCurrentVariant] = useState<ModelVariant>(variant ?? 'medium')
   const [pendingPrompt, setPendingPrompt] = useState<PendingPrompt | null>(null)
   const [selectedAction, setSelectedAction] = useState(0)
   const [questionText, setQuestionText] = useState('')
@@ -39,6 +43,7 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
   const [lastTokens, setLastTokens] = useState<{ input: number; output: number; total: number } | null>(null)
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const [todos, setTodos] = useState<TodoItem[]>([])
   const endRef = useRef<HTMLDivElement>(null)
   const promptRef = useRef<HTMLDivElement>(null)
 
@@ -64,6 +69,10 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
     })
   }, [agentId])
 
+  const loadTodos = useCallback(() => {
+    void window.api.getChatTodos(agentId).then(setTodos)
+  }, [agentId])
+
   const resetView = useCallback(() => {
     setItems([])
     setRunning(false)
@@ -73,12 +82,15 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
     setSelectedOptions([])
     setCustomInput(false)
     setLastTokens(null)
+    setTodos([])
     loadTranscript()
-  }, [loadTranscript])
+    loadTodos()
+  }, [loadTranscript, loadTodos])
 
   useEffect(() => {
     reloadSessions()
     loadTranscript()
+    loadTodos()
     const off = window.api.onChatEvent(e => applyEvent(e))
     return off
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -90,6 +102,10 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
 
   const applyEvent = useCallback((e: ChatEvent) => {
     if (e.agentId !== agentId) return
+    if (e.type === 'todo-updated') {
+      setTodos(e.todos)
+      return
+    }
     if (e.type === 'done' || e.type === 'error') {
       setRunning(false)
       if (e.type === 'done' && e.tokens) setLastTokens(e.tokens)
@@ -243,6 +259,17 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
     { label: 'Deny', key: '3', run: () => pendingPrompt && respond(pendingPrompt.promptId, false) }
   ]
 
+  const todoMark = (status: TodoStatus): string => {
+    switch (status) {
+      case 'completed': return '✓'
+      case 'in_progress': return '◐'
+      case 'cancelled': return '✕'
+      default: return '□'
+    }
+  }
+
+  const doneCount = todos.filter(t => t.status === 'completed' || t.status === 'cancelled').length
+
   return (
     <div className="chat-panel" onKeyDown={onPanelKeyDown}>
       <SessionBar
@@ -252,6 +279,22 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
         onCreate={handleCreateSession}
         onDelete={handleDeleteSession}
       />
+      {todos.length > 0 && (
+        <div className="chat-todos">
+          <div className="chat-todos-head">
+            <span className="chat-todos-title">Tasks</span>
+            <span className="chat-todos-count">{doneCount}/{todos.length}</span>
+          </div>
+          <ul className="chat-todos-list">
+            {todos.map((t, i) => (
+              <li key={i} className={`chat-todo status-${t.status}`}>
+                <span className="chat-todo-mark">{todoMark(t.status)}</span>
+                <span className="chat-todo-content">{t.content}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="chat-feed">
         {items.map(item => {
           if (item.kind === 'message') {
@@ -397,6 +440,24 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
             plan
           </button>
           {currentMode === 'plan' && <span className="chat-mode-hint">read-only — edits denied</span>}
+          <div className="chat-mode-tools">
+            <ModelPicker agentId={agentId} />
+            <select
+              className="input chat-variant-select"
+              value={currentVariant}
+              aria-label="model effort"
+              onChange={e => {
+                const v = e.target.value as ModelVariant
+                setCurrentVariant(v)
+                onVariantChange?.(v)
+              }}
+            >
+              <option value="low">low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+              <option value="max">max</option>
+            </select>
+          </div>
         </div>
         <ChatInput
           running={running}

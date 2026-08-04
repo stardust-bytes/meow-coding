@@ -1,6 +1,6 @@
 import type {
   AgentState, ChatEvent, ChatMessage, ChatTranscriptItem, GitStatus, McpServerStatus, MeowSettings,
-  NewAgentInput, PromptResponse, SessionSummary, Template, WorkspaceRuntime, WorkspaceSummary
+  ModelRef, NewAgentInput, PromptResponse, SessionSummary, Template, TodoItem, WorkspaceRuntime, WorkspaceSummary
 } from './types'
 
 export const Channels = {
@@ -12,6 +12,10 @@ export const Channels = {
   AgentAdd: 'agent:add',
   AgentRemove: 'agent:remove',
   AgentSetMode: 'agent:set-mode',
+  AgentSetVariant: 'agent:set-variant',
+  AgentSetModel: 'agent:set-model',
+  AgentGetModel: 'agent:get-model',
+  ProviderModels: 'provider:models',
   TemplateList: 'template:list',
   TemplateSave: 'template:save',
   TemplateRemove: 'template:remove',
@@ -30,6 +34,7 @@ export const Channels = {
   ChatNewSession: 'chat:new-session',
   ChatListMessages: 'chat:list-messages',
   ChatListTranscript: 'chat:list-transcript',
+  ChatGetTodos: 'chat:get-todos',
   ChatRespondPrompt: 'chat:respond-prompt',
   SessionList: 'session:list',
   SessionCreate: 'session:create',
@@ -57,6 +62,10 @@ export interface AgentApi {
   addAgent(projectPath: string, input: NewAgentInput): Promise<WorkspaceRuntime>
   removeAgent(projectPath: string, agentId: string): Promise<void>
   setAgentMode(agentId: string, mode: 'build' | 'plan'): Promise<void>
+  setAgentVariant(agentId: string, variant: 'low' | 'medium' | 'high' | 'max'): Promise<void>
+  setAgentModel(agentId: string, provider: string, model: string): Promise<void>
+  getAgentModel(agentId: string): Promise<ModelRef | null>
+  getProviderModels(): Promise<ModelRef[]>
   listTemplates(): Promise<Template[]>
   saveTemplate(template: Template): Promise<Template>
   removeTemplate(id: string): Promise<void>
@@ -75,6 +84,7 @@ export interface AgentApi {
   newChatSession(agentId: string): Promise<SessionSummary>
   listChatMessages(agentId: string): Promise<ChatMessage[]>
   listChatTranscript(agentId: string): Promise<ChatTranscriptItem[]>
+  getChatTodos(agentId: string): Promise<TodoItem[]>
   respondPrompt(agentId: string, promptId: string, resp: PromptResponse): Promise<void>
   listSessions(agentId: string): Promise<SessionSummary[]>
   createSession(agentId: string): Promise<SessionSummary>

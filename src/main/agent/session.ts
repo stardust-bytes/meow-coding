@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { JsonStore } from '../json-store'
-import type { ChatMessage, ChatTranscriptItem, SessionSummary, ToolCallData } from '../../shared/types'
+import type { ChatMessage, ChatTranscriptItem, SessionSummary, TodoItem, ToolCallData } from '../../shared/types'
 
 export const DEFAULT_SESSION_TITLE = 'New session'
 
@@ -10,6 +10,7 @@ export interface StoredSession {
   projectPath: string
   title: string
   items: ChatTranscriptItem[]
+  todos: TodoItem[]
   createdAt: number
   updatedAt: number
 }
@@ -43,6 +44,7 @@ function normalize(raw: RawSession): StoredSession {
     projectPath: String(raw.projectPath ?? ''),
     title: typeof raw.title === 'string' && raw.title ? raw.title : titleFromItems(items),
     items,
+    todos: Array.isArray(raw.todos) ? (raw.todos as TodoItem[]) : [],
     createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : (raw.updatedAt ?? Date.now()),
     updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : Date.now()
   }
@@ -91,6 +93,7 @@ export class SessionStore {
       projectPath,
       title: DEFAULT_SESSION_TITLE,
       items: [],
+      todos: [],
       createdAt: Date.now(),
       updatedAt: Date.now()
     }
@@ -100,6 +103,19 @@ export class SessionStore {
 
   transcript(id: string): ChatTranscriptItem[] {
     return this.get(id)?.items ?? []
+  }
+
+  todos(id: string): TodoItem[] {
+    return this.get(id)?.todos ?? []
+  }
+
+  setTodos(id: string, todos: TodoItem[]): void {
+    const all = this.loadSessions()
+    const idx = all.findIndex(s => s.id === id)
+    if (idx < 0) return
+    all[idx].todos = todos
+    all[idx].updatedAt = Date.now()
+    this.saveSessions(all)
   }
 
   appendMessage(id: string, message: ChatMessage): void {
