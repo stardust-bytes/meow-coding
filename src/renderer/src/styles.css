@@ -295,3 +295,18 @@ select.input { width: 100%; }
 
 /* Token usage */
 .chat-tokens { color: var(--text-dim); font-size: 11px; padding: 2px 0; }
+
+
+/* Sidebar menu dropdown */
+.sidebar-menu { position: relative; }
+.sidebar-menu-dropdown {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 50;
+  min-width: 120px; background: var(--bg-panel); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px; display: flex; flex-direction: column; gap: 2px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+.menu-item {
+  text-align: left; padding: 6px 10px; border: none; background: transparent; color: var(--text);
+  border-radius: 4px; cursor: pointer; font-size: 12px;
+}
+.menu-item:hover { background: var(--bg-hover); color: var(--text); }

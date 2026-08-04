@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { NewAgentInput, Template, WorkspaceSummary } from '@shared/types'
 import AddProjectDialog from './AddProjectDialog'
 import AddAgentDialog from './AddAgentDialog'
@@ -22,7 +22,26 @@ export default function Sidebar({
   const [showAddAgent, setShowAddAgent] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [error, setError] = useState('')
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [])
+
+  const closeMenu = () => setMenuOpen(false)
 
   const handleAddProject = async (projectPath: string, name: string) => {
     try {
@@ -54,9 +73,16 @@ export default function Sidebar({
       {error && <div className="sidebar-error">{error}</div>}
       <div className="panel-head">
         <span className="panel-title">Projects</span>
-        <button className="btn small" onClick={() => setShowAddProject(true)}>+ project</button>
-        <button className="btn small" onClick={() => setShowTemplates(v => !v)}>templates</button>
-        <button className="btn small" onClick={() => setShowSettings(true)}>settings</button>
+        <div className="sidebar-menu" ref={menuRef}>
+          <button className="btn small" title="menu" aria-label="menu" onClick={() => setMenuOpen(v => !v)}>⋯</button>
+          {menuOpen && (
+            <div className="sidebar-menu-dropdown">
+              <button className="menu-item" onClick={() => { closeMenu(); setShowAddProject(true) }}>+ project</button>
+              <button className="menu-item" onClick={() => { closeMenu(); setShowTemplates(v => !v) }}>templates</button>
+              <button className="menu-item" onClick={() => { closeMenu(); setShowSettings(true) }}>settings</button>
+            </div>
+          )}
+        </div>
       </div>
       <ul className="project-list">
         {workspaces.map(ws => (

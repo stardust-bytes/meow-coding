@@ -69,6 +69,7 @@ test('settings dialog adds a provider and saves', async () => {
     })
     const window = await app.firstWindow()
     try {
+      await window.getByRole('button', { name: 'menu' }).click()
       await window.getByRole('button', { name: 'settings' }).click()
       await expect(window.locator('.settings-dialog')).toBeVisible()
       await expect(window.locator('.mcp-status')).toBeVisible()
