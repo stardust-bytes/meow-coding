@@ -5,6 +5,16 @@ import AddAgentDialog from './AddAgentDialog'
 import TemplatesPanel from './TemplatesPanel'
 import SettingsDialog from './SettingsDialog'
 
+function MoreIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <circle cx="3" cy="8" r="1.5" />
+      <circle cx="8" cy="8" r="1.5" />
+      <circle cx="13" cy="8" r="1.5" />
+    </svg>
+  )
+}
+
 interface Props {
   workspaces: WorkspaceSummary[]
   templates: Template[]
@@ -81,7 +91,9 @@ export default function Sidebar({
       <div className="panel-head">
         <span className="panel-title">Projects</span>
         <div className="sidebar-menu">
-          <button className="btn small" title="menu" aria-label="menu" onClick={() => setMenuOpen(v => !v)}>⋯</button>
+          <button className="btn ghost small" title="menu" aria-label="menu" onClick={() => setMenuOpen(v => !v)}>
+            <span className="btn-icon"><MoreIcon /></span>
+          </button>
           {menuOpen && (
             <div className="sidebar-menu-dropdown">
               <button className="menu-item" onClick={() => { closeMenu(); setShowAddProject(true) }}>+ project</button>
@@ -99,11 +111,13 @@ export default function Sidebar({
               <span className="project-count">{ws.agentCount}</span>
               <div className="project-menu" onClick={e => e.stopPropagation()}>
                 <button
-                  className="btn small"
+                  className="btn ghost small"
                   title="project menu"
                   aria-label={`menu ${ws.name}`}
                   onClick={() => setOpenProjectMenu(p => (p === ws.projectPath ? null : ws.projectPath))}
-                >⋯</button>
+                >
+                  <span className="btn-icon"><MoreIcon /></span>
+                </button>
                 {openProjectMenu === ws.projectPath && (
                   <div className="sidebar-menu-dropdown project-menu-dropdown">
                     <button
@@ -126,7 +140,7 @@ export default function Sidebar({
         ))}
       </ul>
       {activePath && (
-        <button className="btn" onClick={() => setShowAddAgent(true)}>+ agent</button>
+        <button className="btn sidebar-action" onClick={() => setShowAddAgent(true)}>+ agent</button>
       )}
       {showTemplates && <TemplatesPanel templates={templates} onChange={onTemplatesChange} />}
       {showAddProject && (

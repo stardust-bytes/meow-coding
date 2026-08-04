@@ -244,13 +244,13 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
         <div className="chat-mode">
           <span className="chat-mode-label">mode</span>
           <button
-            className={`btn small ${currentMode === 'build' ? 'active' : ''}`}
+            className={`btn small mode-build ${currentMode === 'build' ? 'active' : ''}`}
             onClick={() => switchMode('build')}
           >
             build
           </button>
           <button
-            className={`btn small ${currentMode === 'plan' ? 'active' : ''}`}
+            className={`btn small mode-plan ${currentMode === 'plan' ? 'active' : ''}`}
             onClick={() => switchMode('plan')}
           >
             plan
@@ -259,6 +259,7 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
         </div>
         <ChatInput
           running={running}
+          mode={currentMode}
           onSubmit={send}
           onStop={() => void window.api.stopChat(agentId)}
         />

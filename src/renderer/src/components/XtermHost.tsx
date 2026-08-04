@@ -21,7 +21,7 @@ export default function XtermHost({ agentId, onReady, onDispose, onInput, onResi
       scrollback: 5000,
       theme: {
         background: '#1e1e1e',
-        foreground: '#d4d4d4',
+        foreground: '#cccccc',
         cursor: '#aeafad',
         selectionBackground: '#264f78',
         black: '#000000', red: '#cd3131', green: '#0dbc79', yellow: '#e5e510',

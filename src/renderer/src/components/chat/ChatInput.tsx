@@ -1,12 +1,14 @@
 import { useState } from 'react'
+import type { AgentMode } from '@shared/types'
 
 interface Props {
   running: boolean
+  mode: AgentMode
   onSubmit(text: string): void
   onStop(): void
 }
 
-export default function ChatInput({ running, onSubmit, onStop }: Props) {
+export default function ChatInput({ running, mode, onSubmit, onStop }: Props) {
   const [value, setValue] = useState('')
 
   const submit = () => {
@@ -19,7 +21,7 @@ export default function ChatInput({ running, onSubmit, onStop }: Props) {
   return (
     <div className="chat-input">
       <textarea
-        className="chat-input-field"
+        className={`chat-input-field mode-${mode}`}
         value={value}
         placeholder="Message Meow..."
         rows={2}

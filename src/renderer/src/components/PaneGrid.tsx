@@ -11,6 +11,7 @@ interface Props {
 
 export default function PaneGrid({ panes, onRegisterTerminal, onUnregisterTerminal }: Props) {
   const [zoomedId, setZoomedId] = useState<string | null>(null)
+  const [focusedId, setFocusedId] = useState<string | null>(null)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -21,6 +22,7 @@ export default function PaneGrid({ panes, onRegisterTerminal, onUnregisterTermin
   }, [zoomedId])
 
   const columns = panes.length > 1 ? 2 : 1
+  const activeId = zoomedId ?? focusedId ?? panes[0]?.agent.id ?? null
 
   return (
     <div
@@ -32,6 +34,8 @@ export default function PaneGrid({ panes, onRegisterTerminal, onUnregisterTermin
           key={pane.agent.id}
           pane={pane}
           zoomed={pane.agent.id === zoomedId}
+          active={pane.agent.id === activeId}
+          onFocus={() => setFocusedId(pane.agent.id)}
           onZoom={() => setZoomedId(zoomedId ? null : pane.agent.id)}
           onRegisterTerminal={onRegisterTerminal}
           onUnregisterTerminal={onUnregisterTerminal}

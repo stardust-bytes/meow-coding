@@ -7,6 +7,7 @@ interface Props {
   git: GitStatus | null
   zoomed: boolean
   native?: boolean
+  active?: boolean
   onZoom: () => void
   onStop: () => void
   onRestart: () => void
@@ -20,7 +21,7 @@ const STATUS_LABEL: Record<AgentState['status'], string> = {
 }
 
 export default function PaneHeader({
-  name, state, git, zoomed, native = false, onZoom, onStop, onRestart, onInject, onOpenLog
+  name, state, git, zoomed, native = false, active = false, onZoom, onStop, onRestart, onInject, onOpenLog
 }: Props) {
   const [injecting, setInjecting] = useState(false)
   const [prompt, setPrompt] = useState('')
@@ -33,7 +34,7 @@ export default function PaneHeader({
   }
 
   return (
-    <div className={`pane-header alert-${state.alert}`}>
+    <div className={`pane-header ${active ? 'active' : ''} alert-${state.alert}`}>
       <span className={`status-dot status-${state.status}`} />
       <span className="pane-title">{name}</span>
       <span className="pane-status">{STATUS_LABEL[state.status]}

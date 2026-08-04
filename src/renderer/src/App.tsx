@@ -6,6 +6,7 @@ import type {
 import Sidebar from './components/Sidebar'
 import PaneGrid from './components/PaneGrid'
 import EmptyState from './components/EmptyState'
+import StatusBar from './components/StatusBar'
 
 export interface PaneModel {
   agent: AgentConfig
@@ -100,26 +101,33 @@ export default function App() {
 
   return (
     <div className="app">
-      <Sidebar
-        workspaces={workspaces}
-        templates={templates}
-        activePath={runtime?.workspace.projectPath ?? null}
-        onOpen={openWorkspace}
-        onRemove={removeWorkspace}
-        onRefresh={refreshWorkspaces}
-        onTemplatesChange={setTemplates}
+      <div className="app-body">
+        <Sidebar
+          workspaces={workspaces}
+          templates={templates}
+          activePath={runtime?.workspace.projectPath ?? null}
+          onOpen={openWorkspace}
+          onRemove={removeWorkspace}
+          onRefresh={refreshWorkspaces}
+          onTemplatesChange={setTemplates}
+        />
+        <main className="main">
+          {panes.length > 0 ? (
+            <PaneGrid
+              panes={panes}
+              onRegisterTerminal={registerTerminal}
+              onUnregisterTerminal={unregisterTerminal}
+            />
+          ) : (
+            <EmptyState hasWorkspace={runtime !== null} />
+          )}
+        </main>
+      </div>
+      <StatusBar
+        workspaceName={runtime?.workspace.name ?? null}
+        git={runtime?.git ?? null}
+        agents={runtime?.agents ?? []}
       />
-      <main className="main">
-        {panes.length > 0 ? (
-          <PaneGrid
-            panes={panes}
-            onRegisterTerminal={registerTerminal}
-            onUnregisterTerminal={unregisterTerminal}
-          />
-        ) : (
-          <EmptyState hasWorkspace={runtime !== null} />
-        )}
-      </main>
     </div>
   )
 }
