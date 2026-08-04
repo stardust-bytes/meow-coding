@@ -3,5 +3,6 @@ dist/
 out/
 release/
 .superpowers/
+.worktrees/
 *.log
 .DS_Store
