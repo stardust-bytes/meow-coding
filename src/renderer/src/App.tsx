@@ -57,6 +57,7 @@ export default function App() {
 
   const openWorkspace = useCallback(async (path: string) => {
     setRuntime(await window.api.openWorkspace(path))
+    buffersRef.current.clear()
   }, [])
 
   const registerTerminal = useCallback((agentId: string, term: Terminal) => {
@@ -88,8 +89,11 @@ export default function App() {
     <div className="app">
       <Sidebar
         workspaces={workspaces}
+        templates={templates}
         activePath={runtime?.workspace.projectPath ?? null}
         onOpen={openWorkspace}
+        onRefresh={refreshWorkspaces}
+        onTemplatesChange={setTemplates}
       />
       <main className="main">
         {panes.length > 0 ? (

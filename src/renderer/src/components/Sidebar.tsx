@@ -1,10 +1,17 @@
+import type { Template, WorkspaceSummary } from '@shared/types'
+
 interface Props {
-  workspaces: { projectPath: string; name: string; agentCount: number }[]
+  workspaces: WorkspaceSummary[]
+  templates: Template[]
   activePath: string | null
   onOpen: (path: string) => void
+  onRefresh: () => void
+  onTemplatesChange: (templates: Template[]) => void
 }
 
-export default function Sidebar({ workspaces, activePath, onOpen }: Props) {
+export default function Sidebar({
+  workspaces, templates, activePath, onOpen, onRefresh, onTemplatesChange
+}: Props) {
   return (
     <aside className="sidebar">
       <div className="panel-head">
