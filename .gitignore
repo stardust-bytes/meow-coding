@@ -5,4 +5,5 @@ release/
 .superpowers/
 .worktrees/
 *.log
+*.tsbuildinfo
 .DS_Store

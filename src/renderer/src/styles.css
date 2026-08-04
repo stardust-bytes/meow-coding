@@ -1,0 +1,24 @@
+:root {
+  --bg: #1e1e1e;
+  --bg-panel: #252526;
+  --bg-hover: #2a2d2e;
+  --border: #3c3c3c;
+  --text: #d4d4d4;
+  --text-dim: #9d9d9d;
+  --accent: #3794ff;
+  --green: #4ec9b0;
+  --yellow: #dcdcaa;
+  --red: #f48771;
+  --font-mono: 'Cascadia Mono', 'Fira Code', Consolas, 'Courier New', monospace;
+}
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  overflow: hidden;
+  user-select: none;
+}
+.app { height: 100%; display: flex; }
