@@ -43,10 +43,13 @@ stack của meow-coding: **Node + TypeScript strict + electron-vite + Vitest + V
   nút stop.
 - Workspace mới tự thêm 1 Meow Agent; template mặc định `meow` (kind native) hiện trong danh sách.
 
-**Không có (pha sau):**
-- webfetch / websearch / web (P2).
-- MCP client + mcp servers (P3).
-- skill + plugin (P4).
+**Đã hoàn thành (P2–P4):**
+- P2: webfetch (HTML→markdown qua turndown), websearch (Tavily, cần `TAVILY_API_KEY`), diff view cho edit/apply-patch.
+- P3: MCP client (`@modelcontextprotocol/sdk`): stdio + streamable-HTTP, tool `mcp__<server>__<tool>`, cấu hình qua `meow.json` → `mcp`.
+- P4: skills (`<project>/.meow/skills` + `userData/skills`, markdown + frontmatter, tool `skill` + danh sách trong system prompt) và user plugins/tools (`userData/tools/*.js`, default-export `{ name, description, schema, run }`).
+
+**Chưa làm (để sau):**
+- `web` tool (browser automation).
 - Multi-model routing, tokens/per-cost tracking, snapshot/revert, OAuth login.
 
 ## 4. Kiến trúc
