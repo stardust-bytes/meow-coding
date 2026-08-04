@@ -15,6 +15,9 @@ import { collectSkills, skillListText } from './agent/skill'
 import { loadUserTools } from './agent/plugin'
 import { instructionsText, loadInstructions } from './agent/instructions'
 import { expandReferences } from './agent/references'
+import { SnapshotStore } from './agent/snapshot'
+import { revertTool } from './agent/tools/revert'
+import { createTaskTool } from './agent/tools/task'
 import type { ToolDefinition } from './agent/tools/types'
 
 export interface MeowAgentManagerDeps {
@@ -26,6 +29,7 @@ export interface MeowAgentManagerDeps {
   userSkillsDir?: string
   userToolsDir?: string
   userInstructionsDir?: string
+  snapshots: SnapshotStore
 }
 
 export class MeowAgentManager {
@@ -74,6 +78,7 @@ export class MeowAgentManager {
     this.runners.delete(agentId)
     this.agents.delete(agentId)
     this.resolved.delete(agentId)
+    this.deps.snapshots.clear(agentId)
   }
 
   async send(agentId: string, text: string): Promise<void> {
@@ -129,6 +134,7 @@ export class MeowAgentManager {
   newSession(agentId: string): void {
     this.stop(agentId)
     this.deps.store.clear(agentId)
+    this.deps.snapshots.clear(agentId)
   }
 
   listMessages(agentId: string): ChatMessage[] {
@@ -196,16 +202,22 @@ export class MeowAgentManager {
     this.resolved.set(agent.id, resolved)
     const skills = collectSkills(agent.cwd, this.deps.userSkillsDir)
     const instructions = instructionsText(loadInstructions(agent.cwd, this.deps.userInstructionsDir))
+    const llmClient = (this.deps.createLlm ?? createLlm)(resolved.provider, resolved.apiKey ?? '', resolved.baseUrl)
+    const taskTool = createTaskTool({ llm: llmClient, model: resolved.model, tools: this.tools })
+    const runnerTools = new Map<string, ToolDefinition>([...this.tools])
+    runnerTools.set('task', taskTool)
+    runnerTools.set('revert', revertTool)
     const runner = new SessionRunner({
       agentId: agent.id,
       model: resolved.model,
       system: resolved.systemPrompt + instructions + skillListText(skills),
       cwd: agent.cwd,
-      llm: (this.deps.createLlm ?? createLlm)(resolved.provider, resolved.apiKey ?? '', resolved.baseUrl),
-      tools: this.tools,
+      llm: llmClient,
+      tools: runnerTools,
       decidePermission: (tool) => decidePermission(cfg.permission, tool),
       ask: (promptId) => this.awaitPrompt(agent.id, promptId),
       maxContextChars: cfg.maxContextChars,
+      snapshots: this.deps.snapshots,
       onEvent: (e) => this.emit(e),
       getItems: () => this.deps.store.get(agent.id)?.items ?? [],
       appendMessage: (msg) => this.deps.store.appendMessage(agent.id, msg),

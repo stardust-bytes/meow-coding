@@ -3,6 +3,7 @@ import path from 'node:path'
 import { z } from 'zod'
 import type { ToolDefinition, ToolRunResult } from './types'
 import { resolveCwd } from './bash'
+import { snapshotFile } from './snapshot-util'
 import { applyUnifiedPatch } from '../apply-patch'
 
 export const applyPatchTool: ToolDefinition = {
@@ -21,6 +22,7 @@ export const applyPatchTool: ToolDefinition = {
       },
       writeFile: (p: string, content: string) => {
         const full = resolveCwd(ctx.cwd, p)
+        snapshotFile(ctx, full)
         mkdirSync(path.dirname(full), { recursive: true })
         writeFileSync(full, content)
       },

@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { z } from 'zod'
 import type { ToolDefinition, ToolRunResult } from './types'
 import { resolveCwd } from './bash'
+import { snapshotFile } from './snapshot-util'
 
 export const editTool: ToolDefinition = {
   name: 'edit',
@@ -24,6 +25,7 @@ export const editTool: ToolDefinition = {
     const matches = content.split(old_string).length - 1
     if (matches === 0) return { error: 'edit: old_string not found in file' }
     if (matches > 1) return { error: `edit: old_string matched ${matches} times; make it unique` }
+    snapshotFile(ctx, full)
     writeFileSync(full, content.replace(old_string, new_string))
     return { output: `edited ${file_path}` }
   }

@@ -7,6 +7,7 @@ import type { TranscriptItem } from './message'
 import type { ToolContext, ToolDefinition } from './tools/types'
 import type { PermissionDecision } from './permission'
 import { pruneTranscript } from './compact'
+import type { SnapshotStore } from './snapshot'
 
 export interface LoopDeps {
   agentId: string
@@ -19,6 +20,7 @@ export interface LoopDeps {
   ask: (promptId: string) => Promise<PromptResponse | null>
   maxSteps?: number
   maxContextChars?: number
+  snapshots?: SnapshotStore
   onEvent: (e: ChatEvent) => void
   getItems: () => TranscriptItem[]
   appendMessage: (msg: ChatMessage) => void
@@ -144,6 +146,8 @@ export class SessionRunner {
         const toolCtx: ToolContext = {
           cwd: this.deps.cwd,
           signal,
+          agentId: this.deps.agentId,
+          snapshots: this.deps.snapshots,
           ask: async (question) => {
             const promptId = randomUUID()
             this.deps.onEvent({ type: 'prompt-request', agentId, promptId, kind: 'question', question })

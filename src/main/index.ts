@@ -10,6 +10,8 @@ import { GitStatusService } from './git-status-service'
 import { AlertService } from './alert-service'
 import { SessionStore } from './agent/session'
 import type { StoredSession } from './agent/session'
+import { SnapshotStore } from './agent/snapshot'
+import type { SnapshotEntry } from './agent/snapshot'
 import { createDefaultTools } from './agent/tools/registry'
 import { MeowAgentManager } from './meow-agent-manager'
 import { Channels } from '../shared/ipc'
@@ -37,7 +39,8 @@ class MainApp {
     tools: createDefaultTools({ getUserSkillsDir: () => path.join(app.getPath('userData'), 'skills') }),
     userSkillsDir: path.join(app.getPath('userData'), 'skills'),
     userToolsDir: path.join(app.getPath('userData'), 'tools'),
-    userInstructionsDir: app.getPath('userData')
+    userInstructionsDir: app.getPath('userData'),
+    snapshots: new SnapshotStore(createJsonStore<SnapshotEntry>(path.join(app.getPath('userData'), 'snapshots.json')))
   })
 
   private states = new Map<string, AgentState>()

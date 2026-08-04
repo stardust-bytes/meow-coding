@@ -7,6 +7,8 @@ import { SessionStore } from '../../src/main/agent/session'
 import type { StoredSession } from '../../src/main/agent/session'
 import type { JsonStore } from '../../src/main/json-store'
 import { createDefaultTools } from '../../src/main/agent/tools/registry'
+import { SnapshotStore } from '../../src/main/agent/snapshot'
+import type { SnapshotEntry } from '../../src/main/agent/snapshot'
 import type { LlmClient, LlmStreamOptions, LlmStreamPart } from '../../src/main/agent/llm'
 import type { AgentConfig, ChatEvent, PromptResponse } from '../../src/shared/types'
 
@@ -29,6 +31,11 @@ async function makeManager(opts: StubLlmOptions & { configPath?: string } = {}) 
     save: (next) => sessions.splice(0, sessions.length, ...next)
   }
   const store = new SessionStore(json)
+  const snapshotEntries: SnapshotEntry[] = []
+  const snapshots = new SnapshotStore({
+    load: () => snapshotEntries,
+    save: (next) => snapshotEntries.splice(0, snapshotEntries.length, ...next)
+  })
   const events: ChatEvent[] = []
   let llmClient: LlmClient
   const llm = (): LlmClient => llmClient
@@ -53,6 +60,7 @@ async function makeManager(opts: StubLlmOptions & { configPath?: string } = {}) 
   const manager = new MeowAgentManager({
     configPath: opts.configPath ?? '/nonexistent/meow.json',
     store,
+    snapshots,
     tools: createDefaultTools(),
     createLlm,
     env: { ANTHROPIC_API_KEY: 'sk-test' } as NodeJS.ProcessEnv
@@ -86,10 +94,13 @@ describe('MeowAgentManager', () => {
     // rebuild manager without key
     const sessions: StoredSession[] = []
     const store = new SessionStore({ load: () => sessions, save: (n) => sessions.splice(0, sessions.length, ...n) })
+    const snapEntries: SnapshotEntry[] = []
+    const snapshots = new SnapshotStore({ load: () => snapEntries, save: (n) => snapEntries.splice(0, snapEntries.length, ...n) })
     const evts: ChatEvent[] = []
     const m2 = new MeowAgentManager({
       configPath: '/nonexistent/meow.json',
       store,
+      snapshots,
       tools: createDefaultTools(),
       createLlm: () => ({ async *stream() { yield { kind: 'finish' } } }),
       env: {}

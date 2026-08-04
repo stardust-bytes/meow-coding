@@ -1,4 +1,5 @@
 import type { z } from 'zod'
+import type { SnapshotStore } from '../snapshot'
 
 export type ToolSchema = z.ZodType | Record<string, unknown>
 
@@ -13,6 +14,8 @@ export interface ToolContext {
   cwd: string
   ask(question: string): Promise<string | null>
   signal?: AbortSignal
+  agentId?: string
+  snapshots?: SnapshotStore
 }
 
 export interface ToolRunResult {
