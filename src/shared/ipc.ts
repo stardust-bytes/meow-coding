@@ -1,6 +1,6 @@
 import type {
-  AgentState, ChatEvent, ChatMessage, GitStatus, MeowSettings, NewAgentInput, PromptResponse, Template,
-  WorkspaceRuntime, WorkspaceSummary
+  AgentState, ChatEvent, ChatMessage, GitStatus, McpServerStatus, MeowSettings, NewAgentInput,
+  PromptResponse, Template, WorkspaceRuntime, WorkspaceSummary
 } from './types'
 
 export const Channels = {
@@ -31,6 +31,7 @@ export const Channels = {
   ChatRespondPrompt: 'chat:respond-prompt',
   SettingsGet: 'settings:get',
   SettingsSave: 'settings:save',
+  McpStatus: 'mcp:status',
   EventPtyData: 'pty:data',
   EventAgentState: 'agent:state',
   EventGitStatus: 'git:status',
@@ -69,6 +70,7 @@ export interface AgentApi {
   respondPrompt(agentId: string, promptId: string, resp: PromptResponse): Promise<void>
   getSettings(): Promise<MeowSettings>
   saveSettings(settings: MeowSettings): Promise<MeowSettings>
+  getMcpStatus(): Promise<McpServerStatus[]>
   onPtyData(cb: (e: PtyDataEvent) => void): () => void
   onAgentState(cb: (e: AgentStateEvent) => void): () => void
   onGitStatus(cb: (e: GitStatusEvent) => void): () => void

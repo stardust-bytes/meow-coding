@@ -12,7 +12,7 @@ describe('IPC contract', () => {
       'writeInput', 'injectPrompt', 'resizePty', 'openLog', 'getLogPath', 'quit',
       'onPtyData', 'onAgentState', 'onGitStatus',
       'sendChat', 'stopChat', 'newChatSession', 'listChatMessages', 'respondPrompt',
-      'onChatEvent', 'getSettings', 'saveSettings'
+      'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus'
     ]
     const api: AgentApi = {
       listWorkspaces: async () => [],
@@ -45,7 +45,8 @@ describe('IPC contract', () => {
       respondPrompt: async () => {},
       onChatEvent: () => () => {},
       getSettings: async () => ({ providers: [], defaultProvider: '' }),
-      saveSettings: async (s) => s
+      saveSettings: async (s) => s,
+      getMcpStatus: async () => []
     }
     for (const key of required) {
       expect(typeof api[key]).toBe('function')
@@ -66,6 +67,7 @@ describe('IPC contract', () => {
     expect(Channels.SettingsGet).toBe('settings:get')
     expect(Channels.SettingsSave).toBe('settings:save')
     expect(Channels.AgentSetMode).toBe('agent:set-mode')
+    expect(Channels.McpStatus).toBe('mcp:status')
   })
 
   it('types event payloads without runtime error', () => {

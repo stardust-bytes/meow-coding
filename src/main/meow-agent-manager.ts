@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ChatEvent, ChatMessage, MeowSettings, PromptResponse } from '../shared/types'
+import type { ChatEvent, ChatMessage, McpServerStatus, MeowSettings, PromptResponse } from '../shared/types'
 import type { AgentConfig, AgentMode } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, settingsToConfig, writeMeowConfig,
@@ -171,6 +171,10 @@ export class MeowAgentManager {
 
   getSettings(): MeowSettings {
     return configToSettings(loadMeowConfig(this.deps.configPath))
+  }
+
+  getMcpStatus(): McpServerStatus[] {
+    return this.mcp.status()
   }
 
   async saveSettings(settings: MeowSettings): Promise<MeowSettings> {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { MeowSettings, ProviderSettings } from '@shared/types'
+import type { McpServerStatus, MeowSettings, ProviderSettings } from '@shared/types'
 
 interface Props {
   onClose: () => void
@@ -20,6 +20,7 @@ const PRESETS: Record<string, Preset | undefined> = {
 export default function SettingsDialog({ onClose }: Props) {
   const [providers, setProviders] = useState<ProviderSettings[]>([])
   const [defaultProvider, setDefaultProvider] = useState('')
+  const [mcp, setMcp] = useState<McpServerStatus[]>([])
   const [status, setStatus] = useState('')
   const [preset, setPreset] = useState('')
 
@@ -28,6 +29,7 @@ export default function SettingsDialog({ onClose }: Props) {
       setProviders(s.providers)
       setDefaultProvider(s.defaultProvider)
     })
+    void window.api.getMcpStatus().then(setMcp)
   }, [])
 
   const update = (index: number, patch: Partial<ProviderSettings>) => {
@@ -116,6 +118,24 @@ export default function SettingsDialog({ onClose }: Props) {
             <button className="btn small" onClick={() => remove(i)}>remove</button>
           </div>
         ))}
+        <div className="mcp-status">
+          <h4>MCP servers</h4>
+          {mcp.length === 0 && (
+            <p className="settings-hint">
+              No MCP servers configured. Add them to <code>meow.json</code> (e.g. a Playwright MCP server).
+            </p>
+          )}
+          {mcp.map(s => (
+            <div key={s.name} className="mcp-row">
+              <span className={`mcp-dot ${s.status}`} />
+              <span className="mcp-name">{s.name}</span>
+              <span className="mcp-tools">
+                {s.status === 'connected' ? `${s.tools.length} tool(s)` : 'failed'}
+              </span>
+              {s.error && <span className="mcp-error">{s.error}</span>}
+            </div>
+          ))}
+        </div>
         <div className="settings-actions">
           <select className="input" value={preset} onChange={e => setPreset(e.target.value)}>
             <option value="">Add provider…</option>

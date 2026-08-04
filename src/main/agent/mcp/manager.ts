@@ -23,17 +23,26 @@ export interface McpConnection {
   tools: McpToolInfo[]
 }
 
+export interface McpServerStatus {
+  name: string
+  status: 'connected' | 'error'
+  error?: string
+  tools: string[]
+}
+
 export interface McpManagerDeps {
   createTransport?: (cfg: McpServerConfig) => Transport
 }
 
 export class McpManager {
   private connections = new Map<string, McpConnection>()
+  private statuses = new Map<string, McpServerStatus>()
 
   constructor(private deps: McpManagerDeps = {}) {}
 
   async connect(servers: Record<string, McpServerConfig>): Promise<void> {
     await this.closeAll()
+    this.statuses.clear()
     for (const [name, cfg] of Object.entries(servers)) {
       try {
         const client = new Client({ name: 'meow-coding', version: '0.1.0' })
@@ -46,10 +55,15 @@ export class McpManager {
           inputSchema: t.inputSchema as unknown as Record<string, unknown>
         }))
         this.connections.set(name, { serverName: name, client, tools })
+        this.statuses.set(name, { name, status: 'connected', tools: tools.map(t => t.name) })
       } catch (err) {
-        console.error(`[mcp] failed to connect server "${name}":`, err)
+        this.statuses.set(name, { name, status: 'error', error: String(err), tools: [] })
       }
     }
+  }
+
+  status(): McpServerStatus[] {
+    return [...this.statuses.values()]
   }
 
   getTools(): Map<string, ToolDefinition> {

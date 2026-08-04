@@ -54,6 +54,12 @@ describe('McpManager', () => {
     expect(echo.description).toContain('Echo text')
     const r = await echo.run({ text: 'hi' }, ctx)
     expect(r.output).toBe('echo:hi')
+
+    const status = mcp.status()
+    expect(status).toHaveLength(1)
+    expect(status[0].name).toBe('mock')
+    expect(status[0].status).toBe('connected')
+    expect(status[0].tools).toEqual(['echo'])
   })
 
   it('skips servers that fail to connect without throwing', async () => {
@@ -63,6 +69,11 @@ describe('McpManager', () => {
     managers.push(mcp)
     await mcp.connect({ broken: { command: 'node' } })
     expect(mcp.getTools().size).toBe(0)
+    const status = mcp.status()
+    expect(status).toHaveLength(1)
+    expect(status[0].name).toBe('broken')
+    expect(status[0].status).toBe('error')
+    expect(status[0].error).toMatch(/no transport/)
   })
 
   it('reports tool errors via result.error', async () => {

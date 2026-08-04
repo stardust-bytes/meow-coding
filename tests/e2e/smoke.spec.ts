@@ -71,6 +71,7 @@ test('settings dialog adds a provider and saves', async () => {
     try {
       await window.getByRole('button', { name: 'settings' }).click()
       await expect(window.locator('.settings-dialog')).toBeVisible()
+      await expect(window.locator('.mcp-status')).toBeVisible()
 
       await window.locator('.settings-actions select').selectOption('deepseek')
       await window.getByRole('button', { name: 'add' }).click()

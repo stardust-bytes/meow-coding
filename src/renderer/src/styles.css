@@ -266,3 +266,15 @@ select.input { width: 100%; }
 .chat-mode .btn.active { border-color: var(--accent); color: var(--accent); }
 .chat-mode-hint { font-size: 11px; color: var(--yellow); margin-left: 6px; }
 .chat-prompt-actions button.always { border-color: var(--accent); color: var(--accent); }
+
+
+/* MCP status */
+.mcp-status { border-top: 1px solid var(--border); padding-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.mcp-status h4 { margin: 0 0 4px; font-size: 12px; text-transform: uppercase; color: var(--text-dim); }
+.mcp-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.mcp-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.mcp-dot.connected { background: var(--green); }
+.mcp-dot.error { background: var(--red); }
+.mcp-name { font-weight: 600; }
+.mcp-tools { color: var(--text-dim); }
+.mcp-error { color: var(--red); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }

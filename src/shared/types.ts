@@ -103,3 +103,10 @@ export interface MeowSettings {
   providers: ProviderSettings[]
   defaultProvider: string
 }
+
+export interface McpServerStatus {
+  name: string
+  status: 'connected' | 'error'
+  error?: string
+  tools: string[]
+}

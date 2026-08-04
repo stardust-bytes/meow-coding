@@ -48,6 +48,7 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.ChatRespondPrompt, agentId, promptId, resp),
   getSettings: () => ipcRenderer.invoke(Channels.SettingsGet),
   saveSettings: (settings: MeowSettings) => ipcRenderer.invoke(Channels.SettingsSave, settings),
+  getMcpStatus: () => ipcRenderer.invoke(Channels.McpStatus),
   onPtyData: (cb: (e: PtyDataEvent) => void) => subscribe(Channels.EventPtyData, cb),
   onAgentState: (cb: (e: AgentStateEvent) => void) => subscribe(Channels.EventAgentState, cb),
   onGitStatus: (cb: (e: GitStatusEvent) => void) => subscribe(Channels.EventGitStatus, cb),

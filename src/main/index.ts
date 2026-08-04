@@ -318,6 +318,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.SettingsGet, () => mainApp.meowAgent.getSettings())
   ipcMain.handle(Channels.SettingsSave, (_e, settings: MeowSettings) =>
     mainApp.meowAgent.saveSettings(settings))
+  ipcMain.handle(Channels.McpStatus, () => mainApp.meowAgent.getMcpStatus())
   ipcMain.handle(Channels.AppQuit, () => app.quit())
 }
 
