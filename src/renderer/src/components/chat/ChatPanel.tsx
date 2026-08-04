@@ -31,6 +31,13 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
   const [selectedAction, setSelectedAction] = useState(0)
   const [questionText, setQuestionText] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
+  const promptRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (pendingPrompt && pendingPrompt.promptType === 'permission') {
+      promptRef.current?.focus()
+    }
+  }, [pendingPrompt])
 
   useEffect(() => {
     void window.api.listChatTranscript(agentId).then(items => {
@@ -110,24 +117,29 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
     else respond(pendingPrompt.promptId, false)
   }, [pendingPrompt, selectedAction, respond])
 
-  const onPanelKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement
-    const inField = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement
-
-    if (e.key === 'Tab') {
-      e.preventDefault()
-      if (pendingPrompt && pendingPrompt.promptType === 'permission') cycleAction(e.shiftKey ? -1 : 1)
-      else switchMode(currentMode === 'build' ? 'plan' : 'build')
-      return
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!pendingPrompt || pendingPrompt.promptType !== 'permission') return
+      const t = e.target as HTMLElement
+      if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) return
+      if (e.key === 'Tab') { e.preventDefault(); cycleAction(e.shiftKey ? -1 : 1) }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); cycleAction(1) }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); cycleAction(-1) }
+      else if (e.key === 'Enter') { e.preventDefault(); runSelected() }
+      else if (e.key === '1') { e.preventDefault(); respond(pendingPrompt.promptId, true) }
+      else if (e.key === '2') { e.preventDefault(); respond(pendingPrompt.promptId, true, undefined, true) }
+      else if (e.key === '3') { e.preventDefault(); respond(pendingPrompt.promptId, false) }
     }
-    if (inField || !pendingPrompt || pendingPrompt.promptType !== 'permission') return
-    if (e.key === 'ArrowRight') { e.preventDefault(); cycleAction(1) }
-    else if (e.key === 'ArrowLeft') { e.preventDefault(); cycleAction(-1) }
-    else if (e.key === 'Enter') { e.preventDefault(); runSelected() }
-    else if (e.key === '1') { e.preventDefault(); respond(pendingPrompt.promptId, true) }
-    else if (e.key === '2') { e.preventDefault(); respond(pendingPrompt.promptId, true, undefined, true) }
-    else if (e.key === '3') { e.preventDefault(); respond(pendingPrompt.promptId, false) }
-  }, [pendingPrompt, currentMode, cycleAction, switchMode, runSelected, respond])
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [pendingPrompt, cycleAction, runSelected, respond])
+
+  const onPanelKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Tab') return
+    if (pendingPrompt && pendingPrompt.promptType === 'permission') return
+    e.preventDefault()
+    switchMode(currentMode === 'build' ? 'plan' : 'build')
+  }, [pendingPrompt, currentMode, switchMode])
 
   const permissionActions = [
     { label: 'Allow', key: '1', run: () => pendingPrompt && respond(pendingPrompt.promptId, true) },
@@ -158,7 +170,8 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
       </div>
       <div className="chat-composer">
         {pendingPrompt && (
-          <div className="chat-prompt">
+          <div className="chat-prompt" ref={pendingPrompt.promptType === 'permission' ? promptRef : undefined}
+            tabIndex={pendingPrompt.promptType === 'permission' ? -1 : undefined}>
             {pendingPrompt.promptType === 'permission' ? (
               <>
                 <div className="chat-prompt-text">

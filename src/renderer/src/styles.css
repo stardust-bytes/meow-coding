@@ -191,12 +191,14 @@ select.input { width: 100%; }
 /* Prompt (permission / question) */
 .chat-prompt {
   border: 1px solid var(--yellow); border-radius: 6px; background: var(--bg-panel);
-  padding: 10px; max-width: 92%; align-self: flex-start; display: flex; flex-direction: column; gap: 8px;
+  padding: 10px; width: 100%; display: flex; flex-direction: column; gap: 8px;
 }
+.chat-prompt:focus { outline: none; }
 .chat-prompt-text { white-space: pre-wrap; user-select: text; }
 .chat-prompt-text code { color: var(--yellow); }
 .chat-prompt-actions { display: flex; gap: 8px; align-items: center; }
-.chat-prompt-actions button { padding: 4px 12px; border: 1px solid var(--border); background: var(--bg-hover); color: var(--text); border-radius: 4px; cursor: pointer; }
+.chat-prompt-actions button { padding: 6px 14px; border: 1px solid var(--border); background: var(--bg-hover); color: var(--text); border-radius: 4px; cursor: pointer; }
+.chat-prompt-actions button:hover { background: var(--bg); border-color: var(--text-dim); }
 .chat-prompt-actions button.allow { border-color: var(--green); color: var(--green); }
 .chat-prompt-input { flex: 1; padding: 4px 8px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; }
 
