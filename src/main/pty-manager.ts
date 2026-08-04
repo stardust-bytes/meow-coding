@@ -10,6 +10,27 @@ export interface PtySession {
   pid: number
 }
 
+export interface SpawnCommand {
+  command: string
+  args: string[]
+}
+
+// Windows ConPTY cannot launch bare npm-installed CLI names (opencode, claude,
+// aider, ...) because they only exist as .cmd/.bat shims — CreateProcess fails
+// with exit code 2 and no output. Run non-.exe commands through cmd.exe instead.
+export function buildSpawnCommand(
+  command: string,
+  args: string[],
+  platform: NodeJS.Platform = process.platform
+): SpawnCommand {
+  if (platform !== 'win32') return { command, args }
+  if (/\.exe$/i.test(command)) return { command, args }
+  const cmdLine = [command, ...args]
+    .map(a => (/\s/.test(a) ? `"${a.replace(/"/g, '""')}"` : a))
+    .join(' ')
+  return { command: 'cmd.exe', args: ['/d', '/s', '/c', cmdLine] }
+}
+
 export class PtyManager extends EventEmitter {
   private sessions = new Map<string, PtySession>()
   private stopping = new Set<string>()
@@ -17,7 +38,8 @@ export class PtyManager extends EventEmitter {
   start(agentId: string, name: string, command: string, args: string[], cwd: string): PtySession {
     if (this.sessions.has(agentId)) throw new Error(`Agent already running: ${agentId}`)
     if (this.stopping.has(agentId)) throw new Error(`Agent is stopping: ${agentId}`)
-    const proc = pty.spawn(command, args, {
+    const resolved = buildSpawnCommand(command, args)
+    const proc = pty.spawn(resolved.command, resolved.args, {
       name: 'xterm-256color',
       cols: 100,
       rows: 30,

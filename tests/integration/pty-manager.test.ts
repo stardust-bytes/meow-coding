@@ -1,8 +1,47 @@
 import { describe, expect, it, afterEach } from 'vitest'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { PtyManager } from '../../src/main/pty-manager'
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'echo-agent.js')
+
+describe('PtyManager windows shim spawn', () => {
+  it.skipIf(process.platform !== 'win32')('runs a bare npm-style .cmd shim command', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-shim-'))
+    const managers: PtyManager[] = []
+    const originalPath = process.env.PATH
+    try {
+      writeFileSync(path.join(dir, 'fakeshim.cmd'), '@echo off\r\necho SHIM_OK\r\nexit /b 0\r\n')
+      process.env.PATH = dir + path.delimiter + (process.env.PATH ?? '')
+
+      const pty = new PtyManager()
+      managers.push(pty)
+      const data: string[] = []
+      pty.on('data', ({ data: d }) => data.push(d))
+
+      pty.start('a1', 'shim', 'fakeshim', [], dir)
+
+      await new Promise<void>((resolve, reject) => {
+        const t = setTimeout(() => reject(new Error('timeout waiting SHIM_OK')), 10000)
+        const check = () => {
+          if (data.some(d => d.includes('SHIM_OK'))) {
+            clearTimeout(t)
+            resolve()
+          } else {
+            setTimeout(check, 50)
+          }
+        }
+        check()
+      })
+      expect(data.join('')).toContain('SHIM_OK')
+    } finally {
+      await Promise.all(managers.map(m => m.stopAll()))
+      process.env.PATH = originalPath
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
 
 describe('PtyManager', () => {
   const managers: PtyManager[] = []
