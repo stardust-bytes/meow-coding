@@ -3,6 +3,7 @@ import type { NewAgentInput, Template, WorkspaceSummary } from '@shared/types'
 import AddProjectDialog from './AddProjectDialog'
 import AddAgentDialog from './AddAgentDialog'
 import TemplatesPanel from './TemplatesPanel'
+import SettingsDialog from './SettingsDialog'
 
 interface Props {
   workspaces: WorkspaceSummary[]
@@ -20,6 +21,7 @@ export default function Sidebar({
   const [showAddProject, setShowAddProject] = useState(false)
   const [showAddAgent, setShowAddAgent] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [error, setError] = useState('')
 
   const handleAddProject = async (projectPath: string, name: string) => {
@@ -54,6 +56,7 @@ export default function Sidebar({
         <span className="panel-title">Projects</span>
         <button className="btn small" onClick={() => setShowAddProject(true)}>+ project</button>
         <button className="btn small" onClick={() => setShowTemplates(v => !v)}>templates</button>
+        <button className="btn small" onClick={() => setShowSettings(true)}>settings</button>
       </div>
       <ul className="project-list">
         {workspaces.map(ws => (
@@ -84,6 +87,7 @@ export default function Sidebar({
           onClose={() => setShowAddAgent(false)}
         />
       )}
+      {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
     </aside>
   )
 }
