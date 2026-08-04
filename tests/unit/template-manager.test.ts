@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, beforeEach, afterEach } from 'vitest'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { createJsonStore } from '../../src/main/json-store'
 import { TemplateManager } from '../../src/main/template-manager'
 import type { Template } from '../../src/shared/types'
@@ -49,5 +52,27 @@ describe('TemplateManager', () => {
     const saved = manager.save({ id: '', name: 'custom', command: 'x', args: [] })
     manager.remove(saved.id)
     expect(manager.list().map(t => t.id)).toEqual(['opencode'])
+  })
+})
+
+describe('TemplateManager persistence', () => {
+  let dir: string
+  let file: string
+
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(tmpdir(), 'meow-tmpl-'))
+    file = path.join(dir, 'templates.json')
+  })
+
+  afterEach(() => rmSync(dir, { recursive: true, force: true }))
+
+  it('persists an override of a default template across instances', () => {
+    const first = new TemplateManager(createJsonStore(file), DEFAULTS)
+    first.save({ id: 'opencode', name: 'opencode2', command: 'opencode', args: [] })
+
+    const second = new TemplateManager(createJsonStore(file), DEFAULTS)
+    const list = second.list()
+    expect(list).toHaveLength(1)
+    expect(list[0].name).toBe('opencode2')
   })
 })
