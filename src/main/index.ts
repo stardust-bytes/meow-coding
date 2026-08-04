@@ -17,6 +17,8 @@ import type { AgentState, NewAgentInput, PromptResponse, Template, Workspace, Wo
 
 let win: BrowserWindow | null = null
 
+if (process.env.MEOW_USER_DATA) app.setPath('userData', process.env.MEOW_USER_DATA)
+
 class MainApp {
   templates = new TemplateManager(
     createJsonStore<Template>(path.join(app.getPath('userData'), 'templates.json')),
