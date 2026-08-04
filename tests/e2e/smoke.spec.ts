@@ -34,6 +34,11 @@ test('native meow agent renders a chat panel and sends a message', async () => {
       await window.locator('.project-row').click()
       await expect(window.locator('.chat-panel')).toBeVisible()
 
+      await window.getByRole('button', { name: 'menu E2E Project' }).click()
+      await expect(window.getByRole('button', { name: 'Open in VS Code' })).toBeVisible()
+      await expect(window.getByRole('button', { name: 'Remove' })).toBeVisible()
+      await window.keyboard.press('Escape')
+
       await window.locator('.chat-input-field').fill('hello meow')
       await window.locator('.chat-input-send').click()
       await expect(window.locator('.chat-msg.user').last()).toContainText('hello meow')

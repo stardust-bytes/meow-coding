@@ -310,3 +310,11 @@ select.input { width: 100%; }
   border-radius: 4px; cursor: pointer; font-size: 12px;
 }
 .menu-item:hover { background: var(--bg-hover); color: var(--text); }
+
+
+/* Project row menu */
+.project-menu { position: relative; flex: 0 0 auto; }
+.project-menu-dropdown { min-width: 150px; }
+.menu-item.danger { color: var(--red); }
+.menu-item.danger:hover { background: rgba(244, 135, 113, 0.12); }
+.project-row { position: relative; }

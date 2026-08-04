@@ -8,6 +8,7 @@ export const Channels = {
   WorkspaceAdd: 'workspace:add',
   WorkspaceRemove: 'workspace:remove',
   WorkspaceOpen: 'workspace:open',
+  ProjectOpenInEditor: 'project:open-in-editor',
   AgentAdd: 'agent:add',
   AgentRemove: 'agent:remove',
   AgentSetMode: 'agent:set-mode',
@@ -48,6 +49,7 @@ export interface AgentApi {
   addWorkspace(projectPath: string, name: string): Promise<WorkspaceRuntime | null>
   removeWorkspace(projectPath: string): Promise<void>
   openWorkspace(projectPath: string): Promise<WorkspaceRuntime>
+  openInEditor(projectPath: string): Promise<void>
   addAgent(projectPath: string, input: NewAgentInput): Promise<WorkspaceRuntime>
   removeAgent(projectPath: string, agentId: string): Promise<void>
   setAgentMode(agentId: string, mode: 'build' | 'plan'): Promise<void>

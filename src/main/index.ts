@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { createJsonStore } from './json-store'
 import { TemplateManager } from './template-manager'
@@ -22,6 +23,18 @@ import type { AgentState, MeowSettings, NewAgentInput, PromptResponse, Template,
 let win: BrowserWindow | null = null
 
 if (process.env.MEOW_USER_DATA) app.setPath('userData', process.env.MEOW_USER_DATA)
+
+function openInEditor(projectPath: string): Promise<void> {
+  return new Promise(resolve => {
+    const child = process.platform === 'win32'
+      ? spawn('cmd.exe', ['/d', '/s', '/c', `code "${projectPath.replace(/"/g, '""')}"`], {
+          windowsHide: true, windowsVerbatimArguments: true
+        })
+      : spawn('code', [projectPath], { stdio: 'ignore' })
+    child.on('error', () => resolve())
+    child.on('close', () => resolve())
+  })
+}
 
 class MainApp {
   templates = new TemplateManager(
@@ -262,6 +275,9 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(Channels.WorkspaceOpen, (_e, projectPath: string) =>
     mainApp.openWorkspace(projectPath))
+
+  ipcMain.handle(Channels.ProjectOpenInEditor, (_e, projectPath: string) =>
+    openInEditor(projectPath))
 
   ipcMain.handle(Channels.AgentAdd, async (_e, projectPath: string, input: NewAgentInput) => {
     const tmpl = mainApp.templates.list().find(t => t.id === input.templateId)

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { NewAgentInput, Template, WorkspaceSummary } from '@shared/types'
 import AddProjectDialog from './AddProjectDialog'
 import AddAgentDialog from './AddAgentDialog'
@@ -23,15 +23,22 @@ export default function Sidebar({
   const [showTemplates, setShowTemplates] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [openProjectMenu, setOpenProjectMenu] = useState<string | null>(null)
   const [error, setError] = useState('')
-  const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+      const target = e.target as Node
+      if (!(target instanceof Element) || !target.closest('.sidebar-menu, .project-menu')) {
+        setMenuOpen(false)
+        setOpenProjectMenu(null)
+      }
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMenuOpen(false)
+      if (e.key === 'Escape') {
+        setMenuOpen(false)
+        setOpenProjectMenu(null)
+      }
     }
     document.addEventListener('mousedown', onDocClick)
     document.addEventListener('keydown', onKey)
@@ -73,7 +80,7 @@ export default function Sidebar({
       {error && <div className="sidebar-error">{error}</div>}
       <div className="panel-head">
         <span className="panel-title">Projects</span>
-        <div className="sidebar-menu" ref={menuRef}>
+        <div className="sidebar-menu">
           <button className="btn small" title="menu" aria-label="menu" onClick={() => setMenuOpen(v => !v)}>⋯</button>
           {menuOpen && (
             <div className="sidebar-menu-dropdown">
@@ -90,10 +97,30 @@ export default function Sidebar({
             <div className="project-row" onClick={() => onOpen(ws.projectPath)}>
               <span className="project-name">{ws.name}</span>
               <span className="project-count">{ws.agentCount}</span>
-              <button className="btn small" onClick={e => {
-                e.stopPropagation()
-                onRemove(ws.projectPath)
-              }}>x</button>
+              <div className="project-menu" onClick={e => e.stopPropagation()}>
+                <button
+                  className="btn small"
+                  title="project menu"
+                  aria-label={`menu ${ws.name}`}
+                  onClick={() => setOpenProjectMenu(p => (p === ws.projectPath ? null : ws.projectPath))}
+                >⋯</button>
+                {openProjectMenu === ws.projectPath && (
+                  <div className="sidebar-menu-dropdown project-menu-dropdown">
+                    <button
+                      className="menu-item"
+                      onClick={() => { setOpenProjectMenu(null); void window.api.openInEditor(ws.projectPath) }}
+                    >
+                      Open in VS Code
+                    </button>
+                    <button
+                      className="menu-item danger"
+                      onClick={() => { setOpenProjectMenu(null); onRemove(ws.projectPath) }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </li>
         ))}

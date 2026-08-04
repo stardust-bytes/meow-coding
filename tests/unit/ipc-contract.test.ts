@@ -6,7 +6,7 @@ import type { AgentConfig, ChatMessage, MeowSettings } from '../../src/shared/ty
 describe('IPC contract', () => {
   it('defines all channels used by the preload api', () => {
     const required: (keyof AgentApi)[] = [
-      'listWorkspaces', 'addWorkspace', 'removeWorkspace', 'openWorkspace',
+      'listWorkspaces', 'addWorkspace', 'removeWorkspace', 'openWorkspace', 'openInEditor',
       'addAgent', 'removeAgent', 'setAgentMode', 'listTemplates', 'saveTemplate', 'removeTemplate',
       'pickFolder', 'startAgent', 'stopAgent', 'restartAgent',
       'writeInput', 'injectPrompt', 'resizePty', 'openLog', 'getLogPath', 'quit',
@@ -19,6 +19,7 @@ describe('IPC contract', () => {
       addWorkspace: async () => null,
       removeWorkspace: async () => {},
       openWorkspace: async () => ({ workspace: { projectPath: '', name: '', agents: [] }, agents: [], git: null }),
+      openInEditor: async () => {},
       addAgent: async () => ({ workspace: { projectPath: '', name: '', agents: [] }, agents: [], git: null }),
       removeAgent: async () => {},
       setAgentMode: async () => {},
