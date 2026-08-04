@@ -28,4 +28,11 @@ describe('LogManager', () => {
     expect(logs.exists('a1')).toBe(true)
     expect(logs.pathFor('a1')).toBe(path.join(dir, 'a1.log'))
   })
+
+  it('creates a nested log directory on construction', () => {
+    const nested = path.join(dir, 'sub', 'deep')
+    const nestedLogs = new LogManager(nested)
+    nestedLogs.append('a1', 'x')
+    expect(readFileSync(path.join(nested, 'a1.log'), 'utf-8')).toBe('x')
+  })
 })
