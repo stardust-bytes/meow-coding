@@ -90,6 +90,15 @@ describe('PtyManager', () => {
       check()
     })
     expect(exited[0].agentId).toBe('a1')
-    expect(() => pty.write('a1', 'x')).not.toThrow()
+    expect(pty.isRunning('a1')).toBe(false)
+  })
+
+  it('allows restart immediately after stop', async () => {
+    const pty = new PtyManager()
+    managers.push(pty)
+    pty.start('a1', 'echo', process.execPath, [FIXTURE], process.cwd())
+    await pty.stop('a1')
+    expect(() => pty.start('a1', 'echo', process.execPath, [FIXTURE], process.cwd())).not.toThrow()
+    await pty.stop('a1')
   })
 })

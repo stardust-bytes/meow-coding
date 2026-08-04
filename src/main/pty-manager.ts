@@ -40,7 +40,7 @@ export class PtyManager extends EventEmitter {
 
   write(agentId: string, data: string): void {
     const s = this.sessions.get(agentId)
-    if (s) s.process.write(data)
+    if (s) s.process.write(data.replace(/\r\n/g, '\r').replace(/\n/g, '\r'))
   }
 
   isRunning(agentId: string): boolean {
@@ -53,33 +53,37 @@ export class PtyManager extends EventEmitter {
     this.stopping.add(agentId)
     return new Promise<void>(resolve => {
       let settled = false
+      let timer: NodeJS.Timeout | null = null
+      const onExit = (e: { agentId: string }) => {
+        if (e.agentId === agentId) done()
+      }
       const done = () => {
         if (settled) return
         settled = true
+        if (timer) clearTimeout(timer)
+        this.removeListener('exit', onExit)
         this.stopping.delete(agentId)
         resolve()
       }
-      const killSession = () => {
-        if (s.pid) {
-          kill(s.pid, () => done())
-        } else {
-          s.process.kill()
-          done()
-        }
-      }
-      if (s.pid) {
-        killSession()
-      } else {
-        const deadline = Date.now() + 2000
-        const poll = () => {
-          if (s.pid) killSession()
-          else if (Date.now() >= deadline) killSession()
-          else setTimeout(poll, 20)
-        }
-        poll()
-      }
-      setTimeout(done, 3000)
+      this.on('exit', onExit)
+      timer = setTimeout(() => {
+        this.sessions.delete(agentId)
+        done()
+      }, 3000)
+      this.killProcess(s)
     })
+  }
+
+  private killProcess(s: PtySession): void {
+    if (s.pid) {
+      kill(s.pid, () => { /* resolved by 'exit' event */ })
+    } else {
+      try {
+        s.process.kill()
+      } catch {
+        /* already dead */
+      }
+    }
   }
 
   stopAll(): Promise<void> {
