@@ -49,13 +49,18 @@ class MainApp {
   logs = new LogManager(path.join(app.getPath('userData'), 'logs'))
   git = new GitStatusService()
   alerts = new AlertService()
+  builtinSkillsDir = path.join(app.getAppPath(), 'resources', 'skills')
   meowAgent = new MeowAgentManager({
     configPath: path.join(app.getPath('userData'), 'meow.json'),
     store: new SessionStore(createJsonStore<StoredSession>(path.join(app.getPath('userData'), 'sessions.json'))),
-    tools: createDefaultTools({ getUserSkillsDir: () => path.join(app.getPath('userData'), 'skills') }),
+    tools: createDefaultTools({
+      getUserSkillsDir: () => path.join(app.getPath('userData'), 'skills'),
+      getBuiltinSkillsDir: () => this.builtinSkillsDir
+    }),
     userSkillsDir: path.join(app.getPath('userData'), 'skills'),
     userToolsDir: path.join(app.getPath('userData'), 'tools'),
     userInstructionsDir: app.getPath('userData'),
+    builtinSkillsDir: this.builtinSkillsDir,
     snapshots: new SnapshotStore(createJsonStore<SnapshotEntry>(path.join(app.getPath('userData'), 'snapshots.json'))),
     savedPermissions: new SavedPermissions(createJsonStore<SavedPermission>(path.join(app.getPath('userData'), 'permissions.json'))),
     catalog: new ModelsCatalog(path.join(app.getPath('userData'), 'models.json'))

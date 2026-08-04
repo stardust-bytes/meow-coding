@@ -2,7 +2,10 @@ import { z } from 'zod'
 import type { ToolDefinition, ToolRunResult } from './types'
 import { collectSkills } from '../skill'
 
-export function createSkillTool(getUserSkillsDir: () => string | undefined): ToolDefinition {
+export function createSkillTool(
+  getUserSkillsDir: () => string | undefined,
+  getBuiltinSkillsDir: () => string | undefined = () => undefined
+): ToolDefinition {
   return {
     name: 'skill',
     description:
@@ -13,7 +16,7 @@ export function createSkillTool(getUserSkillsDir: () => string | undefined): Too
     }),
     async run(input, ctx): Promise<ToolRunResult> {
       const { name } = input as unknown as { name: string }
-      const skills = collectSkills(ctx.cwd, getUserSkillsDir())
+      const skills = collectSkills(ctx.cwd, getUserSkillsDir(), getBuiltinSkillsDir())
       const skill = skills.find(s => s.name === name)
       if (!skill) {
         const names = skills.map(s => s.name).join(', ') || '(none)'

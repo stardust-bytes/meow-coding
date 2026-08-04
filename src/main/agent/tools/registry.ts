@@ -15,6 +15,7 @@ import { gitTool } from './git'
 
 export interface DefaultToolsOptions {
   getUserSkillsDir?: () => string | undefined
+  getBuiltinSkillsDir?: () => string | undefined
 }
 
 export function createDefaultTools(opts: DefaultToolsOptions = {}): Map<string, ToolDefinition> {
@@ -30,7 +31,7 @@ export function createDefaultTools(opts: DefaultToolsOptions = {}): Map<string, 
     questionTool,
     webfetchTool,
     websearchTool,
-    createSkillTool(opts.getUserSkillsDir ?? (() => undefined)),
+    createSkillTool(opts.getUserSkillsDir ?? (() => undefined), opts.getBuiltinSkillsDir),
     gitTool
   ]
   return new Map(tools.map(t => [t.name, t]))

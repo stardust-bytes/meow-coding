@@ -32,6 +32,7 @@ export interface MeowAgentManagerDeps {
   userSkillsDir?: string
   userToolsDir?: string
   userInstructionsDir?: string
+  builtinSkillsDir?: string
   snapshots: SnapshotStore
   savedPermissions: SavedPermissions
   catalog?: ModelsCatalog
@@ -365,7 +366,7 @@ export class MeowAgentManager {
     const cfg = loadMeowConfig(this.deps.configPath)
     const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env, agent.model)
     this.resolved.set(agent.id, resolved)
-    const skills = collectSkills(agent.cwd, this.deps.userSkillsDir)
+    const skills = collectSkills(agent.cwd, this.deps.userSkillsDir, this.deps.builtinSkillsDir)
     const instructions = instructionsText(loadInstructions(agent.cwd, this.deps.userInstructionsDir))
     const llmClient = (this.deps.createLlm ?? createLlm)(resolved.provider, resolved.apiKey ?? '', resolved.baseUrl)
     const taskTool = createTaskTool({ llm: llmClient, model: resolved.model, tools: this.tools })

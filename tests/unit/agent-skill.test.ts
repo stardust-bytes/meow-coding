@@ -67,4 +67,27 @@ describe('skills', () => {
     const bad = await tool.run({ name: 'nope' }, ctx)
     expect(bad.error).toMatch(/unknown skill/)
   })
+
+  it('collects builtin skills with project/user taking priority', () => {
+    const userDir = path.join(dir, 'user-skills')
+    const builtinDir = path.join(dir, 'builtin-skills')
+    mkdirSync(userDir, { recursive: true })
+    mkdirSync(builtinDir, { recursive: true })
+    writeFileSync(path.join(builtinDir, 'brainstorming.md'), '---\nname: brainstorming\ndescription: design\n---\nbuiltin\n')
+    writeFileSync(path.join(builtinDir, 'writing-plans.md'), '---\nname: writing-plans\ndescription: plans\n---\nplans\n')
+    writeFileSync(path.join(userDir, 'brainstorming.md'), '---\nname: brainstorming\ndescription: design\n---\nuser-override\n')
+    const skills = collectSkills(dir, userDir, builtinDir)
+    expect(skills.find(s => s.name === 'writing-plans')?.content).toBe('plans')
+    expect(skills.find(s => s.name === 'brainstorming')?.content).toBe('user-override')
+  })
+
+  it('skill tool loads a bundled skill', async () => {
+    const builtinDir = path.join(dir, 'builtin-skills')
+    mkdirSync(builtinDir, { recursive: true })
+    writeFileSync(path.join(builtinDir, 'brainstorming.md'), '---\nname: brainstorming\ndescription: d\n---\nBUILTIN CONTENT\n')
+    ctx.cwd = dir
+    const tool = createSkillTool(() => undefined, () => builtinDir)
+    const ok = await tool.run({ name: 'brainstorming' }, ctx)
+    expect(ok.output).toContain('BUILTIN CONTENT')
+  })
 })
