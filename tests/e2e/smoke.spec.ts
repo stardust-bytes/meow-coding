@@ -45,3 +45,33 @@ test('native meow agent renders a chat panel and sends a message', async () => {
     rmSync(project, { recursive: true, force: true })
   }
 })
+
+test('settings dialog adds a provider and saves', async () => {
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    writeFileSync(path.join(userData, 'workspaces.json'), JSON.stringify([]))
+
+    const app = await electron.launch({
+      args: ['.'],
+      env: { ...process.env as Record<string, string>, MEOW_USER_DATA: userData }
+    })
+    const window = await app.firstWindow()
+    try {
+      await window.getByRole('button', { name: 'settings' }).click()
+      await expect(window.locator('.settings-dialog')).toBeVisible()
+
+      await window.locator('.settings-actions select').selectOption('deepseek')
+      await window.getByRole('button', { name: 'add' }).click()
+      await window.locator('.provider-row').last().locator('input[type="password"]').fill('sk-test')
+
+      await window.getByRole('button', { name: 'Save' }).click()
+      await expect(window.locator('.settings-dialog')).toHaveCount(0)
+    } finally {
+      await app.close()
+    }
+  } finally {
+    rmSync(userData, { recursive: true, force: true })
+    rmSync(project, { recursive: true, force: true })
+  }
+})
