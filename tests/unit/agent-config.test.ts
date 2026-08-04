@@ -167,4 +167,14 @@ describe('configToSettings / settingsToConfig', () => {
     expect(read.model).toBe('deepseek')
     expect(read.provider.deepseek?.apiKey).toBe('sk')
   })
+
+  it('preserves mcp servers from the base config', () => {
+    const base = loadMeowConfig(file)
+    base.mcp = { mytools: { command: 'npx', args: ['-y', '@foo/bar'] } }
+    const cfg = settingsToConfig({
+      defaultProvider: 'openai',
+      providers: [{ id: 'openai', apiKey: 'k', model: 'gpt-4o' }]
+    }, base)
+    expect(cfg.mcp.mytools.command).toBe('npx')
+  })
 })

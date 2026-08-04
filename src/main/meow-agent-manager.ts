@@ -10,6 +10,7 @@ import { createLlm } from './agent/llm'
 import type { LlmClient } from './agent/llm'
 import { decidePermission } from './agent/permission'
 import { SessionStore } from './agent/session'
+import { McpManager } from './agent/mcp/manager'
 import type { ToolDefinition } from './agent/tools/types'
 
 export interface MeowAgentManagerDeps {
@@ -27,9 +28,13 @@ export class MeowAgentManager {
   private controllers = new Map<string, AbortController>()
   private pendingPrompts = new Map<string, { agentId: string; resolve: (resp: PromptResponse | null) => void }>()
   private running = new Set<string>()
+  private tools: Map<string, ToolDefinition>
+  private mcp = new McpManager()
   private onEvent: (e: ChatEvent) => void = () => {}
 
-  constructor(private deps: MeowAgentManagerDeps) {}
+  constructor(private deps: MeowAgentManagerDeps) {
+    this.tools = new Map(deps.tools)
+  }
 
   setOnEvent(cb: (e: ChatEvent) => void): void {
     this.onEvent = (e) => {
@@ -46,7 +51,8 @@ export class MeowAgentManager {
     return this.running.has(agentId)
   }
 
-  init(agents: AgentConfig[]): void {
+  async init(agents: AgentConfig[]): Promise<void> {
+    await this.syncTools()
     for (const agent of agents) {
       if (agent.kind === 'native') this.register(agent)
     }
@@ -138,22 +144,34 @@ export class MeowAgentManager {
     return configToSettings(loadMeowConfig(this.deps.configPath))
   }
 
-  saveSettings(settings: MeowSettings): MeowSettings {
+  async saveSettings(settings: MeowSettings): Promise<MeowSettings> {
     const current = loadMeowConfig(this.deps.configPath)
     const cfg = settingsToConfig(settings, current)
     writeMeowConfig(this.deps.configPath, cfg)
-    this.reload()
+    await this.reload()
     return configToSettings(cfg)
   }
 
-  reload(): void {
+  async reload(): Promise<void> {
     const agents = [...this.agents.values()]
     for (const id of [...this.runners.keys()]) {
       this.stop(id)
       this.runners.delete(id)
       this.resolved.delete(id)
     }
+    await this.syncTools()
     for (const agent of agents) this.register(agent)
+  }
+
+  async dispose(): Promise<void> {
+    this.stopAll()
+    await this.mcp.closeAll()
+  }
+
+  private async syncTools(): Promise<void> {
+    const cfg = loadMeowConfig(this.deps.configPath)
+    await this.mcp.connect(cfg.mcp ?? {})
+    this.tools = new Map([...this.deps.tools, ...this.mcp.getTools()])
   }
 
   private register(agent: AgentConfig): void {
@@ -168,7 +186,7 @@ export class MeowAgentManager {
       system: resolved.systemPrompt,
       cwd: agent.cwd,
       llm: (this.deps.createLlm ?? createLlm)(resolved.provider, resolved.apiKey ?? '', resolved.baseUrl),
-      tools: this.deps.tools,
+      tools: this.tools,
       decidePermission: (tool) => decidePermission(cfg.permission, tool),
       ask: (promptId) => this.awaitPrompt(agent.id, promptId),
       onEvent: (e) => this.emit(e),

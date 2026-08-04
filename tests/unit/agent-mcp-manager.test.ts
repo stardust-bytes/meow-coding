@@ -1,0 +1,87 @@
+import { describe, expect, it, afterEach } from 'vitest'
+import { Server } from '@modelcontextprotocol/sdk/server/index.js'
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { McpManager } from '../../src/main/agent/mcp/manager'
+import type { ToolContext } from '../../src/main/agent/tools/types'
+
+const ctx: ToolContext = { cwd: '/proj', ask: async () => null }
+
+function makeEchoServer(): Server {
+  const server = new Server({ name: 'mock', version: '1' }, { capabilities: { tools: {} } })
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: [
+      {
+        name: 'echo',
+        description: 'Echo text back',
+        inputSchema: { type: 'object', properties: { text: { type: 'string' } } }
+      }
+    ]
+  }))
+  server.setRequestHandler(CallToolRequestSchema, async (req) => {
+    const args = req.params.arguments as { text?: string }
+    return { content: [{ type: 'text', text: 'echo:' + (args?.text ?? '') }] }
+  })
+  return server
+}
+
+describe('McpManager', () => {
+  const servers: Server[] = []
+  const managers: McpManager[] = []
+
+  afterEach(async () => {
+    for (const m of managers) await m.closeAll()
+    managers.length = 0
+    for (const s of servers) {
+      try { await s.close() } catch { /* ignore */ }
+    }
+    servers.length = 0
+  })
+
+  it('exposes MCP tools as mcp__<server>__<tool> and runs them', async () => {
+    const server = makeEchoServer()
+    servers.push(server)
+    const [serverSide, clientSide] = InMemoryTransport.createLinkedPair()
+    await server.connect(serverSide)
+
+    const mcp = new McpManager({ createTransport: () => clientSide })
+    managers.push(mcp)
+    await mcp.connect({ mock: { command: 'node' } })
+
+    const tools = mcp.getTools()
+    expect(tools.has('mcp__mock__echo')).toBe(true)
+    const echo = tools.get('mcp__mock__echo')!
+    expect(echo.description).toContain('Echo text')
+    const r = await echo.run({ text: 'hi' }, ctx)
+    expect(r.output).toBe('echo:hi')
+  })
+
+  it('skips servers that fail to connect without throwing', async () => {
+    const mcp = new McpManager({ createTransport: () => {
+      throw new Error('no transport')
+    } })
+    managers.push(mcp)
+    await mcp.connect({ broken: { command: 'node' } })
+    expect(mcp.getTools().size).toBe(0)
+  })
+
+  it('reports tool errors via result.error', async () => {
+    const server = new Server({ name: 'mock', version: '1' }, { capabilities: { tools: {} } })
+    servers.push(server)
+    server.setRequestHandler(ListToolsRequestSchema, async () => ({
+      tools: [{ name: 'fail', description: 'fails', inputSchema: { type: 'object', properties: {} } }]
+    }))
+    server.setRequestHandler(CallToolRequestSchema, async () => ({
+      isError: true,
+      content: [{ type: 'text', text: 'boom' }]
+    }))
+    const [serverSide, clientSide] = InMemoryTransport.createLinkedPair()
+    await server.connect(serverSide)
+
+    const mcp = new McpManager({ createTransport: () => clientSide })
+    managers.push(mcp)
+    await mcp.connect({ mock: { command: 'node' } })
+    const r = await mcp.getTools().get('mcp__mock__fail')!.run({}, ctx)
+    expect(r.error).toBe('boom')
+  })
+})

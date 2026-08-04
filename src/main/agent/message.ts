@@ -1,6 +1,7 @@
-import type { ModelMessage, Tool } from 'ai'
+import type { FlexibleSchema, ModelMessage, Tool } from 'ai'
+import { jsonSchema, tool } from 'ai'
 import type { ChatMessage, ToolCallData } from '../../shared/types'
-import type { ToolDefinition } from './tools/types'
+import type { ToolDefinition, ToolSchema } from './tools/types'
 
 export type TranscriptItem =
   | { kind: 'message'; message: ChatMessage }
@@ -62,7 +63,12 @@ export function toLlmMessages(items: TranscriptItem[]): ModelMessage[] {
 export function toToolDefinition(def: ToolDefinition): Tool {
   return {
     description: def.description,
-    inputSchema: def.schema,
+    inputSchema: toInputSchema(def.schema),
     execute: async () => ({ ok: true })
   }
+}
+
+function toInputSchema(schema: ToolSchema): FlexibleSchema<any> {
+  if (typeof schema.parse === 'function') return schema as FlexibleSchema<any>
+  return jsonSchema(schema as Record<string, unknown>)
 }

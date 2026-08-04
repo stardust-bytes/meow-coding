@@ -3,7 +3,9 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 const streamTextMock = vi.fn()
 
 vi.mock('ai', () => ({
-  streamText: (...args: unknown[]) => streamTextMock(...args)
+  streamText: (...args: unknown[]) => streamTextMock(...args),
+  jsonSchema: (s: unknown) => s,
+  tool: (t: unknown) => t
 }))
 
 import { createAnthropicLlm, createOpenAICompatibleLlm, formatLlmError } from '../../src/main/agent/llm'

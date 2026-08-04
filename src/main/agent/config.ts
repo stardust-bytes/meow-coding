@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import type { MeowSettings } from '../../shared/types'
+import type { McpServerConfig } from './mcp/manager'
 
 export type PermissionRule = 'allow' | 'ask' | 'deny'
 
@@ -21,6 +22,7 @@ export interface MeowConfig {
   model: string
   agents: Record<string, MeowAgentConfig>
   permission: Record<string, PermissionRule>
+  mcp: Record<string, McpServerConfig>
 }
 
 export interface ResolvedAgentConfig {
@@ -55,7 +57,8 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
     todowrite: 'allow',
     bash: 'ask',
     question: 'ask'
-  }
+  },
+  mcp: {}
 }
 
 function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
@@ -65,7 +68,8 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     provider,
     model: raw.model ?? DEFAULT_MEOW_CONFIG.model,
     agents,
-    permission: raw.permission ?? {}
+    permission: raw.permission ?? {},
+    mcp: raw.mcp ?? {}
   }
 }
 
@@ -137,7 +141,8 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
     provider: providers,
     model: defaultProvider,
     agents: base.agents ?? DEFAULT_MEOW_CONFIG.agents,
-    permission: base.permission ?? {}
+    permission: base.permission ?? {},
+    mcp: base.mcp ?? {}
   }
 }
 

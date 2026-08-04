@@ -22,7 +22,7 @@ interface StubLlmOptions {
   partsQueue?: LlmStreamPart[][]
 }
 
-function makeManager(opts: StubLlmOptions & { configPath?: string } = {}) {
+async function makeManager(opts: StubLlmOptions & { configPath?: string } = {}) {
   const sessions: StoredSession[] = []
   const json: JsonStore<StoredSession> = {
     load: () => sessions,
@@ -58,19 +58,19 @@ function makeManager(opts: StubLlmOptions & { configPath?: string } = {}) {
     env: { ANTHROPIC_API_KEY: 'sk-test' } as NodeJS.ProcessEnv
   })
   manager.setOnEvent(e => events.push(e))
-  manager.init([MEOW_AGENT, PTY_AGENT])
+  await manager.init([MEOW_AGENT, PTY_AGENT])
   return { manager, store, events, createLlm }
 }
 
 describe('MeowAgentManager', () => {
-  it('registers native agents and ignores pty agents', () => {
-    const { manager } = makeManager()
+  it('registers native agents and ignores pty agents', async () => {
+    const { manager } = await makeManager()
     expect(manager.isNative('a1')).toBe(true)
     expect(manager.isNative('a2')).toBe(false)
   })
 
   it('send appends the user message and emits events', async () => {
-    const { manager, store, events } = makeManager()
+    const { manager, store, events } = await makeManager()
     await manager.send('a1', 'hello')
     const messages = manager.listMessages('a1')
     expect(messages.map(m => m.role)).toEqual(['user', 'assistant'])
@@ -81,7 +81,7 @@ describe('MeowAgentManager', () => {
   })
 
   it('emits an error when no api key is configured', async () => {
-    const { manager, events } = makeManager()
+    const { manager, events } = await makeManager()
     manager.newSession('a1')
     // rebuild manager without key
     const sessions: StoredSession[] = []
@@ -95,14 +95,14 @@ describe('MeowAgentManager', () => {
       env: {}
     })
     m2.setOnEvent(e => evts.push(e))
-    m2.init([MEOW_AGENT])
+    await m2.init([MEOW_AGENT])
     await m2.send('a1', 'hi')
     expect(evts.some(e => e.type === 'error')).toBe(true)
     expect((evts.find(e => e.type === 'error') as Extract<ChatEvent, { type: 'error' }>).message).toContain('[meow]')
   })
 
   it('stop aborts a running turn and emits done stopped', async () => {
-    const { manager, events } = makeManager({ hangUntilAbort: true })
+    const { manager, events } = await makeManager({ hangUntilAbort: true })
     const sendPromise = manager.send('a1', 'go')
     await new Promise(r => setTimeout(r, 20))
     expect(manager.isRunning('a1')).toBe(true)
@@ -113,7 +113,7 @@ describe('MeowAgentManager', () => {
   })
 
   it('respondPrompt allow lets a permission-ask tool run', async () => {
-    const { manager: m2, events: evts } = makeManager({
+    const { manager: m2, events: evts } = await makeManager({
       partsQueue: [
         [
           { kind: 'tool-call', toolCallId: 'tc1', toolName: 'read', toolInput: { file_path: 'x.ts' } },
@@ -143,15 +143,15 @@ describe('MeowAgentManager', () => {
   })
 
   it('newSession clears persisted messages', async () => {
-    const { manager, store } = makeManager()
+    const { manager, store } = await makeManager()
     await manager.send('a1', 'x')
     manager.newSession('a1')
     expect(manager.listMessages('a1')).toEqual([])
     expect(store.get('a1')?.items).toEqual([])
   })
 
-  it('getSettings returns the default providers', () => {
-    const { manager } = makeManager()
+  it('getSettings returns the default providers', async () => {
+    const { manager } = await makeManager()
     const s = manager.getSettings()
     expect(s.defaultProvider).toBe('anthropic')
     expect(s.providers.map(p => p.id)).toEqual(expect.arrayContaining(['anthropic', 'openai']))
@@ -161,7 +161,7 @@ describe('MeowAgentManager', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-'))
     try {
       const configPath = path.join(dir, 'meow.json')
-      const { manager, createLlm } = makeManager({ configPath })
+      const { manager, createLlm } = await makeManager({ configPath })
       createLlm.mockClear()
       const saved = await manager.saveSettings({
         defaultProvider: 'deepseek',

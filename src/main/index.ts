@@ -149,7 +149,7 @@ class MainApp {
       this.resetActiveProject()
     }
     this.activeProject = projectPath
-    this.meowAgent.init(ws.agents)
+    await this.meowAgent.init(ws.agents)
     for (const agent of ws.agents) {
       await this.startAgent(agent.id)
     }
@@ -226,7 +226,7 @@ function registerIpcHandlers(): void {
       })
     }
     const fresh = mainApp.workspaces.get(projectPath)!
-    mainApp.meowAgent.init(fresh.agents)
+    void mainApp.meowAgent.init(fresh.agents)
     return mainApp.runtimeFor(fresh)
   })
 
@@ -315,10 +315,11 @@ app.on('before-quit', (event) => {
   event.preventDefault()
   cleaningUp = true
   mainApp.stopGitPoll()
-  mainApp.meowAgent.stopAll()
-  mainApp.pty
-    .stopAll()
-    .finally(() => app.exit(0))
+  void mainApp.meowAgent.dispose().then(() => {
+    mainApp.pty
+      .stopAll()
+      .finally(() => app.exit(0))
+  })
 })
 
 app.on('window-all-closed', () => {

@@ -1,9 +1,11 @@
 import type { z } from 'zod'
 
+export type ToolSchema = z.ZodType | Record<string, unknown>
+
 export interface ToolDefinition {
   name: string
   description: string
-  schema: z.ZodType
+  schema: ToolSchema
   run(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolRunResult>
 }
 
