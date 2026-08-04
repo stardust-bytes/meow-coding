@@ -266,6 +266,12 @@ select.input { width: 100%; }
 .chat-mode .btn.active { border-color: var(--accent); color: var(--accent); }
 .chat-mode-hint { font-size: 11px; color: var(--yellow); margin-left: 6px; }
 .chat-prompt-actions button.always { border-color: var(--accent); color: var(--accent); }
+.chat-prompt-actions button.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
+.chat-prompt-actions kbd {
+  font-family: var(--font-mono); font-size: 10px; background: #1a1a1a;
+  border: 1px solid var(--border); border-radius: 3px; padding: 0 4px; margin-left: 4px;
+}
+.chat-prompt-hint { font-size: 11px; color: var(--text-dim); }
 
 
 /* MCP status */
