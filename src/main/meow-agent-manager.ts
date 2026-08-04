@@ -13,6 +13,8 @@ import { SessionStore } from './agent/session'
 import { McpManager } from './agent/mcp/manager'
 import { collectSkills, skillListText } from './agent/skill'
 import { loadUserTools } from './agent/plugin'
+import { instructionsText, loadInstructions } from './agent/instructions'
+import { expandReferences } from './agent/references'
 import type { ToolDefinition } from './agent/tools/types'
 
 export interface MeowAgentManagerDeps {
@@ -23,6 +25,7 @@ export interface MeowAgentManagerDeps {
   env?: NodeJS.ProcessEnv
   userSkillsDir?: string
   userToolsDir?: string
+  userInstructionsDir?: string
 }
 
 export class MeowAgentManager {
@@ -81,7 +84,7 @@ export class MeowAgentManager {
     this.deps.store.appendMessage(agentId, {
       id: randomUUID(),
       role: 'user',
-      text,
+      text: expandReferences(agent.cwd, text),
       createdAt: Date.now()
     })
     const config = this.resolved.get(agentId)
@@ -192,10 +195,11 @@ export class MeowAgentManager {
     const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env)
     this.resolved.set(agent.id, resolved)
     const skills = collectSkills(agent.cwd, this.deps.userSkillsDir)
+    const instructions = instructionsText(loadInstructions(agent.cwd, this.deps.userInstructionsDir))
     const runner = new SessionRunner({
       agentId: agent.id,
       model: resolved.model,
-      system: resolved.systemPrompt + skillListText(skills),
+      system: resolved.systemPrompt + instructions + skillListText(skills),
       cwd: agent.cwd,
       llm: (this.deps.createLlm ?? createLlm)(resolved.provider, resolved.apiKey ?? '', resolved.baseUrl),
       tools: this.tools,
