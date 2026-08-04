@@ -6,6 +6,7 @@ export interface Template {
   name: string
   command: string
   args: string[]
+  icon?: string
 }
 
 export interface AgentConfig {

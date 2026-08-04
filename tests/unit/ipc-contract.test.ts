@@ -11,8 +11,31 @@ describe('IPC contract', () => {
       'writeInput', 'injectPrompt', 'openLog', 'getLogPath', 'quit',
       'onPtyData', 'onAgentState', 'onGitStatus'
     ]
+    const api: AgentApi = {
+      listWorkspaces: async () => [],
+      addWorkspace: async () => null,
+      removeWorkspace: async () => {},
+      openWorkspace: async () => ({ workspace: { projectPath: '', name: '', agents: [] }, agents: [], git: null }),
+      addAgent: async () => ({ workspace: { projectPath: '', name: '', agents: [] }, agents: [], git: null }),
+      removeAgent: async () => {},
+      listTemplates: async () => [],
+      saveTemplate: async (t) => t,
+      removeTemplate: async () => {},
+      pickFolder: async () => null,
+      startAgent: async () => {},
+      stopAgent: async () => {},
+      restartAgent: async () => {},
+      writeInput: async () => {},
+      injectPrompt: async () => {},
+      openLog: async () => {},
+      getLogPath: async () => '',
+      quit: async () => {},
+      onPtyData: () => () => {},
+      onAgentState: () => () => {},
+      onGitStatus: () => () => {}
+    }
     for (const key of required) {
-      expect(required).toContain(key)
+      expect(typeof api[key]).toBe('function')
     }
   })
 
@@ -26,9 +49,11 @@ describe('IPC contract', () => {
   it('types event payloads without runtime error', () => {
     const d: PtyDataEvent = { agentId: 'a1', data: 'x' }
     const s: AgentStateEvent = { agentId: 'a1', state: {} as never }
+    const gNull: GitStatusEvent = { projectPath: '/p', git: null }
     const g: GitStatusEvent = { projectPath: '/p', git: { branch: 'main', dirtyCount: 0 } }
     expect(d.data).toBe('x')
     expect(s.agentId).toBe('a1')
     expect(g.git.branch).toBe('main')
+    expect(gNull.git).toBeNull()
   })
 })

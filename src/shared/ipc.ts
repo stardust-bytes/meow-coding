@@ -26,7 +26,7 @@ export const Channels = {
 
 export interface PtyDataEvent { agentId: string; data: string }
 export interface AgentStateEvent { agentId: string; state: AgentState }
-export interface GitStatusEvent { projectPath: string; git: GitStatus }
+export interface GitStatusEvent { projectPath: string; git: GitStatus | null }
 
 export interface AgentApi {
   listWorkspaces(): Promise<WorkspaceSummary[]>
