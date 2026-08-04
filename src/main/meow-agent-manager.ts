@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import type { ChatEvent, ChatMessage, PromptResponse } from '../shared/types'
+import type { ChatEvent, ChatMessage, MeowSettings, PromptResponse } from '../shared/types'
 import type { AgentConfig } from '../shared/types'
-import { loadMeowConfig, resolveAgentConfig, type ResolvedAgentConfig } from './agent/config'
+import {
+  configToSettings, loadMeowConfig, resolveAgentConfig, settingsToConfig, writeMeowConfig,
+  type ResolvedAgentConfig
+} from './agent/config'
 import { SessionRunner } from './agent/loop'
 import { createLlm } from './agent/llm'
 import type { LlmClient } from './agent/llm'
@@ -129,6 +132,28 @@ export class MeowAgentManager {
       this.pendingPrompts.delete(promptId)
       entry.resolve(resp)
     }
+  }
+
+  getSettings(): MeowSettings {
+    return configToSettings(loadMeowConfig(this.deps.configPath))
+  }
+
+  saveSettings(settings: MeowSettings): MeowSettings {
+    const current = loadMeowConfig(this.deps.configPath)
+    const cfg = settingsToConfig(settings, current)
+    writeMeowConfig(this.deps.configPath, cfg)
+    this.reload()
+    return configToSettings(cfg)
+  }
+
+  reload(): void {
+    const agents = [...this.agents.values()]
+    for (const id of [...this.runners.keys()]) {
+      this.stop(id)
+      this.runners.delete(id)
+      this.resolved.delete(id)
+    }
+    for (const agent of agents) this.register(agent)
   }
 
   private register(agent: AgentConfig): void {

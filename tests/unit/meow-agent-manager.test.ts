@@ -1,4 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { MeowAgentManager } from '../../src/main/meow-agent-manager'
 import { SessionStore } from '../../src/main/agent/session'
 import type { StoredSession } from '../../src/main/agent/session'
@@ -19,7 +22,7 @@ interface StubLlmOptions {
   partsQueue?: LlmStreamPart[][]
 }
 
-function makeManager(opts: StubLlmOptions = {}) {
+function makeManager(opts: StubLlmOptions & { configPath?: string } = {}) {
   const sessions: StoredSession[] = []
   const json: JsonStore<StoredSession> = {
     load: () => sessions,
@@ -48,7 +51,7 @@ function makeManager(opts: StubLlmOptions = {}) {
     return llmClient
   })
   const manager = new MeowAgentManager({
-    configPath: '/nonexistent/meow.json',
+    configPath: opts.configPath ?? '/nonexistent/meow.json',
     store,
     tools: createDefaultTools(),
     createLlm,
@@ -145,5 +148,35 @@ describe('MeowAgentManager', () => {
     manager.newSession('a1')
     expect(manager.listMessages('a1')).toEqual([])
     expect(store.get('a1')?.items).toEqual([])
+  })
+
+  it('getSettings returns the default providers', () => {
+    const { manager } = makeManager()
+    const s = manager.getSettings()
+    expect(s.defaultProvider).toBe('anthropic')
+    expect(s.providers.map(p => p.id)).toEqual(expect.arrayContaining(['anthropic', 'openai']))
+  })
+
+  it('saveSettings writes config and reloads with the new provider/key', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-'))
+    try {
+      const configPath = path.join(dir, 'meow.json')
+      const { manager, createLlm } = makeManager({ configPath })
+      createLlm.mockClear()
+      const saved = await manager.saveSettings({
+        defaultProvider: 'deepseek',
+        providers: [
+          { id: 'deepseek', apiKey: 'sk-ds', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat' }
+        ]
+      })
+      expect(saved.defaultProvider).toBe('deepseek')
+      const lastCall = createLlm.mock.calls[createLlm.mock.calls.length - 1]
+      expect(lastCall[0]).toBe('deepseek')
+      expect(lastCall[1]).toBe('sk-ds')
+      expect(lastCall[2]).toBe('https://api.deepseek.com/v1')
+      expect(manager.isNative('a1')).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
