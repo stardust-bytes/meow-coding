@@ -28,7 +28,8 @@ describe('task tool (subagent)', () => {
     const task = createTaskTool({ llm, model: 'm', tools })
     const ctx: ToolContext = { cwd: '/proj', ask: async () => null }
     const r = await task.run({ prompt: 'find the bug' }, ctx)
-    expect(r.output).toBe('sub result')
+    expect(r.output).toContain('sub result')
+    expect(r.output).toMatch(/<task id=/)
   })
 
   it('only exposes read-only tools to the subagent', async () => {

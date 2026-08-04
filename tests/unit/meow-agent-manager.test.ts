@@ -317,6 +317,23 @@ describe('MeowAgentManager', () => {
     }
   })
 
+  it('executes multiple allow tool calls in a turn in parallel', async () => {
+    const { manager, events } = await makeManager({
+      partsQueue: [
+        [
+          { kind: 'tool-call', toolCallId: 'tc1', toolName: 'read', toolInput: { file_path: 'a' } },
+          { kind: 'tool-call', toolCallId: 'tc2', toolName: 'read', toolInput: { file_path: 'b' } },
+          { kind: 'finish' }
+        ],
+        [{ kind: 'text', text: 'ok' }, { kind: 'finish' }]
+      ]
+    })
+    await manager.send('a1', 'read two files')
+    const results = events.filter(e => e.type === 'tool-result')
+    expect(results).toHaveLength(2)
+    expect(results.map(r => r.call.tool)).toEqual(['read', 'read'])
+  })
+
   it('plan mode hides write tools from the model', async () => {
     const { manager, llmCalls } = await makeManager({
       partsQueue: [[{ kind: 'text', text: 'hi' }, { kind: 'finish' }]]

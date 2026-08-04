@@ -58,6 +58,7 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
     todowrite: 'allow',
     task: 'allow',
     revert: 'allow',
+    skill: 'allow',
     bash: 'ask',
     question: 'ask'
   },
@@ -108,7 +109,7 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     provider: providers,
     model: raw.model ?? DEFAULT_MEOW_CONFIG.model,
     agents: normalizeAgents(raw.agents),
-    permission: raw.permission ?? DEFAULT_MEOW_CONFIG.permission,
+    permission: { ...DEFAULT_MEOW_CONFIG.permission, ...(raw.permission ?? {}) },
     mcp: raw.mcp ?? {},
     maxContextChars: raw.maxContextChars ?? DEFAULT_MAX_CONTEXT_CHARS
   }

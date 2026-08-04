@@ -22,7 +22,10 @@ export function createSkillTool(
         const names = skills.map(s => s.name).join(', ') || '(none)'
         return { error: `skill: unknown skill "${name}". Available: ${names}` }
       }
-      return { output: skill.content }
+      const pathHint = skill.path
+        ? `\n\nSkill directory (read supporting files like scripts/ or references/ from here): ${skill.path}`
+        : ''
+      return { output: skill.content + pathHint }
     }
   }
 }

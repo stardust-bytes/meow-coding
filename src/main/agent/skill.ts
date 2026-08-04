@@ -5,6 +5,7 @@ export interface Skill {
   name: string
   description: string
   content: string
+  path?: string
 }
 
 function parseFrontmatter(text: string): { frontmatter: Record<string, string>; body: string } {
@@ -18,19 +19,32 @@ function parseFrontmatter(text: string): { frontmatter: Record<string, string>; 
   return { frontmatter, body: m[2] }
 }
 
+function skillFromFile(file: string, dir: string): Skill | null {
+  const text = readFileSync(file, 'utf-8')
+  const { frontmatter, body } = parseFrontmatter(text)
+  if (!frontmatter.name) return null
+  return {
+    name: frontmatter.name,
+    description: frontmatter.description ?? '',
+    content: body.trim(),
+    path: dir
+  }
+}
+
 export function loadSkills(dir: string): Skill[] {
   if (!existsSync(dir)) return []
   const out: Skill[] = []
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (!entry.isFile() || !entry.name.endsWith('.md')) continue
-    const text = readFileSync(path.join(dir, entry.name), 'utf-8')
-    const { frontmatter, body } = parseFrontmatter(text)
-    if (!frontmatter.name) continue
-    out.push({
-      name: frontmatter.name,
-      description: frontmatter.description ?? '',
-      content: body.trim()
-    })
+    if (entry.isFile() && entry.name.endsWith('.md')) {
+      const skill = skillFromFile(path.join(dir, entry.name), dir)
+      if (skill) out.push(skill)
+    } else if (entry.isDirectory()) {
+      const skillFile = path.join(dir, entry.name, 'SKILL.md')
+      if (existsSync(skillFile)) {
+        const skill = skillFromFile(skillFile, path.join(dir, entry.name))
+        if (skill) out.push(skill)
+      }
+    }
   }
   return out
 }
@@ -53,5 +67,10 @@ export function collectSkills(cwd: string, userSkillsDir?: string, builtinSkills
 
 export function skillListText(skills: Skill[]): string {
   if (skills.length === 0) return ''
-  return '\n\nAvailable skills:\n' + skills.map(s => `- ${s.name}: ${s.description}`).join('\n')
+  return (
+    '\n\nYou have skills available. Load one with the skill tool when the task matches its purpose. ' +
+    'Before starting significant work, load the using-superpowers skill to pick the right workflow ' +
+    '(e.g. brainstorming, writing-plans, executing-plans, subagent-driven-development).\n' +
+    'Available skills:\n' + skills.map(s => `- ${s.name}: ${s.description}`).join('\n')
+  )
 }

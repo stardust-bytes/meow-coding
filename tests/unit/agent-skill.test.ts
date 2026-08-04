@@ -35,6 +35,22 @@ describe('skills', () => {
     expect(skills[0].content).toContain('Always run tests')
   })
 
+  it('loads directory-based skills (SKILL.md) and exposes the directory path', async () => {
+    const skillsDir = path.join(dir, 'builtin-skills')
+    const skillDir = path.join(skillsDir, 'brainstorming')
+    mkdirSync(path.join(skillDir, 'scripts'), { recursive: true })
+    writeFileSync(path.join(skillDir, 'SKILL.md'), '---\nname: brainstorming\ndescription: design\n---\nRUN THE SCRIPT\n')
+    writeFileSync(path.join(skillDir, 'scripts', 'helper.js'), '// x')
+    const skills = loadSkills(skillsDir)
+    expect(skills).toHaveLength(1)
+    expect(skills[0].name).toBe('brainstorming')
+    expect(skills[0].path).toBe(skillDir)
+    const tool = createSkillTool(() => undefined, () => skillsDir)
+    const ok = await tool.run({ name: 'brainstorming' }, ctx)
+    expect(ok.output).toContain('RUN THE SCRIPT')
+    expect(ok.output).toContain(skillDir)
+  })
+
   it('collects project skills and dedupes by name', () => {
     const userDir = path.join(dir, 'user-skills')
     const projDir = path.join(dir, 'proj')

@@ -135,8 +135,13 @@ export class SessionRunner {
         })
       }
 
-      for (const call of calls) {
-        await this.executeCall(call, signal)
+      // Parallel tool execution like opencode: run a turn's tool calls
+      // concurrently when none need a permission prompt (avoids two prompts at once).
+      const needsPermission = calls.some(c => this.deps.decidePermission(c.tool) === 'ask')
+      if (needsPermission) {
+        for (const call of calls) await this.executeCall(call, signal)
+      } else {
+        await Promise.all(calls.map(call => this.executeCall(call, signal)))
       }
 
       if (!hasToolCall) {
