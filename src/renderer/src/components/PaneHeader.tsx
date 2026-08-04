@@ -6,6 +6,7 @@ interface Props {
   state: AgentState
   git: GitStatus | null
   zoomed: boolean
+  native?: boolean
   onZoom: () => void
   onStop: () => void
   onRestart: () => void
@@ -19,7 +20,7 @@ const STATUS_LABEL: Record<AgentState['status'], string> = {
 }
 
 export default function PaneHeader({
-  name, state, git, zoomed, onZoom, onStop, onRestart, onInject, onOpenLog
+  name, state, git, zoomed, native = false, onZoom, onStop, onRestart, onInject, onOpenLog
 }: Props) {
   const [injecting, setInjecting] = useState(false)
   const [prompt, setPrompt] = useState('')
@@ -42,23 +43,29 @@ export default function PaneHeader({
         {git ? (git.branch ? `${git.branch} ` : '') + (git.dirtyCount > 0 ? `\u25cf ${git.dirtyCount}` : '') : '--'}
       </span>
       <span className="pane-actions">
-        {injecting && (
-          <input
-            className="input inject-input"
-            autoFocus
-            placeholder="prompt..."
-            value={prompt}
-            onChange={e => setPrompt(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') submitInject()
-              if (e.key === 'Escape') setInjecting(false)
-            }}
-          />
+        {!native && (
+          <>
+            {injecting && (
+              <input
+                className="input inject-input"
+                autoFocus
+                placeholder="prompt..."
+                value={prompt}
+                onChange={e => setPrompt(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') submitInject()
+                  if (e.key === 'Escape') setInjecting(false)
+                }}
+              />
+            )}
+            <button className="btn small" title="inject prompt" onClick={() => setInjecting(v => !v)}>inject</button>
+          </>
         )}
-        <button className="btn small" title="inject prompt" onClick={() => setInjecting(v => !v)}>inject</button>
         <button className="btn small" title="stop" onClick={onStop}>stop</button>
-        <button className="btn small" title="restart" onClick={onRestart}>restart</button>
-        <button className="btn small" title="open log" onClick={onOpenLog}>log</button>
+        <button className="btn small" title="restart / clear session" onClick={onRestart}>restart</button>
+        {!native && (
+          <button className="btn small" title="open log" onClick={onOpenLog}>log</button>
+        )}
         <button className="btn small" title={zoomed ? 'back to grid' : 'zoom'} onClick={onZoom}>
           {zoomed ? 'exit' : 'zoom'}
         </button>

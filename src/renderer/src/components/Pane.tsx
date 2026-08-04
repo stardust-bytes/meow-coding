@@ -2,6 +2,7 @@ import { Terminal } from '@xterm/xterm'
 import type { PaneModel } from '../App'
 import XtermHost from './XtermHost'
 import PaneHeader from './PaneHeader'
+import ChatPanel from './chat/ChatPanel'
 
 interface Props {
   pane: PaneModel
@@ -16,6 +17,7 @@ export default function Pane({
 }: Props) {
   const id = pane.agent.id
   const write = (data: string) => void window.api.writeInput(id, data)
+  const native = pane.agent.kind === 'native'
 
   return (
     <div className={`pane ${zoomed ? 'zoomed' : ''}`}>
@@ -24,19 +26,28 @@ export default function Pane({
         state={pane.state}
         git={pane.git}
         zoomed={zoomed}
+        native={native}
         onZoom={onZoom}
-        onStop={() => void window.api.stopAgent(id)}
-        onRestart={() => void window.api.restartAgent(id)}
+        onStop={() => native
+          ? void window.api.stopChat(id)
+          : void window.api.stopAgent(id)}
+        onRestart={() => native
+          ? void window.api.newChatSession(id)
+          : void window.api.restartAgent(id)}
         onInject={text => void window.api.injectPrompt(id, text)}
         onOpenLog={() => void window.api.openLog(id)}
       />
-      <XtermHost
-        agentId={id}
-        onReady={term => onRegisterTerminal(id, term)}
-        onDispose={onUnregisterTerminal}
-        onInput={write}
-        onResize={(cols, rows) => void window.api.resizePty(id, cols, rows)}
-      />
+      {native ? (
+        <ChatPanel agentId={id} />
+      ) : (
+        <XtermHost
+          agentId={id}
+          onReady={term => onRegisterTerminal(id, term)}
+          onDispose={onUnregisterTerminal}
+          onInput={write}
+          onResize={(cols, rows) => void window.api.resizePty(id, cols, rows)}
+        />
+      )}
     </div>
   )
 }
