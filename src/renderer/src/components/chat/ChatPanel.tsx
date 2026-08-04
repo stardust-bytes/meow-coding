@@ -152,6 +152,7 @@ export default function ChatPanel({ agentId, mode = 'build', onModeChange }: Pro
       <div className="chat-feed">
         {items.map(item => {
           if (item.kind === 'message') {
+            if (item.role === 'assistant' && item.text.trim() === '') return null
             return (
               <div key={item.id} className={`chat-msg ${item.role}`}>
                 {item.role === 'assistant'

@@ -2,7 +2,7 @@ import { describe, expect, it, afterAll } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { bashTool } from '../../src/main/agent/tools/bash'
+import { bashTool, buildShellCommand } from '../../src/main/agent/tools/bash'
 import type { ToolContext } from '../../src/main/agent/tools/types'
 
 let dir = mkdtempSync(path.join(tmpdir(), 'meow-bash-'))
@@ -45,6 +45,23 @@ describe('bash tool', () => {
       ctx
     )
     expect(r.error ?? r.output).toBeTruthy()
+  }, 20000)
+
+  it('keeps embedded quotes intact on windows (cd to a temp dir)', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-cd-'))
+    try {
+      if (process.platform === 'win32') {
+        const c = buildShellCommand(`cd /d "${dir}" && echo OK_CD`)
+        expect(c.args[3]).toBe(`"cd /d "${dir}" && echo OK_CD"`)
+      }
+      const cmd = process.platform === 'win32'
+        ? `cd /d "${dir}" && echo OK_CD`
+        : `cd "${dir}" && echo OK_CD`
+      const r = await bashTool.run({ command: cmd }, ctx)
+      expect(r.output).toContain('OK_CD')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   }, 20000)
 
   afterAll(cleanup)

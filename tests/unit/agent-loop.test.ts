@@ -210,6 +210,18 @@ describe('SessionRunner', () => {
     expect(h.events).toEqual([{ type: 'error', agentId: 'a1', message: 'rate limited' }])
   })
 
+  it('does not append an empty assistant message for a no-op turn', async () => {
+    const h = makeHarness()
+    h.llm.queue = [[{ kind: 'finish' }]]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 20))
+    const assistantCount = h.items
+      .filter((i): i is { kind: 'message'; message: ChatMessage } => i.kind === 'message')
+      .filter(i => i.message.role === 'assistant').length
+    expect(assistantCount).toBe(0)
+    expect(h.events.some(e => e.type === 'done')).toBe(true)
+  })
+
   it('asks the user through the question tool and feeds the answer back', async () => {
     const h = makeHarness({
       tools: new Map([['question', stubTool('question', async (_i, ctx) => {

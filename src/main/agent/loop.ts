@@ -111,12 +111,14 @@ export class SessionRunner {
         return
       }
 
-      this.deps.appendMessage({
-        id: randomUUID(),
-        role: 'assistant',
-        text: textBuffer,
-        createdAt: Date.now()
-      })
+      if (textBuffer || calls.length > 0) {
+        this.deps.appendMessage({
+          id: randomUUID(),
+          role: 'assistant',
+          text: textBuffer,
+          createdAt: Date.now()
+        })
+      }
 
       for (const call of calls) {
         await this.executeCall(call, signal)

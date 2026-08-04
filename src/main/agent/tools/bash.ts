@@ -30,7 +30,8 @@ export const bashTool: ToolDefinition = {
       const child = spawn(resolved.command, resolved.args, {
         cwd: ctx.cwd,
         env: process.env as Record<string, string>,
-        windowsHide: true
+        windowsHide: true,
+        windowsVerbatimArguments: process.platform === 'win32'
       })
       let stdout = ''
       let stderr = ''
@@ -75,8 +76,9 @@ export const bashTool: ToolDefinition = {
 
 export function buildShellCommand(command: string): { command: string; args: string[] } {
   if (process.platform === 'win32') {
-    const cmdLine = command.replace(/"/g, '""')
-    return { command: 'cmd.exe', args: ['/d', '/s', '/c', cmdLine] }
+    // Pass the whole command as one quoted argv element with windowsVerbatimArguments so cmd
+    // /s /c strips the outer quotes and embedded quotes (e.g. cd "D:\...") survive intact.
+    return { command: 'cmd.exe', args: ['/d', '/s', '/c', '"' + command + '"'] }
   }
   return { command: 'sh', args: ['-c', command] }
 }
