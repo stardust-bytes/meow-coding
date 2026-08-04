@@ -233,10 +233,14 @@ export class MeowAgentManager {
     runnerTools.set('revert', revertTool)
     const mode = agent.mode ?? 'build'
     this.modes.set(agent.id, mode)
+    const modeNote = mode === 'plan'
+      ? '\n\nYou are in PLAN MODE: read-only analysis. Do not attempt to create, edit, or delete files — ' +
+        'write/edit/apply-patch tools are unavailable. Produce a plan or analysis instead.'
+      : ''
     const runner = new SessionRunner({
       agentId: agent.id,
       model: resolved.model,
-      system: resolved.systemPrompt + instructions + skillListText(skills),
+      system: resolved.systemPrompt + modeNote + instructions + skillListText(skills),
       cwd: agent.cwd,
       llm: llmClient,
       tools: runnerTools,

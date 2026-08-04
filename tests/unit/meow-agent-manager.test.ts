@@ -44,11 +44,12 @@ async function makeManager(opts: StubLlmOptions & { configPath?: string } = {}) 
     save: (next) => permEntries.splice(0, permEntries.length, ...next)
   })
   const events: ChatEvent[] = []
+  const llmCalls: string[][] = []
   let llmClient: LlmClient
-  const llm = (): LlmClient => llmClient
   const createLlm = vi.fn((): LlmClient => {
     llmClient = {
       async *stream(request: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
+        llmCalls.push((request.tools ?? []).map(t => t.name))
         if (opts.hangUntilAbort) {
           await new Promise<void>(resolve => {
             if (request.signal?.aborted) return resolve()
@@ -75,7 +76,7 @@ async function makeManager(opts: StubLlmOptions & { configPath?: string } = {}) 
   })
   manager.setOnEvent(e => events.push(e))
   await manager.init([MEOW_AGENT, PTY_AGENT])
-  return { manager, store, events, createLlm, savedPermissions }
+  return { manager, store, events, createLlm, savedPermissions, llmCalls }
 }
 
 describe('MeowAgentManager', () => {
@@ -234,6 +235,19 @@ describe('MeowAgentManager', () => {
     const result = events.find(e => e.type === 'tool-result') as Extract<ChatEvent, { type: 'tool-result' }>
     expect(result.call.permission).toBe('denied')
     expect(result.call.error).toBe('permission denied')
+  })
+
+  it('plan mode hides write tools from the model', async () => {
+    const { manager, llmCalls } = await makeManager({
+      partsQueue: [[{ kind: 'text', text: 'hi' }, { kind: 'finish' }]]
+    })
+    manager.setMode('a1', 'plan')
+    await manager.send('a1', 'hi')
+    const names = llmCalls[0] ?? []
+    expect(names).toContain('read')
+    expect(names).not.toContain('write')
+    expect(names).not.toContain('edit')
+    expect(names).not.toContain('apply-patch')
   })
 
   it('always allow saves the permission for the next turn', async () => {

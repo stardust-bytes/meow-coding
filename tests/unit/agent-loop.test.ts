@@ -261,6 +261,22 @@ describe('SessionRunner', () => {
     expect(done.reason).toBe('max-steps')
   })
 
+  it('hides denied tools from the model like opencode visibleTools', async () => {
+    const h = makeHarness({
+      tools: new Map([
+        ['read', stubTool('read')],
+        ['write', stubTool('write')],
+        ['edit', stubTool('edit')]
+      ]),
+      decidePermission: (tool) => (tool === 'write' || tool === 'edit' ? 'deny' : 'allow')
+    })
+    h.llm.queue = [textParts('ok')]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 20))
+    const names = h.llm.calls[0]?.tools.map(t => t.name) ?? []
+    expect(names).toEqual(['read'])
+  })
+
   it('asks the user through the question tool and feeds the answer back', async () => {
     const h = makeHarness({
       tools: new Map([['question', stubTool('question', async (_i, ctx) => {

@@ -69,7 +69,7 @@ export class SessionRunner {
           model: this.deps.model,
           system: this.deps.system,
           messages: llmMessages,
-          tools: isLastStep ? [] : [...this.deps.tools.values()],
+          tools: isLastStep ? [] : this.visibleToolDefs(),
           signal
         })
         for await (const part of stream) {
@@ -194,6 +194,11 @@ export class SessionRunner {
     }
     this.deps.appendTool(call)
     this.deps.onEvent({ type: 'tool-result', agentId, call })
+  }
+
+  private visibleToolDefs(): ToolDefinition[] {
+    return [...this.deps.tools.values()]
+      .filter(t => this.deps.decidePermission(t.name) !== 'deny')
   }
 
   private buildMessages(isLastStep = false): ReturnType<typeof toLlmMessages> {
