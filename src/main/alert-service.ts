@@ -38,4 +38,9 @@ export class AlertService extends EventEmitter {
     if (t) clearTimeout(t)
     this.timers.delete(agentId)
   }
+
+  clearAll(): void {
+    for (const t of this.timers.values()) clearTimeout(t)
+    this.timers.clear()
+  }
 }

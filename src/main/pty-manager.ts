@@ -32,6 +32,7 @@ export class PtyManager extends EventEmitter {
       this.emit('data', { agentId, data })
     })
     proc.onExit(({ exitCode }) => {
+      if (this.sessions.get(agentId) !== session) return
       this.sessions.delete(agentId)
       this.emit('exit', { agentId, exitCode })
     })
