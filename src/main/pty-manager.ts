@@ -41,7 +41,11 @@ export class PtyManager extends EventEmitter {
 
   write(agentId: string, data: string): void {
     const s = this.sessions.get(agentId)
-    if (s) s.process.write(data.replace(/\r\n/g, '\r').replace(/\n/g, '\r'))
+    if (!s) return
+    const normalized = process.platform === 'win32'
+      ? data.replace(/\r\n/g, '\r').replace(/\n/g, '\r')
+      : data
+    s.process.write(normalized)
   }
 
   resize(agentId: string, cols: number, rows: number): void {
@@ -87,10 +91,14 @@ export class PtyManager extends EventEmitter {
 
   private killProcess(s: PtySession): void {
     if (s.pid) {
+      // POSIX: real shell pid → tree-kill descends the whole process tree.
+      // Windows: pid is populated once the pty connects; tree-kill uses taskkill /T /F.
       kill(s.pid, (err) => {
         if (err) console.error(`[pty] tree-kill failed for ${s.agentId} (pid ${s.pid}):`, err)
       })
     } else {
+      // Windows ConPTY before the pty is ready (pid 0): node-pty's kill() targets
+      // the console process group, which includes console-attached children.
       try {
         s.process.kill()
       } catch {
