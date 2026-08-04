@@ -34,7 +34,9 @@ class MainApp {
   meowAgent = new MeowAgentManager({
     configPath: path.join(app.getPath('userData'), 'meow.json'),
     store: new SessionStore(createJsonStore<StoredSession>(path.join(app.getPath('userData'), 'sessions.json'))),
-    tools: createDefaultTools()
+    tools: createDefaultTools({ getUserSkillsDir: () => path.join(app.getPath('userData'), 'skills') }),
+    userSkillsDir: path.join(app.getPath('userData'), 'skills'),
+    userToolsDir: path.join(app.getPath('userData'), 'tools')
   })
 
   private states = new Map<string, AgentState>()

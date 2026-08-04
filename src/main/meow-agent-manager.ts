@@ -11,6 +11,8 @@ import type { LlmClient } from './agent/llm'
 import { decidePermission } from './agent/permission'
 import { SessionStore } from './agent/session'
 import { McpManager } from './agent/mcp/manager'
+import { collectSkills, skillListText } from './agent/skill'
+import { loadUserTools } from './agent/plugin'
 import type { ToolDefinition } from './agent/tools/types'
 
 export interface MeowAgentManagerDeps {
@@ -19,6 +21,8 @@ export interface MeowAgentManagerDeps {
   tools: Map<string, ToolDefinition>
   createLlm?: (provider: string, apiKey: string, baseUrl?: string) => LlmClient
   env?: NodeJS.ProcessEnv
+  userSkillsDir?: string
+  userToolsDir?: string
 }
 
 export class MeowAgentManager {
@@ -171,7 +175,14 @@ export class MeowAgentManager {
   private async syncTools(): Promise<void> {
     const cfg = loadMeowConfig(this.deps.configPath)
     await this.mcp.connect(cfg.mcp ?? {})
-    this.tools = new Map([...this.deps.tools, ...this.mcp.getTools()])
+    const userTools = await loadUserTools(
+      [this.deps.userToolsDir].filter((d): d is string => Boolean(d))
+    )
+    this.tools = new Map([
+      ...this.deps.tools,
+      ...userTools.map(t => [t.name, t] as const),
+      ...this.mcp.getTools()
+    ])
   }
 
   private register(agent: AgentConfig): void {
@@ -180,10 +191,11 @@ export class MeowAgentManager {
     const cfg = loadMeowConfig(this.deps.configPath)
     const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env)
     this.resolved.set(agent.id, resolved)
+    const skills = collectSkills(agent.cwd, this.deps.userSkillsDir)
     const runner = new SessionRunner({
       agentId: agent.id,
       model: resolved.model,
-      system: resolved.systemPrompt,
+      system: resolved.systemPrompt + skillListText(skills),
       cwd: agent.cwd,
       llm: (this.deps.createLlm ?? createLlm)(resolved.provider, resolved.apiKey ?? '', resolved.baseUrl),
       tools: this.tools,

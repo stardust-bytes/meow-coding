@@ -10,8 +10,13 @@ import { todowriteTool } from './todowrite'
 import { questionTool } from './question'
 import { webfetchTool } from './webfetch'
 import { websearchTool } from './websearch'
+import { createSkillTool } from './skill'
 
-export function createDefaultTools(): Map<string, ToolDefinition> {
+export interface DefaultToolsOptions {
+  getUserSkillsDir?: () => string | undefined
+}
+
+export function createDefaultTools(opts: DefaultToolsOptions = {}): Map<string, ToolDefinition> {
   const tools = [
     bashTool,
     readTool,
@@ -23,7 +28,8 @@ export function createDefaultTools(): Map<string, ToolDefinition> {
     todowriteTool,
     questionTool,
     webfetchTool,
-    websearchTool
+    websearchTool,
+    createSkillTool(opts.getUserSkillsDir ?? (() => undefined))
   ]
   return new Map(tools.map(t => [t.name, t]))
 }
