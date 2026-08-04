@@ -188,6 +188,16 @@ export class SessionRunner {
           agentId: this.deps.agentId,
           snapshots: this.deps.snapshots,
           setTodos: (todos) => this.deps.setTodos?.(todos),
+          emitSubagent: (taskId, e) => this.deps.onEvent({
+            type: 'subagent-event',
+            agentId: this.deps.agentId,
+            taskId,
+            sub: e.sub,
+            subagentType: e.subagentType,
+            text: e.text,
+            tool: e.tool,
+            state: e.state
+          }),
           ask: async (question: QuestionPrompt) => {
             const promptId = randomUUID()
             this.deps.onEvent({

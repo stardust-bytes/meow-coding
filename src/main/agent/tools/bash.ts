@@ -16,8 +16,9 @@ const MAX_OUTPUT = 1024 * 1024
 export const bashTool: ToolDefinition = {
   name: 'bash',
   description:
-    'Run a shell command in the project directory and return its stdout+stderr. ' +
-    'Use for running builds, tests, and inspecting the environment.',
+    'Run a shell command in the project directory (already set as the working directory) and return ' +
+    'stdout+stderr. On Windows this runs in Git Bash, so use unix commands (ls, pwd, cat, sed, awk, ' +
+    'find, grep, git, npm) and do not prefix commands with "cd /d" — use plain relative or absolute paths.',
   schema: z.object({
     command: z.string().describe('The shell command to run.'),
     timeoutMs: z.number().int().optional().describe('Optional timeout in milliseconds.')
@@ -27,18 +28,18 @@ export const bashTool: ToolDefinition = {
     if (!command || typeof command !== 'string') {
       return { error: 'bash: missing "command" (string)' }
     }
-    const resolved = buildShellCommand(command)
     const fallbackCwd = existsSync(ctx.cwd) ? ctx.cwd : homedir()
     const usedFallback = fallbackCwd !== ctx.cwd
     const note = usedFallback
-      ? `[meow] working dir "${ctx.cwd}" khong ton tai — chay tu "${fallbackCwd}".\n`
+      ? `[meow] working dir "${ctx.cwd}" khong ton tai, chay tu "${fallbackCwd}".\n`
       : ''
+    const resolved = buildShellCommand(command, fallbackCwd)
     return new Promise<ToolRunResult>(resolve => {
       const child = spawn(resolved.command, resolved.args, {
         cwd: fallbackCwd,
         env: process.env as Record<string, string>,
         windowsHide: true,
-        windowsVerbatimArguments: process.platform === 'win32'
+        windowsVerbatimArguments: resolved.verbatim ?? false
       })
       let stdout = ''
       let stderr = ''
@@ -82,11 +83,51 @@ export const bashTool: ToolDefinition = {
   }
 }
 
-export function buildShellCommand(command: string): { command: string; args: string[] } {
+export interface ResolvedShellCommand {
+  command: string
+  args: string[]
+  verbatim?: boolean
+}
+
+function whichPath(name: string): string | null {
+  const exts = (process.env.PATHEXT ?? '.EXE;.CMD;.BAT').split(';').filter(Boolean)
+  for (const dir of (process.env.PATH ?? '').split(path.delimiter)) {
+    if (!dir) continue
+    for (const ext of exts) {
+      const p = path.join(dir, name + ext)
+      if (existsSync(p)) return p
+    }
+  }
+  return null
+}
+
+// Mirrors opencode: on Windows prefer Git Bash so unix commands and the
+// superpowers shell scripts (bash) work. Falls back to cmd.exe.
+function gitBashPath(): string | null {
+  if (process.env.MEOW_GIT_BASH_PATH) return process.env.MEOW_GIT_BASH_PATH
+  const systemDrive = process.env.SystemDrive ?? 'C:'
+  const candidates: string[] = [
+    path.join(systemDrive, 'Program Files', 'Git', 'bin', 'bash.exe'),
+    path.join(systemDrive, 'Program Files (x86)', 'Git', 'bin', 'bash.exe')
+  ]
+  const git = whichPath('git')
+  if (git) candidates.unshift(path.join(path.dirname(path.dirname(git)), 'bin', 'bash.exe'))
+  return candidates.find(p => existsSync(p)) ?? null
+}
+
+export function buildShellCommand(command: string, cwd: string): ResolvedShellCommand {
   if (process.platform === 'win32') {
+    const bash = gitBashPath()
+    if (bash) {
+      // bash -lc with cwd passed as $1; the working directory is already set
+      // by spawn, but follow opencode and cd explicitly so profile scripts
+      // cannot move us.
+      const script = `cd -- "$1" 2>/dev/null || true\n${command}`
+      return { command: bash, args: ['-lc', script, 'opencode', cwd], verbatim: false }
+    }
     // Pass the whole command as one quoted argv element with windowsVerbatimArguments so cmd
     // /s /c strips the outer quotes and embedded quotes (e.g. cd "D:\...") survive intact.
-    return { command: 'cmd.exe', args: ['/d', '/s', '/c', '"' + command + '"'] }
+    return { command: 'cmd.exe', args: ['/d', '/s', '/c', '"' + command + '"'], verbatim: true }
   }
   return { command: 'sh', args: ['-c', command] }
 }

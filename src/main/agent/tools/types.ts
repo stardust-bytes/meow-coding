@@ -15,9 +15,18 @@ export interface ToolContext {
   cwd: string
   ask(question: QuestionPrompt): Promise<string | null>
   setTodos?(todos: TodoItem[]): void
+  emitSubagent?(taskId: string, e: SubagentToolEvent): void
   signal?: AbortSignal
   agentId?: string
   snapshots?: SnapshotStore
+}
+
+export interface SubagentToolEvent {
+  sub: 'start' | 'delta' | 'tool' | 'done'
+  subagentType?: string
+  text?: string
+  tool?: string
+  state?: 'running' | 'completed' | 'cancelled' | 'error'
 }
 
 export interface ToolRunResult {

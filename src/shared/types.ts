@@ -105,6 +105,10 @@ export type ChatEvent =
   | { type: 'done'; agentId: string; reason: string; tokens?: TokenUsage }
   | { type: 'error'; agentId: string; message: string }
   | { type: 'todo-updated'; agentId: string; todos: TodoItem[] }
+  | { type: 'subagent-event'; agentId: string; taskId: string
+      sub: 'start' | 'delta' | 'tool' | 'done'
+      subagentType?: string; text?: string; tool?: string
+      state?: 'running' | 'completed' | 'cancelled' | 'error' }
 
 export interface TokenUsage {
   input: number

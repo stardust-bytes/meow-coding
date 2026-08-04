@@ -11,6 +11,7 @@ type FeedItem =
   | { kind: 'message'; id: string; role: ChatMessage['role']; text: string; reasoning?: string }
   | { kind: 'tool'; id: string; call: ToolCallData }
   | { kind: 'error'; id: string; text: string }
+  | { kind: 'subagent'; taskId: string; subagentType?: string; text: string; tools: string[]; state: 'running' | 'completed' | 'cancelled' | 'error' }
 
 interface PendingPrompt {
   promptId: string
@@ -102,6 +103,24 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
 
   const applyEvent = useCallback((e: ChatEvent) => {
     if (e.agentId !== agentId) return
+    if (e.type === 'subagent-event') {
+      setItems(prev => {
+        const idx = prev.findIndex(i => i.kind === 'subagent' && i.taskId === e.taskId)
+        const base: FeedItem & { kind: 'subagent' } = idx >= 0
+          ? prev[idx] as FeedItem & { kind: 'subagent' }
+          : { kind: 'subagent', taskId: e.taskId, text: '', tools: [], state: 'running' }
+        const next = { ...base }
+        if (e.sub === 'delta' && e.text) next.text += e.text
+        if (e.sub === 'tool' && e.tool && !next.tools.includes(e.tool)) next.tools = [...next.tools, e.tool]
+        if (e.sub === 'start' && e.subagentType) next.subagentType = e.subagentType
+        if (e.sub === 'done') next.state = e.state ?? 'completed'
+        const arr = [...prev]
+        if (idx >= 0) arr[idx] = next
+        else arr.push(next)
+        return arr
+      })
+      return
+    }
     if (e.type === 'todo-updated') {
       setTodos(e.todos)
       return
@@ -317,6 +336,23 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
           }
           if (item.kind === 'tool') {
             return <ToolCallCard key={item.id} call={item.call} />
+          }
+          if (item.kind === 'subagent') {
+            return (
+              <div key={item.taskId} className={`subagent ${item.state === 'running' ? 'running' : ''}`}>
+                <div className="subagent-head">
+                  <span className="subagent-name">sub-agent{item.subagentType ? ` (${item.subagentType})` : ''}</span>
+                  <span className={`subagent-state state-${item.state}`}>{item.state}</span>
+                </div>
+                {item.tools.length > 0 && (
+                  <div className="subagent-tools">
+                    {item.tools.map(t => <code key={t}>{t}</code>)}
+                  </div>
+                )}
+                {item.text && <div className="subagent-text">{item.text}</div>}
+                {item.state === 'running' && <div className="subagent-running">…</div>}
+              </div>
+            )
           }
           return <div key={item.id} className="chat-error">{item.text}</div>
         })}

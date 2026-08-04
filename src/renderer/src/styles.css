@@ -320,6 +320,23 @@ select.input { width: 100%; }
 }
 .chat-msg.user .chat-text { background: var(--bg-input); }
 .chat-error { color: var(--red); white-space: pre-wrap; padding: 4px 0; }
+.subagent {
+  align-self: flex-start; width: 100%; max-width: 92%;
+  background: var(--bg-panel); border-left: 2px solid var(--blue);
+  padding: 8px 10px; display: flex; flex-direction: column; gap: 6px;
+}
+.subagent-head { display: flex; align-items: center; gap: 8px; }
+.subagent-name { font-weight: 600; font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); }
+.subagent-state { font-size: 0.75rem; font-family: var(--font-mono); color: var(--text-faint); }
+.subagent-state.state-running { color: var(--blue); }
+.subagent-state.state-completed { color: var(--green); }
+.subagent-state.state-error { color: var(--red); }
+.subagent-tools { display: flex; flex-wrap: wrap; gap: 4px; }
+.subagent-tools code {
+  background: var(--bg-code); padding: 2px 6px; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-dim);
+}
+.subagent-text { white-space: pre-wrap; word-break: break-word; font-size: 0.875rem; color: var(--text-dim); user-select: text; }
+.subagent-running { color: var(--blue); font-size: 0.875rem; }
 .chat-running { color: var(--text-dim); font-style: italic; padding: 2px 0; }
 
 /* Tool call card */

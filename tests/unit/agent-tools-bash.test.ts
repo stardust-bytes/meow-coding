@@ -1,7 +1,8 @@
 import { describe, expect, it, afterAll } from 'vitest'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { execFileSync } from 'node:child_process'
 import { bashTool, buildShellCommand } from '../../src/main/agent/tools/bash'
 import type { ToolContext } from '../../src/main/agent/tools/types'
 
@@ -47,18 +48,30 @@ describe('bash tool', () => {
     expect(r.error ?? r.output).toBeTruthy()
   }, 20000)
 
-  it('keeps embedded quotes intact on windows (cd to a temp dir)', async () => {
+  it('keeps embedded quotes intact (runs in the working directory)', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'meow-cd-'))
     try {
       if (process.platform === 'win32') {
-        const c = buildShellCommand(`cd /d "${dir}" && echo OK_CD`)
-        expect(c.args[3]).toBe(`"cd /d "${dir}" && echo OK_CD"`)
+        const c = buildShellCommand('echo OK_CD', dir)
+        expect(c.command.toLowerCase()).toMatch(/bash\.exe$/)
+        expect(c.args[3]).toBe(dir)
+        expect(c.verbatim).toBe(false)
       }
-      const cmd = process.platform === 'win32'
-        ? `cd /d "${dir}" && echo OK_CD`
-        : `cd "${dir}" && echo OK_CD`
-      const r = await bashTool.run({ command: cmd }, ctx)
+      const r = await bashTool.run({ command: 'echo "OK_CD"' }, ctx)
       expect(r.output).toContain('OK_CD')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }, 20000)
+
+  it('runs unix commands through git bash on windows', async () => {
+    if (process.platform !== 'win32') return
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-cd-'))
+    try {
+      const r = await bashTool.run({ command: `ls "${dir}" > /dev/null && echo LS_OK` }, { cwd: dir, ask: async () => null })
+      expect(r.output).toContain('LS_OK')
+      const pwd = await bashTool.run({ command: 'pwd' }, { cwd: dir, ask: async () => null })
+      expect(pwd.output).toMatch(/meow-cd-|\\meow-cd-/)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -73,6 +86,35 @@ describe('bash tool', () => {
     expect(r.output).toContain('OK_FALLBACK')
     expect(r.output).toMatch(/khong ton tai|fallback/i)
   }, 20000)
+
+  it('runs the bundled superpowers SDD scripts (git bash)', async () => {
+    if (process.platform !== 'win32') return
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-sdd-'))
+    try {
+      execFileSync('git', ['init', '-q'], { cwd: dir })
+      execFileSync('git', ['config', 'user.email', 't@t'], { cwd: dir })
+      execFileSync('git', ['config', 'user.name', 't'], { cwd: dir })
+      mkdirSync(path.join(dir, 'docs', 'superpowers', 'plans'), { recursive: true })
+      writeFileSync(path.join(dir, 'docs', 'superpowers', 'plans', 'test.md'),
+        '# Plan\n\n### Task 1: first\n\nstep a\n\n### Task 2: second\n\nstep b\n')
+      const skillDir = path.join('D:', 'GitHub', 'meow-coding', 'resources', 'skills', 'subagent-driven-development')
+      const sddWorkspace = path.join(skillDir, 'scripts', 'sdd-workspace')
+      const taskBrief = path.join(skillDir, 'scripts', 'task-brief')
+      const plan = 'docs/superpowers/plans/test.md'
+      const ctx2: ToolContext = { cwd: dir, ask: async () => null }
+
+      const ws = await bashTool.run({ command: `bash "${sddWorkspace}" "${plan}"` }, ctx2)
+      expect(ws.error ?? '').toBe('')
+      expect(ws.output).toMatch(/\.superpowers[/\\]sdd[/\\]test$/)
+
+      const brief = await bashTool.run({ command: `bash "${taskBrief}" "${plan}" 1` }, ctx2)
+      expect(brief.error ?? '').toBe('')
+      expect(existsSync(path.join(dir, '.superpowers', 'sdd', 'test', 'task-1-brief.md'))).toBe(true)
+      expect(brief.output).toContain('wrote')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }, 30000)
 
   afterAll(cleanup)
 })

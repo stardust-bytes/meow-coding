@@ -101,11 +101,25 @@ export function createTaskTool(opts: {
         decidePermission: () => 'allow',
         ask: async () => null,
         maxSteps: 20,
-        onEvent: () => {},
+        onEvent: (e) => {
+          if (e.type === 'text-delta') {
+            ctx.emitSubagent?.(id, { sub: 'delta', text: e.delta })
+          } else if (e.type === 'tool-start' || e.type === 'tool-result') {
+            ctx.emitSubagent?.(id, { sub: 'tool', tool: e.call.tool })
+          } else if (e.type === 'done') {
+            ctx.emitSubagent?.(id, {
+              sub: 'done',
+              state: e.reason === 'stopped' ? 'cancelled' : 'completed'
+            })
+          } else if (e.type === 'error') {
+            ctx.emitSubagent?.(id, { sub: 'done', state: 'error' })
+          }
+        },
         getItems: () => items,
         appendMessage: (m: ChatMessage) => items.push({ kind: 'message', message: m }),
         appendTool: (t: ToolCallData) => items.push({ kind: 'tool', tool: t })
       })
+      ctx.emitSubagent?.(id, { sub: 'start', subagentType: subagent_type })
       await runner.run(ctx.signal)
 
       let text = ''
