@@ -43,7 +43,7 @@ button { font-family: var(--font-mono); }
 .project-list li.active { background: var(--bg-hover); }
 .project-row { display: flex; align-items: center; gap: 6px; padding: 4px 6px; cursor: pointer; border-radius: 4px; }
 .project-row:hover { background: var(--bg-hover); }
-.project-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.project-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .project-count { color: var(--text-dim); font-size: 11px; }
 .sidebar-error { color: var(--red); font-size: 12px; padding: 4px 6px; border: 1px solid var(--red); border-radius: 4px; }
 
@@ -149,7 +149,7 @@ select.input { width: 100%; }
 .template-form { display: flex; flex-direction: column; gap: 4px; }
 .template-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .template-list li { display: flex; align-items: center; gap: 6px; font-size: 12px; }
-.template-list code { color: var(--text-dim); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.template-list code { color: var(--text-dim); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Empty state */
 .empty-state { flex: 1; display: flex; align-items: center; justify-content: center; }
