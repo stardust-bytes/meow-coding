@@ -44,6 +44,8 @@ export default function XtermHost({ agentId, onReady, onDispose, onInput, onResi
     }
 
     const ro = new ResizeObserver(() => {
+      const el = ref.current
+      if (!el || el.offsetWidth === 0 || el.offsetHeight === 0) return
       try {
         fit.fit()
       } catch {
