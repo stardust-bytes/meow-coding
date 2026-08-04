@@ -68,6 +68,11 @@ export class PtyManager extends EventEmitter {
       }
       this.on('exit', onExit)
       timer = setTimeout(() => {
+        try {
+          s.process.kill()
+        } catch {
+          /* already dead */
+        }
         this.sessions.delete(agentId)
         done()
       }, 3000)
@@ -77,7 +82,9 @@ export class PtyManager extends EventEmitter {
 
   private killProcess(s: PtySession): void {
     if (s.pid) {
-      kill(s.pid, () => { /* resolved by 'exit' event */ })
+      kill(s.pid, (err) => {
+        if (err) console.error(`[pty] tree-kill failed for ${s.agentId} (pid ${s.pid}):`, err)
+      })
     } else {
       try {
         s.process.kill()

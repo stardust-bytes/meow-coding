@@ -57,7 +57,13 @@ class MainApp {
     }
     const next = { ...prev, ...patch, agentId }
     this.states.set(agentId, next)
-    win?.webContents.send(Channels.EventAgentState, { agentId, state: next })
+    const visibleChanged =
+      next.status !== prev.status ||
+      next.exitCode !== prev.exitCode ||
+      next.alert !== prev.alert
+    if (visibleChanged) {
+      win?.webContents.send(Channels.EventAgentState, { agentId, state: next })
+    }
   }
 
   private findWorkspaceByAgent(agentId: string): Workspace | undefined {
@@ -88,6 +94,7 @@ class MainApp {
     this.setState(agentId, { status: 'spawning', exitCode: null, alert: 'normal' })
     try {
       this.pty.start(agentId, agent.name, tmpl.command, tmpl.args, agent.cwd)
+      this.alerts.track(agentId)
     } catch {
       this.setState(agentId, { status: 'error', alert: 'error' })
     }
@@ -108,8 +115,7 @@ class MainApp {
     if (!ws) throw new Error(`Workspace not found: ${projectPath}`)
     if (this.activeProject && this.activeProject !== projectPath) {
       await this.pty.stopAll()
-      this.states.clear()
-      this.alerts.clearAll()
+      this.resetActiveProject()
     }
     this.activeProject = projectPath
     for (const agent of ws.agents) {
@@ -134,6 +140,17 @@ class MainApp {
       clearInterval(this.gitTimer)
       this.gitTimer = null
     }
+  }
+
+  isActiveProject(projectPath: string): boolean {
+    return this.activeProject === projectPath
+  }
+
+  resetActiveProject(): void {
+    this.stopGitPoll()
+    this.activeProject = null
+    this.states.clear()
+    this.alerts.clearAll()
   }
 }
 
@@ -176,6 +193,9 @@ function registerIpcHandlers(): void {
       for (const agent of ws.agents) {
         await mainApp.pty.stop(agent.id)
       }
+    }
+    if (mainApp.isActiveProject(projectPath)) {
+      mainApp.resetActiveProject()
     }
     mainApp.workspaces.remove(projectPath)
   })
