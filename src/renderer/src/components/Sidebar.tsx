@@ -40,6 +40,7 @@ export default function Sidebar({
       await window.api.addAgent(activePath, input)
       setShowAddAgent(false)
       setError('')
+      onRefresh()
       onOpen(activePath)
     } catch (err) {
       setError(String(err))
