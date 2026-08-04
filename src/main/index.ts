@@ -17,6 +17,7 @@ import { SavedPermissions } from './agent/saved-permissions'
 import type { SavedPermission } from './agent/saved-permissions'
 import { createDefaultTools } from './agent/tools/registry'
 import { MeowAgentManager } from './meow-agent-manager'
+import { ModelsCatalog } from './models-catalog'
 import { Channels } from '../shared/ipc'
 import type { AgentState, MeowSettings, NewAgentInput, PromptResponse, Template, Workspace, WorkspaceRuntime } from '../shared/types'
 
@@ -56,7 +57,8 @@ class MainApp {
     userToolsDir: path.join(app.getPath('userData'), 'tools'),
     userInstructionsDir: app.getPath('userData'),
     snapshots: new SnapshotStore(createJsonStore<SnapshotEntry>(path.join(app.getPath('userData'), 'snapshots.json'))),
-    savedPermissions: new SavedPermissions(createJsonStore<SavedPermission>(path.join(app.getPath('userData'), 'permissions.json')))
+    savedPermissions: new SavedPermissions(createJsonStore<SavedPermission>(path.join(app.getPath('userData'), 'permissions.json'))),
+    catalog: new ModelsCatalog(path.join(app.getPath('userData'), 'models.json'))
   })
 
   private states = new Map<string, AgentState>()
@@ -319,6 +321,8 @@ function registerIpcHandlers(): void {
     mainApp.setAgentModel(agentId, provider, model))
   ipcMain.handle(Channels.AgentGetModel, (_e, agentId: string) => mainApp.meowAgent.getAgentModel(agentId))
   ipcMain.handle(Channels.ProviderModels, () => mainApp.meowAgent.getProviderModels())
+  ipcMain.handle(Channels.ProviderFetchModels, (_e, providerId: string) =>
+    mainApp.meowAgent.fetchProviderModels(providerId))
 
   ipcMain.handle(Channels.TemplateList, () => mainApp.templates.list())
   ipcMain.handle(Channels.TemplateSave, (_e, t: Template) => mainApp.templates.save(t))

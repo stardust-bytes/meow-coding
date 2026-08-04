@@ -16,6 +16,7 @@ export const Channels = {
   AgentSetModel: 'agent:set-model',
   AgentGetModel: 'agent:get-model',
   ProviderModels: 'provider:models',
+  ProviderFetchModels: 'provider:fetch-models',
   TemplateList: 'template:list',
   TemplateSave: 'template:save',
   TemplateRemove: 'template:remove',
@@ -66,6 +67,7 @@ export interface AgentApi {
   setAgentModel(agentId: string, provider: string, model: string): Promise<void>
   getAgentModel(agentId: string): Promise<ModelRef | null>
   getProviderModels(): Promise<ModelRef[]>
+  fetchProviderModels(providerId: string): Promise<string[]>
   listTemplates(): Promise<Template[]>
   saveTemplate(template: Template): Promise<Template>
   removeTemplate(id: string): Promise<void>

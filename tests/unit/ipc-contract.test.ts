@@ -7,7 +7,7 @@ describe('IPC contract', () => {
   it('defines all channels used by the preload api', () => {
     const required: (keyof AgentApi)[] = [
       'listWorkspaces', 'addWorkspace', 'removeWorkspace', 'openWorkspace', 'openInEditor',
-      'addAgent', 'removeAgent', 'setAgentMode', 'setAgentVariant', 'setAgentModel', 'getAgentModel', 'getProviderModels',
+      'addAgent', 'removeAgent', 'setAgentMode', 'setAgentVariant', 'setAgentModel', 'getAgentModel', 'getProviderModels', 'fetchProviderModels',
       'listTemplates', 'saveTemplate', 'removeTemplate',
       'pickFolder', 'startAgent', 'stopAgent', 'restartAgent',
       'writeInput', 'injectPrompt', 'resizePty', 'openLog', 'getLogPath', 'quit',
@@ -30,6 +30,7 @@ describe('IPC contract', () => {
       setAgentModel: async () => {},
       getAgentModel: async () => null,
       getProviderModels: async () => [],
+      fetchProviderModels: async () => [],
       listTemplates: async () => [],
       saveTemplate: async (t) => t,
       removeTemplate: async () => {},
@@ -90,6 +91,7 @@ describe('IPC contract', () => {
     expect(Channels.AgentSetModel).toBe('agent:set-model')
     expect(Channels.AgentGetModel).toBe('agent:get-model')
     expect(Channels.ProviderModels).toBe('provider:models')
+    expect(Channels.ProviderFetchModels).toBe('provider:fetch-models')
     expect(Channels.McpStatus).toBe('mcp:status')
   })
 

@@ -18,6 +18,8 @@ export default function SettingsDialog({ onClose }: Props) {
   const [defaultProvider, setDefaultProvider] = useState('')
   const [mcp, setMcp] = useState<McpServerStatus[]>([])
   const [status, setStatus] = useState('')
+  const [fetching, setFetching] = useState(false)
+  const [fetchMsg, setFetchMsg] = useState('')
 
   useEffect(() => {
     void window.api.getSettings().then(s => {
@@ -39,6 +41,20 @@ export default function SettingsDialog({ onClose }: Props) {
     const id = `provider${providers.length + 1}`
     setProviders(prev => [...prev, { id, apiKey: '', baseUrl: '', models: [] }])
     if (!defaultProvider) setDefaultProvider(id)
+  }
+
+  const fetchModels = async (index: number) => {
+    const id = providers[index].id.trim()
+    if (!id || fetching) return
+    setFetching(true)
+    setFetchMsg('')
+    try {
+      const models = await window.api.fetchProviderModels(id)
+      if (models.length > 0) update(index, { models })
+      setFetchMsg(`${id}: ${models.length > 0 ? `${models.length} model(s) synced from models.dev` : 'not found or offline'}`)
+    } finally {
+      setFetching(false)
+    }
   }
 
   const save = () => {
@@ -100,6 +116,9 @@ export default function SettingsDialog({ onClose }: Props) {
               placeholder="models (comma separated)"
               onChange={e => update(i, { models: textToModels(e.target.value) })}
             />
+            <button className="btn small" disabled={!p.id.trim() || fetching} onClick={() => void fetchModels(i)}>
+              fetch
+            </button>
             <label className="provider-default">
               <input
                 type="radio"
@@ -113,6 +132,7 @@ export default function SettingsDialog({ onClose }: Props) {
         ))}
         <div className="mcp-status">
           <h4>MCP servers</h4>
+          {fetchMsg && <p className="settings-hint settings-fetch-msg">{fetchMsg}</p>}
           {mcp.length === 0 && (
             <p className="settings-hint">
               No MCP servers configured. Add them to <code>meow.json</code> (e.g. a Playwright MCP server).

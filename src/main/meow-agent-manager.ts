@@ -18,6 +18,7 @@ import { instructionsText, loadInstructions } from './agent/instructions'
 import { expandReferences } from './agent/references'
 import { SnapshotStore } from './agent/snapshot'
 import { SavedPermissions } from './agent/saved-permissions'
+import { ModelsCatalog } from './models-catalog'
 import { revertTool } from './agent/tools/revert'
 import { createTaskTool } from './agent/tools/task'
 import type { ToolDefinition } from './agent/tools/types'
@@ -33,6 +34,7 @@ export interface MeowAgentManagerDeps {
   userInstructionsDir?: string
   snapshots: SnapshotStore
   savedPermissions: SavedPermissions
+  catalog?: ModelsCatalog
 }
 
 export class MeowAgentManager {
@@ -275,6 +277,12 @@ export class MeowAgentManager {
       for (const model of p.models) refs.push({ provider, model })
     }
     return refs
+  }
+
+  async fetchProviderModels(providerId: string): Promise<string[]> {
+    if (!this.deps.catalog) return []
+    const providers = await this.deps.catalog.fetch()
+    return providers[providerId]?.models ?? []
   }
 
   getSettings(): MeowSettings {
