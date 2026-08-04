@@ -64,5 +64,15 @@ describe('bash tool', () => {
     }
   }, 20000)
 
+  it('falls back to an existing cwd when the project dir is missing', async () => {
+    const missing = path.join(tmpdir(), 'meow-missing-dir-' + Date.now())
+    const r = await bashTool.run(
+      { command: process.platform === 'win32' ? 'echo OK_FALLBACK' : 'echo OK_FALLBACK' },
+      { cwd: missing, ask: async () => null }
+    )
+    expect(r.output).toContain('OK_FALLBACK')
+    expect(r.output).toMatch(/khong ton tai|fallback/i)
+  }, 20000)
+
   afterAll(cleanup)
 })

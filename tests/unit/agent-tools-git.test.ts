@@ -49,4 +49,11 @@ describe('git tool', () => {
     const r = await gitTool.run({}, ctx)
     expect(r.error).toMatch(/missing/)
   })
+
+  it('does not ENOENT when the cwd is missing', async () => {
+    const missing = path.join(tmpdir(), 'meow-git-missing-' + Date.now())
+    const r = await gitTool.run({ args: 'status' }, { cwd: missing, ask: async () => null })
+    expect(r.error).toBeTruthy()
+    expect(r.error).not.toMatch(/ENOENT/)
+  })
 })

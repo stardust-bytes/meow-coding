@@ -1,4 +1,6 @@
 import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
 import path from 'node:path'
 import kill from 'tree-kill'
 import { z } from 'zod'
@@ -26,9 +28,14 @@ export const bashTool: ToolDefinition = {
       return { error: 'bash: missing "command" (string)' }
     }
     const resolved = buildShellCommand(command)
+    const fallbackCwd = existsSync(ctx.cwd) ? ctx.cwd : homedir()
+    const usedFallback = fallbackCwd !== ctx.cwd
+    const note = usedFallback
+      ? `[meow] working dir "${ctx.cwd}" khong ton tai — chay tu "${fallbackCwd}".\n`
+      : ''
     return new Promise<ToolRunResult>(resolve => {
       const child = spawn(resolved.command, resolved.args, {
-        cwd: ctx.cwd,
+        cwd: fallbackCwd,
         env: process.env as Record<string, string>,
         windowsHide: true,
         windowsVerbatimArguments: process.platform === 'win32'
@@ -67,8 +74,9 @@ export const bashTool: ToolDefinition = {
       child.on('close', (code) => {
         if (timedOut) return
         const output = (stdout + (stderr ? '\n[stderr]\n' + stderr : '')).trim()
-        if (code === 0) return done({ output: output || '(no output)' })
-        done({ error: `bash: exit code ${code}${output ? '\n' + output : ''}` })
+        const body = output || '(no output)'
+        if (code === 0) return done({ output: note + body })
+        done({ error: `bash: exit code ${code}\n${note}${output}` })
       })
     })
   }

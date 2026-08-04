@@ -1,13 +1,16 @@
 import { execFile } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { z } from 'zod'
 import type { ToolDefinition, ToolRunResult } from './types'
 
 export function runGit(cwd: string, args: string[]): Promise<ToolRunResult> {
+  const resolvedCwd = existsSync(cwd) ? cwd : homedir()
   return new Promise(resolve => {
     execFile(
       'git',
       args,
-      { cwd, timeout: 60000, maxBuffer: 4 * 1024 * 1024 },
+      { cwd: resolvedCwd, timeout: 60000, maxBuffer: 4 * 1024 * 1024 },
       (err, stdout, stderr) => {
         const out = (stdout + (stderr ? '\n[stderr]\n' + stderr : '')).trim()
         if (!err) return resolve({ output: out || '(no output)' })
