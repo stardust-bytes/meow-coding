@@ -44,7 +44,7 @@ export default function PaneHeader({
       <span className="pane-actions">
         {injecting && (
           <input
-            className="inject-input"
+            className="input inject-input"
             autoFocus
             placeholder="prompt..."
             value={prompt}
@@ -55,11 +55,11 @@ export default function PaneHeader({
             }}
           />
         )}
-        <button title="inject prompt" onClick={() => setInjecting(v => !v)}>inject</button>
-        <button title="stop" onClick={onStop}>stop</button>
-        <button title="restart" onClick={onRestart}>restart</button>
-        <button title="open log" onClick={onOpenLog}>log</button>
-        <button title={zoomed ? 'back to grid' : 'zoom'} onClick={onZoom}>
+        <button className="btn small" title="inject prompt" onClick={() => setInjecting(v => !v)}>inject</button>
+        <button className="btn small" title="stop" onClick={onStop}>stop</button>
+        <button className="btn small" title="restart" onClick={onRestart}>restart</button>
+        <button className="btn small" title="open log" onClick={onOpenLog}>log</button>
+        <button className="btn small" title={zoomed ? 'back to grid' : 'zoom'} onClick={onZoom}>
           {zoomed ? 'exit' : 'zoom'}
         </button>
       </span>

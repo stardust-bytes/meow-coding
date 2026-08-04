@@ -8,9 +8,10 @@ interface Props {
   onReady: (term: Terminal) => void
   onDispose: (agentId: string) => void
   onInput: (data: string) => void
+  onResize: (cols: number, rows: number) => void
 }
 
-export default function XtermHost({ agentId, onReady, onDispose, onInput }: Props) {
+export default function XtermHost({ agentId, onReady, onDispose, onInput, onResize }: Props) {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -34,8 +35,13 @@ export default function XtermHost({ agentId, onReady, onDispose, onInput }: Prop
     term.loadAddon(fit)
     term.open(ref.current!)
     term.onData(d => onInput(d))
+    term.onResize(({ cols, rows }) => onResize(cols, rows))
     onReady(term)
-    fit.fit()
+    try {
+      fit.fit()
+    } catch {
+      /* RO will self-correct */
+    }
 
     const ro = new ResizeObserver(() => {
       try {

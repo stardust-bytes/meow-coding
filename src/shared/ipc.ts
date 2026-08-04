@@ -16,6 +16,7 @@ export const Channels = {
   PtyRestart: 'pty:restart',
   PtyInput: 'pty:input',
   PtyInject: 'pty:inject',
+  PtyResize: 'pty:resize',
   LogOpen: 'log:open',
   LogPath: 'log:path',
   AppQuit: 'app:quit',
@@ -44,6 +45,7 @@ export interface AgentApi {
   restartAgent(agentId: string): Promise<void>
   writeInput(agentId: string, data: string): Promise<void>
   injectPrompt(agentId: string, text: string): Promise<void>
+  resizePty(agentId: string, cols: number, rows: number): Promise<void>
   openLog(agentId: string): Promise<void>
   getLogPath(agentId: string): Promise<string>
   quit(): Promise<void>

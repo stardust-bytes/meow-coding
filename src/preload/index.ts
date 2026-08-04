@@ -32,6 +32,8 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.PtyInput, agentId, data),
   injectPrompt: (agentId: string, text: string) =>
     ipcRenderer.invoke(Channels.PtyInject, agentId, text),
+  resizePty: (agentId: string, cols: number, rows: number) =>
+    ipcRenderer.invoke(Channels.PtyResize, agentId, cols, rows),
   openLog: (agentId: string) => ipcRenderer.invoke(Channels.LogOpen, agentId),
   getLogPath: (agentId: string) => ipcRenderer.invoke(Channels.LogPath, agentId),
   quit: () => ipcRenderer.invoke(Channels.AppQuit),

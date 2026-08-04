@@ -35,6 +35,7 @@ export default function Pane({
         onReady={term => onRegisterTerminal(id, term)}
         onDispose={onUnregisterTerminal}
         onInput={write}
+        onResize={(cols, rows) => void window.api.resizePty(id, cols, rows)}
       />
     </div>
   )

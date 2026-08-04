@@ -8,7 +8,7 @@ describe('IPC contract', () => {
       'listWorkspaces', 'addWorkspace', 'removeWorkspace', 'openWorkspace',
       'addAgent', 'removeAgent', 'listTemplates', 'saveTemplate', 'removeTemplate',
       'pickFolder', 'startAgent', 'stopAgent', 'restartAgent',
-      'writeInput', 'injectPrompt', 'openLog', 'getLogPath', 'quit',
+      'writeInput', 'injectPrompt', 'resizePty', 'openLog', 'getLogPath', 'quit',
       'onPtyData', 'onAgentState', 'onGitStatus'
     ]
     const api: AgentApi = {
@@ -27,6 +27,7 @@ describe('IPC contract', () => {
       restartAgent: async () => {},
       writeInput: async () => {},
       injectPrompt: async () => {},
+      resizePty: async () => {},
       openLog: async () => {},
       getLogPath: async () => '',
       quit: async () => {},

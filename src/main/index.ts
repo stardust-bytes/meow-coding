@@ -234,6 +234,9 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.PtyInject, (_e, agentId: string, text: string) => {
     mainApp.pty.write(agentId, text + '\n')
   })
+  ipcMain.handle(Channels.PtyResize, (_e, agentId: string, cols: number, rows: number) => {
+    mainApp.pty.resize(agentId, cols, rows)
+  })
   ipcMain.handle(Channels.LogPath, (_e, agentId: string) => mainApp.logs.pathFor(agentId))
   ipcMain.handle(Channels.LogOpen, (_e, agentId: string) => {
     void shell.openPath(mainApp.logs.pathFor(agentId))

@@ -44,6 +44,11 @@ export class PtyManager extends EventEmitter {
     if (s) s.process.write(data.replace(/\r\n/g, '\r').replace(/\n/g, '\r'))
   }
 
+  resize(agentId: string, cols: number, rows: number): void {
+    const s = this.sessions.get(agentId)
+    if (s) s.process.resize(cols, rows)
+  }
+
   isRunning(agentId: string): boolean {
     return this.sessions.has(agentId)
   }
