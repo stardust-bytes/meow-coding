@@ -41,6 +41,7 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
   const [questionText, setQuestionText] = useState('')
   const [selectedOptions, setSelectedOptions] = useState<string[]>([])
   const [customInput, setCustomInput] = useState(false)
+  const [questionIndex, setQuestionIndex] = useState(0)
   const [lastTokens, setLastTokens] = useState<{ input: number; output: number; total: number } | null>(null)
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
@@ -147,6 +148,7 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
       setSelectedOptions([])
       setCustomInput(false)
       setQuestionText('')
+      setQuestionIndex(0)
       return
     }
     setItems(prev => {
@@ -212,6 +214,7 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
     setQuestionText('')
     setSelectedOptions([])
     setCustomInput(false)
+    setQuestionIndex(0)
   }, [agentId])
 
   const toggleOption = useCallback((label: string) => {
@@ -264,6 +267,42 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [pendingPrompt, cycleAction, runSelected, respond])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!pendingPrompt || pendingPrompt.promptType !== 'question') return
+      const t = e.target as HTMLElement
+      if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) return
+      const optionCount = pendingPrompt.options?.length ?? 0
+      const custom = pendingPrompt.custom !== false
+      const submit = pendingPrompt.multiple && !customInput && optionCount > 0
+      const total = optionCount + (custom ? 1 : 0) + (submit ? 1 : 0)
+      if (total === 0) return
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        e.preventDefault()
+        setQuestionIndex(prev => (prev + 1) % total)
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        e.preventDefault()
+        setQuestionIndex(prev => (prev - 1 + total) % total)
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        if (questionIndex < optionCount) {
+          const opt = pendingPrompt.options![questionIndex]
+          if (pendingPrompt.multiple) {
+            toggleOption(opt.label)
+          } else {
+            respond(pendingPrompt.promptId, true, opt.label)
+          }
+        } else if (custom && questionIndex === optionCount) {
+          startCustomInput()
+        } else if (submit) {
+          submitQuestion()
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [pendingPrompt, questionIndex, toggleOption, respond, startCustomInput])
 
   const onPanelKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'Tab') return
@@ -328,7 +367,7 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
                         <div className="chat-reasoning-text">{item.reasoning}</div>
                       </details>
                     ) : null}
-                    <MarkdownText text={item.text} />
+                    {item.text.trim() !== '' && <MarkdownText text={item.text} />}
                   </>
                 ) : <div className="chat-text">{item.text}</div>}
               </div>
@@ -404,7 +443,7 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
                       return (
                         <button
                           key={opt.label + i}
-                          className={`chat-option ${selected ? 'selected' : ''}`}
+                          className={`chat-option ${selected ? 'selected' : ''} ${questionIndex === i ? 'focused' : ''}`}
                           onClick={() => (pendingPrompt.multiple
                             ? toggleOption(opt.label)
                             : respond(pendingPrompt.promptId, true, opt.label))}
@@ -419,7 +458,7 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
                     })}
                     {pendingPrompt.custom !== false && (
                       <button
-                        className={`chat-option custom ${customInput ? 'selected' : ''}`}
+                        className={`chat-option custom ${customInput ? 'selected' : ''} ${questionIndex === (pendingPrompt.options?.length ?? 0) ? 'focused' : ''}`}
                         onClick={startCustomInput}
                       >
                         <span className="chat-option-mark">
@@ -454,8 +493,17 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
                 )}
                 {!!pendingPrompt.options?.length && pendingPrompt.multiple && !customInput && (
                   <div className="chat-prompt-actions">
-                    <button onClick={submitQuestion} disabled={selectedOptions.length === 0}>Send</button>
+                    <button
+                      className={questionIndex === (pendingPrompt.options?.length ?? 0) + (pendingPrompt.custom !== false ? 1 : 0) ? 'focused' : ''}
+                      onClick={submitQuestion}
+                      disabled={selectedOptions.length === 0}
+                    >
+                      Send
+                    </button>
                   </div>
+                )}
+                {!!pendingPrompt.options?.length && !customInput && (
+                  <div className="chat-prompt-hint">↑/↓ to navigate, Enter to select</div>
                 )}
               </>
             )}
