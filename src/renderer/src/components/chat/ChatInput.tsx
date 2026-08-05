@@ -58,64 +58,35 @@ export default memo(function ChatInput({ running, mode, commands, onSubmit, onSt
     selectedRef.current?.scrollIntoView({ block: 'nearest' })
   }, [selectedName, menu.open])
 
-  // Keep the menu state in sync with the raw textarea value. The textarea
-  // itself is uncontrolled, so the browser paints every keystroke immediately;
-  // the (still cheap, but non-zero once command lists grow) menu-open/prefix
-  // check runs on the next animation frame instead of inside the input event,
-  // so it never competes with that paint. Plain typing still ends up with
-  // menu {open:false,prefix:''} unchanged, so React does not re-render at all.
-  const rafRef = useRef<number | null>(null)
-  const cancelPendingSync = useCallback(() => {
-    if (rafRef.current !== null) {
-      cancelAnimationFrame(rafRef.current)
-      rafRef.current = null
-    }
-  }, [])
-  useEffect(() => cancelPendingSync, [cancelPendingSync])
-
-  const applyMenuFromValue = useCallback((raw: string) => {
+  // Keep the menu state in sync with the raw textarea value. Typing plain text
+  // (no "/") leaves menu {open:false,prefix:''} unchanged — setMenu's bail-out
+  // returns the same object reference, so React skips re-rendering entirely.
+  // (An earlier version deferred this check to requestAnimationFrame to keep
+  // it off the input event, but rAF/cancelAnimationFrame are real scheduling
+  // calls, not free — for plain typing that replaced a no-op with two browser
+  // API calls per keystroke, making the common case slower for no benefit at
+  // this app's command-list size. Plain synchronous check wins here.)
+  const syncMenu = useCallback((raw: string) => {
     const { isCommand, prefix } = parseCommandInput(raw)
     setMenu(prev => (prev.open === isCommand && prev.prefix === prefix ? prev : { open: isCommand, prefix }))
     if (isCommand) setSelectedName('')
-    return { isCommand, prefix }
   }, [])
-
-  const syncMenu = useCallback((raw: string) => {
-    cancelPendingSync()
-    rafRef.current = requestAnimationFrame(() => {
-      rafRef.current = null
-      applyMenuFromValue(raw)
-    })
-  }, [cancelPendingSync, applyMenuFromValue])
-
-  // Keys that act on the menu (select/navigate/submit) need the menu state to
-  // be current *this tick*, not next frame. If a sync is still pending — only
-  // possible when a key lands inside the same ~16ms as the previous input
-  // event, never in normal human typing — apply it immediately and use the
-  // freshly computed result instead of the (one-frame-stale) render state.
-  const flushPendingSync = useCallback(() => {
-    if (rafRef.current === null) return null
-    cancelPendingSync()
-    return applyMenuFromValue(fieldRef.current?.value ?? '')
-  }, [cancelPendingSync, applyMenuFromValue])
 
   const submit = useCallback(() => {
     const text = (fieldRef.current?.value ?? '').trim()
     if (!text || running) return
-    cancelPendingSync()
     if (fieldRef.current) fieldRef.current.value = ''
     setMenu({ open: false, prefix: '' })
     setSelectedName('')
     onSubmit(text)
-  }, [running, onSubmit, cancelPendingSync])
+  }, [running, onSubmit])
 
   const applyCommand = useCallback((cmd: Command) => {
-    cancelPendingSync()
     if (fieldRef.current) fieldRef.current.value = `/${cmd.name} `
     setMenu({ open: false, prefix: '' })
     setSelectedName('')
     fieldRef.current?.focus()
-  }, [cancelPendingSync])
+  }, [])
 
   // Stable handlers — items pass their own name back.
   const onSelect = useCallback((name: string) => setSelectedName(name), [])
@@ -123,6 +94,13 @@ export default memo(function ChatInput({ running, mode, commands, onSubmit, onSt
     const cmd = commands.find(c => c.name === name)
     if (cmd) applyCommand(cmd)
   }, [commands, applyCommand])
+
+  const move = useCallback((delta: number) => {
+    if (filtered.length === 0) return
+    const cur = selectedIndex < 0 ? 0 : selectedIndex
+    const next = (cur + delta + filtered.length) % filtered.length
+    setSelectedName(filtered[next].name)
+  }, [filtered, selectedIndex])
 
   return (
     <div className="chat-input">
@@ -151,30 +129,13 @@ export default memo(function ChatInput({ running, mode, commands, onSubmit, onSt
         disabled={running}
         onInput={e => syncMenu((e.target as HTMLTextAreaElement).value)}
         onKeyDown={e => {
-          const flushed = flushPendingSync()
-          const open = flushed ? flushed.isCommand : menu.open
-          const currentFiltered = flushed
-            ? (flushed.prefix
-                ? commands.filter(c => c.name.toLowerCase().startsWith(flushed.prefix))
-                : commands
-              ).slice(0, MAX_MENU_ITEMS)
-            : filtered
-          const currentIndex = flushed
-            ? currentFiltered.findIndex(c => c.name === selectedName)
-            : selectedIndex
-
-          if (open && currentFiltered.length > 0) {
-            const selectDelta = (delta: number) => {
-              const cur = currentIndex < 0 ? 0 : currentIndex
-              const next = (cur + delta + currentFiltered.length) % currentFiltered.length
-              setSelectedName(currentFiltered[next].name)
-            }
-            if (e.key === 'ArrowDown') { e.preventDefault(); selectDelta(1); return }
-            if (e.key === 'ArrowUp') { e.preventDefault(); selectDelta(-1); return }
-            if (e.key === 'Tab') { e.preventDefault(); onPick(currentFiltered[currentIndex < 0 ? 0 : currentIndex].name); return }
+          if (menu.open && filtered.length > 0) {
+            if (e.key === 'ArrowDown') { e.preventDefault(); move(1); return }
+            if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); return }
+            if (e.key === 'Tab') { e.preventDefault(); onPick(filtered[selectedIndex < 0 ? 0 : selectedIndex].name); return }
             if (e.key === 'Enter') {
               e.preventDefault()
-              onPick(currentFiltered[currentIndex < 0 ? 0 : currentIndex].name)
+              onPick(filtered[selectedIndex < 0 ? 0 : selectedIndex].name)
               return
             }
           }
@@ -182,10 +143,7 @@ export default memo(function ChatInput({ running, mode, commands, onSubmit, onSt
             e.preventDefault()
             submit()
           }
-          if (e.key === 'Escape') {
-            cancelPendingSync()
-            setMenu(prev => (prev.open ? { open: false, prefix: '' } : prev))
-          }
+          if (e.key === 'Escape') setMenu(prev => (prev.open ? { open: false, prefix: '' } : prev))
         }}
       />
       <button
