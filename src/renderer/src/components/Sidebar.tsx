@@ -29,11 +29,12 @@ export default function Sidebar({
   workspaces, templates, activePath, onOpen, onRemove, onRefresh, onTemplatesChange
 }: Props) {
   const [showAddProject, setShowAddProject] = useState(false)
-  const [showAddAgent, setShowAddAgent] = useState(false)
+  const [addAgentPath, setAddAgentPath] = useState<string | null>(null)
   const [showTemplates, setShowTemplates] = useState(false)
   const [showProviders, setShowProviders] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [openProjectMenu, setOpenProjectMenu] = useState<string | null>(null)
+  const [projectMenuPos, setProjectMenuPos] = useState<{ x: number; y: number } | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -42,12 +43,14 @@ export default function Sidebar({
       if (!(target instanceof Element) || !target.closest('.sidebar-menu, .project-menu')) {
         setMenuOpen(false)
         setOpenProjectMenu(null)
+        setProjectMenuPos(null)
       }
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setMenuOpen(false)
         setOpenProjectMenu(null)
+        setProjectMenuPos(null)
       }
     }
     document.addEventListener('mousedown', onDocClick)
@@ -72,14 +75,13 @@ export default function Sidebar({
     }
   }
 
-  const handleAddAgent = async (input: NewAgentInput) => {
-    if (!activePath) return
+  const handleAddAgent = async (projectPath: string, input: NewAgentInput) => {
     try {
-      await window.api.addAgent(activePath, input)
-      setShowAddAgent(false)
+      await window.api.addAgent(projectPath, input)
+      setAddAgentPath(null)
       setError('')
       onRefresh()
-      onOpen(activePath)
+      onOpen(projectPath)
     } catch (err) {
       setError(String(err))
     }
@@ -96,9 +98,9 @@ export default function Sidebar({
           </button>
           {menuOpen && (
             <div className="sidebar-menu-dropdown">
-              <button className="menu-item" onClick={() => { closeMenu(); setShowAddProject(true) }}>+ project</button>
-              <button className="menu-item" onClick={() => { closeMenu(); setShowTemplates(v => !v) }}>templates</button>
-              <button className="menu-item" onClick={() => { closeMenu(); setShowProviders(true) }}>providers</button>
+              <button className="menu-item" onClick={() => { closeMenu(); setShowAddProject(true) }}>Add project</button>
+              <button className="menu-item" onClick={() => { closeMenu(); setShowTemplates(v => !v) }}>Templates</button>
+              <button className="menu-item" onClick={() => { closeMenu(); setShowProviders(true) }}>Providers</button>
             </div>
           )}
         </div>
@@ -106,7 +108,15 @@ export default function Sidebar({
       <ul className="project-list">
         {workspaces.map(ws => (
           <li key={ws.projectPath} className={ws.projectPath === activePath ? 'active' : ''}>
-            <div className="project-row" onClick={() => onOpen(ws.projectPath)}>
+            <div
+              className="project-row"
+              onClick={() => onOpen(ws.projectPath)}
+              onContextMenu={e => {
+                e.preventDefault()
+                setProjectMenuPos({ x: e.clientX, y: e.clientY })
+                setOpenProjectMenu(ws.projectPath)
+              }}
+            >
               <span className="project-name">{ws.name}</span>
               <span className="project-count">{ws.agentCount}</span>
               <div className="project-menu" onClick={e => e.stopPropagation()}>
@@ -114,12 +124,33 @@ export default function Sidebar({
                   className="btn ghost small"
                   title="project menu"
                   aria-label={`menu ${ws.name}`}
-                  onClick={() => setOpenProjectMenu(p => (p === ws.projectPath ? null : ws.projectPath))}
+                  onClick={() => { setProjectMenuPos(null); setOpenProjectMenu(p => (p === ws.projectPath ? null : ws.projectPath)) }}
                 >
                   <span className="btn-icon"><MoreIcon /></span>
                 </button>
                 {openProjectMenu === ws.projectPath && (
-                  <div className="sidebar-menu-dropdown project-menu-dropdown">
+                  <div
+                    className="sidebar-menu-dropdown project-menu-dropdown"
+                    style={projectMenuPos ? {
+                      position: 'fixed',
+                      left: projectMenuPos.x,
+                      top: projectMenuPos.y,
+                      right: 'auto',
+                      bottom: 'auto'
+                    } : undefined}
+                  >
+                    <button
+                      className="menu-item"
+                      onClick={() => { setOpenProjectMenu(null); onOpen(ws.projectPath) }}
+                    >
+                      Open
+                    </button>
+                    <button
+                      className="menu-item"
+                      onClick={() => { setOpenProjectMenu(null); setAddAgentPath(ws.projectPath) }}
+                    >
+                      Add Agent
+                    </button>
                     <button
                       className="menu-item"
                       onClick={() => { setOpenProjectMenu(null); void window.api.openInEditor(ws.projectPath) }}
@@ -139,19 +170,16 @@ export default function Sidebar({
           </li>
         ))}
       </ul>
-      {activePath && (
-        <button className="btn sidebar-action" onClick={() => setShowAddAgent(true)}>+ agent</button>
-      )}
       {showTemplates && <TemplatesPanel templates={templates} onChange={onTemplatesChange} />}
       {showAddProject && (
         <AddProjectDialog onAdd={(p, n) => void handleAddProject(p, n)} onClose={() => setShowAddProject(false)} />
       )}
-      {showAddAgent && activePath && (
+      {addAgentPath && (
         <AddAgentDialog
-          projectPath={activePath}
+          projectPath={addAgentPath}
           templates={templates}
-          onAdd={input => void handleAddAgent(input)}
-          onClose={() => setShowAddAgent(false)}
+          onAdd={input => void handleAddAgent(addAgentPath, input)}
+          onClose={() => setAddAgentPath(null)}
         />
       )}
       {showProviders && <ProvidersDialog onClose={() => setShowProviders(false)} />}
