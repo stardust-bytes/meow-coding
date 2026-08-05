@@ -3,13 +3,9 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { ToolDefinition } from '../tools/types'
+import type { McpServerConfig } from '../../../shared/types'
 
-export interface McpServerConfig {
-  command?: string
-  args?: string[]
-  env?: Record<string, string>
-  url?: string
-}
+export type { McpServerConfig }
 
 export interface McpToolInfo {
   name: string

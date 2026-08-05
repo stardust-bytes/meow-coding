@@ -1,9 +1,10 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import type { MeowSettings } from '../../shared/types'
+import type { AgentSettings, CompactionSettings, MeowSettings, PermissionRule } from '../../shared/types'
 import type { McpServerConfig } from './mcp/manager'
 
-export type PermissionRule = 'allow' | 'ask' | 'deny'
+export type { PermissionRule }
+export type { McpServerConfig }
 
 export interface MeowProviderConfig {
   apiKeyEnv?: string
@@ -18,13 +19,7 @@ export interface MeowAgentConfig {
   systemPrompt: string
 }
 
-export interface MeowCompactionConfig {
-  auto: boolean
-  buffer: number
-  keepTokens: number
-  tailTurns: number
-  toolOutputMaxChars: number
-}
+export type MeowCompactionConfig = CompactionSettings
 
 export interface MeowConfig {
   provider: Record<string, MeowProviderConfig>
@@ -211,7 +206,17 @@ export function configToSettings(cfg: MeowConfig): MeowSettings {
       baseUrl: p.baseUrl,
       models: p.models
     })),
-    defaultProvider: cfg.model
+    defaultProvider: cfg.model,
+    agents: Object.entries(cfg.agents).map(([name, a]) => ({
+      name,
+      systemPrompt: a.systemPrompt,
+      provider: a.provider,
+      model: a.model
+    })),
+    permission: cfg.permission,
+    mcp: cfg.mcp,
+    maxContextTokens: cfg.maxContextTokens,
+    compaction: cfg.compaction
   }
 }
 
@@ -228,14 +233,25 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
     }
   }
   const defaultProvider = providers[settings.defaultProvider] ? settings.defaultProvider : (Object.keys(providers)[0] ?? '')
+  const agents: Record<string, MeowAgentConfig> = {}
+  for (const a of settings.agents ?? []) {
+    if (!a.name.trim()) continue
+    agents[a.name.trim()] = {
+      provider: a.provider,
+      model: a.model,
+      systemPrompt: a.systemPrompt
+    }
+  }
   return {
     provider: providers,
     model: defaultProvider,
-    agents: base.agents ?? DEFAULT_MEOW_CONFIG.agents,
-    permission: base.permission ?? {},
-    mcp: base.mcp ?? {},
-    maxContextTokens: base.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
-    compaction: normalizeCompaction(base.compaction)
+    agents: Object.keys(agents).length > 0 ? agents : (base.agents ?? DEFAULT_MEOW_CONFIG.agents),
+    permission: settings.permission
+      ? { ...DEFAULT_MEOW_CONFIG.permission, ...settings.permission }
+      : (base.permission ?? DEFAULT_MEOW_CONFIG.permission),
+    mcp: settings.mcp ?? base.mcp ?? {},
+    maxContextTokens: settings.maxContextTokens ?? base.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
+    compaction: settings.compaction ? normalizeCompaction(settings.compaction) : normalizeCompaction(base.compaction)
   }
 }
 

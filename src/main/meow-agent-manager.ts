@@ -90,6 +90,7 @@ export class MeowAgentManager {
     this.resolved.delete(agentId)
     this.activeSessions.delete(agentId)
     this.deps.snapshots.clear(agentId)
+    this.deps.store.deleteForAgent(agentId)
   }
 
   private summary(session: StoredSession): SessionSummary {
@@ -305,7 +306,7 @@ export class MeowAgentManager {
     const defaultProvider = settings.providers.some(p => p.id === settings.defaultProvider)
       ? settings.defaultProvider
       : providerId
-    return this.saveSettings({ providers: nextProviders, defaultProvider })
+    return this.saveSettings({ ...settings, providers: nextProviders, defaultProvider })
   }
 
   async disconnectProvider(providerId: string): Promise<MeowSettings> {
@@ -314,7 +315,7 @@ export class MeowAgentManager {
     const defaultProvider = nextProviders.some(p => p.id === settings.defaultProvider)
       ? settings.defaultProvider
       : (nextProviders[0]?.id ?? '')
-    return this.saveSettings({ providers: nextProviders, defaultProvider })
+    return this.saveSettings({ ...settings, providers: nextProviders, defaultProvider })
   }
 
   getSettings(): MeowSettings {

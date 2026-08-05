@@ -152,9 +152,38 @@ export interface ProviderSettings {
   models: string[]
 }
 
+export type PermissionRule = 'allow' | 'ask' | 'deny'
+
+export interface McpServerConfig {
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  url?: string
+}
+
+export interface CompactionSettings {
+  auto: boolean
+  buffer: number
+  keepTokens: number
+  tailTurns: number
+  toolOutputMaxChars: number
+}
+
+export interface AgentSettings {
+  name: string
+  systemPrompt: string
+  provider?: string
+  model?: string
+}
+
 export interface MeowSettings {
   providers: ProviderSettings[]
   defaultProvider: string
+  agents: AgentSettings[]
+  permission: Record<string, PermissionRule>
+  mcp: Record<string, McpServerConfig>
+  maxContextTokens: number
+  compaction: CompactionSettings
 }
 
 export interface ModelRef {

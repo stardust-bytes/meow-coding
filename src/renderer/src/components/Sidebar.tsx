@@ -3,7 +3,7 @@ import type { NewAgentInput, Template, WorkspaceSummary } from '@shared/types'
 import AddProjectDialog from './AddProjectDialog'
 import AddAgentDialog from './AddAgentDialog'
 import TemplatesPanel from './TemplatesPanel'
-import ProvidersDialog from './ProvidersDialog'
+import SettingsDialog from './settings/SettingsDialog'
 
 function MoreIcon() {
   return (
@@ -31,7 +31,7 @@ export default function Sidebar({
   const [showAddProject, setShowAddProject] = useState(false)
   const [addAgentPath, setAddAgentPath] = useState<string | null>(null)
   const [showTemplates, setShowTemplates] = useState(false)
-  const [showProviders, setShowProviders] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [openProjectMenu, setOpenProjectMenu] = useState<string | null>(null)
   const [projectMenuPos, setProjectMenuPos] = useState<{ x: number; y: number } | null>(null)
@@ -100,7 +100,7 @@ export default function Sidebar({
             <div className="sidebar-menu-dropdown">
               <button className="menu-item" onClick={() => { closeMenu(); setShowAddProject(true) }}>Add project</button>
               <button className="menu-item" onClick={() => { closeMenu(); setShowTemplates(v => !v) }}>Templates</button>
-              <button className="menu-item" onClick={() => { closeMenu(); setShowProviders(true) }}>Providers</button>
+              <button className="menu-item" onClick={() => { closeMenu(); setShowSettings(true) }}>Settings</button>
             </div>
           )}
         </div>
@@ -182,7 +182,7 @@ export default function Sidebar({
           onClose={() => setAddAgentPath(null)}
         />
       )}
-      {showProviders && <ProvidersDialog onClose={() => setShowProviders(false)} />}
+      {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
     </aside>
   )
 }

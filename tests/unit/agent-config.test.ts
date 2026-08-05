@@ -270,6 +270,33 @@ describe('configToSettings / settingsToConfig', () => {
     expect(cfg.compaction.tailTurns).toBe(1)
     expect(cfg.compaction.toolOutputMaxChars).toBe(300)
   })
+
+  it('round-trips the full settings object (agents, permission, mcp, context)', () => {
+    const cfg = cfgWithProviders()
+    cfg.agents = {
+      meow: { systemPrompt: 'You are Meow.' },
+      reviewer: { provider: 'openai', model: 'qwen', systemPrompt: 'You review.' }
+    }
+    cfg.permission = { bash: 'ask', write: 'allow', edit: 'deny' }
+    cfg.mcp = { mytools: { command: 'npx', args: ['-y', '@foo/bar'] } }
+    cfg.maxContextTokens = 123000
+    cfg.compaction = { auto: false, buffer: 7000, keepTokens: 900, tailTurns: 1, toolOutputMaxChars: 400 }
+
+    const settings = configToSettings(cfg)
+    expect(settings.agents.find(a => a.name === 'meow')?.systemPrompt).toBe('You are Meow.')
+    expect(settings.agents.find(a => a.name === 'reviewer')).toMatchObject({ provider: 'openai', model: 'qwen' })
+    expect(settings.permission.bash).toBe('ask')
+    expect(settings.mcp.mytools).toEqual({ command: 'npx', args: ['-y', '@foo/bar'] })
+    expect(settings.maxContextTokens).toBe(123000)
+    expect(settings.compaction.tailTurns).toBe(1)
+
+    const back = settingsToConfig(settings, cfg)
+    expect(back.agents.reviewer).toMatchObject({ provider: 'openai', model: 'qwen', systemPrompt: 'You review.' })
+    expect(back.permission).toMatchObject({ bash: 'ask', write: 'allow', edit: 'deny' })
+    expect(back.mcp.mytools.command).toBe('npx')
+    expect(back.maxContextTokens).toBe(123000)
+    expect(back.compaction).toEqual({ auto: false, buffer: 7000, keepTokens: 900, tailTurns: 1, toolOutputMaxChars: 400 })
+  })
 })
 
 function cfgWithProviders() {
