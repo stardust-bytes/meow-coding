@@ -74,6 +74,22 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .app-body { flex: 1; display: flex; min-width: 0; min-height: 0; }
 .main { flex: 1; display: flex; min-width: 0; min-height: 0; }
 
+.title-bar {
+  height: 32px; flex: 0 0 32px; display: flex; align-items: center; justify-content: space-between;
+  background: var(--bg-panel); -webkit-app-region: drag; user-select: none;
+}
+.title-bar-brand { display: flex; align-items: center; gap: 6px; padding-left: 10px; min-width: 0; }
+.title-bar-darwin .title-bar-brand { padding-left: 74px; }
+.title-bar-logo { width: 16px; height: 16px; flex: none; }
+.title-bar-title { font-size: var(--fs-base); color: var(--text); white-space: nowrap; }
+.title-bar-controls { display: flex; height: 100%; -webkit-app-region: no-drag; }
+.title-bar-btn {
+  width: 46px; height: 100%; display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none; color: var(--text); cursor: pointer; padding: 0;
+}
+.title-bar-btn:hover { background: var(--bg-hover); }
+.title-bar-btn-close:hover { background: #e81123; color: #fff; }
+
 /* Sidebar */
 .sidebar {
   width: 260px;

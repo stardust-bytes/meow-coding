@@ -7,6 +7,7 @@ import Sidebar from './components/Sidebar'
 import PaneGrid from './components/PaneGrid'
 import EmptyState from './components/EmptyState'
 import StatusBar from './components/StatusBar'
+import TitleBar from './components/TitleBar'
 
 export interface PaneModel {
   agent: AgentConfig
@@ -122,6 +123,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <TitleBar />
       <div className="app-body">
         <Sidebar
           workspaces={workspaces}
