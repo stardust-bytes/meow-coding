@@ -48,6 +48,7 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
   const [todos, setTodos] = useState<TodoItem[]>([])
   const endRef = useRef<HTMLDivElement>(null)
   const promptRef = useRef<HTMLDivElement>(null)
+  const shouldJumpToEnd = useRef(true)
 
   useEffect(() => {
     if (pendingPrompt && pendingPrompt.promptType === 'permission') {
@@ -61,6 +62,7 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
         ? { kind: 'message', id: it.message.id, role: it.message.role, text: it.message.text, reasoning: it.message.reasoning }
         : { kind: 'tool', id: it.tool.id, call: { ...it.tool } }
       ))
+      shouldJumpToEnd.current = true
     })
   }, [agentId])
 
@@ -99,7 +101,16 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
   }, [agentId])
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
+    // Reopening a session should land at the latest message instantly; only
+    // streamed deltas (live turns) get a smooth scroll.
+    const el = endRef.current
+    if (!el) return
+    if (shouldJumpToEnd.current) {
+      shouldJumpToEnd.current = false
+      el.scrollIntoView()
+    } else {
+      el.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [items])
 
   const applyEvent = useCallback((e: ChatEvent) => {
