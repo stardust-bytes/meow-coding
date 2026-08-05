@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { AgentMode, ChatEvent, ChatMessage, Command, ModelVariant, QuestionOption, SessionSummary, TodoItem, TodoStatus, ToolCallData } from '@shared/types'
 import { appendStreamDelta } from '@shared/text'
 import ChatInput from './ChatInput'
@@ -23,6 +23,30 @@ interface PendingPrompt {
   custom?: boolean
 }
 
+// Owns the per-message subtree so streamed deltas only re-render the message
+// that changed, not the whole feed. Props are primitives, so React.memo works.
+const FeedMessage = memo(function FeedMessage({ role, text, reasoning }: {
+  role: ChatMessage['role']
+  text: string
+  reasoning?: string
+}) {
+  return (
+    <div className={`chat-msg ${role}`}>
+      {role === 'assistant' ? (
+        <>
+          {reasoning ? (
+            <details className="chat-reasoning">
+              <summary>Thinking</summary>
+              <div className="chat-reasoning-text">{reasoning}</div>
+            </details>
+          ) : null}
+          {text.trim() !== '' && <MarkdownText text={text} />}
+        </>
+      ) : <div className="chat-text">{text}</div>}
+    </div>
+  )
+})
+
 interface Props {
   agentId: string
   cwd: string
@@ -32,7 +56,7 @@ interface Props {
   onVariantChange?: (variant: ModelVariant) => void
 }
 
-export default function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVariantChange }: Props) {
+function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVariantChange }: Props) {
   const [items, setItems] = useState<FeedItem[]>([])
   const [running, setRunning] = useState(false)
   const [currentMode, setCurrentMode] = useState<AgentMode>(mode)
@@ -50,8 +74,16 @@ export default function ChatPanel({ agentId, cwd, mode = 'build', variant, onMod
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [todos, setTodos] = useState<TodoItem[]>([])
   const endRef = useRef<HTMLDivElement>(null)
+  const feedRef = useRef<HTMLDivElement>(null)
   const promptRef = useRef<HTMLDivElement>(null)
   const shouldJumpToEnd = useRef(true)
+  // Stream deltas are accumulated per animation frame: one setItems per frame
+  // bounds markdown parsing and feed re-renders, which otherwise saturate the
+  // UI thread on every token and make typing in the input lag.
+  const deltaBufRef = useRef<{ text: string; reasoning: string }>({ text: '', reasoning: '' })
+  const rafRef = useRef<number | null>(null)
+  const prevLastIdRef = useRef<string | null>(null)
+  const stuckRef = useRef(true)
 
   useEffect(() => {
     if (pendingPrompt && pendingPrompt.promptType === 'permission') {
@@ -105,18 +137,70 @@ export default function ChatPanel({ agentId, cwd, mode = 'build', variant, onMod
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId, cwd])
 
+  const onFeedScroll = useCallback(() => {
+    const el = feedRef.current
+    if (!el) return
+    // Stay glued to the bottom unless the user scrolls up to read history.
+    stuckRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+  }, [])
+
   useEffect(() => {
-    // Reopening a session should land at the latest message instantly; only
-    // streamed deltas (live turns) get a smooth scroll.
+    // Reopening a session should land at the latest message instantly; only a
+    // brand-new feed item gets a smooth scroll. Streaming deltas scroll
+    // instantly: a smooth scroll per token animates on the UI thread and is a
+    // big part of the input-lag jank.
     const el = endRef.current
     if (!el) return
+    if (!stuckRef.current) return
+    const last = items[items.length - 1]
+    const lastId = last ? (last.kind === 'subagent' ? last.taskId : last.id) : null
+    const isNewMessage = lastId !== prevLastIdRef.current
+    prevLastIdRef.current = lastId
     if (shouldJumpToEnd.current) {
       shouldJumpToEnd.current = false
       el.scrollIntoView()
-    } else {
+    } else if (isNewMessage) {
       el.scrollIntoView({ behavior: 'smooth' })
+    } else {
+      el.scrollIntoView()
     }
   }, [items])
+
+  // Applies deltas accumulated during one animation frame. Copy-on-write keeps
+  // the updater pure and gives memoized rows a fresh object with new text.
+  const flushDeltas = useCallback(() => {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
+    const { text, reasoning } = deltaBufRef.current
+    if (!text && !reasoning) return
+    deltaBufRef.current = { text: '', reasoning: '' }
+    setItems(prev => {
+      const next = [...prev]
+      if (text) {
+        const last = next[next.length - 1]
+        if (last && last.kind === 'message' && last.role === 'assistant') {
+          next[next.length - 1] = { ...last, text: appendStreamDelta(last.text, text) }
+        } else {
+          next.push({ kind: 'message', id: 'a-' + Date.now(), role: 'assistant', text })
+        }
+      }
+      if (reasoning) {
+        const last = next[next.length - 1]
+        if (last && last.kind === 'message' && last.role === 'assistant') {
+          next[next.length - 1] = { ...last, reasoning: appendStreamDelta(last.reasoning ?? '', reasoning) }
+        } else {
+          next.push({ kind: 'message', id: 'a-' + Date.now(), role: 'assistant', text: '', reasoning })
+        }
+      }
+      return next
+    })
+  }, [setItems])
+
+  useEffect(() => () => {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current)
+  }, [])
 
   const applyEvent = useCallback((e: ChatEvent) => {
     if (e.agentId !== agentId) return
@@ -147,6 +231,7 @@ export default function ChatPanel({ agentId, cwd, mode = 'build', variant, onMod
       return
     }
     if (e.type === 'done' || e.type === 'error') {
+      flushDeltas()
       setRunning(false)
       setPendingPrompt(null)
       if (e.type === 'done') {
@@ -175,23 +260,21 @@ export default function ChatPanel({ agentId, cwd, mode = 'build', variant, onMod
       setQuestionIndex(0)
       return
     }
+    if (e.type === 'text-delta' || e.type === 'reasoning-delta') {
+      const buf = deltaBufRef.current
+      if (e.type === 'text-delta') buf.text += e.delta
+      else buf.reasoning += e.delta
+      if (rafRef.current == null) {
+        rafRef.current = requestAnimationFrame(() => {
+          rafRef.current = null
+          flushDeltas()
+        })
+      }
+      return
+    }
     setItems(prev => {
       const next = [...prev]
-      if (e.type === 'text-delta') {
-        const last = next[next.length - 1]
-        if (last && last.kind === 'message' && last.role === 'assistant') {
-          last.text = appendStreamDelta(last.text, e.delta)
-        } else {
-          next.push({ kind: 'message', id: 'a-' + Date.now(), role: 'assistant', text: e.delta })
-        }
-      } else if (e.type === 'reasoning-delta') {
-        const last = next[next.length - 1]
-        if (last && last.kind === 'message' && last.role === 'assistant') {
-          last.reasoning = appendStreamDelta(last.reasoning ?? '', e.delta)
-        } else {
-          next.push({ kind: 'message', id: 'a-' + Date.now(), role: 'assistant', text: '', reasoning: e.delta })
-        }
-      } else if (e.type === 'tool-start') {
+      if (e.type === 'tool-start') {
         next.push({ kind: 'tool', id: e.call.id, call: { ...e.call } })
       } else if (e.type === 'tool-result') {
         const idx = next.findIndex(i => i.kind === 'tool' && i.id === e.call.id)
@@ -199,7 +282,7 @@ export default function ChatPanel({ agentId, cwd, mode = 'build', variant, onMod
       }
       return next
     })
-  }, [agentId])
+  }, [agentId, flushDeltas])
 
   const send = useCallback((text: string) => {
     const trimmed = text.trim()
@@ -418,25 +501,11 @@ export default function ChatPanel({ agentId, cwd, mode = 'build', variant, onMod
           </ul>
         </div>
       )}
-      <div className="chat-feed">
+      <div className="chat-feed" ref={feedRef} onScroll={onFeedScroll}>
         {items.map(item => {
           if (item.kind === 'message') {
             if (item.role === 'assistant' && item.text.trim() === '' && !item.reasoning) return null
-            return (
-              <div key={item.id} className={`chat-msg ${item.role}`}>
-                {item.role === 'assistant' ? (
-                  <>
-                    {item.reasoning ? (
-                      <details className="chat-reasoning">
-                        <summary>Thinking</summary>
-                        <div className="chat-reasoning-text">{item.reasoning}</div>
-                      </details>
-                    ) : null}
-                    {item.text.trim() !== '' && <MarkdownText text={item.text} />}
-                  </>
-                ) : <div className="chat-text">{item.text}</div>}
-              </div>
-            )
+            return <FeedMessage key={item.id} role={item.role} text={item.text} reasoning={item.reasoning} />
           }
           if (item.kind === 'tool') {
             return <ToolCallCard key={item.id} call={item.call} />
@@ -619,3 +688,5 @@ export default function ChatPanel({ agentId, cwd, mode = 'build', variant, onMod
     </div>
   )
 }
+
+export default memo(ChatPanel)

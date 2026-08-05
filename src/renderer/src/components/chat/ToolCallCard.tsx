@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { ToolCallData } from '@shared/types'
 import DiffView from './DiffView'
 
@@ -5,7 +6,9 @@ interface Props {
   call: ToolCallData
 }
 
-export default function ToolCallCard({ call }: Props) {
+// call objects are replaced wholesale on tool-start/tool-result, so memo keeps
+// finished cards from re-rendering (and re-stringifying) on every stream delta.
+export default memo(function ToolCallCard({ call }: Props) {
   const pending = call.permission === 'pending'
   const input = call.input ?? {}
   const editDiff = call.tool === 'edit'
@@ -31,4 +34,4 @@ export default function ToolCallCard({ call }: Props) {
       {call.error !== undefined && <pre className="tool-call-error">{call.error}</pre>}
     </div>
   )
-}
+})

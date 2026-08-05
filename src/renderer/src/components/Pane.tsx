@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { Terminal } from '@xterm/xterm'
 import type { PaneModel } from '../App'
 import XtermHost from './XtermHost'
@@ -21,6 +22,20 @@ export default function Pane({
   const id = pane.agent.id
   const write = (data: string) => void window.api.writeInput(id, data)
   const native = pane.agent.kind === 'native'
+  // Stable callbacks so App-level re-renders (git poll, agent state) don't
+  // cascade past the memoized ChatPanel into the chat feed.
+  const handleStop = useCallback(() => {
+    if (native) void window.api.stopChat(id)
+    else void window.api.stopAgent(id)
+  }, [id, native])
+  const handleRestart = useCallback(() => {
+    if (native) void window.api.newChatSession(id)
+    else void window.api.restartAgent(id)
+  }, [id, native])
+  const handleInject = useCallback((text: string) => void window.api.injectPrompt(id, text), [id])
+  const handleOpenLog = useCallback(() => void window.api.openLog(id), [id])
+  const handleModeChange = useCallback((m: 'build' | 'plan') => void window.api.setAgentMode(id, m), [id])
+  const handleVariantChange = useCallback((v: 'medium' | 'high' | 'max') => void window.api.setAgentVariant(id, v), [id])
 
   return (
     <div className={`pane ${zoomed ? 'zoomed' : ''}`} onClick={onFocus}>
@@ -32,14 +47,10 @@ export default function Pane({
         native={native}
         active={active}
         onZoom={onZoom}
-        onStop={() => native
-          ? void window.api.stopChat(id)
-          : void window.api.stopAgent(id)}
-        onRestart={() => native
-          ? void window.api.newChatSession(id)
-          : void window.api.restartAgent(id)}
-        onInject={text => void window.api.injectPrompt(id, text)}
-        onOpenLog={() => void window.api.openLog(id)}
+        onStop={handleStop}
+        onRestart={handleRestart}
+        onInject={handleInject}
+        onOpenLog={handleOpenLog}
         onRemove={onRemove}
       />
       {native ? (
@@ -48,8 +59,8 @@ export default function Pane({
           cwd={pane.agent.cwd}
           mode={pane.agent.mode ?? 'build'}
           variant={pane.agent.variant}
-          onModeChange={m => void window.api.setAgentMode(id, m)}
-          onVariantChange={v => void window.api.setAgentVariant(id, v)}
+          onModeChange={handleModeChange}
+          onVariantChange={handleVariantChange}
         />
       ) : (
         <XtermHost
