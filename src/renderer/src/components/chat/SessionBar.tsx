@@ -7,6 +7,7 @@ interface Props {
   onSelect: (sessionId: string) => void
   onCreate: () => void
   onDelete: (sessionId: string) => void
+  onRename: (sessionId: string, title: string) => void
 }
 
 function relativeTime(ts: number): string {
@@ -20,19 +21,28 @@ function relativeTime(ts: number): string {
   return new Date(ts).toLocaleDateString()
 }
 
-export default function SessionBar({ sessions, activeSessionId, onSelect, onCreate, onDelete }: Props) {
+export default function SessionBar({ sessions, activeSessionId, onSelect, onCreate, onDelete, onRename }: Props) {
   const [open, setOpen] = useState(false)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
   const rootRef = useRef<HTMLDivElement>(null)
+  const renameRef = useRef<HTMLInputElement>(null)
 
   const active = sessions.find(s => s.id === activeSessionId) ?? sessions[0]
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       const target = e.target as Node
-      if (!rootRef.current?.contains(target)) setOpen(false)
+      if (!rootRef.current?.contains(target)) {
+        setOpen(false)
+        setRenamingId(null)
+      }
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') {
+        setOpen(false)
+        setRenamingId(null)
+      }
     }
     document.addEventListener('mousedown', onDocClick)
     document.addEventListener('keydown', onKey)
@@ -41,6 +51,16 @@ export default function SessionBar({ sessions, activeSessionId, onSelect, onCrea
       document.removeEventListener('keydown', onKey)
     }
   }, [])
+
+  const startRename = (s: SessionSummary) => {
+    setRenamingId(s.id)
+    setRenameValue(s.title)
+  }
+
+  const commitRename = () => {
+    if (renamingId && renameValue.trim()) onRename(renamingId, renameValue.trim())
+    setRenamingId(null)
+  }
 
   return (
     <div className="chat-sessions" ref={rootRef}>
@@ -64,8 +84,36 @@ export default function SessionBar({ sessions, activeSessionId, onSelect, onCrea
                   className={`session-row ${s.id === activeSessionId ? 'active' : ''}`}
                   onClick={() => { setOpen(false); onSelect(s.id) }}
                 >
-                  <span className="session-row-title">{s.title}</span>
-                  <span className="session-row-meta">{relativeTime(s.updatedAt)} · {s.messageCount} msg</span>
+                  {renamingId === s.id ? (
+                    <input
+                      ref={renameRef}
+                      className="session-rename-input"
+                      value={renameValue}
+                      autoFocus
+                      onClick={e => e.stopPropagation()}
+                      onChange={e => setRenameValue(e.target.value)}
+                      onBlur={commitRename}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') { e.preventDefault(); commitRename() }
+                        if (e.key === 'Escape') setRenamingId(null)
+                      }}
+                    />
+                  ) : (
+                    <>
+                      <span className="session-row-title">{s.title}</span>
+                      <span className="session-row-meta">{relativeTime(s.updatedAt)} · {s.messageCount} msg</span>
+                    </>
+                  )}
+                  {renamingId !== s.id && (
+                    <button
+                      className="session-row-rename"
+                      title="rename session"
+                      aria-label={`rename session ${s.title}`}
+                      onClick={e => { e.stopPropagation(); startRename(s) }}
+                    >
+                      ✎
+                    </button>
+                  )}
                   <button
                     className="session-row-delete"
                     title="delete session"

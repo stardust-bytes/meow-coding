@@ -12,14 +12,18 @@ import { AlertService } from './alert-service'
 import { SessionStore } from './agent/session'
 import type { StoredSession } from './agent/session'
 import { SnapshotStore } from './agent/snapshot'
-import type { SnapshotEntry } from './agent/snapshot'
+import type { SnapshotTurn } from './agent/snapshot'
+import { TruncationStore } from './agent/truncation'
 import { SavedPermissions } from './agent/saved-permissions'
 import type { SavedPermission } from './agent/saved-permissions'
 import { createDefaultTools } from './agent/tools/registry'
 import { MeowAgentManager } from './meow-agent-manager'
+import { CommandStore } from './agent/commands'
+import { FileWatcher } from './file-watcher'
+import { LspManager } from './agent/lsp/manager'
 import { ModelsCatalog } from './models-catalog'
 import { Channels } from '../shared/ipc'
-import type { AgentState, MeowSettings, NewAgentInput, PromptResponse, Template, Workspace, WorkspaceRuntime } from '../shared/types'
+import type { AgentState, Command, MeowSettings, NewAgentInput, PromptResponse, Template, Workspace, WorkspaceRuntime } from '../shared/types'
 
 let win: BrowserWindow | null = null
 
@@ -61,14 +65,19 @@ class MainApp {
     userToolsDir: path.join(app.getPath('userData'), 'tools'),
     userInstructionsDir: app.getPath('userData'),
     builtinSkillsDir: this.builtinSkillsDir,
-    snapshots: new SnapshotStore(createJsonStore<SnapshotEntry>(path.join(app.getPath('userData'), 'snapshots.json'))),
+    snapshots: new SnapshotStore(createJsonStore<SnapshotTurn>(path.join(app.getPath('userData'), 'snapshots.json'))),
     savedPermissions: new SavedPermissions(createJsonStore<SavedPermission>(path.join(app.getPath('userData'), 'permissions.json'))),
-    catalog: new ModelsCatalog(path.join(app.getPath('userData'), 'models.json'))
+    truncation: new TruncationStore(path.join(app.getPath('userData'), 'truncation')),
+    catalog: new ModelsCatalog(path.join(app.getPath('userData'), 'models.json')),
+    commands: new CommandStore(path.join(app.getPath('userData'), 'commands.json')),
+    lsp: new LspManager()
   })
 
   private states = new Map<string, AgentState>()
   private gitTimer: ReturnType<typeof setInterval> | null = null
   private activeProject: string | null = null
+  private watcher: FileWatcher | null = null
+  private prices = new Map<string, { input?: number; output?: number; cacheRead?: number; cacheWrite?: number }>()
 
   constructor() {
     this.pty.on('data', ({ agentId, data }) => {
@@ -178,12 +187,22 @@ class MainApp {
     const ws = this.workspaces.get(projectPath)
     if (!ws) throw new Error(`Workspace not found: ${projectPath}`)
     this.activeProject = projectPath
+    this.meowAgent.setProjectPath(projectPath)
     await this.meowAgent.init(ws.agents)
     for (const agent of ws.agents) {
       await this.startAgent(agent.id)
     }
     this.startGitPoll(projectPath)
+    this.startFileWatcher(projectPath)
     return this.runtimeFor(ws)
+  }
+
+  private startFileWatcher(projectPath: string): void {
+    this.watcher?.stop()
+    this.watcher = new FileWatcher(projectPath, (files) => {
+      win?.webContents.send(Channels.EventContextChanged, { projectPath, files })
+    })
+    this.watcher.start()
   }
 
   private startGitPoll(projectPath: string): void {
@@ -233,6 +252,8 @@ class MainApp {
 
   resetActiveProject(): void {
     this.stopGitPoll()
+    this.watcher?.stop()
+    this.watcher = null
     this.meowAgent.stopAll()
     this.activeProject = null
     this.states.clear()
@@ -384,6 +405,10 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.ChatSend, (_e, agentId: string, text: string) =>
     mainApp.meowAgent.send(agentId, text))
   ipcMain.handle(Channels.ChatStop, (_e, agentId: string) => mainApp.meowAgent.stop(agentId))
+  ipcMain.handle(Channels.ChatRunCommand, (_e, agentId: string, name: string, args: string[]) =>
+    mainApp.meowAgent.runCommand(agentId, name, args))
+  ipcMain.handle(Channels.ChatUndo, (_e, agentId: string) => mainApp.meowAgent.undo(agentId))
+  ipcMain.handle(Channels.ChatRedo, (_e, agentId: string) => mainApp.meowAgent.redo(agentId))
   ipcMain.handle(Channels.ChatNewSession, (_e, agentId: string) => mainApp.meowAgent.newSession(agentId))
   ipcMain.handle(Channels.ChatListMessages, (_e, agentId: string) => mainApp.meowAgent.listMessages(agentId))
   ipcMain.handle(Channels.ChatListTranscript, (_e, agentId: string) => mainApp.meowAgent.listTranscript(agentId))
@@ -396,14 +421,21 @@ function registerIpcHandlers(): void {
     mainApp.meowAgent.switchSession(agentId, sessionId))
   ipcMain.handle(Channels.SessionDelete, (_e, agentId: string, sessionId: string) =>
     mainApp.meowAgent.deleteSession(agentId, sessionId))
+  ipcMain.handle(Channels.SessionRename, (_e, agentId: string, sessionId: string, title: string) =>
+    mainApp.meowAgent.renameSession(agentId, sessionId, title))
   ipcMain.handle(Channels.SettingsGet, () => mainApp.meowAgent.getSettings())
   ipcMain.handle(Channels.SettingsSave, (_e, settings: MeowSettings) =>
     mainApp.meowAgent.saveSettings(settings))
   ipcMain.handle(Channels.McpStatus, () => mainApp.meowAgent.getMcpStatus())
+  ipcMain.handle(Channels.CommandList, (_e, projectPath: string) => mainApp.meowAgent.listCommands(projectPath))
+  ipcMain.handle(Channels.CommandSave, (_e, command: Command) => mainApp.meowAgent.saveCommand(command))
+  ipcMain.handle(Channels.CommandRemove, (_e, name: string) => mainApp.meowAgent.removeCommand(name))
+  ipcMain.handle(Channels.StatsGet, () => mainApp.meowAgent.getStats())
   ipcMain.handle(Channels.AppQuit, () => app.quit())
 }
 
 app.whenReady().then(() => {
+  mainApp.meowAgent.truncationCleanup()
   registerIpcHandlers()
   createWindow()
   app.on('activate', () => {

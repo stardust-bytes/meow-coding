@@ -31,11 +31,20 @@ export const applyPatchTool: ToolDefinition = {
     try {
       const files = applyUnifiedPatch(patch, io)
       if (files.length === 0) return { output: '(no file changes in patch)' }
-      return {
-        output: files
-          .map(f => `${f.created ? 'created' : 'updated'} ${f.filePath}`)
-          .join('\n')
+      let output = files
+        .map(f => `${f.created ? 'created' : 'updated'} ${f.filePath}`)
+        .join('\n')
+      if (ctx.diagnostics) {
+        const diags: string[] = []
+        for (const f of files) {
+          const full = resolveCwd(ctx.cwd, f.filePath)
+          if (!existsSync(full)) continue
+          const d = await ctx.diagnostics(full, readFileSync(full, 'utf-8'))
+          if (d) diags.push(d)
+        }
+        if (diags.length > 0) output += '\n' + diags.join('\n')
       }
+      return { output }
     } catch (err) {
       return { error: `apply-patch: ${String(err)}` }
     }

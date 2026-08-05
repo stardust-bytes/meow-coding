@@ -5,22 +5,25 @@ import AgentsTab from './AgentsTab'
 import PermissionsTab from './PermissionsTab'
 import McpTab from './McpTab'
 import ContextTab from './ContextTab'
+import CommandsTab from './CommandsTab'
 
-type TabId = 'providers' | 'agents' | 'permissions' | 'mcp' | 'context'
+type TabId = 'providers' | 'agents' | 'permissions' | 'mcp' | 'context' | 'commands'
 
 const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'providers', label: 'Providers' },
   { id: 'agents', label: 'Agents' },
   { id: 'permissions', label: 'Permissions' },
   { id: 'mcp', label: 'MCP' },
-  { id: 'context', label: 'Context' }
+  { id: 'context', label: 'Context' },
+  { id: 'commands', label: 'Commands' }
 ]
 
 interface Props {
   onClose: () => void
+  projectPath?: string
 }
 
-export default function SettingsDialog({ onClose }: Props) {
+export default function SettingsDialog({ onClose, projectPath }: Props) {
   const [tab, setTab] = useState<TabId>('providers')
   const [draft, setDraft] = useState<MeowSettings | null>(null)
   const [catalog, setCatalog] = useState<CatalogProviderSummary[]>([])
@@ -106,9 +109,11 @@ export default function SettingsDialog({ onClose }: Props) {
               <ContextTab
                 maxContextTokens={draft.maxContextTokens}
                 compaction={draft.compaction}
+                toolOutput={draft.toolOutput}
                 onChange={ctx => patch(ctx)}
               />
             )}
+            {tab === 'commands' && <CommandsTab projectPath={projectPath} />}
           </div>
         </div>
         {status && <div className="settings-status">{status}</div>}

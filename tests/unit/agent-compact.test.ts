@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { selectHeadTail, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, truncateToolOutput, serializeItems } from '../../src/main/agent/compact'
+import { selectHeadTail, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, truncateToolOutput, serializeItems, pruneToolOutputs } from '../../src/main/agent/compact'
 import type { TranscriptItem } from '../../src/main/agent/message'
 import type { ChatMessage, ToolCallData } from '../../src/shared/types'
 import type { LlmClient, LlmStreamPart } from '../../src/main/agent/llm'
@@ -133,5 +133,66 @@ describe('compactTranscript', () => {
       }
     }
     expect(await compactTranscript({ llm, model: 'm', prompt: 'x', signal: controller.signal })).toBeNull()
+  })
+})
+
+describe('pruneToolOutputs', () => {
+  const cfg = { auto: true, buffer: 100, keepTokens: 100, tailTurns: 2, toolOutputMaxChars: 2000, prune: true }
+
+  it('clears outputs of old tool calls beyond the recent turns', () => {
+    const items: TranscriptItem[] = [
+      msg('user', 'u0'),
+      msg('assistant', 'a0'),
+      tool('P'.repeat(50000)),
+      msg('user', 'u1'),
+      msg('assistant', 'a1'),
+      msg('user', 'u2'),
+      msg('assistant', 'a2')
+    ]
+    const changed = pruneToolOutputs(items, cfg)
+    expect(changed).toBe(true)
+    const toolItem = items.find(i => i.kind === 'tool')
+    expect(toolItem && toolItem.kind === 'tool' ? toolItem.tool.output : 'kept').toBeUndefined()
+    expect(toolItem && toolItem.kind === 'tool' ? toolItem.tool.error : '').toContain('cleared')
+  })
+
+  it('does nothing when prune is disabled', () => {
+    const items: TranscriptItem[] = [
+      msg('user', 'u1'),
+      msg('assistant', 'a1'),
+      tool('P'.repeat(50000)),
+      msg('user', 'u2')
+    ]
+    expect(pruneToolOutputs(items, { ...cfg, prune: false })).toBe(false)
+    const toolItem = items.find(i => i.kind === 'tool')
+    expect(toolItem && toolItem.kind === 'tool' ? toolItem.tool.output : '').toContain('P')
+  })
+
+  it('protects skill tool outputs and recent turns', () => {
+    const skillItem: ToolCallData = { id: 's', tool: 'skill', input: {}, permission: 'allowed', output: 'S'.repeat(100000) }
+    const items: TranscriptItem[] = [
+      msg('user', 'u0'),
+      msg('assistant', 'a0'),
+      { kind: 'tool', tool: skillItem },
+      msg('user', 'u1'),
+      msg('assistant', 'a1'),
+      msg('user', 'u2'),
+      msg('assistant', 'a2')
+    ]
+    expect(pruneToolOutputs(items, cfg)).toBe(false)
+    expect(skillItem.output).toBe('S'.repeat(100000))
+  })
+
+  it('returns false when reclaimable space is below the minimum', () => {
+    const items: TranscriptItem[] = [
+      msg('user', 'u0'),
+      msg('assistant', 'a0'),
+      tool('P'.repeat(25000)),
+      msg('user', 'u1'),
+      msg('assistant', 'a1'),
+      msg('user', 'u2'),
+      msg('assistant', 'a2')
+    ]
+    expect(pruneToolOutputs(items, cfg)).toBe(false)
   })
 })

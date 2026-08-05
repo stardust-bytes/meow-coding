@@ -18,6 +18,7 @@ export const writeTool: ToolDefinition = {
     snapshotFile(ctx, full)
     mkdirSync(path.dirname(full), { recursive: true })
     writeFileSync(full, content)
-    return { output: `wrote ${file_path}` }
+    const diag = ctx.diagnostics ? await ctx.diagnostics(full, content) : ''
+    return { output: `wrote ${file_path}${diag ? `\n${diag}` : ''}` }
   }
 }

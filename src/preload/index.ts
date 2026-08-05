@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
-import type { ChatEvent, MeowSettings, NewAgentInput, PromptResponse, Template } from '../shared/types'
+import type { ChatEvent, Command, ContextChangedEvent, MeowSettings, NewAgentInput, PromptResponse, Template } from '../shared/types'
 import type { AgentApi, AgentStateEvent, GitStatusEvent, PtyDataEvent } from '../shared/ipc'
 
 function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
@@ -55,6 +55,10 @@ const api: AgentApi = {
   sendChat: (agentId: string, text: string) =>
     ipcRenderer.invoke(Channels.ChatSend, agentId, text),
   stopChat: (agentId: string) => ipcRenderer.invoke(Channels.ChatStop, agentId),
+  runCommand: (agentId: string, name: string, args: string[]) =>
+    ipcRenderer.invoke(Channels.ChatRunCommand, agentId, name, args),
+  undoChat: (agentId: string) => ipcRenderer.invoke(Channels.ChatUndo, agentId),
+  redoChat: (agentId: string) => ipcRenderer.invoke(Channels.ChatRedo, agentId),
   newChatSession: (agentId: string) => ipcRenderer.invoke(Channels.ChatNewSession, agentId),
   listChatMessages: (agentId: string) => ipcRenderer.invoke(Channels.ChatListMessages, agentId),
   listChatTranscript: (agentId: string) => ipcRenderer.invoke(Channels.ChatListTranscript, agentId),
@@ -67,12 +71,19 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.SessionSwitch, agentId, sessionId),
   deleteSession: (agentId: string, sessionId: string) =>
     ipcRenderer.invoke(Channels.SessionDelete, agentId, sessionId),
+  renameSession: (agentId: string, sessionId: string, title: string) =>
+    ipcRenderer.invoke(Channels.SessionRename, agentId, sessionId, title),
   getSettings: () => ipcRenderer.invoke(Channels.SettingsGet),
   saveSettings: (settings: MeowSettings) => ipcRenderer.invoke(Channels.SettingsSave, settings),
+  listCommands: (projectPath: string) => ipcRenderer.invoke(Channels.CommandList, projectPath),
+  saveCommand: (command: Command) => ipcRenderer.invoke(Channels.CommandSave, command),
+  removeCommand: (name: string) => ipcRenderer.invoke(Channels.CommandRemove, name),
+  getStats: () => ipcRenderer.invoke(Channels.StatsGet),
   getMcpStatus: () => ipcRenderer.invoke(Channels.McpStatus),
   onPtyData: (cb: (e: PtyDataEvent) => void) => subscribe(Channels.EventPtyData, cb),
   onAgentState: (cb: (e: AgentStateEvent) => void) => subscribe(Channels.EventAgentState, cb),
   onGitStatus: (cb: (e: GitStatusEvent) => void) => subscribe(Channels.EventGitStatus, cb),
+  onContextChanged: (cb: (e: ContextChangedEvent) => void) => subscribe(Channels.EventContextChanged, cb),
   onChatEvent: (cb: (e: ChatEvent) => void) => subscribe(Channels.EventChat, cb)
 }
 

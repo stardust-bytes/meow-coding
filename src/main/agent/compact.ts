@@ -12,6 +12,44 @@ export interface CompactionSettings {
   keepTokens: number
   tailTurns: number
   toolOutputMaxChars: number
+  prune?: boolean
+}
+
+const PRUNE_PROTECT = 40000
+const PRUNE_MINIMUM = 20000
+const PRUNE_PROTECTED_TOOLS = ['skill']
+
+// Clears the output of older completed tool calls (beyond the last two turns)
+// to free context, mirroring opencode compaction.prune. Returns true if any
+// output was cleared. Mutates items in place.
+export function pruneToolOutputs(items: TranscriptItem[], cfg: CompactionSettings): boolean {
+  if (!cfg.prune) return false
+  let turns = 0
+  let total = 0
+  let pruned = 0
+  const targets: TranscriptItem[] = []
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i]
+    if (item.kind === 'message' && item.message.role === 'user') turns++
+    if (turns < 2) continue
+    if (item.kind !== 'tool') continue
+    const call = item.tool
+    if (call.output === undefined) continue
+    if (PRUNE_PROTECTED_TOOLS.includes(call.tool)) continue
+    const size = call.output.length
+    total += size
+    if (total <= PRUNE_PROTECT) continue
+    pruned += size
+    targets.push(item)
+  }
+  if (pruned <= PRUNE_MINIMUM) return false
+  for (const item of targets) {
+    if (item.kind === 'tool') {
+      item.tool.output = undefined
+      item.tool.error = '[Old tool result content cleared]'
+    }
+  }
+  return true
 }
 
 export const COMPACTION_MARKER = 'What did we do so far?'

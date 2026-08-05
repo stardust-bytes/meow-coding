@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { AgentMode, ChatEvent, ChatMessage, ModelVariant, QuestionOption, SessionSummary, TodoItem, TodoStatus, ToolCallData } from '@shared/types'
+import type { AgentMode, ChatEvent, ChatMessage, Command, ModelVariant, QuestionOption, SessionSummary, TodoItem, TodoStatus, ToolCallData } from '@shared/types'
 import { appendStreamDelta } from '@shared/text'
 import ChatInput from './ChatInput'
 import ToolCallCard from './ToolCallCard'
@@ -25,13 +25,14 @@ interface PendingPrompt {
 
 interface Props {
   agentId: string
+  cwd: string
   mode?: AgentMode
   variant?: ModelVariant
   onModeChange?: (mode: AgentMode) => void
   onVariantChange?: (variant: ModelVariant) => void
 }
 
-export default function ChatPanel({ agentId, mode = 'build', variant, onModeChange, onVariantChange }: Props) {
+export default function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVariantChange }: Props) {
   const [items, setItems] = useState<FeedItem[]>([])
   const [running, setRunning] = useState(false)
   const [currentMode, setCurrentMode] = useState<AgentMode>(mode)
@@ -43,6 +44,8 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
   const [customInput, setCustomInput] = useState(false)
   const [questionIndex, setQuestionIndex] = useState(0)
   const [lastTokens, setLastTokens] = useState<{ input: number; output: number; total: number } | null>(null)
+  const [lastCost, setLastCost] = useState(0)
+  const [commands, setCommands] = useState<Command[]>([])
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [todos, setTodos] = useState<TodoItem[]>([])
@@ -86,6 +89,7 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
     setSelectedOptions([])
     setCustomInput(false)
     setLastTokens(null)
+    setLastCost(0)
     setTodos([])
     loadTranscript()
     loadTodos()
@@ -95,10 +99,11 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
     reloadSessions()
     loadTranscript()
     loadTodos()
+    void window.api.listCommands(cwd).then(setCommands)
     const off = window.api.onChatEvent(e => applyEvent(e))
     return off
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentId])
+  }, [agentId, cwd])
 
   useEffect(() => {
     // Reopening a session should land at the latest message instantly; only
@@ -143,7 +148,10 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
     }
     if (e.type === 'done' || e.type === 'error') {
       setRunning(false)
-      if (e.type === 'done' && e.tokens) setLastTokens(e.tokens)
+      if (e.type === 'done') {
+        if (e.tokens) setLastTokens(e.tokens)
+        if (e.cost !== undefined) setLastCost(e.cost)
+      }
       if (e.type === 'error') {
         setItems(prev => [...prev, { kind: 'error', id: 'err-' + Date.now(), text: e.message }])
       }
@@ -193,12 +201,20 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
   }, [agentId])
 
   const send = useCallback((text: string) => {
-    setItems(prev => [...prev, { kind: 'message', id: 'u-' + Date.now(), role: 'user', text }])
+    const trimmed = text.trim()
+    if (!trimmed) return
+    setItems(prev => [...prev, { kind: 'message', id: 'u-' + Date.now(), role: 'user', text: trimmed }])
     setRunning(true)
     setLastTokens(null)
-    void window.api.sendChat(agentId, text)
+    setLastCost(0)
+    const m = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(trimmed)
+    if (m && commands.some(c => c.name === m[1])) {
+      void window.api.runCommand(agentId, m[1], m[2] ? m[2].trim().split(/\s+/) : [])
+    } else {
+      void window.api.sendChat(agentId, trimmed)
+    }
     reloadSessions()
-  }, [agentId, reloadSessions])
+  }, [agentId, commands, reloadSessions])
 
   const handleCreateSession = useCallback(() => {
     void window.api.createSession(agentId).then(() => {
@@ -221,6 +237,30 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
       reloadSessions()
     })
   }, [agentId, resetView, reloadSessions])
+
+  const handleRenameSession = useCallback((sessionId: string, title: string) => {
+    void window.api.renameSession(agentId, sessionId, title).then(() => {
+      reloadSessions()
+    })
+  }, [agentId, reloadSessions])
+
+  const handleUndo = useCallback(() => {
+    void window.api.undoChat(agentId).then(ok => {
+      if (ok) {
+        loadTranscript()
+        loadTodos()
+      }
+    })
+  }, [agentId, loadTranscript, loadTodos])
+
+  const handleRedo = useCallback(() => {
+    void window.api.redoChat(agentId).then(ok => {
+      if (ok) {
+        loadTranscript()
+        loadTodos()
+      }
+    })
+  }, [agentId, loadTranscript, loadTodos])
 
   const respond = useCallback((promptId: string, allow: boolean, text?: string, always = false) => {
     void window.api.respondPrompt(agentId, promptId, { allow, text, always })
@@ -351,7 +391,12 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
         onSelect={handleSelectSession}
         onCreate={handleCreateSession}
         onDelete={handleDeleteSession}
+        onRename={handleRenameSession}
       />
+      <div className="chat-history-actions">
+        <button className="btn small" title="undo last turn" onClick={handleUndo} disabled={running}>Undo</button>
+        <button className="btn small" title="redo undone turn" onClick={handleRedo} disabled={running}>Redo</button>
+      </div>
       {todos.length > 0 && (
         <div className="chat-todos">
           <div className="chat-todos-head">
@@ -414,6 +459,7 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
         {lastTokens && !running && (
           <div className="chat-tokens">
             tokens: {lastTokens.total} ({lastTokens.input} in / {lastTokens.output} out)
+            {lastCost > 0 && <span className="chat-tokens-cost"> · ${lastCost.toFixed(4)}</span>}
           </div>
         )}
         <div ref={endRef} />
@@ -560,6 +606,7 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
         <ChatInput
           running={running}
           mode={currentMode}
+          commands={commands}
           onSubmit={send}
           onStop={() => void window.api.stopChat(agentId)}
         />

@@ -10,6 +10,7 @@ type AssistantPart = { type: 'text'; text: string } | { type: 'tool-call'; toolC
 
 export interface ToLlmOptions {
   toolOutputMaxChars?: number
+  truncate?: (toolId: string, text: string) => string
 }
 
 export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): ModelMessage[] {
@@ -37,6 +38,7 @@ export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): Mod
   }
 
   const maxOutput = opts?.toolOutputMaxChars
+  const truncate = opts?.truncate
 
   for (const item of items) {
     if (item.kind === 'message') {
@@ -48,12 +50,13 @@ export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): Mod
       }
     } else {
       if (pendingAssistant) pendingAssistant.calls.push(item.tool)
+      let value = item.tool.output ?? 'ok'
+      if (maxOutput !== undefined) value = truncateToolOutput(value, maxOutput)
+      if (truncate) value = truncate(item.tool.id, value)
       const output: { type: 'text'; value: string } | { type: 'error-text'; value: string } =
         item.tool.error
           ? { type: 'error-text', value: item.tool.error }
-          : maxOutput !== undefined
-            ? { type: 'text', value: truncateToolOutput(item.tool.output ?? 'ok', maxOutput) }
-            : { type: 'text', value: item.tool.output ?? 'ok' }
+          : { type: 'text', value }
       pendingResults.push({
         role: 'tool',
         content: [{

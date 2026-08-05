@@ -13,9 +13,9 @@ describe('IPC contract', () => {
       'pickFolder', 'startAgent', 'stopAgent', 'restartAgent',
       'writeInput', 'injectPrompt', 'resizePty', 'openLog', 'getLogPath', 'quit',
       'onPtyData', 'onAgentState', 'onGitStatus',
-      'sendChat', 'stopChat', 'newChatSession', 'listChatMessages', 'listChatTranscript', 'respondPrompt',
-      'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus',
-      'listSessions', 'createSession', 'switchSession', 'deleteSession',
+      'sendChat', 'stopChat', 'runCommand', 'undoChat', 'redoChat', 'newChatSession', 'listChatMessages', 'listChatTranscript', 'respondPrompt',
+      'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus', 'listCommands', 'saveCommand', 'removeCommand', 'getStats', 'onContextChanged',
+      'listSessions', 'createSession', 'switchSession', 'deleteSession', 'renameSession',
       'getChatTodos'
     ]
     const api: AgentApi = {
@@ -53,19 +53,28 @@ describe('IPC contract', () => {
       onGitStatus: () => () => {},
       sendChat: async () => {},
       stopChat: async () => {},
+      runCommand: async () => {},
+      undoChat: async () => true,
+      redoChat: async () => true,
       newChatSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),
       listChatMessages: async () => [],
       listChatTranscript: async () => [],
       getChatTodos: async () => [],
       respondPrompt: async () => {},
       onChatEvent: () => () => {},
-      getSettings: async () => ({ providers: [], defaultProvider: '' }),
+      getSettings: async () => ({ providers: [], defaultProvider: '', agents: [], permission: {}, mcp: {}, maxContextTokens: 200000, compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 2000 }, toolOutput: { maxBytes: 51200, maxLines: 2000 }, lsp: { enabled: true, diagnosticsTimeoutMs: 3000 } }),
       saveSettings: async (s) => s,
       getMcpStatus: async () => [],
+      listCommands: async () => [],
+      saveCommand: async (c) => c,
+      removeCommand: async () => {},
+      getStats: async () => ({ totalCost: 0, totalTokens: 0, perModel: {}, perSession: [] }),
+      onContextChanged: () => () => {},
       listSessions: async () => [],
       createSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),
       switchSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),
-      deleteSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 })
+      deleteSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),
+      renameSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 })
     }
     for (const key of required) {
       expect(typeof api[key]).toBe('function')
@@ -90,6 +99,12 @@ describe('IPC contract', () => {
     expect(Channels.SessionDelete).toBe('session:delete')
     expect(Channels.SettingsGet).toBe('settings:get')
     expect(Channels.SettingsSave).toBe('settings:save')
+    expect(Channels.CommandList).toBe('commands:list')
+    expect(Channels.CommandSave).toBe('commands:save')
+    expect(Channels.CommandRemove).toBe('commands:remove')
+    expect(Channels.StatsGet).toBe('stats:get')
+    expect(Channels.EventContextChanged).toBe('context:changed')
+    expect(Channels.ChatRunCommand).toBe('chat:run-command')
     expect(Channels.AgentSetMode).toBe('agent:set-mode')
     expect(Channels.AgentSetVariant).toBe('agent:set-variant')
     expect(Channels.AgentSetModel).toBe('agent:set-model')

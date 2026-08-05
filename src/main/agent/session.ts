@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { JsonStore } from '../json-store'
-import type { ChatMessage, ChatTranscriptItem, SessionSummary, TodoItem, ToolCallData } from '../../shared/types'
+import type { ChatMessage, ChatTranscriptItem, SessionSummary, TodoItem, ToolCallData, UsageSummary } from '../../shared/types'
 
 export const DEFAULT_SESSION_TITLE = 'New session'
 
@@ -11,6 +11,7 @@ export interface StoredSession {
   title: string
   items: ChatTranscriptItem[]
   todos: TodoItem[]
+  usage: UsageSummary
   createdAt: number
   updatedAt: number
 }
@@ -45,6 +46,7 @@ function normalize(raw: RawSession): StoredSession {
     title: typeof raw.title === 'string' && raw.title ? raw.title : titleFromItems(items),
     items,
     todos: Array.isArray(raw.todos) ? (raw.todos as TodoItem[]) : [],
+    usage: raw.usage ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 },
     createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : (raw.updatedAt ?? Date.now()),
     updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : Date.now()
   }
@@ -75,6 +77,10 @@ export class SessionStore {
       }))
   }
 
+  listAll(): StoredSession[] {
+    return this.loadSessions()
+  }
+
   get(id: string): StoredSession | null {
     return this.loadSessions().find(s => s.id === id) ?? null
   }
@@ -94,6 +100,7 @@ export class SessionStore {
       title: DEFAULT_SESSION_TITLE,
       items: [],
       todos: [],
+      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 },
       createdAt: Date.now(),
       updatedAt: Date.now()
     }
@@ -125,6 +132,28 @@ export class SessionStore {
     all[idx].items = items
     all[idx].updatedAt = Date.now()
     this.saveSessions(all)
+  }
+
+  // Cuts the transcript from the last user message onwards (used by undo) and
+  // returns the removed items.
+  truncateFromLastUser(id: string): ChatTranscriptItem[] {
+    const all = this.loadSessions()
+    const idx = all.findIndex(s => s.id === id)
+    if (idx < 0) return []
+    const items = all[idx].items
+    let cut = -1
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i]
+      if (item.kind === 'message' && item.message.role === 'user') {
+        cut = i
+        break
+      }
+    }
+    if (cut < 0) return []
+    const removed = items.splice(cut)
+    all[idx].updatedAt = Date.now()
+    this.saveSessions(all)
+    return removed
   }
 
   appendMessage(id: string, message: ChatMessage): void {
@@ -162,6 +191,26 @@ export class SessionStore {
     const all = this.loadSessions()
     const idx = all.findIndex(s => s.id === id)
     if (idx < 0) return
+    all[idx].updatedAt = Date.now()
+    this.saveSessions(all)
+  }
+
+  getUsage(id: string): UsageSummary {
+    return this.get(id)?.usage ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 }
+  }
+
+  addUsage(id: string, usage: UsageSummary): void {
+    const all = this.loadSessions()
+    const idx = all.findIndex(s => s.id === id)
+    if (idx < 0) return
+    const s = all[idx].usage
+    all[idx].usage = {
+      input: s.input + usage.input,
+      output: s.output + usage.output,
+      cacheRead: s.cacheRead + usage.cacheRead,
+      cacheWrite: s.cacheWrite + usage.cacheWrite,
+      cost: s.cost + usage.cost
+    }
     all[idx].updatedAt = Date.now()
     this.saveSessions(all)
   }

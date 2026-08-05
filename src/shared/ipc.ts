@@ -1,6 +1,7 @@
 import type {
-  AgentState, CatalogProviderSummary, ChatEvent, ChatMessage, ChatTranscriptItem, GitStatus, McpServerStatus,
-  MeowSettings, ModelRef, NewAgentInput, PromptResponse, SessionSummary, Template, TodoItem, WorkspaceRuntime, WorkspaceSummary
+  AgentState, CatalogProviderSummary, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ContextChangedEvent,
+  GitStatus, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PromptResponse, SessionSummary,
+  StatsSummary, Template, TodoItem, WorkspaceRuntime, WorkspaceSummary
 } from './types'
 
 export const Channels = {
@@ -35,6 +36,9 @@ export const Channels = {
   AppQuit: 'app:quit',
   ChatSend: 'chat:send',
   ChatStop: 'chat:stop',
+  ChatRunCommand: 'chat:run-command',
+  ChatUndo: 'chat:undo',
+  ChatRedo: 'chat:redo',
   ChatNewSession: 'chat:new-session',
   ChatListMessages: 'chat:list-messages',
   ChatListTranscript: 'chat:list-transcript',
@@ -44,12 +48,18 @@ export const Channels = {
   SessionCreate: 'session:create',
   SessionSwitch: 'session:switch',
   SessionDelete: 'session:delete',
+  SessionRename: 'session:rename',
   SettingsGet: 'settings:get',
   SettingsSave: 'settings:save',
+  CommandList: 'commands:list',
+  CommandSave: 'commands:save',
+  CommandRemove: 'commands:remove',
+  StatsGet: 'stats:get',
   McpStatus: 'mcp:status',
   EventPtyData: 'pty:data',
   EventAgentState: 'agent:state',
   EventGitStatus: 'git:status',
+  EventContextChanged: 'context:changed',
   EventChat: 'chat:event'
 } as const
 
@@ -89,6 +99,9 @@ export interface AgentApi {
   quit(): Promise<void>
   sendChat(agentId: string, text: string): Promise<void>
   stopChat(agentId: string): Promise<void>
+  runCommand(agentId: string, name: string, args: string[]): Promise<void>
+  undoChat(agentId: string): Promise<boolean>
+  redoChat(agentId: string): Promise<boolean>
   newChatSession(agentId: string): Promise<SessionSummary>
   listChatMessages(agentId: string): Promise<ChatMessage[]>
   listChatTranscript(agentId: string): Promise<ChatTranscriptItem[]>
@@ -98,11 +111,17 @@ export interface AgentApi {
   createSession(agentId: string): Promise<SessionSummary>
   switchSession(agentId: string, sessionId: string): Promise<SessionSummary | null>
   deleteSession(agentId: string, sessionId: string): Promise<SessionSummary>
+  renameSession(agentId: string, sessionId: string, title: string): Promise<SessionSummary | null>
   getSettings(): Promise<MeowSettings>
   saveSettings(settings: MeowSettings): Promise<MeowSettings>
+  listCommands(projectPath: string): Promise<Command[]>
+  saveCommand(command: Command): Promise<Command>
+  removeCommand(name: string): Promise<void>
+  getStats(): Promise<StatsSummary>
   getMcpStatus(): Promise<McpServerStatus[]>
   onPtyData(cb: (e: PtyDataEvent) => void): () => void
   onAgentState(cb: (e: AgentStateEvent) => void): () => void
   onGitStatus(cb: (e: GitStatusEvent) => void): () => void
+  onContextChanged(cb: (e: ContextChangedEvent) => void): () => void
   onChatEvent(cb: (e: ChatEvent) => void): () => void
 }

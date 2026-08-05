@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import type { ChatEvent, ChatMessage, ChatTranscriptItem, McpServerStatus, MeowSettings, PromptResponse, TodoItem } from '../shared/types'
-import type { AgentConfig, AgentMode, CatalogProviderSummary, ModelRef, ModelVariant } from '../shared/types'
+import { writeFileSync } from 'node:fs'
+import type { ChatEvent, ChatMessage, ChatTranscriptItem, McpServerStatus, MeowSettings, ModelUsage, PromptResponse, StatsSummary, TodoItem, UsageSummary } from '../shared/types'
+import type { AgentConfig, AgentMode, CatalogProviderSummary, Command, ModelRef, ModelVariant } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, settingsToConfig, writeMeowConfig,
   type ResolvedAgentConfig
@@ -17,6 +18,13 @@ import { loadUserTools } from './agent/plugin'
 import { instructionsText, loadInstructions } from './agent/instructions'
 import { expandReferences } from './agent/references'
 import { SnapshotStore } from './agent/snapshot'
+import type { SnapshotTurn } from './agent/snapshot'
+import { TruncationStore } from './agent/truncation'
+import { CommandStore, uniqueCommands, projectCommands, resolveCommand } from './agent/commands'
+import { calcCost, EMPTY_USAGE } from './agent/usage'
+import type { ModelPrice } from './agent/usage'
+import { LspManager } from './agent/lsp/manager'
+import { createLspTool } from './agent/tools/lsp'
 import { SavedPermissions } from './agent/saved-permissions'
 import { ModelsCatalog } from './models-catalog'
 import { revertTool } from './agent/tools/revert'
@@ -36,6 +44,11 @@ export interface MeowAgentManagerDeps {
   snapshots: SnapshotStore
   savedPermissions: SavedPermissions
   catalog?: ModelsCatalog
+  truncation: TruncationStore
+  commands?: CommandStore
+  prices?: Record<string, { input?: number; output?: number; cacheRead?: number; cacheWrite?: number }>
+  projectPath?: string
+  lsp?: LspManager
 }
 
 export class MeowAgentManager {
@@ -50,6 +63,7 @@ export class MeowAgentManager {
   private modes = new Map<string, AgentMode>()
   private mcp = new McpManager()
   private modelLimits = new Map<string, { context?: number; output?: number }>()
+  private redoStacks = new Map<string, Array<{ items: ChatTranscriptItem[]; turn: SnapshotTurn }>>()
   private onEvent: (e: ChatEvent) => void = () => {}
 
   constructor(private deps: MeowAgentManagerDeps) {
@@ -61,6 +75,10 @@ export class MeowAgentManager {
       if (e.type === 'done' || e.type === 'error') this.running.delete(e.agentId)
       cb(e)
     }
+  }
+
+  setProjectPath(projectPath: string): void {
+    this.deps = { ...this.deps, projectPath }
   }
 
   isNative(agentId: string): boolean {
@@ -174,13 +192,65 @@ export class MeowAgentManager {
     const controller = new AbortController()
     this.controllers.set(agentId, controller)
     this.running.add(agentId)
+    this.redoStacks.delete(agentId)
+    this.deps.snapshots.beginTurn(agentId)
     try {
       await runner.run(controller.signal)
     } finally {
+      this.deps.snapshots.commitTurn(agentId)
       this.running.delete(agentId)
       this.controllers.delete(agentId)
       this.resolvePendingFor(agentId, null)
     }
+  }
+
+  // Undoes the last completed turn: restores pre-turn file contents and drops
+  // the turn's transcript items. Returns true if a turn was undone.
+  undo(agentId: string): boolean {
+    const agent = this.agents.get(agentId)
+    if (!agent) return false
+    this.stop(agentId)
+    const turn = this.deps.snapshots.undo(agentId)
+    if (!turn) return false
+    const sessionId = this.activeSessionId(agentId)
+    const removed = this.deps.store.truncateFromLastUser(sessionId)
+    if (removed.length > 0) {
+      const stack = this.redoStacks.get(agentId) ?? []
+      stack.push({ items: removed, turn })
+      this.redoStacks.set(agentId, stack)
+    }
+    return true
+  }
+
+  // Re-applies a previously undone turn: restores the post-turn file contents
+  // and re-inserts the removed transcript items.
+  redo(agentId: string): boolean {
+    const stack = this.redoStacks.get(agentId)
+    const entry = stack?.pop()
+    if (!entry) return false
+    if (stack && stack.length === 0) this.redoStacks.delete(agentId)
+    const { items, turn } = entry
+    for (const [filePath, content] of Object.entries(turn.after)) {
+      try {
+        writeFileSync(filePath, content)
+      } catch {
+        /* file may be missing */
+      }
+    }
+    this.deps.snapshots.pushTurn(turn)
+    const sessionId = this.activeSessionId(agentId)
+    for (const item of items) {
+      if (item.kind === 'message') this.deps.store.appendMessage(sessionId, item.message)
+      else this.deps.store.appendTool(sessionId, item.tool)
+    }
+    return true
+  }
+
+  renameSession(agentId: string, sessionId: string, title: string): SessionSummary | null {
+    const session = this.deps.store.get(sessionId)
+    if (!session || session.agentId !== agentId) return null
+    this.deps.store.setTitle(sessionId, title)
+    return this.summary(this.deps.store.get(sessionId)!)
   }
 
   stop(agentId: string): void {
@@ -326,6 +396,59 @@ export class MeowAgentManager {
     return this.mcp.status()
   }
 
+  truncationCleanup(): void {
+    this.deps.truncation.cleanup(7)
+  }
+
+  listCommands(projectPath: string): Command[] {
+    const user = this.deps.commands?.list() ?? []
+    return uniqueCommands(user, projectCommands(projectPath))
+  }
+
+  saveCommand(command: Command): Command {
+    if (!this.deps.commands) throw new Error('commands store unavailable')
+    return this.deps.commands.save(command)
+  }
+
+  removeCommand(name: string): void {
+    if (!this.deps.commands) throw new Error('commands store unavailable')
+    this.deps.commands.remove(name)
+  }
+
+  async runCommand(agentId: string, name: string, args: string[]): Promise<void> {
+    const agent = this.agents.get(agentId)
+    if (!agent) return
+    const all = this.listCommands(agent.cwd)
+    const command = all.find(c => c.name === name || `/${c.name}` === name)
+    if (!command) {
+      this.emit({ type: 'error', agentId, message: `[meow] Không tìm thấy command "${name}".` })
+      return
+    }
+    const text = await resolveCommand(command, args, { cwd: agent.cwd, commands: all })
+    await this.send(agentId, text)
+  }
+
+  getStats(): StatsSummary {
+    const sessions = this.deps.store.listAll()
+    const perModel: Record<string, ModelUsage> = {}
+    let totalCost = 0
+    let totalTokens = 0
+    const perSession: Array<{ id: string; title: string; model: string; usage: UsageSummary }> = []
+    for (const s of sessions) {
+      const model = this.resolved.get(s.agentId)?.model ?? ''
+      const u = s.usage
+      totalCost += u.cost
+      totalTokens += u.input + u.output
+      perModel[model] = {
+        messages: (perModel[model]?.messages ?? 0) + 1,
+        tokens: (perModel[model]?.tokens ?? 0) + u.input + u.output,
+        cost: (perModel[model]?.cost ?? 0) + u.cost
+      }
+      perSession.push({ id: s.id, title: s.title, model, usage: u })
+    }
+    return { totalCost, totalTokens, perModel, perSession }
+  }
+
   async saveSettings(settings: MeowSettings): Promise<MeowSettings> {
     const current = loadMeowConfig(this.deps.configPath)
     const cfg = settingsToConfig(settings, current)
@@ -349,6 +472,7 @@ export class MeowAgentManager {
   async dispose(): Promise<void> {
     this.stopAll()
     await this.mcp.closeAll()
+    this.deps.lsp?.dispose()
   }
 
   private async refreshModelLimits(): Promise<void> {
@@ -399,6 +523,7 @@ export class MeowAgentManager {
     const runnerTools = new Map<string, ToolDefinition>([...this.tools])
     runnerTools.set('task', taskTool)
     runnerTools.set('revert', revertTool)
+    if (cfg.lsp.enabled && this.deps.lsp) runnerTools.set('lsp', createLspTool(this.deps.lsp))
     const mode = agent.mode ?? 'build'
     this.modes.set(agent.id, mode)
     const modeNote = mode === 'plan'
@@ -422,6 +547,8 @@ export class MeowAgentManager {
       ask: (promptId, tool) => this.awaitPrompt(agent.id, promptId, tool),
       maxContextTokens: contextTokens,
       compaction: cfg.compaction,
+      toolOutput: cfg.toolOutput,
+      truncation: this.deps.truncation,
       replaceItems: (items) => this.deps.store.replaceItems(this.activeSessionId(agent.id), items),
       snapshots: this.deps.snapshots,
       onEvent: (e) => this.emit(e),
@@ -432,9 +559,30 @@ export class MeowAgentManager {
         this.deps.store.setTodos(this.activeSessionId(agent.id), todos)
         this.emit({ type: 'todo-updated', agentId: agent.id, todos })
       },
-      variant: agent.variant ?? 'high'
+      variant: agent.variant ?? 'high',
+      diagnostics: cfg.lsp.enabled && this.deps.lsp
+        ? (filePath, text) => this.deps.lsp!.diagnosticsText(filePath, text)
+        : undefined,
+      computeCost: (tokens) => calcCost({ input: tokens.input, output: tokens.output }, this.priceFor(resolved.provider, resolved.model)),
+      onUsage: (tokens) => {
+        const price = this.priceFor(resolved.provider, resolved.model)
+        const usage: UsageSummary = {
+          input: tokens.input,
+          output: tokens.output,
+          cacheRead: 0,
+          cacheWrite: 0,
+          cost: calcCost({ input: tokens.input, output: tokens.output }, price)
+        }
+        this.deps.store.addUsage(this.activeSessionId(agent.id), usage)
+      }
     })
     this.runners.set(agent.id, runner)
+  }
+
+  private priceFor(provider: string, model: string): ModelPrice | undefined {
+    const p = this.deps.prices?.[`${provider}/${model}`]
+    if (!p) return undefined
+    return { input: p.input ?? 0, output: p.output ?? 0, cacheRead: p.cacheRead, cacheWrite: p.cacheWrite }
   }
 
   private awaitPrompt(agentId: string, promptId: string, tool?: string): Promise<PromptResponse | null> {

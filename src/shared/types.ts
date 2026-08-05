@@ -102,7 +102,7 @@ export type ChatEvent =
   | { type: 'prompt-request'; agentId: string; promptId: string
       kind: 'permission' | 'question'; call?: ToolCallData; question?: string
       options?: QuestionOption[]; multiple?: boolean; custom?: boolean }
-  | { type: 'done'; agentId: string; reason: string; tokens?: TokenUsage }
+  | { type: 'done'; agentId: string; reason: string; tokens?: TokenUsage; cost?: number }
   | { type: 'error'; agentId: string; message: string }
   | { type: 'compacted'; agentId: string; summary: string }
   | { type: 'todo-updated'; agentId: string; todos: TodoItem[] }
@@ -167,6 +167,17 @@ export interface CompactionSettings {
   keepTokens: number
   tailTurns: number
   toolOutputMaxChars: number
+  prune?: boolean
+}
+
+export interface ToolOutputSettings {
+  maxBytes: number
+  maxLines: number
+}
+
+export interface LspSettings {
+  enabled: boolean
+  diagnosticsTimeoutMs: number
 }
 
 export interface AgentSettings {
@@ -184,6 +195,8 @@ export interface MeowSettings {
   mcp: Record<string, McpServerConfig>
   maxContextTokens: number
   compaction: CompactionSettings
+  toolOutput: ToolOutputSettings
+  lsp: LspSettings
 }
 
 export interface ModelRef {
@@ -203,4 +216,38 @@ export interface McpServerStatus {
   status: 'connected' | 'error'
   error?: string
   tools: string[]
+}
+
+export interface Command {
+  name: string
+  description: string
+  template: string
+  agent?: string
+  model?: string
+}
+
+export interface UsageSummary {
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite: number
+  cost: number
+}
+
+export interface ModelUsage {
+  messages: number
+  tokens: number
+  cost: number
+}
+
+export interface StatsSummary {
+  totalCost: number
+  totalTokens: number
+  perModel: Record<string, ModelUsage>
+  perSession: Array<{ id: string; title: string; model: string; usage: UsageSummary }>
+}
+
+export interface ContextChangedEvent {
+  projectPath: string
+  files: string[]
 }

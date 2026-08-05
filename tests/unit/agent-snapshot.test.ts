@@ -2,8 +2,8 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { SnapshotStore } from '../../src/main/agent/snapshot'
-import type { SnapshotEntry } from '../../src/main/agent/snapshot'
+import { SnapshotStore, MAX_SNAPSHOTS } from '../../src/main/agent/snapshot'
+import type { SnapshotTurn } from '../../src/main/agent/snapshot'
 import { SavedPermissions } from '../../src/main/agent/saved-permissions'
 import type { SavedPermission } from '../../src/main/agent/saved-permissions'
 import { writeTool } from '../../src/main/agent/tools/write'
@@ -12,7 +12,7 @@ import { revertTool } from '../../src/main/agent/tools/revert'
 import type { ToolContext } from '../../src/main/agent/tools/types'
 
 function makeStore() {
-  const entries: SnapshotEntry[] = []
+  const entries: SnapshotTurn[] = []
   return {
     store: new SnapshotStore({
       load: () => entries,
@@ -23,18 +23,53 @@ function makeStore() {
 }
 
 describe('SnapshotStore', () => {
-  it('snapshots, lists, restores and clears', () => {
+  it('records one turn per commit and restores on undo', () => {
     const { store, entries } = makeStore()
+    store.beginTurn('a1')
     store.snapshot('a1', '/x/f.ts', 'original')
     store.snapshot('a1', '/x/f.ts', 'overwritten')
-    expect(store.list('a1')).toEqual([{ filePath: '/x/f.ts' }])
-    store.snapshot('a2', '/y/g.ts', 'other')
-    expect(store.list('a1')).toHaveLength(1)
-    expect(store.restore('a1', '/x/f.ts')).toBe('overwritten')
-    expect(store.restore('a1', '/x/f.ts')).toBeNull()
+    store.commitTurn('a1')
     expect(entries).toHaveLength(1)
-    store.clear('a2')
+    expect(entries[0].before).toEqual({ '/x/f.ts': 'original' })
+    expect(store.undo('a1')).not.toBeNull()
     expect(entries).toHaveLength(0)
+    expect(store.undo('a1')).toBeNull()
+  })
+
+  it('keeps only the first snapshot per file within a turn', () => {
+    const { store, entries } = makeStore()
+    store.beginTurn('a1')
+    store.snapshot('a1', '/x/f.ts', 'first')
+    store.snapshot('a1', '/x/f.ts', 'second')
+    store.commitTurn('a1')
+    expect(entries[0].before['/x/f.ts']).toBe('first')
+  })
+
+  it('keeps separate agents isolated and caps history', () => {
+    const { store, entries } = makeStore()
+    for (let i = 0; i < MAX_SNAPSHOTS + 5; i++) {
+      store.beginTurn('a1')
+      store.snapshot('a1', `/x/${i}.ts`, String(i))
+      store.commitTurn('a1')
+    }
+    store.beginTurn('a2')
+    store.snapshot('a2', '/y/g.ts', 'other')
+    store.commitTurn('a2')
+    expect(entries.filter(e => e.agentId === 'a1')).toHaveLength(MAX_SNAPSHOTS)
+    expect(entries.filter(e => e.agentId === 'a2')).toHaveLength(1)
+    store.clear('a2')
+    expect(entries.every(e => e.agentId !== 'a2')).toBe(true)
+  })
+
+  it('originals returns the earliest recorded content per file', () => {
+    const { store } = makeStore()
+    store.beginTurn('a1')
+    store.snapshot('a1', '/x/f.ts', 'v1')
+    store.commitTurn('a1')
+    store.beginTurn('a1')
+    store.snapshot('a1', '/x/f.ts', 'v2')
+    store.commitTurn('a1')
+    expect(store.originals('a1')).toEqual([{ filePath: '/x/f.ts', content: 'v1' }])
   })
 })
 
@@ -55,18 +90,28 @@ describe('SavedPermissions', () => {
 describe('revert tool + file tools snapshot', () => {
   let dir: string
   let ctx: ToolContext
+  let store: SnapshotStore
 
   beforeEach(() => {
     dir = mkdtempSync(path.join(tmpdir(), 'meow-snap-'))
-    const { store } = makeStore()
+    store = makeStore().store
     ctx = { cwd: dir, ask: async () => null, agentId: 'a1', snapshots: store }
   })
 
   afterEach(() => rmSync(dir, { recursive: true, force: true }))
 
+  async function inTurn(fn: () => Promise<unknown>): Promise<void> {
+    store.beginTurn('a1')
+    try {
+      await fn()
+    } finally {
+      store.commitTurn('a1')
+    }
+  }
+
   it('reverts a write back to the original content', async () => {
     writeFileSync(path.join(dir, 'f.txt'), 'original')
-    await writeTool.run({ file_path: 'f.txt', content: 'changed' }, ctx)
+    await inTurn(() => writeTool.run({ file_path: 'f.txt', content: 'changed' }, ctx))
     expect(readFileSync(path.join(dir, 'f.txt'), 'utf-8')).toBe('changed')
     const r = await revertTool.run({}, ctx)
     expect(r.output).toContain('reverted 1')
@@ -75,7 +120,7 @@ describe('revert tool + file tools snapshot', () => {
 
   it('reverts an edit back to the original content', async () => {
     writeFileSync(path.join(dir, 'f.txt'), 'aaa\nbbb\n')
-    await editTool.run({ file_path: 'f.txt', old_string: 'bbb', new_string: 'BBB' }, ctx)
+    await inTurn(() => editTool.run({ file_path: 'f.txt', old_string: 'bbb', new_string: 'BBB' }, ctx))
     expect(readFileSync(path.join(dir, 'f.txt'), 'utf-8')).toBe('aaa\nBBB\n')
     await revertTool.run({}, ctx)
     expect(readFileSync(path.join(dir, 'f.txt'), 'utf-8')).toBe('aaa\nbbb\n')

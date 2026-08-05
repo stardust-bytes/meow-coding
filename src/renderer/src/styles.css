@@ -307,6 +307,19 @@ select.input { width: 100%; }
 }
 .session-row:hover .session-row-delete { visibility: visible; }
 .session-row-delete:hover { color: var(--red); }
+.session-row-rename {
+  background: transparent; border: none; color: var(--text-faint);
+  cursor: pointer; padding: 0 4px; font-size: var(--fs-base); line-height: 1;
+  visibility: hidden;
+}
+.session-row:hover .session-row-rename { visibility: visible; }
+.session-row-rename:hover { color: var(--blue); }
+.session-rename-input {
+  flex: 1; min-width: 0; padding: 2px 6px; background: var(--bg-input);
+  color: var(--text); border: none; font-family: var(--font-mono); font-size: var(--fs-md);
+}
+.session-rename-input:focus { outline: 1px solid var(--accent); outline-offset: -1px; }
+.chat-history-actions { display: flex; gap: 4px; padding: 2px 10px; }
 .chat-todos {
   flex: 0 0 auto; max-height: 160px; overflow-y: auto;
   padding: 6px 10px; border-bottom: 1px solid var(--hairline);
@@ -614,6 +627,29 @@ select.input { width: 100%; }
 
 /* Token usage */
 .chat-tokens { color: var(--text-dim); font-size: var(--fs-base); padding: 2px 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.chat-tokens-cost { color: var(--green); }
+
+/* Command menu */
+.command-menu {
+  position: absolute; bottom: calc(100% + 4px); left: 0; z-index: 40;
+  min-width: 320px; max-width: 480px; max-height: 280px; overflow-y: auto;
+  background: var(--bg-panel); box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45), 0 8px 24px rgba(0, 0, 0, 0.45);
+  padding: 4px; display: flex; flex-direction: column; gap: 2px;
+}
+.chat-input { position: relative; }
+.command-item {
+  text-align: left; display: flex; flex-direction: column; gap: 2px;
+  padding: 6px 10px; border: none; background: transparent; color: #fff; cursor: pointer;
+}
+.command-item.selected { background: var(--bg-active); box-shadow: inset 2px 0 0 var(--blue); }
+.command-name { font-family: var(--font-mono); color: var(--blue); font-size: var(--fs-md); }
+.command-desc { color: var(--text-dim); font-size: var(--fs-base); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Commands settings tab */
+.command-tab-desc { flex: 1; min-width: 0; color: var(--text-dim); font-size: var(--fs-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.commands-add { display: flex; flex-direction: column; gap: 6px; }
+.commands-template { min-height: 90px; resize: vertical; font-family: var(--font-mono); font-size: var(--fs-md); }
+.commands-add-actions { display: flex; gap: 6px; }
 
 /* Sidebar menu dropdown */
 .sidebar-menu { position: relative; }

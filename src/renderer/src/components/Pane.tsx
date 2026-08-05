@@ -45,6 +45,7 @@ export default function Pane({
       {native ? (
         <ChatPanel
           agentId={id}
+          cwd={pane.agent.cwd}
           mode={pane.agent.mode ?? 'build'}
           variant={pane.agent.variant}
           onModeChange={m => void window.api.setAgentMode(id, m)}

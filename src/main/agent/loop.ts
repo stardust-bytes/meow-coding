@@ -7,9 +7,10 @@ import { toLlmMessages } from './message'
 import type { TranscriptItem } from './message'
 import type { ToolContext, ToolDefinition } from './tools/types'
 import type { PermissionDecision } from './permission'
-import { selectHeadTail, serializeItems, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER } from './compact'
+import { selectHeadTail, serializeItems, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, pruneToolOutputs } from './compact'
 import type { CompactionSettings } from './compact'
 import { estimateUsage } from './token'
+import type { TruncationStore } from './truncation'
 import type { SnapshotStore } from './snapshot'
 
 export interface LoopDeps {
@@ -24,6 +25,8 @@ export interface LoopDeps {
   maxSteps?: number
   maxContextTokens?: number
   compaction?: CompactionSettings
+  toolOutput?: { maxBytes: number; maxLines: number }
+  truncation?: TruncationStore
   replaceItems?: (items: TranscriptItem[]) => void
   snapshots?: SnapshotStore
   onEvent: (e: ChatEvent) => void
@@ -32,13 +35,18 @@ export interface LoopDeps {
   appendTool: (tool: ToolCallData) => void
   setTodos?: (todos: TodoItem[]) => void
   variant?: ModelVariant
+  onUsage?: (usage: { input: number; output: number; total: number }) => void
+  computeCost?: (usage: { input: number; output: number }) => number
+  diagnostics?: (filePath: string, text: string) => Promise<string>
 }
 
 const DEFAULT_MAX_STEPS = 50
+const MAX_COMPACT_PER_RUN = 2
 const MAX_STEPS_PROMPT = 'Final step: wrap up and provide your final answer now. Tool calls are disabled.'
 
 export class SessionRunner {
   private readonly maxSteps: number
+  private compactedThisRun = 0
 
   constructor(private deps: LoopDeps) {
     this.maxSteps = deps.maxSteps ?? DEFAULT_MAX_STEPS
@@ -47,6 +55,8 @@ export class SessionRunner {
   async run(signal?: AbortSignal): Promise<void> {
     const { agentId } = this.deps
     let steps = 0
+    this.compactedThisRun = 0
+    const runUsage = { input: 0, output: 0, total: 0 }
     while (true) {
       if (signal?.aborted) {
         this.deps.onEvent({ type: 'done', agentId, reason: 'stopped' })
@@ -110,6 +120,11 @@ export class SessionRunner {
             this.deps.onEvent({ type: 'tool-start', agentId, call })
           } else if (part.kind === 'finish') {
             tokens = part.tokens
+            if (part.tokens) {
+              runUsage.input += part.tokens.input
+              runUsage.output += part.tokens.output
+              runUsage.total += part.tokens.total
+            }
           } else if (part.kind === 'error') {
             persistPartial()
             this.deps.onEvent({ type: 'error', agentId, message: part.error ?? 'llm error' })
@@ -152,11 +167,13 @@ export class SessionRunner {
       }
 
       if (!hasToolCall) {
-        this.deps.onEvent({ type: 'done', agentId, reason: 'complete', tokens })
+        this.deps.onEvent({ type: 'done', agentId, reason: 'complete', tokens, cost: this.deps.computeCost?.(runUsage) })
+        this.deps.onUsage?.(runUsage)
         return
       }
       if (isLastStep) {
-        this.deps.onEvent({ type: 'done', agentId, reason: 'max-steps', tokens })
+        this.deps.onEvent({ type: 'done', agentId, reason: 'max-steps', tokens, cost: this.deps.computeCost?.(runUsage) })
+        this.deps.onUsage?.(runUsage)
         return
       }
     }
@@ -194,6 +211,7 @@ export class SessionRunner {
           signal,
           agentId: this.deps.agentId,
           snapshots: this.deps.snapshots,
+          diagnostics: this.deps.diagnostics,
           setTodos: (todos) => this.deps.setTodos?.(todos),
           emitSubagent: (taskId, e) => this.deps.onEvent({
             type: 'subagent-event',
@@ -248,17 +266,25 @@ export class SessionRunner {
     if (!compaction?.auto || !maxContextTokens || maxContextTokens <= 0 || !replaceItems) return
     const usable = maxContextTokens - compaction.buffer
     if (usable <= 0) return
-    const items = this.deps.getItems()
-    if (estimateUsage(toLlmMessages(items, { toolOutputMaxChars: compaction.toolOutputMaxChars })) < usable) {
-      return
+    let items = this.deps.getItems()
+    const opts = { toolOutputMaxChars: compaction.toolOutputMaxChars, ...this.truncationOpts() }
+    if (estimateUsage(toLlmMessages(items, opts)) < usable) return
+
+    // Prune old tool outputs first (cheap) before spending an LLM compact call.
+    const pruned = pruneToolOutputs(items, compaction)
+    if (pruned) {
+      replaceItems(items)
+      if (estimateUsage(toLlmMessages(items, opts)) < usable) return
     }
 
     const { head, tail } = selectHeadTail(items, compaction.keepTokens, compaction.tailTurns)
     if (head.length === 0) return
+    if (this.compactedThisRun >= MAX_COMPACT_PER_RUN) return
     const previousSummary = this.findPreviousSummary(items)
     const prompt = buildCompactionPrompt(previousSummary, serializeItems(head, compaction.toolOutputMaxChars))
     const summary = await compactTranscript({ llm: this.deps.llm, model: this.deps.model, prompt, signal })
     if (signal?.aborted || !summary) return
+    this.compactedThisRun++
 
     // Render the compaction like opencode: a user marker followed by the summary
     // as an assistant message, then the verbatim recent tail.
@@ -275,6 +301,14 @@ export class SessionRunner {
     this.deps.onEvent({ type: 'compacted', agentId: this.deps.agentId, summary })
   }
 
+  private truncationOpts(): { truncate?: (toolId: string, text: string) => string } {
+    const store = this.deps.truncation
+    const cfg = this.deps.toolOutput
+    if (!store || !cfg) return {}
+    const { maxBytes, maxLines } = cfg
+    return { truncate: (toolId, text) => store.truncate(this.deps.agentId, toolId, text, { maxBytes, maxLines }) }
+  }
+
   private findPreviousSummary(items: TranscriptItem[]): string | undefined {
     for (let i = items.length - 1; i >= 0; i--) {
       const item = items[i]
@@ -289,9 +323,9 @@ export class SessionRunner {
   private buildMessages(isLastStep = false): ReturnType<typeof toLlmMessages> {
     const items = this.deps.getItems()
     const toolOutputMaxChars = this.deps.compaction?.toolOutputMaxChars
-    let messages = toLlmMessages(items, { toolOutputMaxChars })
+    const messages = toLlmMessages(items, { toolOutputMaxChars, ...this.truncationOpts() })
     if (isLastStep) {
-      messages = [...messages, { role: 'user', content: MAX_STEPS_PROMPT }]
+      return [...messages, { role: 'user', content: MAX_STEPS_PROMPT }]
     }
     return messages
   }

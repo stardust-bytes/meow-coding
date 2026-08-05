@@ -32,6 +32,16 @@ describe('write', () => {
     const fs = await import('node:fs')
     expect(fs.readFileSync(path.join(dir, 'src', 'a.ts'), 'utf-8')).toBe('hello')
   })
+
+  it('appends diagnostics to the output when provided', async () => {
+    const diagCtx: ToolContext = {
+      ...ctx,
+      diagnostics: async () => '[LSP] src/a.ts:1:1: mock error'
+    }
+    const r = await writeTool.run({ file_path: 'src/a.ts', content: 'hello' }, diagCtx)
+    expect(r.output).toContain('wrote src/a.ts')
+    expect(r.output).toContain('[LSP]')
+  })
 })
 
 describe('read', () => {

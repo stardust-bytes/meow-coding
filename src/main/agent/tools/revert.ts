@@ -9,13 +9,11 @@ export const revertTool: ToolDefinition = {
   schema: z.object({}),
   async run(_input, ctx): Promise<ToolRunResult> {
     if (!ctx.snapshots || !ctx.agentId) return { error: 'revert: unavailable in this context' }
-    const list = ctx.snapshots.list(ctx.agentId)
-    if (list.length === 0) return { output: '(no changes to revert)' }
+    const files = ctx.snapshots.originals(ctx.agentId)
+    if (files.length === 0) return { output: '(no changes to revert)' }
     let reverted = 0
     let failed = 0
-    for (const { filePath } of list) {
-      const content = ctx.snapshots.restore(ctx.agentId, filePath)
-      if (content === null) continue
+    for (const { filePath, content } of files) {
       try {
         writeFileSync(filePath, content)
         reverted++

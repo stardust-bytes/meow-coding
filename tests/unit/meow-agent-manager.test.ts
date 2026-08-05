@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { MeowAgentManager } from '../../src/main/meow-agent-manager'
@@ -10,6 +10,8 @@ import { ModelsCatalog } from '../../src/main/models-catalog'
 import { createDefaultTools } from '../../src/main/agent/tools/registry'
 import { SnapshotStore } from '../../src/main/agent/snapshot'
 import type { SnapshotEntry } from '../../src/main/agent/snapshot'
+import { TruncationStore } from '../../src/main/agent/truncation'
+import { CommandStore } from '../../src/main/agent/commands'
 import { SavedPermissions } from '../../src/main/agent/saved-permissions'
 import type { SavedPermission } from '../../src/main/agent/saved-permissions'
 import type { LlmClient, LlmStreamOptions, LlmStreamPart } from '../../src/main/agent/llm'
@@ -86,6 +88,9 @@ async function makeManager(opts: StubLlmOptions & { configPath?: string; catalog
     tools: createDefaultTools(),
     createLlm,
     catalog: opts.catalog,
+    truncation: new TruncationStore(path.join(cfgDir, 'truncation')),
+    commands: new CommandStore(path.join(cfgDir, 'commands.json')),
+    prices: { 'test/test-model': { input: 1, output: 2 } },
     env: { ANTHROPIC_API_KEY: 'sk-test' } as NodeJS.ProcessEnv
   })
   manager.setOnEvent(e => events.push(e))
@@ -142,6 +147,7 @@ describe('MeowAgentManager', () => {
     const permEntries: SavedPermission[] = []
     const savedPermissions = new SavedPermissions({ load: () => permEntries, save: (n) => permEntries.splice(0, permEntries.length, ...n) })
     const evts: ChatEvent[] = []
+    const tmpDir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-err-'))
     const m2 = new MeowAgentManager({
       configPath: '/nonexistent/meow.json',
       store,
@@ -149,11 +155,13 @@ describe('MeowAgentManager', () => {
       savedPermissions,
       tools: createDefaultTools(),
       createLlm: () => ({ async *stream() { yield { kind: 'finish' } } }),
+      truncation: new TruncationStore(path.join(tmpDir, 'truncation2')),
       env: {}
     })
     m2.setOnEvent(e => evts.push(e))
     await m2.init([{ ...MEOW_AGENT }])
     await m2.send('a1', 'hi')
+    rmSync(tmpDir, { recursive: true, force: true })
     expect(evts.some(e => e.type === 'error')).toBe(true)
     expect((evts.find(e => e.type === 'error') as Extract<ChatEvent, { type: 'error' }>).message).toContain('[meow]')
   })
@@ -219,6 +227,43 @@ describe('MeowAgentManager', () => {
     expect(manager.listSessions('a1')).toHaveLength(0)
     // store no longer holds the orphaned session
     expect(store.list('a1')).toHaveLength(0)
+  })
+
+  it('undo removes the last turn transcript and redo restores it', async () => {
+    const { manager, store } = await makeManager()
+    // Seed a snapshot turn so undo has history to pop.
+    const file = path.join(tmpdir(), 'meow-undo-f.txt')
+    writeFileSync(file, 'original')
+    const snapshots = (manager as unknown as { deps: { snapshots: import('../../src/main/agent/snapshot').SnapshotStore } }).deps.snapshots
+    snapshots.beginTurn('a1')
+    snapshots.snapshot('a1', file, 'original')
+    snapshots.commitTurn('a1')
+
+    await manager.send('a1', 'first')
+    expect(manager.listMessages('a1').map(m => m.role)).toEqual(['user', 'assistant'])
+    expect(manager.undo('a1')).toBe(true)
+    expect(manager.listMessages('a1')).toEqual([])
+    expect(readFileSync(file, 'utf-8')).toBe('original')
+    expect(manager.redo('a1')).toBe(true)
+    expect(manager.listMessages('a1').map(m => m.role)).toEqual(['user', 'assistant'])
+    // redo re-inserts the turn, so another undo works
+    expect(manager.redo('a1')).toBe(false)
+    expect(manager.undo('a1')).toBe(true)
+    rmSync(file, { force: true })
+  })
+
+  it('undo returns false when there is no snapshot history', async () => {
+    const { manager } = await makeManager()
+    manager.newSession('a1')
+    expect(manager.undo('a1')).toBe(false)
+  })
+
+  it('renameSession updates the title', async () => {
+    const { manager } = await makeManager()
+    const s = manager.listSessions('a1')[0] ?? manager.newSession('a1')
+    const renamed = manager.renameSession('a1', s.id, 'My custom title')
+    expect(renamed?.title).toBe('My custom title')
+    expect(manager.listSessions('a1')[0].title).toBe('My custom title')
   })
 
   it('getSettings has no built-in provider presets', async () => {
@@ -413,5 +458,48 @@ describe('MeowAgentManager', () => {
     await run
     const result = events.find(e => e.type === 'tool-result') as Extract<ChatEvent, { type: 'tool-result' }>
     expect(result.call.permission).toBe('denied')
+  })
+
+  it('lists built-in commands and runs one via the runner', async () => {
+    const { manager, events } = await makeManager()
+    const list = manager.listCommands('/proj')
+    expect(list.map(c => c.name)).toContain('init')
+    const p = manager.runCommand('a1', 'init', [])
+    await new Promise(r => setTimeout(r, 20))
+    // command sends a message to the agent → running then done
+    expect(manager.isRunning('a1')).toBe(false)
+    await p
+    expect(events.some(e => e.type === 'done')).toBe(true)
+  })
+
+  it('reports cost in the done event and accumulates session usage', async () => {
+    const { manager, events, store } = await makeManager({
+      partsQueue: [[{ kind: 'text', text: 'hi' }, { kind: 'finish', tokens: { input: 1000, output: 500, total: 1500 } }]]
+    })
+    manager.newSession('a1')
+    await manager.send('a1', 'hello')
+    const done = events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
+    expect(done.cost).toBeGreaterThan(0)
+    const sessionId = manager.listSessions('a1')[0].id
+    const usage = store.get(sessionId)?.usage
+    expect(usage?.input).toBe(1000)
+    expect(usage?.cost).toBeCloseTo(done.cost ?? 0, 10)
+  })
+
+  it('getStats aggregates usage across sessions', async () => {
+    const { manager } = await makeManager({
+      partsQueue: [
+        [{ kind: 'text', text: 'a' }, { kind: 'finish', tokens: { input: 500, output: 300, total: 800 } }],
+        [{ kind: 'text', text: 'b' }, { kind: 'finish', tokens: { input: 200, output: 100, total: 300 } }]
+      ]
+    })
+    await manager.send('a1', 'first')
+    manager.newSession('a1')
+    await manager.send('a1', 'second')
+    const stats = manager.getStats()
+    expect(stats.totalTokens).toBe(1100)
+    expect(stats.totalCost).toBeGreaterThan(0)
+    expect(stats.perModel['test-model']).toBeDefined()
+    expect(stats.perSession).toHaveLength(2)
   })
 })

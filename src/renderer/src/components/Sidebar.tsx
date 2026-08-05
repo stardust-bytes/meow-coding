@@ -182,7 +182,7 @@ export default function Sidebar({
           onClose={() => setAddAgentPath(null)}
         />
       )}
-      {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
+      {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} projectPath={activePath ?? undefined} />}
     </aside>
   )
 }

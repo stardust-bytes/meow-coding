@@ -21,6 +21,16 @@ export interface MeowAgentConfig {
 
 export type MeowCompactionConfig = CompactionSettings
 
+export interface ToolOutputConfig {
+  maxBytes: number
+  maxLines: number
+}
+
+export interface LspConfig {
+  enabled: boolean
+  diagnosticsTimeoutMs: number
+}
+
 export interface MeowConfig {
   provider: Record<string, MeowProviderConfig>
   model: string
@@ -29,6 +39,8 @@ export interface MeowConfig {
   mcp: Record<string, McpServerConfig>
   maxContextTokens: number
   compaction: MeowCompactionConfig
+  toolOutput: ToolOutputConfig
+  lsp: LspConfig
 }
 
 export interface ResolvedAgentConfig {
@@ -45,7 +57,16 @@ export const DEFAULT_COMPACTION: MeowCompactionConfig = {
   buffer: 20000,
   keepTokens: 8000,
   tailTurns: 2,
-  toolOutputMaxChars: 2000
+  toolOutputMaxChars: 2000,
+  prune: true
+}
+export const DEFAULT_TOOL_OUTPUT: ToolOutputConfig = {
+  maxBytes: 51200,
+  maxLines: 2000
+}
+export const DEFAULT_LSP: LspConfig = {
+  enabled: true,
+  diagnosticsTimeoutMs: 3000
 }
 
 export const DEFAULT_MEOW_CONFIG: MeowConfig = {
@@ -75,7 +96,9 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
   },
   mcp: {},
   maxContextTokens: DEFAULT_MAX_CONTEXT_TOKENS,
-  compaction: DEFAULT_COMPACTION
+  compaction: DEFAULT_COMPACTION,
+  toolOutput: DEFAULT_TOOL_OUTPUT,
+  lsp: DEFAULT_LSP
 }
 
 type RawProvider = Partial<MeowProviderConfig> & Record<string, unknown>
@@ -118,7 +141,22 @@ function normalizeCompaction(raw: Partial<MeowCompactionConfig> | undefined): Me
     buffer: raw?.buffer ?? DEFAULT_COMPACTION.buffer,
     keepTokens: raw?.keepTokens ?? DEFAULT_COMPACTION.keepTokens,
     tailTurns: raw?.tailTurns ?? DEFAULT_COMPACTION.tailTurns,
-    toolOutputMaxChars: raw?.toolOutputMaxChars ?? DEFAULT_COMPACTION.toolOutputMaxChars
+    toolOutputMaxChars: raw?.toolOutputMaxChars ?? DEFAULT_COMPACTION.toolOutputMaxChars,
+    prune: raw?.prune ?? DEFAULT_COMPACTION.prune
+  }
+}
+
+function normalizeToolOutput(raw: Partial<ToolOutputConfig> | undefined): ToolOutputConfig {
+  return {
+    maxBytes: raw?.maxBytes ?? DEFAULT_TOOL_OUTPUT.maxBytes,
+    maxLines: raw?.maxLines ?? DEFAULT_TOOL_OUTPUT.maxLines
+  }
+}
+
+function normalizeLsp(raw: Partial<LspConfig> | undefined): LspConfig {
+  return {
+    enabled: raw?.enabled ?? DEFAULT_LSP.enabled,
+    diagnosticsTimeoutMs: raw?.diagnosticsTimeoutMs ?? DEFAULT_LSP.diagnosticsTimeoutMs
   }
 }
 
@@ -134,7 +172,9 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     permission: { ...DEFAULT_MEOW_CONFIG.permission, ...(raw.permission ?? {}) },
     mcp: raw.mcp ?? {},
     maxContextTokens: raw.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
-    compaction: normalizeCompaction(raw.compaction)
+    compaction: normalizeCompaction(raw.compaction),
+    toolOutput: normalizeToolOutput(raw.toolOutput),
+    lsp: normalizeLsp(raw.lsp)
   }
 }
 
@@ -216,7 +256,9 @@ export function configToSettings(cfg: MeowConfig): MeowSettings {
     permission: cfg.permission,
     mcp: cfg.mcp,
     maxContextTokens: cfg.maxContextTokens,
-    compaction: cfg.compaction
+    compaction: cfg.compaction,
+    toolOutput: cfg.toolOutput,
+    lsp: cfg.lsp
   }
 }
 
@@ -251,7 +293,9 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
       : (base.permission ?? DEFAULT_MEOW_CONFIG.permission),
     mcp: settings.mcp ?? base.mcp ?? {},
     maxContextTokens: settings.maxContextTokens ?? base.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
-    compaction: settings.compaction ? normalizeCompaction(settings.compaction) : normalizeCompaction(base.compaction)
+    compaction: settings.compaction ? normalizeCompaction(settings.compaction) : normalizeCompaction(base.compaction),
+    toolOutput: settings.toolOutput ? normalizeToolOutput(settings.toolOutput) : normalizeToolOutput(base.toolOutput),
+    lsp: settings.lsp ? normalizeLsp(settings.lsp) : normalizeLsp(base.lsp)
   }
 }
 

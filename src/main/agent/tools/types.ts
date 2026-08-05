@@ -19,6 +19,7 @@ export interface ToolContext {
   signal?: AbortSignal
   agentId?: string
   snapshots?: SnapshotStore
+  diagnostics?: (filePath: string, text: string) => Promise<string>
 }
 
 export interface SubagentToolEvent {
