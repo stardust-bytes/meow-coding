@@ -74,6 +74,21 @@ export default function App() {
     void refreshWorkspaces()
   }, [refreshWorkspaces])
 
+  const removeAgent = useCallback(async (agentId: string) => {
+    const path = runtime?.workspace.projectPath
+    if (!path) return
+    try {
+      await window.api.removeAgent(path, agentId)
+    } catch {
+      /* surface via pane menu later; still refresh */
+    }
+    termsRef.current.delete(agentId)
+    buffersRef.current.delete(agentId)
+    const rt = await window.api.openWorkspace(path)
+    setRuntime(rt)
+    setWorkspaces(await window.api.listWorkspaces())
+  }, [runtime])
+
   const registerTerminal = useCallback((agentId: string, term: Terminal) => {
     termsRef.current.set(agentId, term)
     const buf = buffersRef.current.get(agentId)
@@ -115,6 +130,7 @@ export default function App() {
           {panes.length > 0 ? (
             <PaneGrid
               panes={panes}
+              onRemove={removeAgent}
               onRegisterTerminal={registerTerminal}
               onUnregisterTerminal={unregisterTerminal}
             />

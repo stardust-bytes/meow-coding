@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { AgentState, GitStatus } from '@shared/types'
 
 interface Props {
@@ -13,6 +13,7 @@ interface Props {
   onRestart: () => void
   onInject: (text: string) => void
   onOpenLog: () => void
+  onRemove: () => void
 }
 
 const STATUS_LABEL: Record<AgentState['status'], string> = {
@@ -20,11 +21,41 @@ const STATUS_LABEL: Record<AgentState['status'], string> = {
   exited: 'exited', stopped: 'stopped', error: 'error'
 }
 
+function MoreIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <circle cx="3" cy="8" r="1.5" />
+      <circle cx="8" cy="8" r="1.5" />
+      <circle cx="13" cy="8" r="1.5" />
+    </svg>
+  )
+}
+
 export default function PaneHeader({
-  name, state, git, zoomed, native = false, active = false, onZoom, onStop, onRestart, onInject, onOpenLog
+  name, state, git, zoomed, native = false, active = false, onZoom, onStop, onRestart, onInject, onOpenLog, onRemove
 }: Props) {
+  const [menuOpen, setMenuOpen] = useState(false)
   const [injecting, setInjecting] = useState(false)
   const [prompt, setPrompt] = useState('')
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as Node
+      if (!rootRef.current?.contains(target)) setMenuOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [])
+
+  const close = () => setMenuOpen(false)
 
   const submitInject = () => {
     const text = prompt.trim()
@@ -44,32 +75,47 @@ export default function PaneHeader({
         {git ? (git.branch ? `${git.branch} ` : '') + (git.dirtyCount > 0 ? `\u25cf ${git.dirtyCount}` : '') : '--'}
       </span>
       <span className="pane-actions">
-        {!native && (
-          <>
-            {injecting && (
-              <input
-                className="input inject-input"
-                autoFocus
-                placeholder="prompt..."
-                value={prompt}
-                onChange={e => setPrompt(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') submitInject()
-                  if (e.key === 'Escape') setInjecting(false)
-                }}
-              />
-            )}
-            <button className="btn small" title="inject prompt" onClick={() => setInjecting(v => !v)}>inject</button>
-          </>
+        {injecting && (
+          <input
+            className="input inject-input"
+            autoFocus
+            placeholder="prompt..."
+            value={prompt}
+            onChange={e => setPrompt(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') submitInject()
+              if (e.key === 'Escape') setInjecting(false)
+            }}
+          />
         )}
-        <button className="btn small" title="stop" onClick={onStop}>stop</button>
-        <button className="btn small" title="restart / clear session" onClick={onRestart}>restart</button>
-        {!native && (
-          <button className="btn small" title="open log" onClick={onOpenLog}>log</button>
-        )}
-        <button className="btn small" title={zoomed ? 'back to grid' : 'zoom'} onClick={onZoom}>
-          {zoomed ? 'exit' : 'zoom'}
-        </button>
+        <div className="pane-menu" ref={rootRef}>
+          <button
+            className="btn ghost small"
+            title="pane menu"
+            aria-label={`menu ${name}`}
+            onClick={() => setMenuOpen(v => !v)}
+          >
+            <span className="btn-icon"><MoreIcon /></span>
+          </button>
+          {menuOpen && (
+            <div className="sidebar-menu-dropdown pane-menu-dropdown">
+              {!native && (
+                <>
+                  <button className="menu-item" onClick={() => { close(); setInjecting(v => !v) }}>Inject</button>
+                  <button className="menu-item" onClick={() => { close(); onOpenLog() }}>Log</button>
+                  <button className="menu-item" onClick={() => { close(); onStop() }}>Stop</button>
+                  <button className="menu-item" onClick={() => { close(); onZoom() }}>
+                    {zoomed ? 'Exit zoom' : 'Zoom'}
+                  </button>
+                </>
+              )}
+              <button className="menu-item" onClick={() => { close(); onRestart() }}>
+                {native ? 'New session' : 'Restart'}
+              </button>
+              <button className="menu-item danger" onClick={() => { close(); onRemove() }}>Delete agent</button>
+            </div>
+          )}
+        </div>
       </span>
     </div>
   )

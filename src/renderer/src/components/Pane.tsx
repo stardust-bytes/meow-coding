@@ -10,12 +10,13 @@ interface Props {
   active: boolean
   onFocus: () => void
   onZoom: () => void
+  onRemove: () => void
   onRegisterTerminal: (agentId: string, term: Terminal) => void
   onUnregisterTerminal: (agentId: string) => void
 }
 
 export default function Pane({
-  pane, zoomed, active, onFocus, onZoom, onRegisterTerminal, onUnregisterTerminal
+  pane, zoomed, active, onFocus, onZoom, onRemove, onRegisterTerminal, onUnregisterTerminal
 }: Props) {
   const id = pane.agent.id
   const write = (data: string) => void window.api.writeInput(id, data)
@@ -39,6 +40,7 @@ export default function Pane({
           : void window.api.restartAgent(id)}
         onInject={text => void window.api.injectPrompt(id, text)}
         onOpenLog={() => void window.api.openLog(id)}
+        onRemove={onRemove}
       />
       {native ? (
         <ChatPanel
