@@ -49,6 +49,7 @@
   "build": {
     "appId": "com.meow.coding",
     "productName": "Meow Coding",
+    "icon": "moew-coding-logo.png",
     "directories": {
       "output": "release"
     },
