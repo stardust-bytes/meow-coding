@@ -119,6 +119,10 @@ class MainApp {
     }
   }
 
+  clearState(agentId: string): void {
+    this.states.delete(agentId)
+  }
+
   private findWorkspaceByAgent(agentId: string): Workspace | undefined {
     return this.workspaces.list().map(s => this.workspaces.get(s.projectPath))
       .find(w => w && w.agents.some(a => a.id === agentId))
@@ -173,10 +177,6 @@ class MainApp {
   async openWorkspace(projectPath: string): Promise<WorkspaceRuntime> {
     const ws = this.workspaces.get(projectPath)
     if (!ws) throw new Error(`Workspace not found: ${projectPath}`)
-    if (this.activeProject && this.activeProject !== projectPath) {
-      await this.pty.stopAll()
-      this.resetActiveProject()
-    }
     this.activeProject = projectPath
     await this.meowAgent.init(ws.agents)
     for (const agent of ws.agents) {
@@ -260,9 +260,23 @@ function createWindow(): void {
   } else {
     win.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (isExternalUrl(url)) void shell.openExternal(url)
+    return { action: 'deny' }
+  })
+  win.webContents.on('will-navigate', (event, url) => {
+    if (isExternalUrl(url)) {
+      event.preventDefault()
+      void shell.openExternal(url)
+    }
+  })
   win.on('closed', () => {
     win = null
   })
+}
+
+function isExternalUrl(url: string): boolean {
+  return /^(https?|mailto):/i.test(url)
 }
 
 function registerIpcHandlers(): void {
@@ -287,7 +301,9 @@ function registerIpcHandlers(): void {
     const ws = mainApp.workspaces.get(projectPath)
     if (ws) {
       for (const agent of ws.agents) {
+        mainApp.meowAgent.removeAgent(agent.id)
         await mainApp.pty.stop(agent.id)
+        mainApp.clearState(agent.id)
       }
     }
     if (mainApp.isActiveProject(projectPath)) {
