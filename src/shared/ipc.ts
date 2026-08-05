@@ -125,7 +125,7 @@ export interface AgentApi {
   removeCommand(name: string): Promise<void>
   getStats(): Promise<StatsSummary>
   getMcpStatus(): Promise<McpServerStatus[]>
-  platform: NodeJS.Platform
+  platform: string
   minimizeWindow(): Promise<void>
   toggleMaximizeWindow(): Promise<void>
   closeWindow(): Promise<void>

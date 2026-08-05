@@ -9,7 +9,6 @@
     "jsx": "react-jsx",
     "esModuleInterop": true,
     "noEmit": true,
-    "types": ["node"],
     "paths": { "@shared/*": ["./src/shared/*"] }
   },
   "include": ["src/renderer/src/**/*", "src/shared/**/*"]
