@@ -545,6 +545,7 @@ export class MeowAgentManager {
         tool
       ),
       ask: (promptId, tool) => this.awaitPrompt(agent.id, promptId, tool),
+      maxSteps: cfg.maxSteps,
       maxContextTokens: contextTokens,
       compaction: cfg.compaction,
       toolOutput: cfg.toolOutput,

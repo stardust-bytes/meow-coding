@@ -232,6 +232,7 @@ describe('configToSettings / settingsToConfig', () => {
   it('defaults to token-based compaction settings', () => {
     const cfg = loadMeowConfig(file)
     expect(cfg.maxContextTokens).toBe(200000)
+    expect(cfg.maxSteps).toBe(Infinity)
     expect(cfg.compaction).toEqual({
       auto: true,
       buffer: 20000,
@@ -283,6 +284,7 @@ describe('configToSettings / settingsToConfig', () => {
     cfg.permission = { bash: 'ask', write: 'allow', edit: 'deny' }
     cfg.mcp = { mytools: { command: 'npx', args: ['-y', '@foo/bar'] } }
     cfg.maxContextTokens = 123000
+    cfg.maxSteps = 300
     cfg.compaction = { auto: false, buffer: 7000, keepTokens: 900, tailTurns: 1, toolOutputMaxChars: 400, prune: false }
     cfg.toolOutput = { maxBytes: 100000, maxLines: 500 }
 
@@ -292,6 +294,7 @@ describe('configToSettings / settingsToConfig', () => {
     expect(settings.permission.bash).toBe('ask')
     expect(settings.mcp.mytools).toEqual({ command: 'npx', args: ['-y', '@foo/bar'] })
     expect(settings.maxContextTokens).toBe(123000)
+    expect(settings.maxSteps).toBe(300)
     expect(settings.compaction.tailTurns).toBe(1)
 
     const back = settingsToConfig(settings, cfg)
@@ -299,6 +302,7 @@ describe('configToSettings / settingsToConfig', () => {
     expect(back.permission).toMatchObject({ bash: 'ask', write: 'allow', edit: 'deny' })
     expect(back.mcp.mytools.command).toBe('npx')
     expect(back.maxContextTokens).toBe(123000)
+    expect(back.maxSteps).toBe(300)
     expect(back.compaction).toEqual({ auto: false, buffer: 7000, keepTokens: 900, tailTurns: 1, toolOutputMaxChars: 400, prune: false })
     expect(back.toolOutput).toEqual({ maxBytes: 100000, maxLines: 500 })
     expect(back.lsp).toEqual({ enabled: true, diagnosticsTimeoutMs: 3000 })

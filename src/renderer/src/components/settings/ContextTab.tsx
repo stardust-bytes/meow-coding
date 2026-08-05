@@ -2,9 +2,10 @@ import type { CompactionSettings, ToolOutputSettings } from '@shared/types'
 
 interface Props {
   maxContextTokens: number
+  maxSteps: number
   compaction: CompactionSettings
   toolOutput: ToolOutputSettings
-  onChange: (patch: { maxContextTokens: number; compaction: CompactionSettings; toolOutput: ToolOutputSettings }) => void
+  onChange: (patch: { maxContextTokens: number; maxSteps: number; compaction: CompactionSettings; toolOutput: ToolOutputSettings }) => void
 }
 
 function num(value: string, fallback: number): number {
@@ -12,13 +13,19 @@ function num(value: string, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback
 }
 
-export default function ContextTab({ maxContextTokens, compaction, toolOutput, onChange }: Props) {
+function displaySteps(n: number): string {
+  return Number.isFinite(n) && n > 0 ? String(n) : ''
+}
+
+export default function ContextTab({ maxContextTokens, maxSteps, compaction, toolOutput, onChange }: Props) {
   const setTokens = (value: string) =>
-    onChange({ maxContextTokens: num(value, maxContextTokens), compaction, toolOutput })
+    onChange({ maxContextTokens: num(value, maxContextTokens), maxSteps, compaction, toolOutput })
+  const setMaxSteps = (value: string) =>
+    onChange({ maxContextTokens, maxSteps: num(value, maxSteps), compaction, toolOutput })
   const setComp = (patch: Partial<CompactionSettings>) =>
-    onChange({ maxContextTokens, compaction: { ...compaction, ...patch }, toolOutput })
+    onChange({ maxContextTokens, maxSteps, compaction: { ...compaction, ...patch }, toolOutput })
   const setToolOutput = (patch: Partial<ToolOutputSettings>) =>
-    onChange({ maxContextTokens, compaction, toolOutput: { ...toolOutput, ...patch } })
+    onChange({ maxContextTokens, maxSteps, compaction, toolOutput: { ...toolOutput, ...patch } })
 
   return (
     <div className="settings-tab context-tab">
@@ -33,6 +40,21 @@ export default function ContextTab({ maxContextTokens, compaction, toolOutput, o
         />
         <p className="settings-hint">
           Fallback model context limit in tokens, used when the model's limit is not known from the catalog.
+        </p>
+      </div>
+
+      <div className="settings-field">
+        <label className="label">Max steps per turn</label>
+        <input
+          className="input"
+          type="number"
+          min={1}
+          value={displaySteps(maxSteps)}
+          placeholder="unlimited"
+          onChange={e => setMaxSteps(e.target.value)}
+        />
+        <p className="settings-hint">
+          Maximum tool steps before the agent is forced to wrap up (Infinity = unlimited).
         </p>
       </div>
 

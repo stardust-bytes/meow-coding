@@ -38,6 +38,7 @@ export interface MeowConfig {
   permission: Record<string, PermissionRule>
   mcp: Record<string, McpServerConfig>
   maxContextTokens: number
+  maxSteps: number
   compaction: MeowCompactionConfig
   toolOutput: ToolOutputConfig
   lsp: LspConfig
@@ -52,6 +53,7 @@ export interface ResolvedAgentConfig {
 }
 
 export const DEFAULT_MAX_CONTEXT_TOKENS = 200000
+export const DEFAULT_MAX_STEPS = Infinity
 export const DEFAULT_COMPACTION: MeowCompactionConfig = {
   auto: true,
   buffer: 20000,
@@ -96,6 +98,7 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
   },
   mcp: {},
   maxContextTokens: DEFAULT_MAX_CONTEXT_TOKENS,
+  maxSteps: DEFAULT_MAX_STEPS,
   compaction: DEFAULT_COMPACTION,
   toolOutput: DEFAULT_TOOL_OUTPUT,
   lsp: DEFAULT_LSP
@@ -172,6 +175,7 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     permission: { ...DEFAULT_MEOW_CONFIG.permission, ...(raw.permission ?? {}) },
     mcp: raw.mcp ?? {},
     maxContextTokens: raw.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
+    maxSteps: raw.maxSteps ?? DEFAULT_MAX_STEPS,
     compaction: normalizeCompaction(raw.compaction),
     toolOutput: normalizeToolOutput(raw.toolOutput),
     lsp: normalizeLsp(raw.lsp)
@@ -256,6 +260,7 @@ export function configToSettings(cfg: MeowConfig): MeowSettings {
     permission: cfg.permission,
     mcp: cfg.mcp,
     maxContextTokens: cfg.maxContextTokens,
+    maxSteps: cfg.maxSteps,
     compaction: cfg.compaction,
     toolOutput: cfg.toolOutput,
     lsp: cfg.lsp
@@ -293,6 +298,7 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
       : (base.permission ?? DEFAULT_MEOW_CONFIG.permission),
     mcp: settings.mcp ?? base.mcp ?? {},
     maxContextTokens: settings.maxContextTokens ?? base.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
+    maxSteps: settings.maxSteps ?? base.maxSteps ?? DEFAULT_MAX_STEPS,
     compaction: settings.compaction ? normalizeCompaction(settings.compaction) : normalizeCompaction(base.compaction),
     toolOutput: settings.toolOutput ? normalizeToolOutput(settings.toolOutput) : normalizeToolOutput(base.toolOutput),
     lsp: settings.lsp ? normalizeLsp(settings.lsp) : normalizeLsp(base.lsp)

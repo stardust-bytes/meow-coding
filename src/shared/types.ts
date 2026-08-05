@@ -194,6 +194,7 @@ export interface MeowSettings {
   permission: Record<string, PermissionRule>
   mcp: Record<string, McpServerConfig>
   maxContextTokens: number
+  maxSteps: number
   compaction: CompactionSettings
   toolOutput: ToolOutputSettings
   lsp: LspSettings

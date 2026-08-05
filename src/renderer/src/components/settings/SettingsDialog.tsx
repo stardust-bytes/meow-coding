@@ -108,6 +108,7 @@ export default function SettingsDialog({ onClose, projectPath }: Props) {
             {draft && tab === 'context' && (
               <ContextTab
                 maxContextTokens={draft.maxContextTokens}
+                maxSteps={draft.maxSteps}
                 compaction={draft.compaction}
                 toolOutput={draft.toolOutput}
                 onChange={ctx => patch(ctx)}
