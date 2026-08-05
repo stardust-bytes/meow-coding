@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
 import type { ChatEvent, Command, ContextChangedEvent, MeowSettings, NewAgentInput, PromptResponse, Template } from '../shared/types'
-import type { AgentApi, AgentStateEvent, GitStatusEvent, PtyDataEvent } from '../shared/ipc'
+import type { AgentApi, AgentStateEvent, GitStatusEvent, PtyDataEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
 
 function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
   const listener = (_event: unknown, payload: T) => cb(payload)
@@ -80,6 +80,13 @@ const api: AgentApi = {
   removeCommand: (name: string) => ipcRenderer.invoke(Channels.CommandRemove, name),
   getStats: () => ipcRenderer.invoke(Channels.StatsGet),
   getMcpStatus: () => ipcRenderer.invoke(Channels.McpStatus),
+  platform: process.platform,
+  minimizeWindow: () => ipcRenderer.invoke(Channels.WindowMinimize),
+  toggleMaximizeWindow: () => ipcRenderer.invoke(Channels.WindowToggleMaximize),
+  closeWindow: () => ipcRenderer.invoke(Channels.WindowClose),
+  isWindowMaximized: () => ipcRenderer.invoke(Channels.WindowIsMaximized),
+  onWindowMaximizedChange: (cb: (e: WindowMaximizedChangeEvent) => void) =>
+    subscribe(Channels.EventWindowMaximizedChange, cb),
   onPtyData: (cb: (e: PtyDataEvent) => void) => subscribe(Channels.EventPtyData, cb),
   onAgentState: (cb: (e: AgentStateEvent) => void) => subscribe(Channels.EventAgentState, cb),
   onGitStatus: (cb: (e: GitStatusEvent) => void) => subscribe(Channels.EventGitStatus, cb),

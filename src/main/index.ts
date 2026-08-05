@@ -22,6 +22,7 @@ import { CommandStore } from './agent/commands'
 import { FileWatcher } from './file-watcher'
 import { LspManager } from './agent/lsp/manager'
 import { ModelsCatalog } from './models-catalog'
+import { getWindowChromeOptions } from './window-chrome'
 import { Channels } from '../shared/ipc'
 import type { AgentState, Command, MeowSettings, NewAgentInput, PromptResponse, Template, Workspace, WorkspaceRuntime } from '../shared/types'
 
@@ -271,6 +272,7 @@ function createWindow(): void {
     height: 900,
     title: 'Meow Coding',
     backgroundColor: '#1e1e1e',
+    ...getWindowChromeOptions(process.platform),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -296,6 +298,8 @@ function createWindow(): void {
   win.on('closed', () => {
     win = null
   })
+  win.on('maximize', () => win?.webContents.send(Channels.EventWindowMaximizedChange, { maximized: true }))
+  win.on('unmaximize', () => win?.webContents.send(Channels.EventWindowMaximizedChange, { maximized: false }))
 }
 
 function isExternalUrl(url: string): boolean {
@@ -434,6 +438,14 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.CommandRemove, (_e, name: string) => mainApp.meowAgent.removeCommand(name))
   ipcMain.handle(Channels.StatsGet, () => mainApp.meowAgent.getStats())
   ipcMain.handle(Channels.AppQuit, () => app.quit())
+  ipcMain.handle(Channels.WindowMinimize, () => win?.minimize())
+  ipcMain.handle(Channels.WindowToggleMaximize, () => {
+    if (!win) return
+    if (win.isMaximized()) win.unmaximize()
+    else win.maximize()
+  })
+  ipcMain.handle(Channels.WindowClose, () => win?.close())
+  ipcMain.handle(Channels.WindowIsMaximized, () => win?.isMaximized() ?? false)
 }
 
 app.whenReady().then(() => {

@@ -16,7 +16,8 @@ describe('IPC contract', () => {
       'sendChat', 'stopChat', 'runCommand', 'undoChat', 'redoChat', 'newChatSession', 'listChatMessages', 'listChatTranscript', 'respondPrompt',
       'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus', 'listCommands', 'saveCommand', 'removeCommand', 'getStats', 'onContextChanged',
       'listSessions', 'createSession', 'switchSession', 'deleteSession', 'renameSession',
-      'getChatTodos'
+      'getChatTodos',
+      'minimizeWindow', 'toggleMaximizeWindow', 'closeWindow', 'isWindowMaximized', 'onWindowMaximizedChange'
     ]
     const api: AgentApi = {
       listWorkspaces: async () => [],
@@ -65,6 +66,12 @@ describe('IPC contract', () => {
       getSettings: async () => ({ providers: [], defaultProvider: '', agents: [], permission: {}, mcp: {}, maxContextTokens: 200000, maxSteps: Infinity, compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 2000 }, toolOutput: { maxBytes: 51200, maxLines: 2000 }, lsp: { enabled: true, diagnosticsTimeoutMs: 3000 } }),
       saveSettings: async (s) => s,
       getMcpStatus: async () => [],
+      platform: 'win32',
+      minimizeWindow: async () => {},
+      toggleMaximizeWindow: async () => {},
+      closeWindow: async () => {},
+      isWindowMaximized: async () => false,
+      onWindowMaximizedChange: () => () => {},
       listCommands: async () => [],
       saveCommand: async (c) => c,
       removeCommand: async () => {},
@@ -115,6 +122,11 @@ describe('IPC contract', () => {
     expect(Channels.ProviderConnect).toBe('provider:connect')
     expect(Channels.ProviderDisconnect).toBe('provider:disconnect')
     expect(Channels.McpStatus).toBe('mcp:status')
+    expect(Channels.WindowMinimize).toBe('window:minimize')
+    expect(Channels.WindowToggleMaximize).toBe('window:toggle-maximize')
+    expect(Channels.WindowClose).toBe('window:close')
+    expect(Channels.WindowIsMaximized).toBe('window:is-maximized')
+    expect(Channels.EventWindowMaximizedChange).toBe('window:maximized-change')
   })
 
   it('types event payloads without runtime error', () => {

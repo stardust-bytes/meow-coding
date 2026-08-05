@@ -56,6 +56,11 @@ export const Channels = {
   CommandRemove: 'commands:remove',
   StatsGet: 'stats:get',
   McpStatus: 'mcp:status',
+  WindowMinimize: 'window:minimize',
+  WindowToggleMaximize: 'window:toggle-maximize',
+  WindowClose: 'window:close',
+  WindowIsMaximized: 'window:is-maximized',
+  EventWindowMaximizedChange: 'window:maximized-change',
   EventPtyData: 'pty:data',
   EventAgentState: 'agent:state',
   EventGitStatus: 'git:status',
@@ -66,6 +71,7 @@ export const Channels = {
 export interface PtyDataEvent { agentId: string; data: string }
 export interface AgentStateEvent { agentId: string; state: AgentState }
 export interface GitStatusEvent { projectPath: string; git: GitStatus | null }
+export interface WindowMaximizedChangeEvent { maximized: boolean }
 
 export interface AgentApi {
   listWorkspaces(): Promise<WorkspaceSummary[]>
@@ -119,6 +125,12 @@ export interface AgentApi {
   removeCommand(name: string): Promise<void>
   getStats(): Promise<StatsSummary>
   getMcpStatus(): Promise<McpServerStatus[]>
+  platform: NodeJS.Platform
+  minimizeWindow(): Promise<void>
+  toggleMaximizeWindow(): Promise<void>
+  closeWindow(): Promise<void>
+  isWindowMaximized(): Promise<boolean>
+  onWindowMaximizedChange(cb: (e: WindowMaximizedChangeEvent) => void): () => void
   onPtyData(cb: (e: PtyDataEvent) => void): () => void
   onAgentState(cb: (e: AgentStateEvent) => void): () => void
   onGitStatus(cb: (e: GitStatusEvent) => void): () => void
