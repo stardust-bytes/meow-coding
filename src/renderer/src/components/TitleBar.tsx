@@ -20,8 +20,8 @@ function MaximizeIcon() {
 function RestoreIcon() {
   return (
     <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" aria-hidden="true">
-      <rect x="2.5" y="0.5" width="7" height="7" />
-      <rect x="0.5" y="2.5" width="7" height="7" fill="#252526" />
+      <path d="M2.5 2.5V0.5H9.5V7.5H7.5" />
+      <rect x="0.5" y="2.5" width="7" height="7" />
     </svg>
   )
 }
@@ -56,7 +56,7 @@ export default function TitleBar() {
         <span className="title-bar-title">Meow Coding</span>
       </div>
       {showCustomControls && (
-        <div className="title-bar-controls">
+        <div className="title-bar-controls" onDoubleClick={e => e.stopPropagation()}>
           <button className="title-bar-btn" aria-label="Minimize" onClick={() => void window.api.minimizeWindow()}>
             <MinimizeIcon />
           </button>
