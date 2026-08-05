@@ -26,6 +26,10 @@ export class AlertService extends EventEmitter {
     this.emit('exit', { agentId, exitCode })
   }
 
+  clear(agentId: string): void {
+    this.clearTimer(agentId)
+  }
+
   private resetTimer(agentId: string): void {
     this.clearTimer(agentId)
     this.timers.set(

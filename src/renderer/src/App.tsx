@@ -65,6 +65,12 @@ export default function App() {
   }, [])
 
   const removeWorkspace = useCallback(async (path: string) => {
+    if (runtime?.workspace.projectPath === path) {
+      for (const agent of runtime.workspace.agents) {
+        termsRef.current.delete(agent.id)
+        buffersRef.current.delete(agent.id)
+      }
+    }
     try {
       await window.api.removeWorkspace(path)
     } catch {
@@ -72,7 +78,7 @@ export default function App() {
     }
     setRuntime(prev => prev && prev.workspace.projectPath === path ? null : prev)
     void refreshWorkspaces()
-  }, [refreshWorkspaces])
+  }, [runtime, refreshWorkspaces])
 
   const removeAgent = useCallback(async (agentId: string) => {
     const path = runtime?.workspace.projectPath

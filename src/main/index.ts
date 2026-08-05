@@ -304,6 +304,8 @@ function registerIpcHandlers(): void {
         mainApp.meowAgent.removeAgent(agent.id)
         await mainApp.pty.stop(agent.id)
         mainApp.clearState(agent.id)
+        mainApp.alerts.clear(agent.id)
+        mainApp.logs.remove(agent.id)
       }
     }
     if (mainApp.isActiveProject(projectPath)) {
@@ -332,6 +334,9 @@ function registerIpcHandlers(): void {
     mainApp.meowAgent.removeAgent(agentId)
     await mainApp.pty.stop(agentId)
     mainApp.workspaces.removeAgent(projectPath, agentId)
+    mainApp.clearState(agentId)
+    mainApp.alerts.clear(agentId)
+    mainApp.logs.remove(agentId)
   })
 
   ipcMain.handle(Channels.AgentSetMode, (_e, agentId: string, mode: 'build' | 'plan') =>

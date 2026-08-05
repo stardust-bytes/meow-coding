@@ -43,4 +43,15 @@ describe('AlertService', () => {
     expect(idleSpy).not.toHaveBeenCalled()
     expect(exitSpy).toHaveBeenCalledWith({ agentId: 'a1', exitCode: 1 })
   })
+
+  it('clear stops a pending idle timer for an agent', async () => {
+    vi.useFakeTimers()
+    const alerts = new AlertService({ idleThresholdMs: 100 })
+    const idleSpy = vi.fn()
+    alerts.on('idle', idleSpy)
+    alerts.onOutput('a1')
+    alerts.clear('a1')
+    vi.advanceTimersByTime(200)
+    expect(idleSpy).not.toHaveBeenCalled()
+  })
 })

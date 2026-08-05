@@ -96,6 +96,18 @@ describe('SessionStore', () => {
     expect(store.list('agent1').map(s => s.id)).toEqual([b.id])
   })
 
+  it('deletes all sessions for an agent and keeps others', () => {
+    const store = makeStore(file)
+    const a = store.create('agent1', '/p')
+    const b = store.create('agent1', '/p')
+    const c = store.create('agent2', '/p')
+    store.deleteForAgent('agent1')
+    expect(store.list('agent1')).toEqual([])
+    expect(store.list('agent2').map(s => s.id)).toEqual([c.id])
+    expect(store.get(a.id)).toBeNull()
+    expect(store.get(b.id)).toBeNull()
+  })
+
   it('gets and sets todos per session', () => {
     const store = makeStore(file)
     const a = store.create('agent1', '/p')

@@ -169,4 +169,8 @@ export class SessionStore {
   delete(id: string): void {
     this.saveSessions(this.loadSessions().filter(s => s.id !== id))
   }
+
+  deleteForAgent(agentId: string): void {
+    this.saveSessions(this.loadSessions().filter(s => s.agentId !== agentId))
+  }
 }

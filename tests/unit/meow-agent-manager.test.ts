@@ -210,6 +210,17 @@ describe('MeowAgentManager', () => {
     expect(store.get(old.id)?.items.length).toBeGreaterThan(0)
   })
 
+  it('removeAgent deletes the agent sessions', async () => {
+    const { manager, store } = await makeManager()
+    await manager.send('a1', 'hello')
+    expect(manager.listSessions('a1')).toHaveLength(1)
+    manager.removeAgent('a1')
+    expect(manager.isNative('a1')).toBe(false)
+    expect(manager.listSessions('a1')).toHaveLength(0)
+    // store no longer holds the orphaned session
+    expect(store.list('a1')).toHaveLength(0)
+  })
+
   it('getSettings has no built-in provider presets', async () => {
     const { manager } = await makeManager()
     const s = manager.getSettings()

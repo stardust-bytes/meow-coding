@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, unlinkSync } from 'node:fs'
 import path from 'node:path'
 
 export class LogManager {
@@ -24,5 +24,13 @@ export class LogManager {
 
   exists(agentId: string): boolean {
     return existsSync(this.fileFor(agentId))
+  }
+
+  remove(agentId: string): void {
+    try {
+      unlinkSync(this.fileFor(agentId))
+    } catch {
+      /* file may not exist */
+    }
   }
 }
