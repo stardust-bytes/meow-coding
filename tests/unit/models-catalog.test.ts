@@ -29,6 +29,26 @@ describe('ModelsCatalog', () => {
     expect(providers.openai.models).toEqual(['gpt-4o', 'gpt-4o-mini'])
   })
 
+  it('keeps model context/output limits from models.dev', async () => {
+    const fetchFn = async () => jsonResponse({
+      deepseek: {
+        name: 'DeepSeek',
+        models: {
+          'deepseek-chat': { limit: { context: 64000, output: 8192 } },
+          'deepseek-reasoner': { limit: { context: 64000 } },
+          'plain': {}
+        }
+      }
+    })
+    const catalog = new ModelsCatalog(path.join(dir, 'models.json'), fetchFn)
+    const providers = await catalog.fetch()
+    expect(providers.deepseek.limits?.['deepseek-chat']).toEqual({ context: 64000, output: 8192 })
+    expect(providers.deepseek.limits?.['deepseek-reasoner']).toEqual({ context: 64000, output: undefined })
+    expect(providers.deepseek.limits?.['plain']).toBeUndefined()
+    expect(await catalog.getModelLimit('deepseek', 'deepseek-chat')).toEqual({ context: 64000, output: 8192 })
+    expect(await catalog.getModelLimit('deepseek', 'plain')).toBeUndefined()
+  })
+
   it('returns [] for an unknown provider and falls back to the snapshot offline', async () => {
     const catalog = new ModelsCatalog(path.join(dir, 'models.json'), async () => jsonResponse({}))
     const providers = await catalog.fetch()

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { pruneTranscript } from '../../src/main/agent/compact'
+import { selectHeadTail, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, truncateToolOutput, serializeItems } from '../../src/main/agent/compact'
 import type { TranscriptItem } from '../../src/main/agent/message'
 import type { ChatMessage, ToolCallData } from '../../src/shared/types'
+import type { LlmClient, LlmStreamPart } from '../../src/main/agent/llm'
 
 function msg(role: ChatMessage['role'], text: string): TranscriptItem {
   return { kind: 'message', message: { id: Math.random().toString(36), role, text, createdAt: 1 } }
@@ -11,56 +12,126 @@ function tool(text: string): TranscriptItem {
   return { kind: 'tool', tool: t }
 }
 
-describe('pruneTranscript', () => {
-  it('returns items unchanged when under budget', () => {
-    const items = [msg('user', 'hi'), msg('assistant', 'hello')]
-    expect(pruneTranscript(items, 10000)).toEqual(items)
-  })
-
-  it('drops the oldest content when over budget but keeps the latest user message', () => {
+describe('selectHeadTail', () => {
+  it('keeps the recent tail turns and summarizes the older head', () => {
     const items = [
-      msg('user', 'a'.repeat(2000)),
-      msg('assistant', 'b'.repeat(2000)),
-      msg('user', 'latest question')
+      msg('user', 'old prompt'),
+      msg('assistant', 'old answer'),
+      msg('user', 'recent prompt'),
+      msg('assistant', 'recent answer'),
+      msg('user', 'latest prompt')
     ]
-    const pruned = pruneTranscript(items, 2000)
-    const texts = pruned.filter(i => i.kind === 'message').map(i => i.message.text)
-    expect(texts).not.toContain('a'.repeat(2000))
-    expect(texts[texts.length - 1]).toBe('latest question')
+    const { head, tail } = selectHeadTail(items, 1000000, 2)
+    expect(head.some(i => i.kind === 'message' && i.message.text === 'old prompt')).toBe(true)
+    expect(tail.some(i => i.kind === 'message' && i.message.text === 'latest prompt')).toBe(true)
+    expect(tail[0].kind === 'message' && tail[0].message.role === 'user').toBe(true)
   })
 
-  it('strips leading orphan tool items', () => {
-    const items = [tool('old'), msg('user', 'x'), msg('assistant', 'y')]
-    const pruned = pruneTranscript(items, 20)
-    expect(pruned.length).toBeGreaterThan(0)
-    expect(pruned[0].kind).toBe('message')
+  it('returns everything as head when tailTurns is 0', () => {
+    const items = [msg('user', 'a'), msg('user', 'b')]
+    const { head, tail } = selectHeadTail(items, 100, 0)
+    expect(head).toHaveLength(2)
+    expect(tail).toHaveLength(0)
   })
 
-  it('ignores maxChars <= 0', () => {
-    const items = [msg('user', 'x')]
-    expect(pruneTranscript(items, 0)).toEqual(items)
-  })
-
-  it('truncates a single oversized item instead of dropping everything', () => {
+  it('ignores the compaction marker user message when counting turns', () => {
     const items = [
-      msg('user', 'read the plan'),
-      msg('assistant', ''),
-      tool('P'.repeat(50000))
+      { kind: 'message' as const, message: { id: 's', role: 'user' as const, text: COMPACTION_MARKER, createdAt: 1 } },
+      { kind: 'message' as const, message: { id: 'sa', role: 'assistant' as const, text: 'summary', createdAt: 1 } },
+      msg('user', 'real question'),
+      msg('assistant', 'answer')
     ]
-    const pruned = pruneTranscript(items, 30000)
-    const keptTool = pruned.find(i => i.kind === 'tool') as { kind: 'tool'; tool: ToolCallData } | undefined
-    expect(keptTool).toBeDefined()
-    expect(keptTool!.tool.output!.length).toBeLessThan(30000)
-    expect(keptTool!.tool.output!.length).toBeGreaterThan(0)
+    const { head, tail } = selectHeadTail(items, 1000000, 1)
+    expect(head).toHaveLength(0)
+    expect(tail).toHaveLength(2)
+    expect(tail[0].kind === 'message' && tail[0].message.text === 'real question').toBe(true)
   })
 
-  it('keeps the latest user message when the newest item is oversized', () => {
+  it('excludes a prior compaction pair from the head', () => {
     const items = [
-      tool('P'.repeat(50000)),
-      msg('user', 'latest question')
+      { kind: 'message' as const, message: { id: 's', role: 'user' as const, text: COMPACTION_MARKER, createdAt: 1 } },
+      { kind: 'message' as const, message: { id: 'sa', role: 'assistant' as const, text: 'summary', createdAt: 1 } },
+      msg('user', 'old question'),
+      msg('assistant', 'old answer'),
+      msg('user', 'recent question')
     ]
-    const pruned = pruneTranscript(items, 30000)
-    const texts = pruned.filter(i => i.kind === 'message').map(i => (i as { message: ChatMessage }).message.text)
-    expect(texts[texts.length - 1]).toBe('latest question')
+    const { head, tail } = selectHeadTail(items, 1000000, 1)
+    expect(head.some(i => i.kind === 'message' && i.message.text === 'summary')).toBe(false)
+    expect(head.some(i => i.kind === 'message' && i.message.text === 'old question')).toBe(true)
+    expect(tail.some(i => i.kind === 'message' && i.message.text === 'recent question')).toBe(true)
+  })
+})
+
+describe('serializeItems / truncateToolOutput', () => {
+  it('serializes messages and tool calls into prompt text', () => {
+    const items: TranscriptItem[] = [
+      msg('user', 'hello'),
+      { kind: 'tool', tool: { id: 't', tool: 'bash', input: { command: 'ls' }, permission: 'allowed', output: 'a\nb\nc\n'.repeat(20) } }
+    ]
+    const text = serializeItems(items, 5)
+    expect(text).toContain('[User]: hello')
+    expect(text).toContain('[Assistant tool call]: bash({"command":"ls"})')
+    expect(text).toContain('[truncated]')
+  })
+
+  it('truncateToolOutput keeps short outputs unchanged', () => {
+    expect(truncateToolOutput('short', 100)).toBe('short')
+    expect(truncateToolOutput('x'.repeat(300), 200)).toMatch(/\[truncated\]/)
+  })
+})
+
+describe('buildCompactionPrompt', () => {
+  it('creates a fresh summary prompt without a previous summary', () => {
+    const prompt = buildCompactionPrompt(undefined, '[User]: hi')
+    expect(prompt).toContain('Create a new anchored summary')
+    expect(prompt).toContain('## Objective')
+    expect(prompt).toContain('[User]: hi')
+  })
+
+  it('requests an update when a previous summary exists', () => {
+    const prompt = buildCompactionPrompt('old summary', '[User]: hi')
+    expect(prompt).toContain('Update the anchored summary')
+    expect(prompt).toContain('<previous-summary>\nold summary\n</previous-summary>')
+  })
+})
+
+describe('compactTranscript', () => {
+  function stubLlm(parts: LlmStreamPart[]): LlmClient {
+    return {
+      async *stream(): AsyncGenerator<LlmStreamPart> {
+        for (const p of parts) yield p
+      }
+    }
+  }
+
+  it('returns the concatenated summary text', async () => {
+    const llm = stubLlm([
+      { kind: 'text', text: '## Objective' },
+      { kind: 'text', text: '\n- build the feature' },
+      { kind: 'finish' }
+    ])
+    const summary = await compactTranscript({ llm, model: 'm', prompt: 'summarize' })
+    expect(summary).toBe('## Objective\n- build the feature')
+  })
+
+  it('returns null on an llm error part', async () => {
+    const llm = stubLlm([{ kind: 'error', error: 'boom' }])
+    expect(await compactTranscript({ llm, model: 'm', prompt: 'summarize' })).toBeNull()
+  })
+
+  it('returns null on an empty result', async () => {
+    const llm = stubLlm([{ kind: 'finish' }])
+    expect(await compactTranscript({ llm, model: 'm', prompt: 'summarize' })).toBeNull()
+  })
+
+  it('returns null when aborted mid-stream', async () => {
+    const controller = new AbortController()
+    const llm: LlmClient = {
+      async *stream(): AsyncGenerator<LlmStreamPart> {
+        yield { kind: 'text', text: 'partial' }
+        controller.abort()
+      }
+    }
+    expect(await compactTranscript({ llm, model: 'm', prompt: 'x', signal: controller.signal })).toBeNull()
   })
 })

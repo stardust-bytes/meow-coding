@@ -49,6 +49,7 @@ export class MeowAgentManager {
   private tools: Map<string, ToolDefinition>
   private modes = new Map<string, AgentMode>()
   private mcp = new McpManager()
+  private modelLimits = new Map<string, { context?: number; output?: number }>()
   private onEvent: (e: ChatEvent) => void = () => {}
 
   constructor(private deps: MeowAgentManagerDeps) {
@@ -72,6 +73,7 @@ export class MeowAgentManager {
 
   async init(agents: AgentConfig[]): Promise<void> {
     await this.syncTools()
+    await this.refreshModelLimits()
     for (const agent of agents) {
       if (agent.kind === 'native') this.register(agent)
     }
@@ -339,12 +341,31 @@ export class MeowAgentManager {
       this.resolved.delete(id)
     }
     await this.syncTools()
+    await this.refreshModelLimits()
     for (const agent of agents) this.register(agent)
   }
 
   async dispose(): Promise<void> {
     this.stopAll()
     await this.mcp.closeAll()
+  }
+
+  private async refreshModelLimits(): Promise<void> {
+    if (!this.deps.catalog) return
+    try {
+      const providers = await this.deps.catalog.fetch()
+      this.modelLimits.clear()
+      for (const [providerId, p] of Object.entries(providers)) {
+        for (const model of p.models) {
+          const limit = p.limits?.[model]
+          if (limit && (limit.context !== undefined || limit.output !== undefined)) {
+            this.modelLimits.set(`${providerId}/${model}`, limit)
+          }
+        }
+      }
+    } catch {
+      /* offline: fall back to config maxContextTokens */
+    }
   }
 
   private async syncTools(): Promise<void> {
@@ -366,6 +387,10 @@ export class MeowAgentManager {
     const cfg = loadMeowConfig(this.deps.configPath)
     const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env, agent.model)
     this.resolved.set(agent.id, resolved)
+    const modelLimit = resolved.provider && resolved.model
+      ? this.modelLimits.get(`${resolved.provider}/${resolved.model}`)
+      : undefined
+    const contextTokens = modelLimit?.context ?? cfg.maxContextTokens
     const skills = collectSkills(agent.cwd, this.deps.userSkillsDir, this.deps.builtinSkillsDir)
     const instructions = instructionsText(loadInstructions(agent.cwd, this.deps.userInstructionsDir))
     const llmClient = (this.deps.createLlm ?? createLlm)(resolved.provider, resolved.apiKey ?? '', resolved.baseUrl)
@@ -394,7 +419,9 @@ export class MeowAgentManager {
         tool
       ),
       ask: (promptId, tool) => this.awaitPrompt(agent.id, promptId, tool),
-      maxContextChars: cfg.maxContextChars,
+      maxContextTokens: contextTokens,
+      compaction: cfg.compaction,
+      replaceItems: (items) => this.deps.store.replaceItems(this.activeSessionId(agent.id), items),
       snapshots: this.deps.snapshots,
       onEvent: (e) => this.emit(e),
       getItems: () => this.deps.store.get(this.activeSessionId(agent.id))?.items ?? [],

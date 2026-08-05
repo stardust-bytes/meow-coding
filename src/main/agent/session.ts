@@ -118,6 +118,15 @@ export class SessionStore {
     this.saveSessions(all)
   }
 
+  replaceItems(id: string, items: ChatTranscriptItem[]): void {
+    const all = this.loadSessions()
+    const idx = all.findIndex(s => s.id === id)
+    if (idx < 0) return
+    all[idx].items = items
+    all[idx].updatedAt = Date.now()
+    this.saveSessions(all)
+  }
+
   appendMessage(id: string, message: ChatMessage): void {
     const all = this.loadSessions()
     const idx = all.findIndex(s => s.id === id)

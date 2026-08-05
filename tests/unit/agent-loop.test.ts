@@ -5,7 +5,6 @@ import type { LlmClient, LlmStreamOptions, LlmStreamPart } from '../../src/main/
 import type { ToolDefinition } from '../../src/main/agent/tools/types'
 import type { TranscriptItem } from '../../src/main/agent/message'
 import type { ChatEvent, ChatMessage, ToolCallData } from '../../src/shared/types'
-import { DEFAULT_MAX_CONTEXT_CHARS } from '../../src/main/agent/config'
 
 class StubLlm implements LlmClient {
   queue: LlmStreamPart[][] = []
@@ -298,41 +297,15 @@ describe('SessionRunner', () => {
     expect(resultEvent.call.output).toBe('got: yes')
   })
 
-  it('prunes the transcript when over the context budget', async () => {
-    const h = makeHarness({
-      tools: new Map<string, ToolDefinition>(),
-      maxContextChars: 100,
-      maxSteps: 1
-    })
-    h.items.push({
-      kind: 'message',
-      message: { id: 'old', role: 'user', text: 'old '.repeat(200), createdAt: 1 }
-    })
-    h.items.push({
-      kind: 'message',
-      message: { id: 'recent', role: 'user', text: 'latest prompt', createdAt: 2 }
-    })
-    h.llm.queue = [textParts('ok')]
-    h.runner.run()
-    await new Promise(r => setTimeout(r, 20))
-    const firstMessages = h.llm.calls[0]?.messages ?? []
-    const texts = firstMessages
-      .filter((m): m is { role: 'user'; content: string } => m.role === 'user' && typeof m.content === 'string')
-      .map(m => m.content)
-    expect(texts[0]).toContain('truncated')
-    expect(texts).toContain('latest prompt')
-  })
-
-  it('does not loop re-reading a large plan after context pruning', async () => {
+  it('does not loop re-reading a large plan', async () => {
     // A model that re-reads the plan whenever its content vanished from context
-    // would loop forever. The read result must survive pruning (truncated).
+    // would loop forever. The read result must survive in context.
     const planContent = 'PLAN_' + 'x'.repeat(50000)
     const planTool = stubTool('read', async () => ({ output: planContent }))
     const seenPlan = () => JSON.stringify(h.llm.calls.at(-1)?.messages ?? []).includes('PLAN_')
 
     const h = makeHarness({
       tools: new Map([['read', planTool]]),
-      maxContextChars: 30000,
       maxSteps: 8,
       llm: {
         async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
@@ -361,9 +334,9 @@ describe('SessionRunner', () => {
     expect(seenPlan()).toBe(true)
   })
 
-  it('keeps a plan read across multiple paged chunks within the context budget', async () => {
+  it('keeps a plan read across multiple paged chunks in context', async () => {
     // A 48KB plan read in 20KB chunks (read tool caps output) must not lose the
-    // earlier chunks to pruning, otherwise the model re-reads chunk 1 forever.
+    // earlier chunks, otherwise the model re-reads chunk 1 forever.
     const planChunks = {
       0: 'CHUNK_A_' + 'a'.repeat(19000),
       1: 'CHUNK_B_' + 'b'.repeat(19000),
@@ -376,7 +349,6 @@ describe('SessionRunner', () => {
 
     const h = makeHarness({
       tools: new Map([['read', planTool]]),
-      maxContextChars: DEFAULT_MAX_CONTEXT_CHARS,
       maxSteps: 12,
       llm: {
         async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
@@ -409,13 +381,78 @@ describe('SessionRunner', () => {
     expect(readOffsets).toEqual([0, 1, 2])
   })
 
-  it('default context budget fits a plan plus a loaded skill (no re-read loop)', async () => {
-    // Real sizes: a plan is ~48KB and the largest bundled skill ~28KB. The
-    // default budget must hold both plus paged reads, or the model forgets the
-    // plan and re-reads it forever.
-    const planSize = 48094
-    const skillSize = 28077
-    const workingSet = planSize + skillSize + 10000
-    expect(DEFAULT_MAX_CONTEXT_CHARS).toBeGreaterThan(workingSet)
+  it('runs an LLM compaction when the transcript exceeds the token budget', async () => {
+    const replaced: TranscriptItem[][] = []
+    const h = makeHarness({
+      tools: new Map<string, ToolDefinition>(),
+      maxContextTokens: 200,
+      compaction: { auto: true, buffer: 20, keepTokens: 100, tailTurns: 2, toolOutputMaxChars: 2000 },
+      replaceItems: (items) => replaced.push(items),
+      maxSteps: 1,
+      llm: {
+        async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
+          h.llm.calls.push(opts)
+          if (opts.tools.length === 0) {
+            // compaction call
+            yield { kind: 'text', text: '## Objective\n- compacted' }
+            yield { kind: 'finish' }
+          } else {
+            yield { kind: 'text', text: 'ok' }
+            yield { kind: 'finish' }
+          }
+        }
+      } as unknown as LlmClient
+    })
+    h.items.push({ kind: 'message', message: { id: 'old', role: 'user', text: 'old '.repeat(5000), createdAt: 1 } })
+    h.items.push({ kind: 'message', message: { id: 'recent', role: 'user', text: 'latest prompt', createdAt: 2 } })
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+
+    expect(replaced.length).toBe(1)
+    const items = replaced[0]
+    const texts = items.filter(i => i.kind === 'message').map(i => i.message.text)
+    expect(texts[0]).toBe('What did we do so far?')
+    expect(texts[1]).toBe('## Objective\n- compacted')
+    expect(texts).toContain('latest prompt')
+    expect(h.events.some(e => e.type === 'compacted')).toBe(true)
+  })
+
+  it('truncates tool output to toolOutputMaxChars when sending to the model', async () => {
+    const h = makeHarness({
+      tools: new Map([['bash', stubTool('bash', async () => ({ output: 'o'.repeat(5000) }))]]),
+      compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 50 },
+      maxContextTokens: 200000
+    })
+    h.llm.queue = [
+      [{ kind: 'tool-call', toolCallId: 'tc1', toolName: 'bash', toolInput: { command: 'x' } }, { kind: 'finish' }],
+      textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    const secondMessages = h.llm.calls[1]?.messages ?? []
+    const toolMsg = secondMessages.find(m => m.role === 'tool')
+    expect(JSON.stringify(toolMsg)).toContain('[truncated]')
+  })
+
+  it('does not compact when compaction auto is disabled', async () => {
+    const replaced: TranscriptItem[][] = []
+    const h = makeHarness({
+      tools: new Map<string, ToolDefinition>(),
+      maxContextTokens: 200,
+      compaction: { auto: false, buffer: 20, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 2000 },
+      replaceItems: (items) => replaced.push(items),
+      maxSteps: 1
+    })
+    h.items.push({ kind: 'message', message: { id: 'old', role: 'user', text: 'old '.repeat(5000), createdAt: 1 } })
+    h.items.push({ kind: 'message', message: { id: 'recent', role: 'user', text: 'latest prompt', createdAt: 2 } })
+    h.llm.queue = [textParts('ok')]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 20))
+    expect(replaced).toHaveLength(0)
+    const firstMessages = h.llm.calls[0]?.messages ?? []
+    const texts = firstMessages
+      .filter((m): m is { role: 'user'; content: string } => m.role === 'user' && typeof m.content === 'string')
+      .map(m => m.content)
+    expect(texts).toContain('latest prompt')
   })
 })

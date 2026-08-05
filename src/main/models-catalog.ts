@@ -3,10 +3,33 @@ import path from 'node:path'
 import type { CatalogProviderSummary } from '../shared/types'
 import snapshot from './models-snapshot.json'
 
+export interface ModelLimit {
+  context?: number
+  output?: number
+}
+
 export interface CatalogProvider {
   name: string
   api?: string
   models: string[]
+  limits?: Record<string, ModelLimit>
+}
+
+function modelLimits(json: Record<string, unknown> | undefined): Record<string, ModelLimit> | undefined {
+  const out: Record<string, ModelLimit> = {}
+  let found = false
+  for (const [id, m] of Object.entries(json ?? {})) {
+    if (typeof m !== 'object' || m === null) continue
+    const limit = (m as { limit?: Record<string, unknown> }).limit
+    if (typeof limit !== 'object' || limit === null) continue
+    const context = typeof limit.context === 'number' ? limit.context : undefined
+    const output = typeof limit.output === 'number' ? limit.output : undefined
+    if (context !== undefined || output !== undefined) {
+      out[id] = { context, output }
+      found = true
+    }
+  }
+  return found ? out : undefined
 }
 
 const SNAPSHOT = snapshot as unknown as Record<string, CatalogProvider>
@@ -25,7 +48,8 @@ function mapProviders(json: Record<string, { name?: string; api?: string; models
     providers[id] = {
       name: p.name ?? id,
       api: p.api,
-      models: Object.keys(p.models ?? {})
+      models: Object.keys(p.models ?? {}),
+      limits: modelLimits(p.models)
     }
   }
   return providers
@@ -63,6 +87,11 @@ export class ModelsCatalog {
       api: p.api,
       modelCount: p.models.length
     }))
+  }
+
+  async getModelLimit(providerId: string, modelId: string): Promise<ModelLimit | undefined> {
+    const providers = await this.fetch()
+    return providers[providerId]?.limits?.[modelId]
   }
 
   private loadCache(): Record<string, CatalogProvider> | null {

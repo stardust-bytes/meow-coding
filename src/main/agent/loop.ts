@@ -7,7 +7,9 @@ import { toLlmMessages } from './message'
 import type { TranscriptItem } from './message'
 import type { ToolContext, ToolDefinition } from './tools/types'
 import type { PermissionDecision } from './permission'
-import { pruneTranscript } from './compact'
+import { selectHeadTail, serializeItems, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER } from './compact'
+import type { CompactionSettings } from './compact'
+import { estimateUsage } from './token'
 import type { SnapshotStore } from './snapshot'
 
 export interface LoopDeps {
@@ -20,7 +22,9 @@ export interface LoopDeps {
   decidePermission: (toolName: string) => PermissionDecision
   ask: (promptId: string, tool?: string) => Promise<PromptResponse | null>
   maxSteps?: number
-  maxContextChars?: number
+  maxContextTokens?: number
+  compaction?: CompactionSettings
+  replaceItems?: (items: TranscriptItem[]) => void
   snapshots?: SnapshotStore
   onEvent: (e: ChatEvent) => void
   getItems: () => TranscriptItem[]
@@ -50,6 +54,8 @@ export class SessionRunner {
       }
       steps++
       const isLastStep = steps >= this.maxSteps
+
+      await this.maybeCompact(signal)
 
       const llmMessages = this.buildMessages(isLastStep)
       let hasToolCall = false
@@ -233,24 +239,57 @@ export class SessionRunner {
       .filter(t => this.deps.decidePermission(t.name) !== 'deny')
   }
 
+  // Token-based overflow detection (modeled on opencode session/compaction.ts):
+  // when the estimated request size approaches the model context limit, run an
+  // LLM compaction that summarizes the older head and keeps the recent tail
+  // verbatim.
+  private async maybeCompact(signal?: AbortSignal): Promise<void> {
+    const { compaction, maxContextTokens, replaceItems } = this.deps
+    if (!compaction?.auto || !maxContextTokens || maxContextTokens <= 0 || !replaceItems) return
+    const usable = maxContextTokens - compaction.buffer
+    if (usable <= 0) return
+    const items = this.deps.getItems()
+    if (estimateUsage(toLlmMessages(items, { toolOutputMaxChars: compaction.toolOutputMaxChars })) < usable) {
+      return
+    }
+
+    const { head, tail } = selectHeadTail(items, compaction.keepTokens, compaction.tailTurns)
+    if (head.length === 0) return
+    const previousSummary = this.findPreviousSummary(items)
+    const prompt = buildCompactionPrompt(previousSummary, serializeItems(head, compaction.toolOutputMaxChars))
+    const summary = await compactTranscript({ llm: this.deps.llm, model: this.deps.model, prompt, signal })
+    if (signal?.aborted || !summary) return
+
+    // Render the compaction like opencode: a user marker followed by the summary
+    // as an assistant message, then the verbatim recent tail.
+    const now = Date.now()
+    const markerItem: TranscriptItem = {
+      kind: 'message',
+      message: { id: randomUUID(), role: 'user', text: COMPACTION_MARKER, createdAt: now }
+    }
+    const summaryItem: TranscriptItem = {
+      kind: 'message',
+      message: { id: randomUUID(), role: 'assistant', text: summary, createdAt: now }
+    }
+    replaceItems([markerItem, summaryItem, ...tail])
+    this.deps.onEvent({ type: 'compacted', agentId: this.deps.agentId, summary })
+  }
+
+  private findPreviousSummary(items: TranscriptItem[]): string | undefined {
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i]
+      if (item.kind !== 'message' || item.message.role !== 'user') continue
+      if (item.message.text !== COMPACTION_MARKER) continue
+      const next = items[i + 1]
+      if (next?.kind === 'message' && next.message.role === 'assistant') return next.message.text
+    }
+    return undefined
+  }
+
   private buildMessages(isLastStep = false): ReturnType<typeof toLlmMessages> {
     const items = this.deps.getItems()
-    const maxChars = this.deps.maxContextChars
-    let pruned = false
-    let messages: ReturnType<typeof toLlmMessages>
-    if (maxChars !== undefined && maxChars > 0) {
-      const trimmed = pruneTranscript(items, maxChars)
-      pruned = trimmed.length < items.length
-      messages = toLlmMessages(trimmed)
-    } else {
-      messages = toLlmMessages(items)
-    }
-    if (pruned) {
-      messages = [
-        { role: 'user', content: '[Earlier conversation was truncated to fit the context window.]' },
-        ...messages
-      ]
-    }
+    const toolOutputMaxChars = this.deps.compaction?.toolOutputMaxChars
+    let messages = toLlmMessages(items, { toolOutputMaxChars })
     if (isLastStep) {
       messages = [...messages, { role: 'user', content: MAX_STEPS_PROMPT }]
     }

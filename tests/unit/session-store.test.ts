@@ -111,6 +111,19 @@ describe('SessionStore', () => {
     expect(store.todos(other.id)).toEqual([])
   })
 
+  it('replaces the transcript items for a session', () => {
+    const store = makeStore(file)
+    const a = store.create('agent1', '/p')
+    store.appendMessage(a.id, userMessage('hi'))
+    expect(store.transcript(a.id)).toHaveLength(1)
+    store.replaceItems(a.id, [])
+    expect(store.transcript(a.id)).toHaveLength(0)
+    store.replaceItems(a.id, [
+      { kind: 'message', message: userMessage('compacted') }
+    ])
+    expect(store.transcript(a.id)[0].kind).toBe('message')
+  })
+
   it('migrates legacy entries (id = agentId, no title/createdAt)', () => {
     writeFileSync(file, JSON.stringify([
       { id: 'legacy1', projectPath: '/p', items: [

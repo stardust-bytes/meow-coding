@@ -126,6 +126,10 @@ export default function ChatPanel({ agentId, mode = 'build', variant, onModeChan
       setTodos(e.todos)
       return
     }
+    if (e.type === 'compacted') {
+      loadTranscript()
+      return
+    }
     if (e.type === 'done' || e.type === 'error') {
       setRunning(false)
       if (e.type === 'done' && e.tokens) setLastTokens(e.tokens)

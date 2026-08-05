@@ -18,13 +18,22 @@ export interface MeowAgentConfig {
   systemPrompt: string
 }
 
+export interface MeowCompactionConfig {
+  auto: boolean
+  buffer: number
+  keepTokens: number
+  tailTurns: number
+  toolOutputMaxChars: number
+}
+
 export interface MeowConfig {
   provider: Record<string, MeowProviderConfig>
   model: string
   agents: Record<string, MeowAgentConfig>
   permission: Record<string, PermissionRule>
   mcp: Record<string, McpServerConfig>
-  maxContextChars: number
+  maxContextTokens: number
+  compaction: MeowCompactionConfig
 }
 
 export interface ResolvedAgentConfig {
@@ -35,7 +44,14 @@ export interface ResolvedAgentConfig {
   systemPrompt: string
 }
 
-export const DEFAULT_MAX_CONTEXT_CHARS = 200000
+export const DEFAULT_MAX_CONTEXT_TOKENS = 200000
+export const DEFAULT_COMPACTION: MeowCompactionConfig = {
+  auto: true,
+  buffer: 20000,
+  keepTokens: 8000,
+  tailTurns: 2,
+  toolOutputMaxChars: 2000
+}
 
 export const DEFAULT_MEOW_CONFIG: MeowConfig = {
   provider: {},
@@ -63,7 +79,8 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
     question: 'ask'
   },
   mcp: {},
-  maxContextChars: DEFAULT_MAX_CONTEXT_CHARS
+  maxContextTokens: DEFAULT_MAX_CONTEXT_TOKENS,
+  compaction: DEFAULT_COMPACTION
 }
 
 type RawProvider = Partial<MeowProviderConfig> & Record<string, unknown>
@@ -100,6 +117,16 @@ function normalizeAgents(raw: Record<string, unknown> | undefined): Record<strin
   return { ...base, ...out }
 }
 
+function normalizeCompaction(raw: Partial<MeowCompactionConfig> | undefined): MeowCompactionConfig {
+  return {
+    auto: raw?.auto ?? DEFAULT_COMPACTION.auto,
+    buffer: raw?.buffer ?? DEFAULT_COMPACTION.buffer,
+    keepTokens: raw?.keepTokens ?? DEFAULT_COMPACTION.keepTokens,
+    tailTurns: raw?.tailTurns ?? DEFAULT_COMPACTION.tailTurns,
+    toolOutputMaxChars: raw?.toolOutputMaxChars ?? DEFAULT_COMPACTION.toolOutputMaxChars
+  }
+}
+
 function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
   const providers: Record<string, MeowProviderConfig> = {}
   for (const [id, p] of Object.entries(raw.provider ?? {})) {
@@ -111,7 +138,8 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     agents: normalizeAgents(raw.agents),
     permission: { ...DEFAULT_MEOW_CONFIG.permission, ...(raw.permission ?? {}) },
     mcp: raw.mcp ?? {},
-    maxContextChars: raw.maxContextChars ?? DEFAULT_MAX_CONTEXT_CHARS
+    maxContextTokens: raw.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
+    compaction: normalizeCompaction(raw.compaction)
   }
 }
 
@@ -206,7 +234,8 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
     agents: base.agents ?? DEFAULT_MEOW_CONFIG.agents,
     permission: base.permission ?? {},
     mcp: base.mcp ?? {},
-    maxContextChars: Math.max(base.maxContextChars ?? DEFAULT_MAX_CONTEXT_CHARS, DEFAULT_MAX_CONTEXT_CHARS)
+    maxContextTokens: base.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
+    compaction: normalizeCompaction(base.compaction)
   }
 }
 

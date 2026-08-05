@@ -229,14 +229,46 @@ describe('configToSettings / settingsToConfig', () => {
     expect(cfg.mcp.mytools.command).toBe('npx')
   })
 
-  it('clamps a stale low maxContextChars to the current default', () => {
+  it('defaults to token-based compaction settings', () => {
+    const cfg = loadMeowConfig(file)
+    expect(cfg.maxContextTokens).toBe(200000)
+    expect(cfg.compaction).toEqual({
+      auto: true,
+      buffer: 20000,
+      keepTokens: 8000,
+      tailTurns: 2,
+      toolOutputMaxChars: 2000
+    })
+  })
+
+  it('reads custom compaction settings from config', () => {
+    writeFileSync(file, JSON.stringify({
+      provider: { deepseek: { apiKey: 'sk', models: ['deepseek-chat'] } },
+      model: 'deepseek',
+      maxContextTokens: 64000,
+      compaction: { auto: false, buffer: 1000, keepTokens: 2000, tailTurns: 3, toolOutputMaxChars: 500 }
+    }))
+    const cfg = loadMeowConfig(file)
+    expect(cfg.maxContextTokens).toBe(64000)
+    expect(cfg.compaction.auto).toBe(false)
+    expect(cfg.compaction.buffer).toBe(1000)
+    expect(cfg.compaction.keepTokens).toBe(2000)
+    expect(cfg.compaction.tailTurns).toBe(3)
+    expect(cfg.compaction.toolOutputMaxChars).toBe(500)
+  })
+
+  it('preserves compaction settings through settingsToConfig', () => {
     const base = cfgWithProviders()
-    base.maxContextChars = 30000
+    base.compaction = { auto: false, buffer: 5000, keepTokens: 1000, tailTurns: 1, toolOutputMaxChars: 300 }
     const cfg = settingsToConfig({
       defaultProvider: 'anthropic',
       providers: [{ id: 'anthropic', apiKey: 'sk', models: ['claude-x'] }]
     }, base)
-    expect(cfg.maxContextChars).toBe(200000)
+    expect(cfg.compaction.auto).toBe(false)
+    expect(cfg.compaction.buffer).toBe(5000)
+    expect(cfg.compaction.keepTokens).toBe(1000)
+    expect(cfg.compaction.tailTurns).toBe(1)
+    expect(cfg.compaction.toolOutputMaxChars).toBe(300)
   })
 })
 

@@ -104,6 +104,7 @@ export type ChatEvent =
       options?: QuestionOption[]; multiple?: boolean; custom?: boolean }
   | { type: 'done'; agentId: string; reason: string; tokens?: TokenUsage }
   | { type: 'error'; agentId: string; message: string }
+  | { type: 'compacted'; agentId: string; summary: string }
   | { type: 'todo-updated'; agentId: string; todos: TodoItem[] }
   | { type: 'subagent-event'; agentId: string; taskId: string
       sub: 'start' | 'delta' | 'tool' | 'done'
