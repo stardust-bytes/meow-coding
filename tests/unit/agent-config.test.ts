@@ -228,6 +228,16 @@ describe('configToSettings / settingsToConfig', () => {
     }, base)
     expect(cfg.mcp.mytools.command).toBe('npx')
   })
+
+  it('clamps a stale low maxContextChars to the current default', () => {
+    const base = cfgWithProviders()
+    base.maxContextChars = 30000
+    const cfg = settingsToConfig({
+      defaultProvider: 'anthropic',
+      providers: [{ id: 'anthropic', apiKey: 'sk', models: ['claude-x'] }]
+    }, base)
+    expect(cfg.maxContextChars).toBe(200000)
+  })
 })
 
 function cfgWithProviders() {

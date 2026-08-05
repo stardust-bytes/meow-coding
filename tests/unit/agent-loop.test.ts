@@ -5,6 +5,7 @@ import type { LlmClient, LlmStreamOptions, LlmStreamPart } from '../../src/main/
 import type { ToolDefinition } from '../../src/main/agent/tools/types'
 import type { TranscriptItem } from '../../src/main/agent/message'
 import type { ChatEvent, ChatMessage, ToolCallData } from '../../src/shared/types'
+import { DEFAULT_MAX_CONTEXT_CHARS } from '../../src/main/agent/config'
 
 class StubLlm implements LlmClient {
   queue: LlmStreamPart[][] = []
@@ -320,5 +321,101 @@ describe('SessionRunner', () => {
       .map(m => m.content)
     expect(texts[0]).toContain('truncated')
     expect(texts).toContain('latest prompt')
+  })
+
+  it('does not loop re-reading a large plan after context pruning', async () => {
+    // A model that re-reads the plan whenever its content vanished from context
+    // would loop forever. The read result must survive pruning (truncated).
+    const planContent = 'PLAN_' + 'x'.repeat(50000)
+    const planTool = stubTool('read', async () => ({ output: planContent }))
+    const seenPlan = () => JSON.stringify(h.llm.calls.at(-1)?.messages ?? []).includes('PLAN_')
+
+    const h = makeHarness({
+      tools: new Map([['read', planTool]]),
+      maxContextChars: 30000,
+      maxSteps: 8,
+      llm: {
+        async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
+          h.llm.calls.push(opts)
+          const hasPlan = JSON.stringify(opts.messages).includes('PLAN_')
+          if (!hasPlan) {
+            yield { kind: 'tool-call', toolCallId: 'tc-read', toolName: 'read', toolInput: { file_path: 'plan.md' } }
+          } else {
+            yield { kind: 'text', text: 'done' }
+          }
+          yield { kind: 'finish' }
+        }
+      } as unknown as LlmClient
+    })
+    h.items.push({
+      kind: 'message',
+      message: { id: 'u', role: 'user', text: 'read the plan and implement it', createdAt: 1 }
+    })
+
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 60))
+
+    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
+    expect(done).toBeDefined()
+    expect(done.reason).toBe('complete')
+    expect(seenPlan()).toBe(true)
+  })
+
+  it('keeps a plan read across multiple paged chunks within the context budget', async () => {
+    // A 48KB plan read in 20KB chunks (read tool caps output) must not lose the
+    // earlier chunks to pruning, otherwise the model re-reads chunk 1 forever.
+    const planChunks = {
+      0: 'CHUNK_A_' + 'a'.repeat(19000),
+      1: 'CHUNK_B_' + 'b'.repeat(19000),
+      2: 'CHUNK_C_' + 'c'.repeat(19000)
+    }
+    const planTool = stubTool('read', async (input) => ({
+      output: planChunks[String((input as { offset?: number }).offset ?? 0)] ?? 'CHUNK_UNKNOWN'
+    }))
+    const readOffsets: number[] = []
+
+    const h = makeHarness({
+      tools: new Map([['read', planTool]]),
+      maxContextChars: DEFAULT_MAX_CONTEXT_CHARS,
+      maxSteps: 12,
+      llm: {
+        async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
+          h.llm.calls.push(opts)
+          const msgs = JSON.stringify(opts.messages)
+          if (msgs.includes('CHUNK_A_') && msgs.includes('CHUNK_B_') && msgs.includes('CHUNK_C_')) {
+            yield { kind: 'text', text: 'done' }
+          } else {
+            // Model pages through the plan: next missing chunk.
+            const offset = msgs.includes('CHUNK_A_') ? (msgs.includes('CHUNK_B_') ? 2 : 1) : 0
+            readOffsets.push(offset)
+            yield { kind: 'tool-call', toolCallId: 'tc-read', toolName: 'read', toolInput: { file_path: 'plan.md', offset } }
+          }
+          yield { kind: 'finish' }
+        }
+      } as unknown as LlmClient
+    })
+    h.items.push({
+      kind: 'message',
+      message: { id: 'u', role: 'user', text: 'read the plan and implement it', createdAt: 1 }
+    })
+
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 80))
+
+    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
+    expect(done).toBeDefined()
+    expect(done.reason).toBe('complete')
+    // Three chunks read once each; a loop would re-read offset 0 repeatedly.
+    expect(readOffsets).toEqual([0, 1, 2])
+  })
+
+  it('default context budget fits a plan plus a loaded skill (no re-read loop)', async () => {
+    // Real sizes: a plan is ~48KB and the largest bundled skill ~28KB. The
+    // default budget must hold both plus paged reads, or the model forgets the
+    // plan and re-reads it forever.
+    const planSize = 48094
+    const skillSize = 28077
+    const workingSet = planSize + skillSize + 10000
+    expect(DEFAULT_MAX_CONTEXT_CHARS).toBeGreaterThan(workingSet)
   })
 })

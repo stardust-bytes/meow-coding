@@ -97,7 +97,7 @@ describe('bash tool', () => {
       mkdirSync(path.join(dir, 'docs', 'superpowers', 'plans'), { recursive: true })
       writeFileSync(path.join(dir, 'docs', 'superpowers', 'plans', 'test.md'),
         '# Plan\n\n### Task 1: first\n\nstep a\n\n### Task 2: second\n\nstep b\n')
-      const skillDir = path.join('D:', 'GitHub', 'meow-coding', 'resources', 'skills', 'subagent-driven-development')
+      const skillDir = path.join(process.cwd(), 'resources', 'skills', 'subagent-driven-development')
       const sddWorkspace = path.join(skillDir, 'scripts', 'sdd-workspace')
       const taskBrief = path.join(skillDir, 'scripts', 'task-brief')
       const plan = 'docs/superpowers/plans/test.md'

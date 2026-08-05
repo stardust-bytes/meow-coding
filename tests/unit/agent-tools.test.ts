@@ -45,6 +45,13 @@ describe('read', () => {
     const r = await readTool.run({ file_path: 'nope.txt' }, ctx)
     expect(r.error).toMatch(/not found/)
   })
+
+  it('caps oversized output so one read cannot blow the context budget', async () => {
+    writeFileSync(path.join(dir, 'big.txt'), 'a'.repeat(100000))
+    const r = await readTool.run({ file_path: 'big.txt' }, ctx)
+    expect(r.output).toContain('truncated')
+    expect(r.output!.length).toBeLessThan(25000)
+  })
 })
 
 describe('edit', () => {

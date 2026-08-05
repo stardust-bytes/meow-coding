@@ -122,6 +122,29 @@ describe('formatLlmError', () => {
     expect(formatLlmError(err)).toBe('rate limited')
   })
 
+  it('unwraps a RetryError to surface the underlying API error', () => {
+    const err = {
+      name: 'AI_RetryError',
+      lastError: {
+        name: 'APICallError',
+        statusCode: 401,
+        url: 'https://api.deepseek.com/chat/completions',
+        responseBody: '{"error":{"message":"Authentication Fails, Your api key is invalid"}}'
+      }
+    }
+    expect(formatLlmError(err)).toBe('Authentication Fails, Your api key is invalid')
+  })
+
+  it('reports a 401 with a raw non-JSON body like DeepSeek governance errors', () => {
+    const err = {
+      name: 'APICallError',
+      statusCode: 401,
+      url: 'https://api.deepseek.com/chat/completions',
+      responseBody: 'Authentication Fails (governor)'
+    }
+    expect(formatLlmError(err)).toContain('Authentication Fails (governor)')
+  })
+
   it('returns the raw string for plain errors', () => {
     expect(formatLlmError('boom')).toBe('boom')
   })

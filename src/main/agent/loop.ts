@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { ChatEvent, ChatMessage, ModelVariant, PromptResponse, QuestionPrompt, TokenUsage, TodoItem, ToolCallData } from '../../shared/types'
 import { appendStreamDelta } from '../../shared/text'
 import type { LlmClient, LlmStreamPart } from './llm'
+import { formatLlmError } from './llm'
 import { toLlmMessages } from './message'
 import type { TranscriptItem } from './message'
 import type { ToolContext, ToolDefinition } from './tools/types'
@@ -114,7 +115,7 @@ export class SessionRunner {
         if (signal?.aborted) {
           this.deps.onEvent({ type: 'done', agentId, reason: 'stopped' })
         } else {
-          this.deps.onEvent({ type: 'error', agentId, message: String(err) })
+          this.deps.onEvent({ type: 'error', agentId, message: formatLlmError(err) })
         }
         return
       }

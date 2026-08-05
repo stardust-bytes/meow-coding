@@ -35,7 +35,7 @@ export interface ResolvedAgentConfig {
   systemPrompt: string
 }
 
-export const DEFAULT_MAX_CONTEXT_CHARS = 30000
+export const DEFAULT_MAX_CONTEXT_CHARS = 200000
 
 export const DEFAULT_MEOW_CONFIG: MeowConfig = {
   provider: {},
@@ -206,7 +206,7 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
     agents: base.agents ?? DEFAULT_MEOW_CONFIG.agents,
     permission: base.permission ?? {},
     mcp: base.mcp ?? {},
-    maxContextChars: base.maxContextChars ?? DEFAULT_MAX_CONTEXT_CHARS
+    maxContextChars: Math.max(base.maxContextChars ?? DEFAULT_MAX_CONTEXT_CHARS, DEFAULT_MAX_CONTEXT_CHARS)
   }
 }
 

@@ -4,12 +4,13 @@ import type { ToolDefinition, ToolRunResult } from './types'
 import { resolveCwd } from './bash'
 
 const MAX_LINES = 2000
+const MAX_CHARS = 20000
 
 export const readTool: ToolDefinition = {
   name: 'read',
   description:
-    'Read a text file from the project. Returns up to 2000 lines by default. ' +
-    'Use offset/limit to page through large files.',
+    'Read a text file from the project. Returns up to 2000 lines (capped at 20000 ' +
+    'characters) by default. Use offset/limit to page through large files.',
   schema: z.object({
     file_path: z.string().describe('Absolute path or path relative to the project root.'),
     offset: z.number().int().nonnegative().optional().describe('0-based line offset.'),
@@ -31,6 +32,9 @@ export const readTool: ToolDefinition = {
       out = `(lines ${offset + 1}-${Math.min(offset + limit, lines.length)} of ${lines.length})\n` + out
     } else if (lines.length > limit) {
       out = `(showing first ${limit} of ${lines.length} lines)\n` + out
+    }
+    if (out.length > MAX_CHARS) {
+      out = out.slice(0, MAX_CHARS) + '\n[output truncated — use offset/limit to page]\n'
     }
     return { output: out }
   }

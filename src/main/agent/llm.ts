@@ -122,6 +122,10 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string): L
 export function formatLlmError(err: unknown): string {
   if (err && typeof err === 'object') {
     const e = err as { name?: string; statusCode?: number; url?: string; responseBody?: string; message?: string }
+    if (e.name === 'AI_RetryError') {
+      const inner = (e as { lastError?: unknown; errors?: unknown[] }).lastError ?? (e as { errors?: unknown[] }).errors?.[0]
+      return formatLlmError(inner)
+    }
     if (typeof e.statusCode === 'number') {
       let detail = e.message ?? ''
       if (typeof e.responseBody === 'string') {
