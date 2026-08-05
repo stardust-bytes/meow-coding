@@ -46,6 +46,12 @@ describe('decidePermission (plan mode)', () => {
   it('plan mode wins even if config allows a write tool', () => {
     expect(decidePermission('plan', { write: 'allow' }, noSaved, 'write')).toBe('deny')
   })
+
+  it('does not let a saved always-allow override plan mode', () => {
+    expect(decidePermission('plan', {}, () => true, 'bash')).toBe('ask')
+    expect(decidePermission('plan', {}, () => true, 'write')).toBe('deny')
+    expect(decidePermission('plan', {}, () => true, 'edit')).toBe('deny')
+  })
 })
 
 describe('PLAN_RULES', () => {

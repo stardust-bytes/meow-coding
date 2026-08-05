@@ -44,7 +44,9 @@ export function decidePermission(
 ): PermissionDecision {
   const combined = { ...configRules, ...rulesForMode(mode) }
   if (anyRule(combined, toolName, 'deny')) return 'deny'
-  if (isSavedAllow(toolName)) return 'allow'
+  // Plan mode is read-only: a saved always-allow (e.g. bash from build mode)
+  // must not silently bypass the plan-mode ask guard.
+  if (mode !== 'plan' && isSavedAllow(toolName)) return 'allow'
   if (anyRule(combined, toolName, 'allow')) return 'allow'
   return 'ask'
 }

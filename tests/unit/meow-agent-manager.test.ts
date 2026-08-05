@@ -378,4 +378,29 @@ describe('MeowAgentManager', () => {
     const result = events.find(e => e.type === 'tool-result') as Extract<ChatEvent, { type: 'tool-result' }>
     expect(result.call.permission).toBe('allowed')
   })
+
+  it('plan mode still prompts for bash even with a saved always-allow', async () => {
+    const { manager, events, savedPermissions } = await makeManager({
+      partsQueue: [
+        [{ kind: 'tool-call', toolCallId: 'tc1', toolName: 'bash', toolInput: { command: 'echo hi' } }, { kind: 'finish' }]
+      ]
+    })
+    savedPermissions.save('/proj', 'bash')
+    manager.setMode('a1', 'plan')
+
+    const run = manager.send('a1', 'run bash')
+    await new Promise<void>(resolve => {
+      const t = setInterval(() => {
+        if (events.some(e => e.type === 'prompt-request')) {
+          clearInterval(t)
+          resolve()
+        }
+      }, 5)
+    })
+    expect(events.some(e => e.type === 'prompt-request')).toBe(true)
+    manager.stop('a1')
+    await run
+    const result = events.find(e => e.type === 'tool-result') as Extract<ChatEvent, { type: 'tool-result' }>
+    expect(result.call.permission).toBe('denied')
+  })
 })
