@@ -36,42 +36,49 @@ const CommandMenuItem = memo(function CommandMenuItem({
 })
 
 export default memo(function ChatInput({ running, mode, commands, onSubmit, onStop }: Props) {
-  const [value, setValue] = useState('')
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [selectedName, setSelectedName] = useState('')
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const selectedRef = useRef<HTMLButtonElement | null>(null)
-
-  const isCommandInput = value.startsWith('/') && !value.includes(' ')
-  const prefix = isCommandInput ? value.slice(1).toLowerCase() : ''
+  const [menu, setMenu] = useState<{ open: boolean; prefix: string }>({ open: false, prefix: '' })
+  const [selectedName, setSelectedName] = useState('')
 
   const filtered = useMemo(() => {
-    if (!isCommandInput) return []
-    const list = prefix
-      ? commands.filter(c => c.name.toLowerCase().startsWith(prefix))
+    if (!menu.open) return []
+    const list = menu.prefix
+      ? commands.filter(c => c.name.toLowerCase().startsWith(menu.prefix))
       : commands
     return list.slice(0, MAX_MENU_ITEMS)
-  }, [commands, isCommandInput, prefix])
+  }, [commands, menu])
 
   const selectedIndex = filtered.findIndex(c => c.name === selectedName)
 
   // Scroll only when the highlighted item moves, not while typing.
   useEffect(() => {
-    if (!menuOpen) return
+    if (!menu.open) return
     selectedRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [selectedName, menuOpen])
+  }, [selectedName, menu.open])
+
+  // Keep the menu state in sync with the raw textarea value. Typing plain text
+  // (no "/") leaves menu {open:false,prefix:''} unchanged, so React does not
+  // re-render on ordinary keystrokes — the textarea itself is uncontrolled.
+  const syncMenu = useCallback((raw: string) => {
+    const isCmd = raw.startsWith('/') && !raw.includes(' ')
+    const prefix = isCmd ? raw.slice(1).toLowerCase() : ''
+    setMenu(prev => (prev.open === isCmd && prev.prefix === prefix ? prev : { open: isCmd, prefix }))
+    if (isCmd) setSelectedName('')
+  }, [])
 
   const submit = useCallback(() => {
-    const text = value.trim()
+    const text = (fieldRef.current?.value ?? '').trim()
     if (!text || running) return
-    setValue('')
-    setMenuOpen(false)
+    if (fieldRef.current) fieldRef.current.value = ''
+    setMenu({ open: false, prefix: '' })
+    setSelectedName('')
     onSubmit(text)
-  }, [value, running, onSubmit])
+  }, [running, onSubmit])
 
   const applyCommand = useCallback((cmd: Command) => {
-    setValue(`/${cmd.name} `)
-    setMenuOpen(false)
+    if (fieldRef.current) fieldRef.current.value = `/${cmd.name} `
+    setMenu({ open: false, prefix: '' })
     setSelectedName('')
     fieldRef.current?.focus()
   }, [])
@@ -83,12 +90,6 @@ export default memo(function ChatInput({ running, mode, commands, onSubmit, onSt
     if (cmd) applyCommand(cmd)
   }, [commands, applyCommand])
 
-  const onChange = useCallback((next: string) => {
-    setValue(next)
-    setSelectedName('')
-    setMenuOpen(next.startsWith('/') && !next.includes(' '))
-  }, [])
-
   const move = useCallback((delta: number) => {
     if (filtered.length === 0) return
     const cur = selectedIndex < 0 ? 0 : selectedIndex
@@ -98,7 +99,7 @@ export default memo(function ChatInput({ running, mode, commands, onSubmit, onSt
 
   return (
     <div className="chat-input">
-      {menuOpen && filtered.length > 0 && (
+      {menu.open && filtered.length > 0 && (
         <div className="command-menu">
           {filtered.map(c => (
             <CommandMenuItem
@@ -118,13 +119,12 @@ export default memo(function ChatInput({ running, mode, commands, onSubmit, onSt
       <textarea
         ref={fieldRef}
         className={`chat-input-field mode-${mode}`}
-        value={value}
         placeholder="Message Meow...  ( / for commands )"
         rows={2}
         disabled={running}
-        onChange={e => onChange(e.target.value)}
+        onInput={e => syncMenu((e.target as HTMLTextAreaElement).value)}
         onKeyDown={e => {
-          if (menuOpen && filtered.length > 0) {
+          if (menu.open && filtered.length > 0) {
             if (e.key === 'ArrowDown') { e.preventDefault(); move(1); return }
             if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); return }
             if (e.key === 'Tab') { e.preventDefault(); onPick(filtered[selectedIndex < 0 ? 0 : selectedIndex].name); return }
@@ -138,7 +138,7 @@ export default memo(function ChatInput({ running, mode, commands, onSubmit, onSt
             e.preventDefault()
             submit()
           }
-          if (e.key === 'Escape') setMenuOpen(false)
+          if (e.key === 'Escape') setMenu(prev => (prev.open ? { open: false, prefix: '' } : prev))
         }}
       />
       <button
