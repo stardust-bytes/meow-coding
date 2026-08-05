@@ -40,4 +40,27 @@ describe('pruneTranscript', () => {
     const items = [msg('user', 'x')]
     expect(pruneTranscript(items, 0)).toEqual(items)
   })
+
+  it('truncates a single oversized item instead of dropping everything', () => {
+    const items = [
+      msg('user', 'read the plan'),
+      msg('assistant', ''),
+      tool('P'.repeat(50000))
+    ]
+    const pruned = pruneTranscript(items, 30000)
+    const keptTool = pruned.find(i => i.kind === 'tool') as { kind: 'tool'; tool: ToolCallData } | undefined
+    expect(keptTool).toBeDefined()
+    expect(keptTool!.tool.output!.length).toBeLessThan(30000)
+    expect(keptTool!.tool.output!.length).toBeGreaterThan(0)
+  })
+
+  it('keeps the latest user message when the newest item is oversized', () => {
+    const items = [
+      tool('P'.repeat(50000)),
+      msg('user', 'latest question')
+    ]
+    const pruned = pruneTranscript(items, 30000)
+    const texts = pruned.filter(i => i.kind === 'message').map(i => (i as { message: ChatMessage }).message.text)
+    expect(texts[texts.length - 1]).toBe('latest question')
+  })
 })
