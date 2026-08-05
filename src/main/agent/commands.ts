@@ -25,6 +25,41 @@ export const REVIEW_COMMAND: Command = {
     'suggested improvements. Do not modify files.'
 }
 
+// Superpowers slash commands. Embedded built-ins modeled on the opencode
+// `.opencode/commands/sp-*.md` files: each dispatches the current request to the
+// matching Superpowers skill so the agent follows that workflow explicitly.
+const SUPERPOWERS: Array<{ name: string; context: string }> = [
+  { name: 'brainstorming', context: 'Read any relevant module-level `AGENTS.md` files before proposing or changing implementation.' },
+  { name: 'dispatching-parallel-agents', context: 'Read any relevant module-level `AGENTS.md` files before dispatching work.' },
+  { name: 'executing-plans', context: 'Read the relevant implementation plan and supporting `AGENTS.md` files first.' },
+  { name: 'finishing-a-development-branch', context: 'Review the current branch state and relevant project instructions before deciding next steps.' },
+  { name: 'receiving-code-review', context: 'Review the affected code and feedback carefully before making changes.' },
+  { name: 'requesting-code-review', context: 'Gather the relevant changed files, tests, and implementation notes before requesting review.' },
+  { name: 'subagent-driven-development', context: 'Read the active implementation plan and relevant module instructions first.' },
+  { name: 'systematic-debugging', context: 'Inspect the failing behavior, logs, tests, and relevant code before proposing a fix.' },
+  { name: 'test-driven-development', context: 'Read the relevant spec, plan, and module-level instructions before writing tests or implementation.' },
+  { name: 'using-git-worktrees', context: 'Review the current repository state before creating or selecting an isolated workspace.' },
+  { name: 'using-superpowers', context: 'Use this when you need the Superpowers workflow itself to govern the session.' },
+  { name: 'verification-before-completion', context: 'Run the required verification commands and confirm results before claiming completion.' },
+  { name: 'writing-plans', context: 'Read the approved spec and relevant module instructions before writing the plan.' },
+  { name: 'writing-skills', context: 'Review the target skill files and any related plugin structure before editing.' }
+]
+
+export const SUPERPOWERS_COMMANDS: Command[] = SUPERPOWERS.map(({ name, context }) => ({
+  name: `sp-${name}`,
+  description: `Invoke the Superpowers ${name} skill`,
+  template: [
+    `Use the Superpowers skill \`${name}\` for this request and follow it strictly.`,
+    '',
+    'Project context:',
+    '- Read @AGENTS.md before taking action.',
+    `- ${context}`,
+    '',
+    'User request:',
+    '$ARGUMENTS'
+  ].join('\n')
+}))
+
 const SHELL_EXEC_RE = /!`([^`]*)`/g
 const ARG_RE = /\$(\d+)|\$ARGUMENTS/g
 export interface CommandResolverOptions {
@@ -81,7 +116,9 @@ export async function resolveCommand(
 }
 
 export class CommandStore {
-  private builtin = new Map<string, Command>([INIT_COMMAND, REVIEW_COMMAND].map(c => [c.name, c]))
+  private builtin = new Map<string, Command>(
+    [INIT_COMMAND, REVIEW_COMMAND, ...SUPERPOWERS_COMMANDS].map(c => [c.name, c])
+  )
 
   constructor(private userCommandsFile: string) {}
 

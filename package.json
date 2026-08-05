@@ -10,7 +10,9 @@
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "dist": "electron-vite build && electron-builder --win",
+    "dist:dir": "electron-vite build && electron-builder --dir"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.7.2",
@@ -21,6 +23,7 @@
     "@types/turndown": "^5.0.6",
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "^41.7.1",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "typescript": "^7.0.2",
     "vite": "^7.3.6",
@@ -42,5 +45,41 @@
     "tree-kill": "^1.2.2",
     "turndown": "^7.2.4",
     "zod": "^4.4.3"
+  },
+  "build": {
+    "appId": "com.meow.coding",
+    "productName": "Meow Coding",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/skills",
+        "to": "skills"
+      }
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }

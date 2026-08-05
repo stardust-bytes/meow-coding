@@ -633,8 +633,11 @@ select.input { width: 100%; }
 .command-menu {
   position: absolute; bottom: calc(100% + 4px); left: 0; z-index: 40;
   min-width: 320px; max-width: 480px; max-height: 280px; overflow-y: auto;
-  background: var(--bg-panel); box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45), 0 8px 24px rgba(0, 0, 0, 0.45);
+  background: var(--bg-panel);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
   padding: 4px; display: flex; flex-direction: column; gap: 2px;
+  contain: layout paint; will-change: transform;
 }
 .chat-input { position: relative; }
 .command-item {
@@ -644,6 +647,7 @@ select.input { width: 100%; }
 .command-item.selected { background: var(--bg-active); box-shadow: inset 2px 0 0 var(--blue); }
 .command-name { font-family: var(--font-mono); color: var(--blue); font-size: var(--fs-md); }
 .command-desc { color: var(--text-dim); font-size: var(--fs-base); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.command-more { padding: 4px 10px; color: var(--text-faint); font-size: var(--fs-base); font-style: italic; }
 
 /* Commands settings tab */
 .command-tab-desc { flex: 1; min-width: 0; color: var(--text-dim); font-size: var(--fs-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

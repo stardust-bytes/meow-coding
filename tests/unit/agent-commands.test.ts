@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import {
-  CommandStore, INIT_COMMAND, REVIEW_COMMAND, projectCommands, uniqueCommands,
+  CommandStore, INIT_COMMAND, REVIEW_COMMAND, SUPERPOWERS_COMMANDS, projectCommands, uniqueCommands,
   resolveCommandTemplate, resolveShell, resolveCommand
 } from '../../src/main/agent/commands'
 
@@ -56,8 +56,25 @@ describe('CommandStore', () => {
     const list = store.list()
     expect(list.map(c => c.name)).toContain('init')
     expect(list.map(c => c.name)).toContain('review')
+    expect(list.map(c => c.name)).toContain('sp-using-superpowers')
+    expect(list.map(c => c.name)).toContain('sp-brainstorming')
     store.save({ name: '/custom', description: 'd', template: 'do $1' })
     expect(store.list().map(c => c.name)).toContain('custom')
+  })
+
+  it('superpowers commands resolve $ARGUMENTS into the skill dispatch prompt', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-sp-'))
+    try {
+      const cmd = SUPERPOWERS_COMMANDS.find(c => c.name === 'sp-using-superpowers')
+      expect(cmd).toBeDefined()
+      const out = await resolveCommand(cmd!, ['analyze the build config'], { cwd: dir, commands: [] })
+      expect(out).toContain('Use the Superpowers skill `using-superpowers`')
+      expect(out).toContain('Read @AGENTS.md before taking action.')
+      expect(out).toContain('User request:\nanalyze the build config')
+      expect(SUPERPOWERS_COMMANDS.length).toBeGreaterThanOrEqual(14)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('save and remove persist user commands', () => {
@@ -90,7 +107,43 @@ describe('projectCommands', () => {
     }
   })
 
-  it('returns [] without a .meow/commands dir', () => {
+  it('ignores .opencode/commands — project reads .meow only', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-opencode-cmd-'))
+    try {
+      const cmds = path.join(dir, '.opencode', 'commands')
+      mkdirSync(cmds, { recursive: true })
+      writeFileSync(path.join(cmds, 'sp-using-superpowers.md'), [
+        '---',
+        'description: Invoke the Superpowers using-superpowers skill',
+        '---',
+        'Use the Superpowers skill `using-superpowers` for this request and follow it strictly.',
+        'User request:',
+        '$ARGUMENTS'
+      ].join('\n'))
+      const list = projectCommands(dir)
+      expect(list).toHaveLength(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('reads from .meow/commands only', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-meowcmd-'))
+    try {
+      const plural = path.join(dir, '.meow', 'commands')
+      const singular = path.join(dir, '.meow', 'command')
+      mkdirSync(plural, { recursive: true })
+      mkdirSync(singular, { recursive: true })
+      writeFileSync(path.join(plural, 'a.md'), '---\ndescription: a\n---\ntmpl a\n')
+      writeFileSync(path.join(singular, 'b.md'), '---\ndescription: b\n---\ntmpl b\n')
+      const list = projectCommands(dir)
+      expect(list.map(c => c.name)).toEqual(['a'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns [] without a commands dir', () => {
     expect(projectCommands(mkdtempSync(path.join(tmpdir(), 'meow-nopj-')))).toEqual([])
   })
 })

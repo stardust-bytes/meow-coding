@@ -148,6 +148,7 @@ export default function ChatPanel({ agentId, cwd, mode = 'build', variant, onMod
     }
     if (e.type === 'done' || e.type === 'error') {
       setRunning(false)
+      setPendingPrompt(null)
       if (e.type === 'done') {
         if (e.tokens) setLastTokens(e.tokens)
         if (e.cost !== undefined) setLastCost(e.cost)
@@ -215,6 +216,10 @@ export default function ChatPanel({ agentId, cwd, mode = 'build', variant, onMod
     }
     reloadSessions()
   }, [agentId, commands, reloadSessions])
+
+  const handleStop = useCallback(() => {
+    void window.api.stopChat(agentId)
+  }, [agentId])
 
   const handleCreateSession = useCallback(() => {
     void window.api.createSession(agentId).then(() => {
@@ -608,7 +613,7 @@ export default function ChatPanel({ agentId, cwd, mode = 'build', variant, onMod
           mode={currentMode}
           commands={commands}
           onSubmit={send}
-          onStop={() => void window.api.stopChat(agentId)}
+          onStop={handleStop}
         />
       </div>
     </div>

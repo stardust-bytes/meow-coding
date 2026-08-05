@@ -53,7 +53,9 @@ class MainApp {
   logs = new LogManager(path.join(app.getPath('userData'), 'logs'))
   git = new GitStatusService()
   alerts = new AlertService()
-  builtinSkillsDir = path.join(app.getAppPath(), 'resources', 'skills')
+  builtinSkillsDir = app.isPackaged
+    ? path.join(process.resourcesPath, 'skills')
+    : path.join(app.getAppPath(), 'resources', 'skills')
   meowAgent = new MeowAgentManager({
     configPath: path.join(app.getPath('userData'), 'meow.json'),
     store: new SessionStore(createJsonStore<StoredSession>(path.join(app.getPath('userData'), 'sessions.json'))),
