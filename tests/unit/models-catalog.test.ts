@@ -111,4 +111,55 @@ describe('ModelsCatalog', () => {
     expect(providers.deepseek.models).toEqual(['a'])
     expect(readFileSync(file, 'utf-8')).toContain('fetchedAt')
   })
+
+  it('extracts reasoning effort values per model', async () => {
+    const fetchFn = async () => jsonResponse({
+      google: {
+        name: 'Google',
+        models: {
+          'gemini-2.5-pro': {
+            reasoning: true,
+            reasoning_options: [
+              { type: 'effort', values: ['none', 'low', 'medium', 'high', 'max'] }
+            ]
+          },
+          'gemini-no-reasoning': {}
+        }
+      },
+      anthropic: {
+        name: 'Anthropic',
+        models: {
+          'claude-opus-4-5': {
+            reasoning: true,
+            reasoning_options: [
+              { type: 'budget_tokens', min: 1024, max: 32000 },
+              { type: 'toggle' }
+            ]
+          }
+        }
+      }
+    })
+    const catalog = new ModelsCatalog(path.join(dir, 'models.json'), fetchFn)
+    const providers = await catalog.fetch()
+    expect(providers.google?.variants?.['gemini-2.5-pro']).toEqual(['none', 'low', 'medium', 'high', 'max'])
+    expect(providers.google?.variants?.['gemini-no-reasoning']).toBeUndefined()
+    expect(providers.anthropic?.variants?.['claude-opus-4-5']).toBeUndefined()
+  })
+
+  it('getVariants returns the list for a known model', async () => {
+    const fetchFn = async () => jsonResponse({
+      google: {
+        name: 'Google',
+        models: {
+          'gemini-2.5-pro': {
+            reasoning_options: [{ type: 'effort', values: ['low', 'medium', 'high'] }]
+          }
+        }
+      }
+    })
+    const catalog = new ModelsCatalog(path.join(dir, 'models.json'), fetchFn)
+    expect(await catalog.getVariants('google', 'gemini-2.5-pro')).toEqual(['low', 'medium', 'high'])
+    expect(await catalog.getVariants('google', 'unknown-model')).toEqual([])
+    expect(await catalog.getVariants('unknown-provider', 'x')).toEqual([])
+  })
 })

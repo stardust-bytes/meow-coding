@@ -13,6 +13,7 @@ export interface CatalogProvider {
   api?: string
   models: string[]
   limits?: Record<string, ModelLimit>
+  variants?: Record<string, string[]>
 }
 
 function modelLimits(json: Record<string, unknown> | undefined): Record<string, ModelLimit> | undefined {
@@ -28,6 +29,29 @@ function modelLimits(json: Record<string, unknown> | undefined): Record<string, 
       out[id] = { context, output }
       found = true
     }
+  }
+  return found ? out : undefined
+}
+
+function reasoningEffortValues(model: unknown): string[] | undefined {
+  if (typeof model !== 'object' || model === null) return undefined
+  const opts = (model as { reasoning_options?: unknown }).reasoning_options
+  if (!Array.isArray(opts)) return undefined
+  const effort = opts.find((o: unknown) => {
+    return typeof o === 'object' && o !== null && (o as { type?: unknown }).type === 'effort'
+  }) as { values?: unknown } | undefined
+  if (!effort || !Array.isArray(effort.values)) return undefined
+  const values = effort.values.filter((v): v is string => typeof v === 'string')
+  return values.length > 0 ? values : undefined
+}
+
+function modelVariants(models: Record<string, unknown> | undefined): Record<string, string[]> | undefined {
+  if (typeof models !== 'object' || models === null) return undefined
+  const out: Record<string, string[]> = {}
+  let found = false
+  for (const [id, m] of Object.entries(models)) {
+    const values = reasoningEffortValues(m)
+    if (values) { out[id] = values; found = true }
   }
   return found ? out : undefined
 }
@@ -49,7 +73,8 @@ function mapProviders(json: Record<string, { name?: string; api?: string; models
       name: p.name ?? id,
       api: p.api,
       models: Object.keys(p.models ?? {}),
-      limits: modelLimits(p.models)
+      limits: modelLimits(p.models),
+      variants: modelVariants(p.models)
     }
   }
   return providers
@@ -92,6 +117,11 @@ export class ModelsCatalog {
   async getModelLimit(providerId: string, modelId: string): Promise<ModelLimit | undefined> {
     const providers = await this.fetch()
     return providers[providerId]?.limits?.[modelId]
+  }
+
+  async getVariants(providerId: string, modelId: string): Promise<string[]> {
+    const providers = await this.fetch()
+    return providers[providerId]?.variants?.[modelId] ?? []
   }
 
   private loadCache(): Record<string, CatalogProvider> | null {
