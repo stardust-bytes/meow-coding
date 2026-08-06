@@ -659,7 +659,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
       {todos.length > 0 && (
         <div className="chat-todos">
           <div className="chat-todos-head">
-            <span className="chat-todos-title">Tasks</span>
+            <span className="chat-todos-title">TODO LIST</span>
             <span className="chat-todos-count">{doneCount}/{todos.length}</span>
           </div>
           <ul className="chat-todos-list">
