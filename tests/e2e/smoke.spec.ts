@@ -8,9 +8,10 @@ test('app launches and shows the main window', async () => {
   const window = await app.firstWindow()
   await expect(window).toHaveTitle(/Meow Coding/)
   await expect(window.locator('.sidebar')).toBeVisible()
-  const version = await window.locator('.status-bar .sb-mono').last().textContent()
-  expect(version?.trim()).toMatch(/^v\d+\.\d+\.\d+$/)
-  expect(version?.trim()).not.toBe('v0.1.0')
+  // Version loads asynchronously via IPC; auto-wait for it to appear.
+  const version = window.locator('.status-bar .sb-mono').last()
+  await expect(version).toHaveText(/^v\d+\.\d+\.\d+$/)
+  expect(await version.textContent()).not.toBe('v0.1.0')
   await app.close()
 })
 
