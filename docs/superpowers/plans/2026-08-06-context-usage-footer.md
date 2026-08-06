@@ -37,7 +37,7 @@
   - `contextLevel(tokens: number, compactThreshold: number | null): 'normal' | 'warn' | 'danger'`
   - `ChatEvent` thêm nhánh `{ type: 'usage'; agentId: string; tokens: MessageTokens; sessionCost: number }`
 
-- [ ] **Step 1: Viết test thất bại**
+- [x] **Step 1: Viết test thất bại**
 
 Tạo `tests/unit/context-usage.test.ts`:
 
@@ -95,12 +95,12 @@ describe('contextLevel', () => {
 })
 ```
 
-- [ ] **Step 2: Chạy test để xác nhận nó fail**
+- [x] **Step 2: Chạy test để xác nhận nó fail**
 
 Run: `npx vitest run tests/unit/context-usage.test.ts`
 Expected: FAIL — `Failed to resolve import "../../src/shared/usage"`
 
-- [ ] **Step 3: Thêm type vào `src/shared/types.ts`**
+- [x] **Step 3: Thêm type vào `src/shared/types.ts`**
 
 Thêm ngay trên `export interface ChatMessage` (hiện ở dòng 67):
 
@@ -139,7 +139,7 @@ Thêm một nhánh vào union `ChatEvent`, đặt ngay dưới nhánh `compacted
   | { type: 'usage'; agentId: string; tokens: MessageTokens; sessionCost: number }
 ```
 
-- [ ] **Step 4: Viết implementation tối thiểu**
+- [x] **Step 4: Viết implementation tối thiểu**
 
 Tạo `src/shared/usage.ts`:
 
@@ -169,17 +169,17 @@ export function contextLevel(tokens: number, compactThreshold: number | null): C
 }
 ```
 
-- [ ] **Step 5: Chạy test để xác nhận pass**
+- [x] **Step 5: Chạy test để xác nhận pass**
 
 Run: `npx vitest run tests/unit/context-usage.test.ts`
 Expected: PASS — 9 tests
 
-- [ ] **Step 6: Typecheck**
+- [x] **Step 6: Typecheck**
 
 Run: `npm run typecheck`
 Expected: exit 0 (field `tokens` là optional nên không chỗ nào vỡ)
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/shared/usage.ts src/shared/types.ts tests/unit/context-usage.test.ts
@@ -198,7 +198,7 @@ git commit -m "feat(shared): context token helpers and MessageTokens type"
 - Consumes: `MessageTokens` từ Task 1
 - Produces: `LlmStreamPart.tokens?: MessageTokens` — mọi consumer (`loop.ts`) nhận được `reasoning`/`cacheRead` khi provider có trả
 
-- [ ] **Step 1: Viết test thất bại**
+- [x] **Step 1: Viết test thất bại**
 
 Thêm vào cuối `tests/unit/agent-llm.test.ts`, bên trong file (giữ nguyên import sẵn có, thêm import nếu thiếu):
 
@@ -224,12 +224,12 @@ describe('toMessageTokens', () => {
 })
 ```
 
-- [ ] **Step 2: Chạy test để xác nhận nó fail**
+- [x] **Step 2: Chạy test để xác nhận nó fail**
 
 Run: `npx vitest run tests/unit/agent-llm.test.ts`
 Expected: FAIL — `toMessageTokens is not a function` (hoặc lỗi import)
 
-- [ ] **Step 3: Sửa `src/main/agent/llm.ts`**
+- [x] **Step 3: Sửa `src/main/agent/llm.ts`**
 
 Đổi import và type ở đầu file:
 
@@ -278,17 +278,17 @@ Thay khối `case 'finish'` (dòng 93-105) bằng:
             break
 ```
 
-- [ ] **Step 4: Chạy test để xác nhận pass**
+- [x] **Step 4: Chạy test để xác nhận pass**
 
 Run: `npx vitest run tests/unit/agent-llm.test.ts`
 Expected: PASS
 
-- [ ] **Step 5: Chạy toàn bộ unit test + typecheck**
+- [x] **Step 5: Chạy toàn bộ unit test + typecheck**
 
 Run: `npx vitest run && npm run typecheck`
 Expected: tất cả PASS, exit 0
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/main/agent/llm.ts tests/unit/agent-llm.test.ts
@@ -309,7 +309,7 @@ git commit -m "feat(llm): map reasoning and cached input tokens from provider us
   - `LoopDeps.onUsage?: (tokens: MessageTokens) => void` — **được gọi một lần cho mỗi step có usage**, không còn gọi một lần cho cả run
   - Assistant message được persist kèm `tokens` (khi provider có trả)
 
-- [ ] **Step 1: Viết test thất bại**
+- [x] **Step 1: Viết test thất bại**
 
 Thêm vào `tests/unit/agent-loop.test.ts`, bên trong `describe('SessionRunner', …)`:
 
@@ -362,12 +362,12 @@ Thêm vào `tests/unit/agent-loop.test.ts`, bên trong `describe('SessionRunner'
   })
 ```
 
-- [ ] **Step 2: Chạy test để xác nhận nó fail**
+- [x] **Step 2: Chạy test để xác nhận nó fail**
 
 Run: `npx vitest run tests/unit/agent-loop.test.ts`
 Expected: FAIL — message không có `tokens`; `reported` là `[33]` (một lần cho cả run) thay vì `[11, 22]`
 
-- [ ] **Step 3: Sửa `src/main/agent/loop.ts`**
+- [x] **Step 3: Sửa `src/main/agent/loop.ts`**
 
 Thêm import type (dòng 2, thêm `MessageTokens` vào danh sách import từ `'../../shared/types'`):
 
@@ -421,12 +421,12 @@ Thêm `tokens` vào assistant message được persist (dòng 150-158):
 
 Xoá hai lời gọi `this.deps.onUsage?.(runUsage)` ở nhánh kết thúc (dòng 171 và 176) — usage đã được báo mỗi step. Giữ nguyên `runUsage` và `computeCost?.(runUsage)` trong event `done`.
 
-- [ ] **Step 4: Chạy test để xác nhận pass**
+- [x] **Step 4: Chạy test để xác nhận pass**
 
 Run: `npx vitest run tests/unit/agent-loop.test.ts`
 Expected: PASS — toàn bộ test cũ vẫn xanh, 3 test mới xanh
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/agent/loop.ts tests/unit/agent-loop.test.ts
@@ -452,7 +452,7 @@ git commit -m "feat(loop): persist token usage on messages and report usage per 
   - `AgentApi.getContextInfo(agentId: string): Promise<ContextInfo>`
   - Event `{ type: 'usage', agentId, tokens, sessionCost }` được emit mỗi step
 
-- [ ] **Step 1: Viết test thất bại**
+- [x] **Step 1: Viết test thất bại**
 
 Thêm vào `tests/unit/meow-agent-manager.test.ts`, trong `describe('MeowAgentManager', …)`:
 
@@ -501,12 +501,12 @@ Thêm vào `tests/unit/ipc-contract.test.ts`:
     expect(Channels.AgentGetContext).toBe('agent:get-context')
 ```
 
-- [ ] **Step 2: Chạy test để xác nhận nó fail**
+- [x] **Step 2: Chạy test để xác nhận nó fail**
 
 Run: `npx vitest run tests/unit/meow-agent-manager.test.ts tests/unit/ipc-contract.test.ts`
 Expected: FAIL — `manager.getContextInfo is not a function`, `Channels.AgentGetContext` là `undefined`
 
-- [ ] **Step 3: Thêm kênh IPC vào `src/shared/ipc.ts`**
+- [x] **Step 3: Thêm kênh IPC vào `src/shared/ipc.ts`**
 
 Thêm vào object `Channels`, ngay sau `AgentGetModel` (dòng 19):
 
@@ -520,7 +520,7 @@ Thêm `ContextInfo` vào danh sách import type ở dòng 1-5, và thêm method 
   getContextInfo(agentId: string): Promise<ContextInfo>
 ```
 
-- [ ] **Step 4: Implement `getContextInfo` trong `src/main/meow-agent-manager.ts`**
+- [x] **Step 4: Implement `getContextInfo` trong `src/main/meow-agent-manager.ts`**
 
 Thêm `ContextInfo` vào import type từ `'../shared/types'`. Thêm method ngay dưới `getAgentModel` (kết thúc ở dòng 348):
 
@@ -545,7 +545,7 @@ Thêm `ContextInfo` vào import type từ `'../shared/types'`. Thêm method ngay
 
 Đọc lại config mỗi lần gọi (không cache) vì user có thể đổi trong Settings.
 
-- [ ] **Step 5: Emit event `usage` trong callback `onUsage`**
+- [x] **Step 5: Emit event `usage` trong callback `onUsage`**
 
 Thay khối `onUsage` (dòng 600-610) bằng:
 
@@ -572,7 +572,7 @@ Thay khối `onUsage` (dòng 600-610) bằng:
 
 Công thức cost giữ nguyên như cũ (chỉ `input`/`output`) — task này không đổi số tiền, chỉ đổi thời điểm cộng dồn.
 
-- [ ] **Step 6: Nối preload và main handler**
+- [x] **Step 6: Nối preload và main handler**
 
 Trong `src/preload/index.ts`, thêm ngay sau `getAgentModel` (dòng 34):
 
@@ -586,17 +586,17 @@ Trong `src/main/index.ts`, thêm ngay sau handler `AgentGetModel` (dòng 378):
   ipcMain.handle(Channels.AgentGetContext, (_e, agentId: string) => mainApp.meowAgent.getContextInfo(agentId))
 ```
 
-- [ ] **Step 7: Chạy test để xác nhận pass**
+- [x] **Step 7: Chạy test để xác nhận pass**
 
 Run: `npx vitest run tests/unit/meow-agent-manager.test.ts tests/unit/ipc-contract.test.ts`
 Expected: PASS
 
-- [ ] **Step 8: Chạy toàn bộ test + typecheck**
+- [x] **Step 8: Chạy toàn bộ test + typecheck**
 
 Run: `npx vitest run && npm run typecheck`
 Expected: tất cả PASS, exit 0
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src/main/meow-agent-manager.ts src/shared/ipc.ts src/preload/index.ts src/main/index.ts tests/unit/meow-agent-manager.test.ts tests/unit/ipc-contract.test.ts
@@ -616,7 +616,7 @@ git commit -m "feat(ipc): expose context limit, compact threshold and session co
 - Consumes: `contextTokens`, `contextPercent`, `contextLevel` (Task 1); `window.api.getContextInfo` (Task 4); event `usage` (Task 4); `ChatMessage.tokens` (Task 3)
 - Produces: component `ContextFooter` (default export) với props `{ tokens: number | null; limit: number | null; compactThreshold: number | null; cost: number }`
 
-- [ ] **Step 1: Tạo component `ContextFooter.tsx`**
+- [x] **Step 1: Tạo component `ContextFooter.tsx`**
 
 ```tsx
 import { memo } from 'react'
@@ -647,7 +647,7 @@ export default memo(function ContextFooter({ tokens, limit, compactThreshold, co
 })
 ```
 
-- [ ] **Step 2: Thay state token cũ trong `ChatPanel.tsx`**
+- [x] **Step 2: Thay state token cũ trong `ChatPanel.tsx`**
 
 Thêm import (cạnh dòng 2-8):
 
@@ -665,7 +665,7 @@ Thay hai dòng state cũ (dòng 71-72):
   const [compactThreshold, setCompactThreshold] = useState<number | null>(null)
 ```
 
-- [ ] **Step 3: Thêm `loadContextInfo` và gọi ở các điểm cần**
+- [x] **Step 3: Thêm `loadContextInfo` và gọi ở các điểm cần**
 
 Thêm callback ngay dưới `refreshVariants` (sau dòng 101):
 
@@ -694,7 +694,7 @@ Gọi nó cùng chỗ với `refreshVariants` — sửa hai effect ở dòng 103
   }, [agentId, refreshVariants, loadContextInfo])
 ```
 
-- [ ] **Step 4: Khôi phục số context khi load transcript**
+- [x] **Step 4: Khôi phục số context khi load transcript**
 
 Sửa `loadTranscript` (dòng 120-128) — thêm phần dò message cuối có tokens:
 
@@ -720,7 +720,7 @@ Sửa `loadTranscript` (dòng 120-128) — thêm phần dò message cuối có t
   }, [agentId])
 ```
 
-- [ ] **Step 5: Xử lý event `usage` và dọn state cũ**
+- [x] **Step 5: Xử lý event `usage` và dọn state cũ**
 
 Trong `applyEvent`, thêm nhánh ngay trên nhánh `compacted` (dòng 271):
 
@@ -744,7 +744,7 @@ Trong `resetView` (dòng 141-153), thay `setLastTokens(null)` / `setLastCost(0)`
 
 và thêm `loadContextInfo` vào mảng dependency của `resetView`.
 
-- [ ] **Step 6: Xoá khối token cũ trong feed và render footer**
+- [x] **Step 6: Xoá khối token cũ trong feed và render footer**
 
 Xoá nguyên khối ở dòng 575-580 (`{lastTokens && !running && (…)}`).
 
@@ -759,7 +759,7 @@ Thêm footer ngay sau `<ChatInput …/>` trong `.chat-composer` (sau dòng 731):
         />
 ```
 
-- [ ] **Step 7: CSS**
+- [x] **Step 7: CSS**
 
 Xoá hai dòng `.chat-tokens` / `.chat-tokens-cost` (`styles.css:649-650`). Thêm ngay dưới khối `.chat-input-send` (sau dòng 463):
 
@@ -772,22 +772,36 @@ Xoá hai dòng `.chat-tokens` / `.chat-tokens-cost` (`styles.css:649-650`). Thê
 .context-footer.warn .context-footer-cost, .context-footer.danger .context-footer-cost { color: inherit; }
 ```
 
-- [ ] **Step 8: Typecheck và chạy toàn bộ test**
+- [x] **Step 8: Typecheck và chạy toàn bộ test**
 
 Run: `npm run typecheck && npx vitest run`
 Expected: exit 0, tất cả test PASS. Nếu typecheck báo `lastTokens`/`lastCost` chưa dùng → còn sót tham chiếu, xoá nốt.
 
-- [ ] **Step 9: Kiểm tra tay trên app thật**
+- [x] **Step 9: Kiểm tra tay trên app thật**
 
-Run: `npm run dev`
+Thay vì kiểm tra tay (không có sẵn provider API key thật trong môi trường thực thi), đã viết
+`tests/e2e/context-footer.spec.ts` — dựng một HTTP server giả lập endpoint streaming
+OpenAI-compatible (`/chat/completions`, SSE) để chạy nguyên luồng thật IPC → manager →
+loop → llm → renderer mà không cần API key thật. Test build lại `out/` (`npm run build`)
+trước khi chạy vì Playwright `electron.launch({ args: ['.'] })` nạp `out/renderer` tĩnh,
+không phải dev server.
 
-Xác nhận theo thứ tự:
-1. Mở một agent, gửi một tin nhắn → footer dưới nút Send hiện `context <số> (<%>) · $<cost>` ngay sau step đầu tiên
-2. Đóng app, mở lại, vào đúng session đó → footer vẫn hiện số cũ (không phải `—`)
-3. Settings → Context, hạ `maxContextTokens` xuống `30000` → footer chuyển vàng rồi đỏ kèm `compacting soon`, và auto-compact kích hoạt ở lượt kế tiếp
-4. Tạo session mới → footer về `context —`
+Đã xác nhận qua 2 test (`npx playwright test tests/e2e/context-footer.spec.ts`, PASS):
+1. Gửi tin nhắn → footer hiện `context 4,231 (2%)` ngay sau step đầu, không có class `warn`/`danger`
+2. Đóng app (`app.close()`), mở lại cùng userData/session → footer vẫn hiện `4,231`, không phải `—`
+3. Cấu hình `maxContextTokens`/`compaction.buffer` sao cho usage chạm đúng compactThreshold → footer có class `danger` và hiện `compacting soon`
+4. Tạo session mới (`.session-new`) → footer về `—`
 
-- [ ] **Step 10: Commit**
+Không tự động hoá được vế "đổi `maxContextTokens` qua Settings UI" — thay bằng cách seed
+thẳng giá trị đó vào `meow.json` trước khi mở app, vì mục tiêu là xác nhận logic màu/ngưỡng
+đúng, không phải hành vi UI Settings (đã có ở nơi khác). Cờ **$cost luôn = 0** trong app thật:
+`MeowAgentManager.deps.prices` không được set ở đâu trong `src/main/index.ts` (chỉ dùng
+trong unit test) → `priceFor()` luôn `undefined` → `calcCost()` luôn trả `0` → đoạn
+`{cost > 0 && …}` trong `ContextFooter` không bao giờ render trong app thật hiện nay. Đây là
+gap có sẵn từ trước, nằm ngoài phạm vi plan này (plan chỉ đổi *thời điểm* cộng dồn cost, không
+đổi cách tính) — ghi lại ở đây để không bị hiểu nhầm là lỗi của Task 5.
+
+- [x] **Step 10: Commit**
 
 ```bash
 git add src/renderer/src/components/chat/ContextFooter.tsx src/renderer/src/components/chat/ChatPanel.tsx src/renderer/src/styles.css
