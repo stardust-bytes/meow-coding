@@ -43,7 +43,7 @@ test('native meow agent renders a chat panel and sends a message', async () => {
       await window.keyboard.press('Escape')
 
       await window.locator('.chat-input-field').fill('hello meow')
-      await window.locator('.chat-input-send').click()
+      await window.locator('.chat-input-field').press('Enter')
       await expect(window.locator('.chat-msg.user').last()).toContainText('hello meow')
 
       await window.getByRole('button', { name: 'plan' }).click()

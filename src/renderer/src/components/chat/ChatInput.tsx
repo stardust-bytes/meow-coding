@@ -42,6 +42,14 @@ const CommandMenuItem = memo(function CommandMenuItem({
   )
 })
 
+function PaperclipIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+      <path d="M9.5 4.5 5 9a2.1 2.1 0 0 0 3 3l4.6-4.6a3.7 3.7 0 0 0-5.2-5.2L3.2 6.6a5.3 5.3 0 0 0 7.5 7.5l3.8-3.8" />
+    </svg>
+  )
+}
+
 export default memo(function ChatInput({ agentId, running, mode, commands, onSubmit, onStop }: Props) {
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -251,6 +259,41 @@ export default memo(function ChatInput({ agentId, running, mode, commands, onSub
         </div>
       )}
       <div className="chat-input-main">
+        {images.length > 0 && (
+          <div className="chat-input-chips">
+            {images.map(img => (
+              <span key={img.id} className="chat-image-chip">
+                {img.dataUrl
+                  ? <img src={img.dataUrl} alt={img.name} className="chat-image-thumb" />
+                  : <span className="chat-image-thumb chat-image-thumb-empty" />}
+                <span className="chat-image-name">{img.name}</span>
+                <button
+                  className="chat-image-remove"
+                  aria-label={`remove ${img.name}`}
+                  onClick={() => removeImage(img.id)}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        {mentions.length > 0 && (
+          <div className="chat-input-chips">
+            {mentions.map(path => (
+              <span key={path} className="chat-mention-chip">
+                <span className="chat-mention-name">@{path}</span>
+                <button
+                  className="chat-image-remove"
+                  aria-label={`remove @${path}`}
+                  onClick={() => removeMention(path)}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         <textarea
           ref={fieldRef}
           className={`chat-input-field mode-${mode}`}
@@ -304,41 +347,6 @@ export default memo(function ChatInput({ agentId, running, mode, commands, onSub
             }
           }}
         />
-        {mentions.length > 0 && (
-          <div className="chat-input-chips">
-            {mentions.map(path => (
-              <span key={path} className="chat-mention-chip">
-                <span className="chat-mention-name">@{path}</span>
-                <button
-                  className="chat-image-remove"
-                  aria-label={`remove @${path}`}
-                  onClick={() => removeMention(path)}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-        {images.length > 0 && (
-          <div className="chat-input-chips">
-            {images.map(img => (
-              <span key={img.id} className="chat-image-chip">
-                {img.dataUrl
-                  ? <img src={img.dataUrl} alt={img.name} className="chat-image-thumb" />
-                  : <span className="chat-image-thumb chat-image-thumb-empty" />}
-                <span className="chat-image-name">{img.name}</span>
-                <button
-                  className="chat-image-remove"
-                  aria-label={`remove ${img.name}`}
-                  onClick={() => removeImage(img.id)}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
       </div>
       <input
         ref={fileInputRef}
@@ -351,21 +359,23 @@ export default memo(function ChatInput({ agentId, running, mode, commands, onSub
           e.target.value = ''
         }}
       />
-      <button
-        className="chat-input-attach"
-        title="attach image"
-        aria-label="attach image"
-        disabled={running}
-        onClick={() => fileInputRef.current?.click()}
-      >
-        +
-      </button>
-      <button
-        className={`chat-input-send ${running ? 'running' : ''}`}
-        onClick={running ? onStop : submit}
-      >
-        {running ? 'Stop' : 'Send'}
-      </button>
+      <div className="chat-input-toolbar">
+        <button
+          className="chat-input-attach"
+          title="Upload file"
+          disabled={running}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <span className="btn-icon"><PaperclipIcon /></span>
+          Upload file
+        </button>
+        <span className="chat-input-toolbar-spacer" />
+        {running && (
+          <button className="chat-input-stop" onClick={onStop}>
+            Stop
+          </button>
+        )}
+      </div>
     </div>
   )
 })

@@ -91,7 +91,7 @@ test('context footer shows real token usage, persists across reload, resets on n
     await expect(window.locator('.context-footer')).toContainText('—')
 
     await window.locator('.chat-input-field').fill('hello meow')
-    await window.locator('.chat-input-send').click()
+    await window.locator('.chat-input-field').press('Enter')
     await expect(window.locator('.chat-msg.assistant').last()).toContainText('hi there')
 
     const footer = window.locator('.context-footer')
@@ -149,7 +149,7 @@ test('context footer turns danger and shows the compacting note past the auto-co
     try {
       await window.locator('.project-row').click()
       await window.locator('.chat-input-field').fill('hello meow')
-      await window.locator('.chat-input-send').click()
+      await window.locator('.chat-input-field').press('Enter')
       await expect(window.locator('.chat-msg.assistant').last()).toContainText('near limit')
 
       const footer = window.locator('.context-footer')
