@@ -1,0 +1,26 @@
+# AGENTS.md — src/renderer/src/components/chat
+
+The native-agent chat panel: message feed, streaming deltas, tool-call cards, permission/question
+prompts, message queue, and the composer (input + image attach + @-mention). Renders `ChatEvent`s
+pushed from main over IPC (`window.api.onChatEvent`).
+
+## Key files
+
+| File | Responsibility |
+|---|---|
+| `ChatPanel.tsx` | Main container: subscribes to chat events, owns feed state (items/todos/queue/pendingPrompt), rAF-batches stream deltas, renders feed + composer + context footer. Memoized. |
+| `ChatInput.tsx` | Composer: textarea (Enter to send), paste/drop image chips (≤4, ≤5MB), `@` file-mention dropdown + chips, edit-queued flow. Memoized. |
+| `parseCommandInput.ts` | `parseCommandInput(raw)` → `{ isCommand, prefix }` for the `/`-command menu. |
+| `SessionBar.tsx` | Session list bar (create/switch/rename/delete sessions). |
+| `ToolCallCard.tsx` | Renders a tool call: input JSON, diff (for edit/apply-patch), output/error. Memoized. |
+| `MarkdownText.tsx` | Markdown rendering via `marked` + `DOMPurify.sanitize`. |
+| `DiffView.tsx` | Inline diff view for edit tool calls. |
+| `ContextFooter.tsx` | Token/context usage + session cost footer. |
+| `ModelPicker.tsx` | Model selector for the agent. |
+
+## Conventions
+
+- Feed updates are batched per animation frame (`flushDeltas`) to avoid input lag — keep streaming hot paths cheap.
+- `FeedMessage`/`ToolCallCard` are memoized; update copy-on-write (never mutate items in place) so memo works.
+- Message queue: prompts sent while a turn runs are queued in main; renderer shows `queued` badge rows and supports remove/edit via `window.api.removeQueued/editQueued`.
+- Images travel as dataURL strings in `ImageAttachment`; only image/* accepted.
