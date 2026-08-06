@@ -51,6 +51,15 @@ export default function SettingsDialog({ onClose, projectPath }: Props) {
     void refresh()
   }, [refresh])
 
+  // Close on Escape only — the backdrop no longer closes on outside click.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   const patch = useCallback((patch: Partial<MeowSettings>) => {
     setDraft(prev => (prev ? { ...prev, ...patch } : prev))
   }, [])
@@ -73,8 +82,8 @@ export default function SettingsDialog({ onClose, projectPath }: Props) {
   }
 
   return (
-    <div className="dialog-backdrop" onClick={onClose}>
-      <div className="dialog settings-dialog" onClick={e => e.stopPropagation()}>
+    <div className="dialog-backdrop">
+      <div className="dialog settings-dialog">
         <h3>Settings</h3>
         <div className="settings-body">
           <nav className="settings-nav">

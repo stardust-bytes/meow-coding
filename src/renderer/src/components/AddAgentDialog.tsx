@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { NewAgentInput, Template } from '@shared/types'
 
 interface Props {
@@ -13,9 +13,18 @@ export default function AddAgentDialog({ projectPath, templates, onAdd, onClose 
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? '')
   const [cwd, setCwd] = useState(projectPath)
 
+  // Close on Escape only — the backdrop no longer closes on outside click.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   return (
-    <div className="dialog-backdrop" onClick={onClose}>
-      <div className="dialog" onClick={e => e.stopPropagation()}>
+    <div className="dialog-backdrop">
+      <div className="dialog">
         <h3>Add agent</h3>
         <label className="label">Template</label>
         <select className="input" value={templateId}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface Props {
   onAdd: (projectPath: string, name: string) => void
@@ -9,6 +9,15 @@ export default function AddProjectDialog({ onAdd, onClose }: Props) {
   const [path, setPath] = useState('')
   const [name, setName] = useState('')
 
+  // Close on Escape only — the backdrop no longer closes on outside click.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   const pick = async () => {
     const folder = await window.api.pickFolder()
     if (folder) {
@@ -18,8 +27,8 @@ export default function AddProjectDialog({ onAdd, onClose }: Props) {
   }
 
   return (
-    <div className="dialog-backdrop" onClick={onClose}>
-      <div className="dialog" onClick={e => e.stopPropagation()}>
+    <div className="dialog-backdrop">
+      <div className="dialog">
         <h3>Add project</h3>
         <label className="label">Folder</label>
         <div className="row">

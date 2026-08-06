@@ -21,8 +21,8 @@ export default function Modal({
   }, [onClose])
 
   return (
-    <div className="dialog-backdrop" onClick={onClose}>
-      <div className="dialog" onClick={e => e.stopPropagation()}>
+    <div className="dialog-backdrop">
+      <div className="dialog">
         <h3>{title}</h3>
         {children}
         <div className="dialog-actions">

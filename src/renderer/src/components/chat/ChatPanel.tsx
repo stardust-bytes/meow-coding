@@ -315,6 +315,16 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     if (pinRafRef.current != null) cancelAnimationFrame(pinRafRef.current)
   }, [])
 
+  // Close the subagent live popup on Escape only (backdrop click no longer closes).
+  useEffect(() => {
+    if (!liveTaskId) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLiveTaskId(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [liveTaskId])
+
   const applyEvent = useCallback((e: ChatEvent) => {
     if (e.agentId !== agentId) return
     if (e.type === 'subagent-event') {
@@ -617,8 +627,8 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
         const live = items.find(i => i.kind === 'subagent' && i.taskId === liveTaskId) as FeedItem & { kind: 'subagent' } | undefined
         if (!live) return null
         return (
-          <div className="dialog-backdrop" onClick={() => setLiveTaskId(null)}>
-            <div className="dialog subagent-live" onClick={e => e.stopPropagation()}>
+          <div className="dialog-backdrop">
+            <div className="dialog subagent-live">
               <h3>sub-agent{live.subagentType ? ` (${live.subagentType})` : ''}{live.background ? ' · background' : ''}</h3>
               <div className="subagent-live-state">
                 <span className={`subagent-state state-${live.state}`}>{live.state}</span>
