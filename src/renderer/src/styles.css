@@ -408,7 +408,17 @@ select.input { width: 100%; }
 .subagent-live-state { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
 .subagent-live-text { white-space: pre-wrap; word-break: break-word; font-size: var(--fs-md); color: var(--text); user-select: text; max-height: 45vh; overflow-y: auto; }
 .subagent-live-result { white-space: pre-wrap; word-break: break-word; margin-top: 8px; padding: 8px; background: var(--bg-input); font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--text); }
-.chat-running { color: var(--text-dim); font-style: italic; padding: 2px 0; }
+.chat-running {
+  color: var(--text-dim); font-style: italic; padding: 2px 0;
+  animation: chat-running-blink 1.2s ease-in-out infinite;
+}
+@keyframes chat-running-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-running { animation: none; }
+}
 .chat-queue { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; }
 .chat-queue-item {
   display: flex; align-items: center; gap: 8px;
