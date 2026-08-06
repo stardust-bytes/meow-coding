@@ -11,7 +11,7 @@ describe('IPC contract', () => {
       'listProviderCatalog', 'connectProvider', 'disconnectProvider',
       'listTemplates', 'saveTemplate', 'removeTemplate',
       'pickFolder', 'startAgent', 'stopAgent', 'restartAgent',
-      'writeInput', 'injectPrompt', 'resizePty', 'openLog', 'getLogPath', 'quit',
+      'writeInput', 'injectPrompt', 'resizePty', 'openLog', 'getLogPath', 'quit', 'getAppVersion',
       'onPtyData', 'onAgentState', 'onGitStatus',
       'sendChat', 'stopChat', 'runCommand', 'undoChat', 'redoChat', 'newChatSession', 'listChatMessages', 'listChatTranscript', 'respondPrompt',
       'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus', 'listCommands', 'saveCommand', 'removeCommand', 'getStats', 'onContextChanged',
@@ -52,6 +52,7 @@ describe('IPC contract', () => {
       openLog: async () => {},
       getLogPath: async () => '',
       quit: async () => {},
+      getAppVersion: async () => '0.0.0',
       onPtyData: () => () => {},
       onAgentState: () => () => {},
       onGitStatus: () => () => {},
@@ -109,6 +110,7 @@ describe('IPC contract', () => {
     expect(Channels.FilesSuggest).toBe('files:suggest')
     expect(Channels.AgentSetBackground).toBe('agent:set-background')
     expect(Channels.EventAgentBackground).toBe('agent:background')
+    expect(Channels.AppVersion).toBe('app:version')
     expect(Channels.SessionList).toBe('session:list')
     expect(Channels.SessionCreate).toBe('session:create')
     expect(Channels.SessionSwitch).toBe('session:switch')

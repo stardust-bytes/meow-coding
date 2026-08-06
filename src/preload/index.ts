@@ -55,6 +55,7 @@ const api: AgentApi = {
   openLog: (agentId: string) => ipcRenderer.invoke(Channels.LogOpen, agentId),
   getLogPath: (agentId: string) => ipcRenderer.invoke(Channels.LogPath, agentId),
   quit: () => ipcRenderer.invoke(Channels.AppQuit),
+  getAppVersion: () => ipcRenderer.invoke(Channels.AppVersion),
   sendChat: (agentId: string, text: string, images?: ImageAttachment[]) =>
     ipcRenderer.invoke(Channels.ChatSend, agentId, text, images),
   stopChat: (agentId: string) => ipcRenderer.invoke(Channels.ChatStop, agentId),

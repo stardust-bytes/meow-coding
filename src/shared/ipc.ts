@@ -36,6 +36,7 @@ export const Channels = {
   LogOpen: 'log:open',
   LogPath: 'log:path',
   AppQuit: 'app:quit',
+  AppVersion: 'app:version',
   ChatSend: 'chat:send',
   ChatStop: 'chat:stop',
   ChatRunCommand: 'chat:run-command',
@@ -110,6 +111,7 @@ export interface AgentApi {
   openLog(agentId: string): Promise<void>
   getLogPath(agentId: string): Promise<string>
   quit(): Promise<void>
+  getAppVersion(): Promise<string>
   sendChat(agentId: string, text: string, images?: ImageAttachment[]): Promise<void>
   stopChat(agentId: string): Promise<void>
   suggestFiles(agentId: string, prefix: string): Promise<FileSuggestion[]>

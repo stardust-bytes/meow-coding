@@ -457,6 +457,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.CommandRemove, (_e, name: string) => mainApp.meowAgent.removeCommand(name))
   ipcMain.handle(Channels.StatsGet, () => mainApp.meowAgent.getStats())
   ipcMain.handle(Channels.AppQuit, () => app.quit())
+  ipcMain.handle(Channels.AppVersion, () => app.getVersion())
   ipcMain.handle(Channels.WindowMinimize, () => win?.minimize())
   ipcMain.handle(Channels.WindowToggleMaximize, () => {
     if (!win) return
