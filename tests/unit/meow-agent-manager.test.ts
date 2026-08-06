@@ -322,13 +322,68 @@ describe('MeowAgentManager', () => {
     expect(llmSystems[1]).toMatch(/PLAN MODE/)
   })
 
-  it('setVariant passes the variant to the llm stream (default high)', async () => {
-    const { manager, llmVariants } = await makeManager()
+  it('setVariant passes a clamped variant to the llm stream', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-var-stream-'))
+    try {
+      const cfgPath = path.join(dir, 'meow.json')
+      writeFileSync(cfgPath, JSON.stringify({
+        provider: { test: { apiKey: 'sk-test', models: ['test-model'] } },
+        model: 'test'
+      }))
+      const catalog = new ModelsCatalog(path.join(dir, 'models.json'), async () =>
+        ({ ok: true, json: async () => ({
+          test: {
+            name: 'Test',
+            models: {
+              'test-model': { reasoning_options: [{ type: 'effort', values: ['low', 'high'] }] }
+            }
+          }
+        }) }) as unknown as Response)
+      const { manager, llmVariants } = await makeManager({ configPath: cfgPath, catalog })
+      await manager.send('a1', 'first')
+      expect(llmVariants[0]).toBeUndefined()
+      manager.setVariant('a1', 'high')
+      await manager.send('a1', 'second')
+      expect(llmVariants[1]).toBe('high')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('setVariant clamps an out-of-allow value to undefined', async () => {
+    const { manager } = await makeManager()
     await manager.send('a1', 'first')
-    expect(llmVariants[0]).toBe('high')
-    manager.setVariant('a1', 'max')
-    await manager.send('a1', 'second')
-    expect(llmVariants[1]).toBe('max')
+    manager.setVariant('a1', 'xhigh')
+    const stored = manager.getVariant('a1')
+    expect(stored).toBeUndefined()
+  })
+
+  it('setVariant keeps an allow-listed value', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-var-'))
+    try {
+      const cfgPath = path.join(dir, 'meow.json')
+      writeFileSync(cfgPath, JSON.stringify({
+        provider: { test: { apiKey: 'sk-test', models: ['test-model'] } },
+        model: 'test'
+      }))
+      const catalog = new ModelsCatalog(path.join(dir, 'models.json'), async () =>
+        ({ ok: true, json: async () => ({
+          test: {
+            name: 'Test',
+            models: {
+              'test-model': { reasoning_options: [{ type: 'effort', values: ['low', 'medium', 'high'] }] }
+            }
+          }
+        }) }) as unknown as Response)
+      const { manager } = await makeManager({ configPath: cfgPath, catalog })
+      await manager.send('a1', 'first')
+      manager.setVariant('a1', 'low')
+      expect(manager.getVariant('a1')).toBe('low')
+      manager.setVariant('a1', 'max')
+      expect(manager.getVariant('a1')).toBeUndefined()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('connectProvider syncs models and baseUrl from the catalog', async () => {

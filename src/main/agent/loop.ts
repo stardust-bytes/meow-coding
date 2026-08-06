@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ChatEvent, ChatMessage, ModelVariant, PromptResponse, QuestionPrompt, TokenUsage, TodoItem, ToolCallData } from '../../shared/types'
+import type { ChatEvent, ChatMessage, PromptResponse, QuestionPrompt, TokenUsage, TodoItem, ToolCallData } from '../../shared/types'
 import { appendStreamDelta } from '../../shared/text'
 import type { LlmClient, LlmStreamPart } from './llm'
 import { formatLlmError } from './llm'
@@ -34,7 +34,7 @@ export interface LoopDeps {
   appendMessage: (msg: ChatMessage) => void
   appendTool: (tool: ToolCallData) => void
   setTodos?: (todos: TodoItem[]) => void
-  variant?: ModelVariant
+  variant?: string
   onUsage?: (usage: { input: number; output: number; total: number }) => void
   computeCost?: (usage: { input: number; output: number }) => number
   diagnostics?: (filePath: string, text: string) => Promise<string>

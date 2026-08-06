@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
 import type { ChatEvent, ChatMessage, ChatTranscriptItem, McpServerStatus, MeowSettings, ModelUsage, PromptResponse, StatsSummary, TodoItem, UsageSummary } from '../shared/types'
-import type { AgentConfig, AgentMode, CatalogProviderSummary, Command, ModelRef, ModelVariant } from '../shared/types'
+import type { AgentConfig, AgentMode, CatalogProviderSummary, Command, ModelRef } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, settingsToConfig, writeMeowConfig,
   type ResolvedAgentConfig
@@ -63,6 +63,7 @@ export class MeowAgentManager {
   private modes = new Map<string, AgentMode>()
   private mcp = new McpManager()
   private modelLimits = new Map<string, { context?: number; output?: number }>()
+  private modelVariants = new Map<string, string[]>()
   private redoStacks = new Map<string, Array<{ items: ChatTranscriptItem[]; turn: SnapshotTurn }>>()
   private onEvent: (e: ChatEvent) => void = () => {}
 
@@ -310,16 +311,17 @@ export class MeowAgentManager {
     }
   }
 
-  setVariant(agentId: string, variant: ModelVariant): void {
+  setVariant(agentId: string, variant: string | undefined): void {
     const agent = this.agents.get(agentId)
-    if (agent) {
-      agent.variant = variant
-      this.agents.set(agentId, agent)
-      if (!this.running.has(agentId)) {
-        this.runners.delete(agentId)
-        this.resolved.delete(agentId)
-        this.register(agent)
-      }
+    if (!agent) return
+    const allowed = this.allowedVariantsFor(agent)
+    const valid = variant && allowed.includes(variant) ? variant : undefined
+    agent.variant = valid
+    this.agents.set(agentId, agent)
+    if (!this.running.has(agentId)) {
+      this.runners.delete(agentId)
+      this.resolved.delete(agentId)
+      this.register(agent)
     }
   }
 
@@ -351,6 +353,24 @@ export class MeowAgentManager {
       for (const model of p.models) refs.push({ provider, model })
     }
     return refs
+  }
+
+  async getAvailableVariants(agentId: string): Promise<string[]> {
+    const agent = this.agents.get(agentId)
+    if (!agent || !this.deps.catalog) return []
+    return this.allowedVariantsFor(agent)
+  }
+
+  getVariant(agentId: string): string | undefined {
+    return this.agents.get(agentId)?.variant
+  }
+
+  private allowedVariantsFor(agent: AgentConfig): string[] {
+    if (!this.deps.catalog) return []
+    const cfg = loadMeowConfig(this.deps.configPath)
+    const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env, agent.model)
+    if (!resolved.provider || !resolved.model) return []
+    return this.modelVariants.get(`${resolved.provider}/${resolved.model}`) ?? []
   }
 
   async fetchProviderModels(providerId: string): Promise<string[]> {
@@ -480,11 +500,16 @@ export class MeowAgentManager {
     try {
       const providers = await this.deps.catalog.fetch()
       this.modelLimits.clear()
+      this.modelVariants.clear()
       for (const [providerId, p] of Object.entries(providers)) {
         for (const model of p.models) {
           const limit = p.limits?.[model]
           if (limit && (limit.context !== undefined || limit.output !== undefined)) {
             this.modelLimits.set(`${providerId}/${model}`, limit)
+          }
+          const variants = p.variants?.[model]
+          if (variants && variants.length > 0) {
+            this.modelVariants.set(`${providerId}/${model}`, variants)
           }
         }
       }
@@ -531,6 +556,13 @@ export class MeowAgentManager {
         'write/edit/apply-patch/revert/git/todowrite tools are unavailable, and do NOT use the bash tool ' +
         'to modify the filesystem either. Produce a plan or analysis instead.'
       : ''
+    const allowed = this.allowedVariantsFor(agent)
+    const validVariant =
+      agent.variant && allowed.includes(agent.variant) ? agent.variant : undefined
+    if (validVariant !== agent.variant) {
+      agent.variant = validVariant
+      this.agents.set(agent.id, agent)
+    }
     const runner = new SessionRunner({
       agentId: agent.id,
       model: resolved.model,
@@ -560,7 +592,7 @@ export class MeowAgentManager {
         this.deps.store.setTodos(this.activeSessionId(agent.id), todos)
         this.emit({ type: 'todo-updated', agentId: agent.id, todos })
       },
-      variant: agent.variant ?? 'high',
+      variant: validVariant,
       diagnostics: cfg.lsp.enabled && this.deps.lsp
         ? (filePath, text) => this.deps.lsp!.diagnosticsText(filePath, text)
         : undefined,
