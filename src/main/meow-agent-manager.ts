@@ -760,11 +760,13 @@ export class MeowAgentManager {
           cost: calcCost({ input: tokens.input, output: tokens.output }, price)
         }
         this.deps.store.addUsage(sessionId, usage)
+        const sessionUsage = this.deps.store.getUsage(sessionId)
         this.emit({
           type: 'usage',
           agentId: agent.id,
           tokens,
-          sessionCost: this.deps.store.getUsage(sessionId).cost
+          sessionCost: sessionUsage.cost,
+          sessionTokens: { input: sessionUsage.input, output: sessionUsage.output }
         })
       }
     })

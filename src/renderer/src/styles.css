@@ -530,8 +530,11 @@ select.input { width: 100%; }
 .chat-image-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }
 .chat-image-remove { appearance: none; background: none; border: none; color: var(--text-faint); cursor: pointer; font-size: 14px; line-height: 1; padding: 2px; }
 .chat-image-remove:hover { color: var(--red); }
-.context-footer { display: flex; gap: 6px; align-items: center; padding: 4px 2px 0; color: var(--text-dim); font-size: var(--fs-sm); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.context-footer-stack { display: flex; flex-direction: column; }
+.context-footer { display: flex; gap: 6px; align-items: center; padding: 2px 2px 0; color: var(--text-dim); font-size: var(--fs-sm); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.context-footer-tokens { display: flex; gap: 6px; align-items: center; padding: 2px 2px 0; color: var(--text-dim); font-size: var(--fs-sm); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .context-footer-label { color: var(--text-faint); }
+.context-footer-dim { color: var(--text-faint); }
 .context-footer.warn { color: var(--yellow); }
 .context-footer.danger { color: var(--red); }
 .context-footer-cost { color: var(--green); }

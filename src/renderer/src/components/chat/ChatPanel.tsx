@@ -108,6 +108,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const [questionIndex, setQuestionIndex] = useState(0)
   const [contextUsed, setContextUsed] = useState<number | null>(null)
   const [sessionCost, setSessionCost] = useState(0)
+  const [sessionTokens, setSessionTokens] = useState<{ input: number; output: number } | null>(null)
   const [contextLimit, setContextLimit] = useState<number | null>(null)
   const [compactThreshold, setCompactThreshold] = useState<number | null>(null)
   const [commands, setCommands] = useState<Command[]>([])
@@ -214,6 +215,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     setCustomInput(false)
     setContextUsed(null)
     setSessionCost(0)
+    setSessionTokens(null)
     loadContextInfo()
     setTodos([])
     setQueue([])
@@ -369,6 +371,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     if (e.type === 'usage') {
       setContextUsed(contextTokens(e.tokens))
       setSessionCost(e.sessionCost)
+      setSessionTokens(e.sessionTokens)
       return
     }
     if (e.type === 'compacted') {
@@ -896,6 +899,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
           limit={contextLimit}
           compactThreshold={compactThreshold}
           cost={sessionCost}
+          sessionTokens={sessionTokens}
         />
       </div>
     </div>
