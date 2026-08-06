@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import type { AgentSettings, CompactionSettings, MeowSettings, PermissionRule } from '../../shared/types'
+import type { AgentSettings, CompactionSettings, MeowSettings, NotificationsSettings, PermissionRule } from '../../shared/types'
 import type { McpServerConfig } from './mcp/manager'
 
 export type { PermissionRule }
@@ -31,6 +31,8 @@ export interface LspConfig {
   diagnosticsTimeoutMs: number
 }
 
+export type NotificationsConfig = NotificationsSettings
+
 export interface MeowConfig {
   provider: Record<string, MeowProviderConfig>
   model: string
@@ -42,6 +44,7 @@ export interface MeowConfig {
   compaction: MeowCompactionConfig
   toolOutput: ToolOutputConfig
   lsp: LspConfig
+  notifications?: NotificationsConfig
 }
 
 export interface ResolvedAgentConfig {
@@ -69,6 +72,10 @@ export const DEFAULT_TOOL_OUTPUT: ToolOutputConfig = {
 export const DEFAULT_LSP: LspConfig = {
   enabled: true,
   diagnosticsTimeoutMs: 3000
+}
+export const DEFAULT_NOTIFICATIONS: NotificationsConfig = {
+  needsInput: true,
+  onDone: true
 }
 
 export const DEFAULT_MEOW_CONFIG: MeowConfig = {
@@ -103,7 +110,8 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
   maxSteps: DEFAULT_MAX_STEPS,
   compaction: DEFAULT_COMPACTION,
   toolOutput: DEFAULT_TOOL_OUTPUT,
-  lsp: DEFAULT_LSP
+  lsp: DEFAULT_LSP,
+  notifications: DEFAULT_NOTIFICATIONS
 }
 
 type RawProvider = Partial<MeowProviderConfig> & Record<string, unknown>
@@ -165,6 +173,13 @@ function normalizeLsp(raw: Partial<LspConfig> | undefined): LspConfig {
   }
 }
 
+function normalizeNotifications(raw: Partial<NotificationsConfig> | undefined): NotificationsConfig {
+  return {
+    needsInput: raw?.needsInput ?? DEFAULT_NOTIFICATIONS.needsInput,
+    onDone: raw?.onDone ?? DEFAULT_NOTIFICATIONS.onDone
+  }
+}
+
 function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
   const providers: Record<string, MeowProviderConfig> = {}
   for (const [id, p] of Object.entries(raw.provider ?? {})) {
@@ -180,7 +195,8 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     maxSteps: raw.maxSteps ?? DEFAULT_MAX_STEPS,
     compaction: normalizeCompaction(raw.compaction),
     toolOutput: normalizeToolOutput(raw.toolOutput),
-    lsp: normalizeLsp(raw.lsp)
+    lsp: normalizeLsp(raw.lsp),
+    notifications: normalizeNotifications(raw.notifications)
   }
 }
 
@@ -265,7 +281,8 @@ export function configToSettings(cfg: MeowConfig): MeowSettings {
     maxSteps: cfg.maxSteps,
     compaction: cfg.compaction,
     toolOutput: cfg.toolOutput,
-    lsp: cfg.lsp
+    lsp: cfg.lsp,
+    notifications: cfg.notifications ? normalizeNotifications(cfg.notifications) : DEFAULT_NOTIFICATIONS
   }
 }
 
@@ -303,7 +320,10 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
     maxSteps: settings.maxSteps ?? base.maxSteps ?? DEFAULT_MAX_STEPS,
     compaction: settings.compaction ? normalizeCompaction(settings.compaction) : normalizeCompaction(base.compaction),
     toolOutput: settings.toolOutput ? normalizeToolOutput(settings.toolOutput) : normalizeToolOutput(base.toolOutput),
-    lsp: settings.lsp ? normalizeLsp(settings.lsp) : normalizeLsp(base.lsp)
+    lsp: settings.lsp ? normalizeLsp(settings.lsp) : normalizeLsp(base.lsp),
+    notifications: settings.notifications
+      ? normalizeNotifications(settings.notifications)
+      : normalizeNotifications(base.notifications)
   }
 }
 

@@ -9,6 +9,7 @@ import { PtyManager } from './pty-manager'
 import { LogManager } from './log-manager'
 import { GitStatusService } from './git-status-service'
 import { AlertService } from './alert-service'
+import { NotificationService } from './notification-service'
 import { SessionStore } from './agent/session'
 import type { StoredSession } from './agent/session'
 import { SnapshotStore } from './agent/snapshot'
@@ -73,7 +74,14 @@ class MainApp {
     truncation: new TruncationStore(path.join(app.getPath('userData'), 'truncation')),
     catalog: new ModelsCatalog(path.join(app.getPath('userData'), 'models.json')),
     commands: new CommandStore(path.join(app.getPath('userData'), 'commands.json')),
-    lsp: new LspManager()
+    lsp: new LspManager(),
+    notify: new NotificationService(() => !win || !win.isFocused()),
+    onActivateAgent: () => {
+      if (!win) return
+      if (win.isMinimized()) win.restore()
+      win.show()
+      win.focus()
+    }
   })
 
   private states = new Map<string, AgentState>()

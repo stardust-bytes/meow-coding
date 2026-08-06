@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
-import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, ImageAttachment, McpServerStatus, MeowSettings, ModelUsage, PromptResponse, StatsSummary, TodoItem, UsageSummary } from '../shared/types'
+import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, ImageAttachment, McpServerStatus, MeowSettings, ModelUsage, NotificationsSettings, PromptResponse, StatsSummary, TodoItem, UsageSummary } from '../shared/types'
 import type { AgentConfig, AgentMode, CatalogProviderSummary, Command, ModelRef } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, settingsToConfig, writeMeowConfig,
@@ -31,6 +31,7 @@ import type { VariantBody } from './model-variants'
 import { revertTool } from './agent/tools/revert'
 import { createTaskTool } from './agent/tools/task'
 import type { ToolDefinition } from './agent/tools/types'
+import type { NotificationService } from './notification-service'
 
 export interface MeowAgentManagerDeps {
   configPath: string
@@ -50,6 +51,9 @@ export interface MeowAgentManagerDeps {
   prices?: Record<string, { input?: number; output?: number; cacheRead?: number; cacheWrite?: number }>
   projectPath?: string
   lsp?: LspManager
+  notify?: NotificationService
+  onActivateAgent?: (agentId: string) => void
+  notifications?: NotificationsSettings
 }
 
 export class MeowAgentManager {
@@ -70,12 +74,29 @@ export class MeowAgentManager {
 
   constructor(private deps: MeowAgentManagerDeps) {
     this.tools = new Map(deps.tools)
+    this.deps = { ...deps, notifications: loadMeowConfig(deps.configPath).notifications }
   }
 
   setOnEvent(cb: (e: ChatEvent) => void): void {
     this.onEvent = (e) => {
       if (e.type === 'done' || e.type === 'error') this.running.delete(e.agentId)
       cb(e)
+      if (e.type === 'done' && this.deps.notifications?.onDone !== false) {
+        const cost = e.cost !== undefined ? ` · ${e.cost.toFixed(4)}` : ''
+        this.deps.notify?.notify({
+          title: '[meow] Hoàn thành',
+          body: `${this.agents.get(e.agentId)?.name ?? e.agentId}${e.reason ? ` (${e.reason})` : ''}${cost}`,
+          agentId: e.agentId,
+          onActivate: () => this.deps.onActivateAgent?.(e.agentId)
+        })
+      } else if (e.type === 'error' && this.deps.notifications?.onDone !== false) {
+        this.deps.notify?.notify({
+          title: '[meow] Lỗi',
+          body: `${this.agents.get(e.agentId)?.name ?? e.agentId}: ${e.message}`,
+          agentId: e.agentId,
+          onActivate: () => this.deps.onActivateAgent?.(e.agentId)
+        })
+      }
     }
   }
 
@@ -492,6 +513,7 @@ export class MeowAgentManager {
     const current = loadMeowConfig(this.deps.configPath)
     const cfg = settingsToConfig(settings, current)
     writeMeowConfig(this.deps.configPath, cfg)
+    this.deps = { ...this.deps, notifications: cfg.notifications }
     await this.reload()
     return configToSettings(cfg)
   }
@@ -652,6 +674,14 @@ export class MeowAgentManager {
       if (this.controllers.get(agentId)?.signal.aborted) {
         this.pendingPrompts.delete(promptId)
         resolve(null)
+      }
+      if (this.deps.notifications?.needsInput !== false) {
+        this.deps.notify?.notify({
+          title: '[meow] Cần bạn nhập',
+          body: `${this.agents.get(agentId)?.name ?? agentId} đang chờ...`,
+          agentId,
+          onActivate: () => this.deps.onActivateAgent?.(agentId)
+        })
       }
     })
   }

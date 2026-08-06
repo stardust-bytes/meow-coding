@@ -111,6 +111,7 @@ export default function SettingsDialog({ onClose, projectPath }: Props) {
                 maxSteps={draft.maxSteps}
                 compaction={draft.compaction}
                 toolOutput={draft.toolOutput}
+                notifications={draft.notifications ?? { needsInput: true, onDone: true }}
                 onChange={ctx => patch(ctx)}
               />
             )}

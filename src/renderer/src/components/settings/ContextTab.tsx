@@ -1,11 +1,12 @@
-import type { CompactionSettings, ToolOutputSettings } from '@shared/types'
+import type { CompactionSettings, NotificationsSettings, ToolOutputSettings } from '@shared/types'
 
 interface Props {
   maxContextTokens: number
   maxSteps: number
   compaction: CompactionSettings
   toolOutput: ToolOutputSettings
-  onChange: (patch: { maxContextTokens: number; maxSteps: number; compaction: CompactionSettings; toolOutput: ToolOutputSettings }) => void
+  notifications: NotificationsSettings
+  onChange: (patch: { maxContextTokens: number; maxSteps: number; compaction: CompactionSettings; toolOutput: ToolOutputSettings; notifications: NotificationsSettings }) => void
 }
 
 function num(value: string, fallback: number): number {
@@ -17,15 +18,17 @@ function displaySteps(n: number): string {
   return Number.isFinite(n) && n > 0 ? String(n) : ''
 }
 
-export default function ContextTab({ maxContextTokens, maxSteps, compaction, toolOutput, onChange }: Props) {
+export default function ContextTab({ maxContextTokens, maxSteps, compaction, toolOutput, notifications, onChange }: Props) {
   const setTokens = (value: string) =>
-    onChange({ maxContextTokens: num(value, maxContextTokens), maxSteps, compaction, toolOutput })
+    onChange({ maxContextTokens: num(value, maxContextTokens), maxSteps, compaction, toolOutput, notifications })
   const setMaxSteps = (value: string) =>
-    onChange({ maxContextTokens, maxSteps: num(value, maxSteps), compaction, toolOutput })
+    onChange({ maxContextTokens, maxSteps: num(value, maxSteps), compaction, toolOutput, notifications })
   const setComp = (patch: Partial<CompactionSettings>) =>
-    onChange({ maxContextTokens, maxSteps, compaction: { ...compaction, ...patch }, toolOutput })
+    onChange({ maxContextTokens, maxSteps, compaction: { ...compaction, ...patch }, toolOutput, notifications })
   const setToolOutput = (patch: Partial<ToolOutputSettings>) =>
-    onChange({ maxContextTokens, maxSteps, compaction, toolOutput: { ...toolOutput, ...patch } })
+    onChange({ maxContextTokens, maxSteps, compaction, toolOutput: { ...toolOutput, ...patch }, notifications })
+  const setNotifications = (patch: Partial<NotificationsSettings>) =>
+    onChange({ maxContextTokens, maxSteps, compaction, toolOutput, notifications: { ...notifications, ...patch } })
 
   return (
     <div className="settings-tab context-tab">
@@ -141,6 +144,27 @@ export default function ContextTab({ maxContextTokens, maxSteps, compaction, too
           onChange={e => setToolOutput({ maxLines: num(e.target.value, toolOutput.maxLines) })}
         />
         <p className="settings-hint">Maximum lines kept in the tool-result preview.</p>
+      </div>
+
+      <div className="settings-field">
+        <label className="settings-check">
+          <input
+            type="checkbox"
+            checked={notifications.needsInput}
+            onChange={e => setNotifications({ needsInput: e.target.checked })}
+          />
+          Notify when the agent needs input
+        </label>
+      </div>
+      <div className="settings-field">
+        <label className="settings-check">
+          <input
+            type="checkbox"
+            checked={notifications.onDone}
+            onChange={e => setNotifications({ onDone: e.target.checked })}
+          />
+          Notify when a turn finishes or errors
+        </label>
       </div>
     </div>
   )

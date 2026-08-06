@@ -244,6 +244,13 @@ describe('configToSettings / settingsToConfig', () => {
     })
     expect(cfg.toolOutput).toEqual({ maxBytes: 51200, maxLines: 2000 })
     expect(cfg.lsp).toEqual({ enabled: true, diagnosticsTimeoutMs: 3000 })
+    expect(cfg.notifications).toEqual({ needsInput: true, onDone: true })
+  })
+
+  it('normalizes notifications settings', () => {
+    writeFileSync(file, JSON.stringify({ notifications: { needsInput: false } }))
+    const cfg = loadMeowConfig(file)
+    expect(cfg.notifications).toEqual({ needsInput: false, onDone: true })
   })
 
   it('reads custom compaction settings from config', () => {
