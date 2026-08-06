@@ -376,6 +376,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.AgentSetModel, (_e, agentId: string, provider: string, model: string) =>
     mainApp.setAgentModel(agentId, provider, model))
   ipcMain.handle(Channels.AgentGetModel, (_e, agentId: string) => mainApp.meowAgent.getAgentModel(agentId))
+  ipcMain.handle(Channels.AgentGetContext, (_e, agentId: string) => mainApp.meowAgent.getContextInfo(agentId))
   ipcMain.handle(Channels.ProviderModels, () => mainApp.meowAgent.getProviderModels())
   ipcMain.handle(Channels.ProviderFetchModels, (_e, providerId: string) =>
     mainApp.meowAgent.fetchProviderModels(providerId))

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
-import type { ChatEvent, ChatMessage, ChatTranscriptItem, McpServerStatus, MeowSettings, ModelUsage, PromptResponse, StatsSummary, TodoItem, UsageSummary } from '../shared/types'
+import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, McpServerStatus, MeowSettings, ModelUsage, PromptResponse, StatsSummary, TodoItem, UsageSummary } from '../shared/types'
 import type { AgentConfig, AgentMode, CatalogProviderSummary, Command, ModelRef } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, settingsToConfig, writeMeowConfig,
@@ -347,6 +347,23 @@ export class MeowAgentManager {
     return { provider: resolved.provider, model: resolved.model }
   }
 
+  getContextInfo(agentId: string): ContextInfo {
+    const agent = this.agents.get(agentId)
+    if (!agent) return { limit: null, compactThreshold: null, sessionCost: 0 }
+    const cfg = loadMeowConfig(this.deps.configPath)
+    const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env, agent.model)
+    const modelLimit = resolved.provider && resolved.model
+      ? this.modelLimits.get(`${resolved.provider}/${resolved.model}`)
+      : undefined
+    const limit = modelLimit?.context ?? cfg.maxContextTokens ?? null
+    const compactThreshold = cfg.compaction.auto && limit ? limit - cfg.compaction.buffer : null
+    return {
+      limit,
+      compactThreshold,
+      sessionCost: this.deps.store.getUsage(this.activeSessionId(agentId)).cost
+    }
+  }
+
   getProviderModels(): ModelRef[] {
     const cfg = loadMeowConfig(this.deps.configPath)
     const refs: ModelRef[] = []
@@ -602,6 +619,7 @@ export class MeowAgentManager {
       computeCost: (tokens) => calcCost({ input: tokens.input, output: tokens.output }, this.priceFor(resolved.provider, resolved.model)),
       onUsage: (tokens) => {
         const price = this.priceFor(resolved.provider, resolved.model)
+        const sessionId = this.activeSessionId(agent.id)
         const usage: UsageSummary = {
           input: tokens.input,
           output: tokens.output,
@@ -609,7 +627,13 @@ export class MeowAgentManager {
           cacheWrite: 0,
           cost: calcCost({ input: tokens.input, output: tokens.output }, price)
         }
-        this.deps.store.addUsage(this.activeSessionId(agent.id), usage)
+        this.deps.store.addUsage(sessionId, usage)
+        this.emit({
+          type: 'usage',
+          agentId: agent.id,
+          tokens,
+          sessionCost: this.deps.store.getUsage(sessionId).cost
+        })
       }
     })
     this.runners.set(agent.id, runner)

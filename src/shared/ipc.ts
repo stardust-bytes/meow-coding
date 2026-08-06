@@ -1,6 +1,6 @@
 import type {
   AgentState, CatalogProviderSummary, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ContextChangedEvent,
-  GitStatus, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PromptResponse, SessionSummary,
+  ContextInfo, GitStatus, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PromptResponse, SessionSummary,
   StatsSummary, Template, TodoItem, WorkspaceRuntime, WorkspaceSummary
 } from './types'
 
@@ -17,6 +17,7 @@ export const Channels = {
   AgentGetVariants: 'agent:get-variants',
   AgentSetModel: 'agent:set-model',
   AgentGetModel: 'agent:get-model',
+  AgentGetContext: 'agent:get-context',
   ProviderModels: 'provider:models',
   ProviderFetchModels: 'provider:fetch-models',
   ProviderCatalog: 'provider:catalog',
@@ -87,6 +88,7 @@ export interface AgentApi {
   getAgentVariants(agentId: string): Promise<string[]>
   setAgentModel(agentId: string, provider: string, model: string): Promise<void>
   getAgentModel(agentId: string): Promise<ModelRef | null>
+  getContextInfo(agentId: string): Promise<ContextInfo>
   getProviderModels(): Promise<ModelRef[]>
   fetchProviderModels(providerId: string): Promise<string[]>
   listProviderCatalog(): Promise<CatalogProviderSummary[]>

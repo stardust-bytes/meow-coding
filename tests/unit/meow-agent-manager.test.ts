@@ -543,6 +543,35 @@ describe('MeowAgentManager', () => {
     expect(usage?.cost).toBeCloseTo(done.cost ?? 0, 10)
   })
 
+  it('getContextInfo reports the config limit and the auto-compact threshold', async () => {
+    const { manager } = await makeManager()
+    const info = manager.getContextInfo('a1')
+    // config mặc định: maxContextTokens 200000, compaction.auto true, buffer 20000
+    expect(info.limit).toBe(200000)
+    expect(info.compactThreshold).toBe(180000)
+    expect(info.sessionCost).toBe(0)
+  })
+
+  it('getContextInfo returns nulls for an unknown agent', async () => {
+    const { manager } = await makeManager()
+    expect(manager.getContextInfo('nope')).toEqual({ limit: null, compactThreshold: null, sessionCost: 0 })
+  })
+
+  it('emits a usage event with the accumulated session cost', async () => {
+    const { manager, events } = await makeManager({
+      partsQueue: [[
+        { kind: 'text', text: 'hi' },
+        { kind: 'finish', tokens: { input: 1_000_000, output: 1_000_000, total: 2_000_000 } }
+      ]]
+    })
+    await manager.send('a1', 'hello')
+    const usage = events.find(e => e.type === 'usage')
+    expect(usage).toBeDefined()
+    expect(usage?.type === 'usage' && usage.tokens.total).toBe(2_000_000)
+    // giá test: input 1 $/M, output 2 $/M → 1 + 2 = 3
+    expect(usage?.type === 'usage' && usage.sessionCost).toBeCloseTo(3, 10)
+  })
+
   it('getStats aggregates usage across sessions', async () => {
     const { manager } = await makeManager({
       partsQueue: [
