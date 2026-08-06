@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
-import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, ImageAttachment, McpServerStatus, MeowSettings, ModelUsage, NotificationsSettings, PromptResponse, StatsSummary, TodoItem, UsageSummary } from '../shared/types'
+import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, ModelUsage, NotificationsSettings, PromptResponse, StatsSummary, TodoItem, UsageSummary } from '../shared/types'
 import type { AgentConfig, AgentMode, CatalogProviderSummary, Command, ModelRef } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, settingsToConfig, writeMeowConfig,
@@ -17,6 +17,7 @@ import { collectSkills, skillListText } from './agent/skill'
 import { loadUserTools } from './agent/plugin'
 import { instructionsText, loadInstructions } from './agent/instructions'
 import { expandReferences } from './agent/references'
+import { suggestFiles } from './file-suggest'
 import { SnapshotStore } from './agent/snapshot'
 import type { SnapshotTurn } from './agent/snapshot'
 import { TruncationStore } from './agent/truncation'
@@ -116,6 +117,12 @@ export class MeowAgentManager {
 
   isBackground(agentId: string): boolean {
     return this.backgrounds.get(agentId) ?? false
+  }
+
+  async suggestFiles(agentId: string, prefix: string): Promise<FileSuggestion[]> {
+    const agent = this.agents.get(agentId)
+    if (!agent) return []
+    return suggestFiles(agent.cwd, prefix)
   }
 
   setBackground(agentId: string, background: boolean): void {

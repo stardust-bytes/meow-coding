@@ -390,6 +390,8 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.AgentGetContext, (_e, agentId: string) => mainApp.meowAgent.getContextInfo(agentId))
   ipcMain.handle(Channels.AgentSetBackground, (_e, agentId: string, background: boolean) =>
     mainApp.meowAgent.setBackground(agentId, background))
+  ipcMain.handle(Channels.FilesSuggest, (_e, agentId: string, prefix: string) =>
+    mainApp.meowAgent.suggestFiles(agentId, prefix))
   ipcMain.handle(Channels.ProviderModels, () => mainApp.meowAgent.getProviderModels())
   ipcMain.handle(Channels.ProviderFetchModels, (_e, providerId: string) =>
     mainApp.meowAgent.fetchProviderModels(providerId))
