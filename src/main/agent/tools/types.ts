@@ -30,10 +30,14 @@ export interface SubagentToolEvent {
   subagentType?: string
   text?: string
   tool?: string
+  reasoning?: string
+  background?: boolean
+  result?: string
   state?: 'running' | 'completed' | 'cancelled' | 'error'
 }
 
 export interface ToolRunResult {
   output?: string
   error?: string
+  background?: boolean
 }

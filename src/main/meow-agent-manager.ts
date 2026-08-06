@@ -671,7 +671,30 @@ export class MeowAgentManager {
     // prompt only points the model at them instead of inlining everything.
     const instructions = INSTRUCTION_POINTER
     const llmClient = (this.deps.createLlm ?? createLlm)(resolved.provider, resolved.apiKey ?? '', resolved.baseUrl)
-    const taskTool = createTaskTool({ llm: llmClient, model: resolved.model, tools: this.tools })
+    const taskTool = createTaskTool({
+      llm: llmClient,
+      model: resolved.model,
+      tools: this.tools,
+      onBackgroundResult: (taskId, text, error) => {
+        const sessionId = this.activeSessionId(agent.id)
+        this.deps.store.appendMessage(sessionId, {
+          id: randomUUID(),
+          role: 'assistant',
+          text: error
+            ? `[subagent ${taskId} failed]\n${error}`
+            : `[subagent ${taskId} result]\n${text}`,
+          createdAt: Date.now()
+        })
+        this.emit({
+          type: 'subagent-event',
+          agentId: agent.id,
+          taskId,
+          sub: 'done',
+          state: error ? 'error' : 'completed',
+          result: error ? undefined : text
+        })
+      }
+    })
     const runnerTools = new Map<string, ToolDefinition>([...this.tools])
     runnerTools.set('task', taskTool)
     runnerTools.set('revert', revertTool)

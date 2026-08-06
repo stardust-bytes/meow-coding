@@ -44,40 +44,107 @@ export const SUBAGENT_CONFIGS: Record<SubagentType, SubagentConfig> = {
 function renderOutput(input: { id: string; description: string; text: string }): string {
   return [
     `<task id="${input.id}" state="completed">`,
-    `<summary>${input.description}</summary>`,
-    '<task_result>',
     input.text,
-    '</task_result>',
-    '</task>'
+    `</task>`
   ].join('\n')
+}
+
+interface SubagentResult {
+  text: string
+  error?: string
 }
 
 export function createTaskTool(opts: {
   llm: LlmClient
   model: string
   tools: Map<string, ToolDefinition>
+  // Called when a background subagent finishes so the manager can append the
+  // result into the main transcript.
+  onBackgroundResult?: (id: string, text: string, error?: string) => void
 }): ToolDefinition {
   // Resumable subagent sessions, keyed by task id (SDD fix loop reuses them).
   const sessions = new Map<string, TranscriptItem[]>()
+
+  const runSubagent = async (
+    input: { description?: string; prompt: string; subagent_type: SubagentType },
+    ctx: ToolContext,
+    id: string,
+    items: TranscriptItem[],
+    signal?: AbortSignal
+  ): Promise<SubagentResult> => {
+    const cfg = SUBAGENT_CONFIGS[input.subagent_type]
+    const safeTools = new Map<string, ToolDefinition>()
+    for (const name of cfg.tools) {
+      const def = opts.tools.get(name)
+      if (def) safeTools.set(name, def)
+    }
+    const runner = new SessionRunner({
+      agentId: 'sub',
+      model: opts.model,
+      system: cfg.system,
+      cwd: ctx.cwd,
+      llm: opts.llm,
+      tools: safeTools,
+      decidePermission: () => 'allow',
+      ask: async () => null,
+      maxSteps: 20,
+      onEvent: (e) => {
+        if (e.type === 'text-delta') {
+          ctx.emitSubagent?.(id, { sub: 'delta', text: e.delta })
+        } else if (e.type === 'reasoning-delta') {
+          ctx.emitSubagent?.(id, { sub: 'delta', reasoning: e.delta })
+        } else if (e.type === 'tool-start' || e.type === 'tool-result') {
+          ctx.emitSubagent?.(id, { sub: 'tool', tool: e.call.tool })
+        } else if (e.type === 'done') {
+          ctx.emitSubagent?.(id, {
+            sub: 'done',
+            state: e.reason === 'stopped' ? 'cancelled' : 'completed'
+          })
+        } else if (e.type === 'error') {
+          ctx.emitSubagent?.(id, { sub: 'done', state: 'error' })
+        }
+      },
+      getItems: () => items,
+      appendMessage: (m: ChatMessage) => items.push({ kind: 'message', message: m }),
+      appendTool: (t: ToolCallData) => items.push({ kind: 'tool', tool: t })
+    })
+    await runner.run(signal)
+
+    let text = ''
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i]
+      if (item.kind === 'message' && item.message.role === 'assistant' && item.message.text.trim() !== '') {
+        text = item.message.text
+        break
+      }
+    }
+    if (!text) return { text: '', error: 'task: subagent produced no answer' }
+    return { text }
+  }
 
   return {
     name: 'task',
     description:
       'Dispatch a focused task to a subagent (an isolated agent with its own context and tools). ' +
       'Launch multiple task calls in a single message to run them in parallel. ' +
-      'Pass task_id to resume a previous subagent session instead of starting fresh.',
+      'Pass task_id to resume a previous subagent session instead of starting fresh. ' +
+      'background=true runs the subagent asynchronously and returns immediately; ' +
+      'you will see the result in the feed when it finishes.',
     schema: z.object({
       description: z.string().describe('A short (3-5 words) description of the task'),
       prompt: z.string().describe('The task for the subagent to perform'),
       subagent_type: z.enum(['research', 'general', 'reviewer']).default('research')
         .describe('The type of subagent to use: research (read-only), general (can write code), reviewer (code review)'),
       task_id: z.string().optional()
-        .describe('Resume a previous subagent session (pass the task id from a prior result)')
+        .describe('Resume a previous subagent session (pass the task id from a prior result)'),
+      background: z.boolean().optional()
+        .describe('Run the subagent in the background and return immediately; result appears in the feed when done')
     }),
     async run(input, ctx: ToolContext): Promise<ToolRunResult> {
-      const { description, prompt, subagent_type = 'research', task_id } =
-        input as unknown as { description?: string; prompt: string; subagent_type?: SubagentType; task_id?: string }
-      const cfg = SUBAGENT_CONFIGS[subagent_type]
+      const { description, prompt, subagent_type = 'research', task_id, background } =
+        input as unknown as {
+          description?: string; prompt: string; subagent_type?: SubagentType; task_id?: string; background?: boolean
+        }
       const id = task_id ?? randomUUID()
       const items = sessions.get(id) ?? []
       items.push({
@@ -86,52 +153,30 @@ export function createTaskTool(opts: {
       })
       sessions.set(id, items)
 
-      const safeTools = new Map<string, ToolDefinition>()
-      for (const name of cfg.tools) {
-        const def = opts.tools.get(name)
-        if (def) safeTools.set(name, def)
-      }
-      const runner = new SessionRunner({
-        agentId: 'sub',
-        model: opts.model,
-        system: cfg.system,
-        cwd: ctx.cwd,
-        llm: opts.llm,
-        tools: safeTools,
-        decidePermission: () => 'allow',
-        ask: async () => null,
-        maxSteps: 20,
-        onEvent: (e) => {
-          if (e.type === 'text-delta') {
-            ctx.emitSubagent?.(id, { sub: 'delta', text: e.delta })
-          } else if (e.type === 'tool-start' || e.type === 'tool-result') {
-            ctx.emitSubagent?.(id, { sub: 'tool', tool: e.call.tool })
-          } else if (e.type === 'done') {
-            ctx.emitSubagent?.(id, {
-              sub: 'done',
-              state: e.reason === 'stopped' ? 'cancelled' : 'completed'
-            })
-          } else if (e.type === 'error') {
+      if (background) {
+        ctx.emitSubagent?.(id, { sub: 'start', subagentType: subagent_type, background: true })
+        void runSubagent({ description, prompt, subagent_type }, ctx, id, items, undefined).then(
+          (result) => {
+            if (result.text) {
+              ctx.emitSubagent?.(id, { sub: 'done', state: 'completed', result: result.text })
+              opts.onBackgroundResult?.(id, result.text)
+            } else {
+              ctx.emitSubagent?.(id, { sub: 'done', state: 'error' })
+              opts.onBackgroundResult?.(id, '', result.error)
+            }
+          },
+          (err) => {
             ctx.emitSubagent?.(id, { sub: 'done', state: 'error' })
+            opts.onBackgroundResult?.(id, '', String(err))
           }
-        },
-        getItems: () => items,
-        appendMessage: (m: ChatMessage) => items.push({ kind: 'message', message: m }),
-        appendTool: (t: ToolCallData) => items.push({ kind: 'tool', tool: t })
-      })
-      ctx.emitSubagent?.(id, { sub: 'start', subagentType: subagent_type })
-      await runner.run(ctx.signal)
-
-      let text = ''
-      for (let i = items.length - 1; i >= 0; i--) {
-        const item = items[i]
-        if (item.kind === 'message' && item.message.role === 'assistant' && item.message.text.trim() !== '') {
-          text = item.message.text
-          break
-        }
+        )
+        return { output: `Subagent ${id} (${subagent_type}) running in background.`, background: true }
       }
-      if (!text) return { error: 'task: subagent produced no answer' }
-      return { output: renderOutput({ id, description: description ?? subagent_type, text }) }
+
+      ctx.emitSubagent?.(id, { sub: 'start', subagentType: subagent_type })
+      const result = await runSubagent({ description, prompt, subagent_type }, ctx, id, items, ctx.signal)
+      if (!result.text) return { error: result.error ?? 'task: subagent produced no answer' }
+      return { output: renderOutput({ id, description: description ?? subagent_type, text: result.text }) }
     }
   }
 }

@@ -13,7 +13,7 @@ type FeedItem =
   | { kind: 'message'; id: string; role: ChatMessage['role']; text: string; reasoning?: string; images?: ImageAttachment[] }
   | { kind: 'tool'; id: string; call: ToolCallData }
   | { kind: 'error'; id: string; text: string }
-  | { kind: 'subagent'; taskId: string; subagentType?: string; text: string; tools: string[]; state: 'running' | 'completed' | 'cancelled' | 'error' }
+  | { kind: 'subagent'; taskId: string; subagentType?: string; text: string; reasoning?: string; result?: string; background?: boolean; tools: string[]; state: 'running' | 'completed' | 'cancelled' | 'error' }
 
 interface PendingPrompt {
   promptId: string
@@ -118,6 +118,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const [queue, setQueue] = useState<QueuedMessage[]>([])
   const queueRef = useRef<QueuedMessage[]>([])
   const [editTarget, setEditTarget] = useState<QueuedMessage | null>(null)
+  const [liveTaskId, setLiveTaskId] = useState<string | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const feedRef = useRef<HTMLDivElement>(null)
   const promptRef = useRef<HTMLDivElement>(null)
@@ -218,6 +219,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     setQueue([])
     queueRef.current = []
     setEditTarget(null)
+    setLiveTaskId(null)
     loadTranscript()
     loadTodos()
   }, [loadTranscript, loadTodos, loadContextInfo])
@@ -323,9 +325,14 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
           : { kind: 'subagent', taskId: e.taskId, text: '', tools: [], state: 'running' }
         const next = { ...base }
         if (e.sub === 'delta' && e.text) next.text += e.text
+        if (e.sub === 'delta' && e.reasoning) next.reasoning = (next.reasoning ?? '') + e.reasoning
         if (e.sub === 'tool' && e.tool && !next.tools.includes(e.tool)) next.tools = [...next.tools, e.tool]
         if (e.sub === 'start' && e.subagentType) next.subagentType = e.subagentType
-        if (e.sub === 'done') next.state = e.state ?? 'completed'
+        if (e.sub === 'start' && e.background) next.background = true
+        if (e.sub === 'done') {
+          next.state = e.state ?? 'completed'
+          if (e.result) next.result = e.result
+        }
         const arr = [...prev]
         if (idx >= 0) arr[idx] = next
         else arr.push(next)
@@ -606,6 +613,27 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
           <img src={lightboxUrl} alt="preview" />
         </div>
       )}
+      {liveTaskId && (() => {
+        const live = items.find(i => i.kind === 'subagent' && i.taskId === liveTaskId) as FeedItem & { kind: 'subagent' } | undefined
+        if (!live) return null
+        return (
+          <div className="dialog-backdrop" onClick={() => setLiveTaskId(null)}>
+            <div className="dialog subagent-live" onClick={e => e.stopPropagation()}>
+              <h3>sub-agent{live.subagentType ? ` (${live.subagentType})` : ''}{live.background ? ' · background' : ''}</h3>
+              <div className="subagent-live-state">
+                <span className={`subagent-state state-${live.state}`}>{live.state}</span>
+                {live.tools.length > 0 && live.tools.map(t => <code key={t}>{t}</code>)}
+              </div>
+              {live.reasoning && <details className="chat-reasoning"><summary>Thinking</summary><div className="chat-reasoning-text">{live.reasoning}</div></details>}
+              <div className="subagent-live-text">{live.text || (live.state === 'running' ? '…' : '')}</div>
+              {live.result && <div className="subagent-live-result">{live.result}</div>}
+              <div className="dialog-actions">
+                <button className="btn" onClick={() => setLiveTaskId(null)}>Close</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
       <SessionBar
         sessions={sessions}
         activeSessionId={activeSessionId}
@@ -654,9 +682,15 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
           }
           if (item.kind === 'subagent') {
             return (
-              <div key={item.taskId} className={`subagent ${item.state === 'running' ? 'running' : ''}`}>
+              <div
+                key={item.taskId}
+                className={`subagent ${item.state === 'running' ? 'running' : ''} ${item.background ? 'background' : ''}`}
+                onClick={() => setLiveTaskId(item.taskId)}
+                title="open live view"
+              >
                 <div className="subagent-head">
                   <span className="subagent-name">sub-agent{item.subagentType ? ` (${item.subagentType})` : ''}</span>
+                  {item.background && <span className="subagent-bg">bg</span>}
                   <span className={`subagent-state state-${item.state}`}>{item.state}</span>
                 </div>
                 {item.tools.length > 0 && (

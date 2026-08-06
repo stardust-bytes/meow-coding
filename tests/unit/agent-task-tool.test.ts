@@ -48,4 +48,29 @@ describe('task tool (subagent)', () => {
     const names = subTools.map(t => t.name).sort()
     expect(names).toEqual(['glob', 'grep', 'read'])
   })
+
+  it('background=true returns immediately and reports the result via callback', async () => {
+    const llm = new StubLlm()
+    const tools = new Map<string, ToolDefinition>([['read', stubTool('read')]])
+    let done: { id: string; text: string } | null = null
+    const task = createTaskTool({
+      llm, model: 'm', tools,
+      onBackgroundResult: (id, text) => { done = { id, text } }
+    })
+    const events: Array<{ sub: string; state?: string; result?: string }> = []
+    const ctx: ToolContext = {
+      cwd: '/proj',
+      ask: async () => null,
+      emitSubagent: (_id, e) => events.push(e)
+    }
+    const r = await task.run({ prompt: 'bg task', background: true }, ctx)
+    // Returns immediately with a "running in background" marker.
+    expect(r.background).toBe(true)
+    expect(r.output).toContain('running in background')
+    // The subagent eventually completes and the callback fires.
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(done).not.toBeNull()
+    expect(done!.text).toContain('sub result')
+    expect(events.some(e => e.sub === 'done' && e.state === 'completed')).toBe(true)
+  })
 })

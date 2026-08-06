@@ -137,6 +137,7 @@ export type ChatEvent =
   | { type: 'subagent-event'; agentId: string; taskId: string
       sub: 'start' | 'delta' | 'tool' | 'done'
       subagentType?: string; text?: string; tool?: string
+      reasoning?: string; background?: boolean; result?: string
       state?: 'running' | 'completed' | 'cancelled' | 'error' }
 
 export interface QueuedMessage {
