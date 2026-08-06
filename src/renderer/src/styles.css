@@ -478,10 +478,10 @@ select.input { width: 100%; }
 .chat-input-toolbar-spacer { flex: 1; }
 .chat-input-attach {
   display: inline-flex; align-items: center; gap: 6px;
-  appearance: none; background: transparent; border: none; padding: 4px 6px;
-  color: var(--text-dim); font-size: var(--fs-md); cursor: pointer;
+  appearance: none; background: var(--accent); border: none; padding: 4px 10px;
+  color: #fff; font-size: var(--fs-md); cursor: pointer;
 }
-.chat-input-attach:hover { color: var(--text); }
+.chat-input-attach:hover { background: #4da2ff; }
 .chat-input-attach:disabled { opacity: 0.4; cursor: default; }
 .chat-input-stop {
   padding: 4px 12px; appearance: none; background: var(--red); border: none;
