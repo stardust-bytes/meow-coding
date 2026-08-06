@@ -80,6 +80,7 @@ export class SessionRunner {
           role: 'assistant',
           text: textBuffer,
           reasoning: reasoningBuffer || undefined,
+          tokens,
           createdAt: Date.now()
         })
       }

@@ -449,6 +449,38 @@ describe('SessionRunner', () => {
     })
   })
 
+  it('persists tokens when aborted right after the finish part arrives', async () => {
+    // Race: user clicks Stop just as the stream's final `finish` part lands.
+    // The for-await loop has already processed `finish` (tokens assigned,
+    // onUsage fired) but hasn't reached the normal appendMessage call yet —
+    // it exits through the post-loop `signal.aborted` check and persistPartial()
+    // instead. That path must still carry tokens.
+    const h = makeHarness({
+      llm: {
+        async *stream(opts: { signal?: AbortSignal }) {
+          yield { kind: 'text', text: 'done' }
+          yield { kind: 'finish', tokens: { input: 5, output: 6, total: 11 } }
+          await new Promise<void>(resolve => {
+            if (opts.signal?.aborted) return resolve()
+            opts.signal?.addEventListener('abort', () => resolve(), { once: true })
+          })
+        }
+      } as LlmClient
+    })
+    const controller = new AbortController()
+    const runPromise = h.runner.run(controller.signal)
+    await new Promise(r => setTimeout(r, 20))
+    controller.abort()
+    await runPromise
+
+    const assistant = h.items
+      .filter((i): i is { kind: 'message'; message: ChatMessage } => i.kind === 'message')
+      .map(i => i.message)
+      .find(m => m.role === 'assistant')
+    expect(assistant?.tokens).toEqual({ input: 5, output: 6, total: 11 })
+    expect(h.events.some(e => e.type === 'done' && e.reason === 'stopped')).toBe(true)
+  })
+
   it('reports usage once per step, not once per run', async () => {
     const reported: number[] = []
     const h = makeHarness({
