@@ -1,5 +1,6 @@
 import { streamText } from 'ai'
-import { anthropic } from '@ai-sdk/anthropic'
+import { createAnthropic } from '@ai-sdk/anthropic'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { ModelMessage } from 'ai'
 import { toToolDefinition } from './message'
@@ -23,7 +24,7 @@ export interface LlmStreamOptions {
   messages: ModelMessage[]
   tools: ToolDefinition[]
   signal?: AbortSignal
-  variant?: ModelVariant
+  variant?: string
 }
 
 export interface LlmClient {
@@ -32,21 +33,27 @@ export interface LlmClient {
 
 type StreamProviderOptions = NonNullable<Parameters<typeof streamText>[0]['providerOptions']>
 
-const ANTHROPIC_THINKING_BUDGET: Record<ModelVariant, number> = {
+const ANTHROPIC_THINKING_BUDGET: Record<string, number> = {
   medium: 8192,
   high: 16384,
   max: 32000
 }
 
-function providerOptionsFor(provider: string, variant?: ModelVariant): StreamProviderOptions | undefined {
+function providerOptionsFor(provider: string, variant?: string): StreamProviderOptions | undefined {
   if (!variant) return undefined
   if (provider === 'anthropic') {
+    const budget = ANTHROPIC_THINKING_BUDGET[variant]
+    if (!budget) return undefined
     return {
-      anthropic: { thinking: { type: 'enabled', budgetTokens: ANTHROPIC_THINKING_BUDGET[variant] } }
+      anthropic: { thinking: { type: 'enabled', budgetTokens: budget } }
     } as StreamProviderOptions
   }
-  const reasoningEffort = variant === 'max' ? 'xhigh' : variant
-  return { openaiCompatible: { reasoningEffort } } as StreamProviderOptions
+  if (provider === 'google') {
+    return {
+      google: { thinkingConfig: { includeThoughts: true, thinkingLevel: variant } }
+    } as StreamProviderOptions
+  }
+  return { openaiCompatible: { reasoningEffort: variant } } as StreamProviderOptions
 }
 
 export function createAnthropicLlm(apiKey: string): LlmClient {
@@ -59,7 +66,20 @@ export function createOpenAICompatibleLlm(opts: { apiKey: string; baseUrl?: stri
 
 export function createLlm(provider: string, apiKey: string, baseUrl?: string): LlmClient {
   const model = (modelId: string) => {
-    if (provider === 'anthropic') return anthropic(modelId)
+    if (provider === 'anthropic') {
+      const anthropicClient = createAnthropic({
+        apiKey,
+        ...(baseUrl ? { baseURL: baseUrl } : {})
+      })
+      return anthropicClient(modelId)
+    }
+    if (provider === 'google') {
+      const googleClient = createGoogleGenerativeAI({
+        apiKey,
+        ...(baseUrl ? { baseURL: baseUrl } : {})
+      })
+      return googleClient(modelId)
+    }
     return createOpenAICompatible({
       name: provider,
       baseURL: baseUrl ?? 'https://api.openai.com/v1',
