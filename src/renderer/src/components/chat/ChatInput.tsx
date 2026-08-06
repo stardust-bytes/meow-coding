@@ -154,48 +154,49 @@ export default memo(function ChatInput({ running, mode, commands, onSubmit, onSt
           )}
         </div>
       )}
-      <textarea
-        ref={fieldRef}
-        className={`chat-input-field mode-${mode}`}
-        placeholder="Message Meow...  ( / for commands )"
-        rows={2}
-        disabled={running}
-        onInput={e => syncMenu((e.target as HTMLTextAreaElement).value)}
-        onPaste={e => {
-          const files = Array.from(e.clipboardData.items)
-            .map(item => item.getAsFile())
-            .filter((f): f is File => f !== null)
-          if (files.length > 0) {
-            e.preventDefault()
-            addImageFiles(files)
-          }
-        }}
-        onDrop={e => {
-          const files = Array.from(e.dataTransfer.files)
-          if (files.length > 0) {
-            e.preventDefault()
-            addImageFiles(files)
-          }
-        }}
-        onKeyDown={e => {
-          if (menu.open && filtered.length > 0) {
-            if (e.key === 'ArrowDown') { e.preventDefault(); move(1); return }
-            if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); return }
-            if (e.key === 'Tab') { e.preventDefault(); onPick(filtered[selectedIndex < 0 ? 0 : selectedIndex].name); return }
-            if (e.key === 'Enter') {
+      <div className="chat-input-main">
+        <textarea
+          ref={fieldRef}
+          className={`chat-input-field mode-${mode}`}
+          placeholder="Message Meow...  ( / for commands )"
+          rows={2}
+          disabled={running}
+          onInput={e => syncMenu((e.target as HTMLTextAreaElement).value)}
+          onPaste={e => {
+            const files = Array.from(e.clipboardData.items)
+              .map(item => item.getAsFile())
+              .filter((f): f is File => f !== null)
+            if (files.length > 0) {
               e.preventDefault()
-              onPick(filtered[selectedIndex < 0 ? 0 : selectedIndex].name)
-              return
+              addImageFiles(files)
             }
-          }
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault()
-            submit()
-          }
-          if (e.key === 'Escape') setMenu(prev => (prev.open ? { open: false, prefix: '' } : prev))
-        }}
-      />
-      {images.length > 0 && (
+          }}
+          onDrop={e => {
+            const files = Array.from(e.dataTransfer.files)
+            if (files.length > 0) {
+              e.preventDefault()
+              addImageFiles(files)
+            }
+          }}
+          onKeyDown={e => {
+            if (menu.open && filtered.length > 0) {
+              if (e.key === 'ArrowDown') { e.preventDefault(); move(1); return }
+              if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); return }
+              if (e.key === 'Tab') { e.preventDefault(); onPick(filtered[selectedIndex < 0 ? 0 : selectedIndex].name); return }
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                onPick(filtered[selectedIndex < 0 ? 0 : selectedIndex].name)
+                return
+              }
+            }
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              submit()
+            }
+            if (e.key === 'Escape') setMenu(prev => (prev.open ? { open: false, prefix: '' } : prev))
+          }}
+        />
+        {images.length > 0 && (
         <div className="chat-input-chips">
           {images.map(img => (
             <span key={img.id} className="chat-image-chip">
@@ -214,6 +215,7 @@ export default memo(function ChatInput({ running, mode, commands, onSubmit, onSt
           ))}
         </div>
       )}
+      </div>
       <input
         ref={fileInputRef}
         type="file"

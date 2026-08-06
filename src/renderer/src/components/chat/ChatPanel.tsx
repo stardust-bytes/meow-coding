@@ -27,10 +27,12 @@ interface PendingPrompt {
 
 // Owns the per-message subtree so streamed deltas only re-render the message
 // that changed, not the whole feed. Props are primitives, so React.memo works.
-const FeedMessage = memo(function FeedMessage({ role, text, reasoning }: {
+const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, onOpenImage }: {
   role: ChatMessage['role']
   text: string
   reasoning?: string
+  images?: ImageAttachment[]
+  onOpenImage?: (dataUrl: string) => void
 }) {
   return (
     <div className={`chat-msg ${role}`}>
@@ -44,7 +46,24 @@ const FeedMessage = memo(function FeedMessage({ role, text, reasoning }: {
           ) : null}
           {text.trim() !== '' && <MarkdownText text={text} />}
         </>
-      ) : <div className="chat-text">{text}</div>}
+      ) : (
+        <>
+          {images && images.length > 0 && (
+            <div className="chat-msg-images">
+              {images.map(img => (
+                <img
+                  key={img.id}
+                  src={img.dataUrl}
+                  alt={img.name}
+                  className="chat-thumb"
+                  onClick={() => onOpenImage?.(img.dataUrl)}
+                />
+              ))}
+            </div>
+          )}
+          {text.trim() !== '' && <div className="chat-text">{text}</div>}
+        </>
+      )}
     </div>
   )
 })
@@ -78,6 +97,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [todos, setTodos] = useState<TodoItem[]>([])
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const feedRef = useRef<HTMLDivElement>(null)
   const promptRef = useRef<HTMLDivElement>(null)
@@ -132,7 +152,10 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const loadTranscript = useCallback(() => {
     void window.api.listChatTranscript(agentId).then(items => {
       setItems(items.map(it => it.kind === 'message'
-        ? { kind: 'message', id: it.message.id, role: it.message.role, text: it.message.text, reasoning: it.message.reasoning }
+        ? {
+            kind: 'message', id: it.message.id, role: it.message.role, text: it.message.text,
+            reasoning: it.message.reasoning, images: it.message.images
+          }
         : { kind: 'tool', id: it.tool.id, call: { ...it.tool } }
       ))
       // Mức chiếm dụng context = token của assistant message cuối cùng có output,
@@ -539,6 +562,11 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
 
   return (
     <div className="chat-panel" onKeyDown={onPanelKeyDown}>
+      {lightboxUrl && (
+        <div className="chat-lightbox" onClick={() => setLightboxUrl(null)}>
+          <img src={lightboxUrl} alt="preview" />
+        </div>
+      )}
       <SessionBar
         sessions={sessions}
         activeSessionId={activeSessionId}
@@ -571,7 +599,16 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
         {items.map(item => {
           if (item.kind === 'message') {
             if (item.role === 'assistant' && item.text.trim() === '' && !item.reasoning) return null
-            return <FeedMessage key={item.id} role={item.role} text={item.text} reasoning={item.reasoning} />
+            return (
+              <FeedMessage
+                key={item.id}
+                role={item.role}
+                text={item.text}
+                reasoning={item.reasoning}
+                images={item.images}
+                onOpenImage={setLightboxUrl}
+              />
+            )
           }
           if (item.kind === 'tool') {
             return <ToolCallCard key={item.id} call={item.call} />
