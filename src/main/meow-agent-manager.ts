@@ -27,6 +27,7 @@ import { LspManager } from './agent/lsp/manager'
 import { createLspTool } from './agent/tools/lsp'
 import { SavedPermissions } from './agent/saved-permissions'
 import { ModelsCatalog } from './models-catalog'
+import type { VariantBody } from './model-variants'
 import { revertTool } from './agent/tools/revert'
 import { createTaskTool } from './agent/tools/task'
 import type { ToolDefinition } from './agent/tools/types'
@@ -63,7 +64,7 @@ export class MeowAgentManager {
   private modes = new Map<string, AgentMode>()
   private mcp = new McpManager()
   private modelLimits = new Map<string, { context?: number; output?: number }>()
-  private modelVariants = new Map<string, string[]>()
+  private modelVariants = new Map<string, Record<string, VariantBody>>()
   private redoStacks = new Map<string, Array<{ items: ChatTranscriptItem[]; turn: SnapshotTurn }>>()
   private onEvent: (e: ChatEvent) => void = () => {}
 
@@ -370,7 +371,7 @@ export class MeowAgentManager {
     const cfg = loadMeowConfig(this.deps.configPath)
     const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env, agent.model)
     if (!resolved.provider || !resolved.model) return []
-    return this.modelVariants.get(`${resolved.provider}/${resolved.model}`) ?? []
+    return Object.keys(this.modelVariants.get(`${resolved.provider}/${resolved.model}`) ?? {})
   }
 
   async fetchProviderModels(providerId: string): Promise<string[]> {
@@ -508,7 +509,7 @@ export class MeowAgentManager {
             this.modelLimits.set(`${providerId}/${model}`, limit)
           }
           const variants = p.variants?.[model]
-          if (variants && variants.length > 0) {
+          if (variants && Object.keys(variants).length > 0) {
             this.modelVariants.set(`${providerId}/${model}`, variants)
           }
         }
@@ -563,6 +564,8 @@ export class MeowAgentManager {
       agent.variant = validVariant
       this.agents.set(agent.id, agent)
     }
+    const modelKey = `${resolved.provider}/${resolved.model}`
+    const variantOptions = validVariant ? this.modelVariants.get(modelKey)?.[validVariant] : undefined
     const runner = new SessionRunner({
       agentId: agent.id,
       model: resolved.model,
@@ -592,7 +595,7 @@ export class MeowAgentManager {
         this.deps.store.setTodos(this.activeSessionId(agent.id), todos)
         this.emit({ type: 'todo-updated', agentId: agent.id, todos })
       },
-      variant: validVariant,
+      variantOptions,
       diagnostics: cfg.lsp.enabled && this.deps.lsp
         ? (filePath, text) => this.deps.lsp!.diagnosticsText(filePath, text)
         : undefined,

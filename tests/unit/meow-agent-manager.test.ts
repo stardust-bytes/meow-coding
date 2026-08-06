@@ -57,14 +57,14 @@ async function makeManager(opts: StubLlmOptions & { configPath?: string; catalog
   const events: ChatEvent[] = []
   const llmCalls: string[][] = []
   const llmSystems: string[] = []
-  const llmVariants: Array<string | undefined> = []
+  const llmVariants: Array<Record<string, unknown> | undefined> = []
   let llmClient: LlmClient
   const createLlm = vi.fn((): LlmClient => {
     llmClient = {
       async *stream(request: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
         llmCalls.push((request.tools ?? []).map(t => t.name))
         llmSystems.push(request.system)
-        llmVariants.push(request.variant)
+        llmVariants.push(request.variantOptions)
         if (opts.hangUntilAbort) {
           await new Promise<void>(resolve => {
             if (request.signal?.aborted) return resolve()
@@ -322,7 +322,7 @@ describe('MeowAgentManager', () => {
     expect(llmSystems[1]).toMatch(/PLAN MODE/)
   })
 
-  it('setVariant passes a clamped variant to the llm stream', async () => {
+  it('setVariant passes a clamped variant descriptor to the llm stream', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'meow-var-stream-'))
     try {
       const cfgPath = path.join(dir, 'meow.json')
@@ -334,8 +334,9 @@ describe('MeowAgentManager', () => {
         ({ ok: true, json: async () => ({
           test: {
             name: 'Test',
+            npm: '@ai-sdk/openai-compatible',
             models: {
-              'test-model': { reasoning_options: [{ type: 'effort', values: ['low', 'high'] }] }
+              'test-model': { reasoning: true, reasoning_options: [{ type: 'effort', values: ['low', 'high'] }] }
             }
           }
         }) }) as unknown as Response)
@@ -344,7 +345,7 @@ describe('MeowAgentManager', () => {
       expect(llmVariants[0]).toBeUndefined()
       manager.setVariant('a1', 'high')
       await manager.send('a1', 'second')
-      expect(llmVariants[1]).toBe('high')
+      expect(llmVariants[1]).toEqual({ openaiCompatible: { reasoningEffort: 'high' } })
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -370,8 +371,9 @@ describe('MeowAgentManager', () => {
         ({ ok: true, json: async () => ({
           test: {
             name: 'Test',
+            npm: '@ai-sdk/openai-compatible',
             models: {
-              'test-model': { reasoning_options: [{ type: 'effort', values: ['low', 'medium', 'high'] }] }
+              'test-model': { reasoning: true, reasoning_options: [{ type: 'effort', values: ['low', 'medium', 'high'] }] }
             }
           }
         }) }) as unknown as Response)

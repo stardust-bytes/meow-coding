@@ -34,7 +34,7 @@ export interface LoopDeps {
   appendMessage: (msg: ChatMessage) => void
   appendTool: (tool: ToolCallData) => void
   setTodos?: (todos: TodoItem[]) => void
-  variant?: string
+  variantOptions?: Record<string, unknown>
   onUsage?: (usage: { input: number; output: number; total: number }) => void
   computeCost?: (usage: { input: number; output: number }) => number
   diagnostics?: (filePath: string, text: string) => Promise<string>
@@ -90,7 +90,7 @@ export class SessionRunner {
           messages: llmMessages,
           tools: isLastStep ? [] : this.visibleToolDefs(),
           signal,
-          variant: this.deps.variant
+          variantOptions: this.deps.variantOptions
         })
         for await (const part of stream) {
           if (signal?.aborted) {

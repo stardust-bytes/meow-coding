@@ -5,7 +5,6 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { ModelMessage } from 'ai'
 import { toToolDefinition } from './message'
 import type { ToolDefinition } from './tools/types'
-import type { ModelVariant } from '../../shared/types'
 
 export interface LlmStreamPart {
   kind: 'text' | 'reasoning' | 'tool-call' | 'finish' | 'error'
@@ -24,7 +23,7 @@ export interface LlmStreamOptions {
   messages: ModelMessage[]
   tools: ToolDefinition[]
   signal?: AbortSignal
-  variant?: string
+  variantOptions?: Record<string, unknown>
 }
 
 export interface LlmClient {
@@ -32,29 +31,6 @@ export interface LlmClient {
 }
 
 type StreamProviderOptions = NonNullable<Parameters<typeof streamText>[0]['providerOptions']>
-
-const ANTHROPIC_THINKING_BUDGET: Record<string, number> = {
-  medium: 8192,
-  high: 16384,
-  max: 32000
-}
-
-function providerOptionsFor(provider: string, variant?: string): StreamProviderOptions | undefined {
-  if (!variant) return undefined
-  if (provider === 'anthropic') {
-    const budget = ANTHROPIC_THINKING_BUDGET[variant]
-    if (!budget) return undefined
-    return {
-      anthropic: { thinking: { type: 'enabled', budgetTokens: budget } }
-    } as StreamProviderOptions
-  }
-  if (provider === 'google') {
-    return {
-      google: { thinkingConfig: { includeThoughts: true, thinkingLevel: variant } }
-    } as StreamProviderOptions
-  }
-  return { openaiCompatible: { reasoningEffort: variant } } as StreamProviderOptions
-}
 
 export function createAnthropicLlm(apiKey: string): LlmClient {
   return createLlm('anthropic', apiKey)
@@ -90,14 +66,13 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string): L
   return {
     async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
       const tools = Object.fromEntries(opts.tools.map(def => [def.name, toToolDefinition(def)]))
-      const providerOptions = providerOptionsFor(provider, opts.variant)
       const result = streamText({
         model: model(opts.model),
         system: opts.system,
         messages: opts.messages,
         tools,
         abortSignal: opts.signal,
-        ...(providerOptions ? { providerOptions } : {})
+        ...(opts.variantOptions ? { providerOptions: opts.variantOptions as StreamProviderOptions } : {})
       })
       for await (const part of result.fullStream) {
         switch (part.type) {
