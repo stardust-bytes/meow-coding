@@ -1,8 +1,9 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AgentMode, Command, ImageAttachment } from '@shared/types'
+import type { AgentMode, Command, FileSuggestion, ImageAttachment } from '@shared/types'
 import { parseCommandInput } from './parseCommandInput'
 
 interface Props {
+  agentId: string
   running: boolean
   mode: AgentMode
   commands: Command[]
@@ -13,6 +14,9 @@ interface Props {
 const MAX_MENU_ITEMS = 12
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024
 const MAX_IMAGES = 4
+const MENTION_DEBOUNCE_MS = 150
+// Trailing @mention being typed: "@prefix" after start or whitespace.
+const MENTION_RE = /(?:^|\s)@([\w./\\-]*)$/
 
 // Item renders its own closures against `command.name`, so the parent can pass
 // stable callbacks and React.memo actually skips re-rendering unchanged items.
@@ -38,13 +42,104 @@ const CommandMenuItem = memo(function CommandMenuItem({
   )
 })
 
-export default memo(function ChatInput({ running, mode, commands, onSubmit, onStop }: Props) {
+export default memo(function ChatInput({ agentId, running, mode, commands, onSubmit, onStop }: Props) {
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const selectedRef = useRef<HTMLButtonElement | null>(null)
+  const fileSelectedRef = useRef<HTMLButtonElement | null>(null)
+  const mentionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [menu, setMenu] = useState<{ open: boolean; prefix: string }>({ open: false, prefix: '' })
   const [selectedName, setSelectedName] = useState('')
   const [images, setImages] = useState<ImageAttachment[]>([])
+  const [mentions, setMentions] = useState<string[]>([])
+  const [fileMenu, setFileMenu] = useState<{ open: boolean; items: FileSuggestion[]; selected: number }>({
+    open: false, items: [], selected: 0
+  })
+
+  const filtered = useMemo(() => {
+    if (!menu.open) return []
+    const list = menu.prefix
+      ? commands.filter(c => c.name.toLowerCase().startsWith(menu.prefix))
+      : commands
+    return list.slice(0, MAX_MENU_ITEMS)
+  }, [commands, menu])
+
+  const selectedIndex = filtered.findIndex(c => c.name === selectedName)
+
+  // Scroll only when the highlighted item moves, not while typing.
+  useEffect(() => {
+    if (!menu.open) return
+    selectedRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [selectedName, menu.open])
+
+  // Keep the menu state in sync with the raw textarea value. Typing plain text
+  // (no "/") leaves menu {open:false,prefix:''} unchanged — setMenu's bail-out
+  // returns the same object reference, so React skips re-rendering entirely.
+  const syncMenu = useCallback((raw: string) => {
+    const { isCommand, prefix } = parseCommandInput(raw)
+    setMenu(prev => (prev.open === isCommand && prev.prefix === prefix ? prev : { open: isCommand, prefix }))
+    if (isCommand) setSelectedName('')
+  }, [])
+
+  const closeFileMenu = useCallback(() => {
+    setFileMenu(prev => (prev.open ? { open: false, items: [], selected: 0 } : prev))
+  }, [])
+
+  // Detects a trailing "@prefix" and fetches suggestions with a debounce so a
+  // burst of keystrokes issues at most one IPC round-trip per 150ms.
+  const syncMentions = useCallback((raw: string) => {
+    if (mentionDebounceRef.current) clearTimeout(mentionDebounceRef.current)
+    const m = MENTION_RE.exec(raw)
+    if (!m) {
+      closeFileMenu()
+      return
+    }
+    const prefix = m[1]
+    mentionDebounceRef.current = setTimeout(() => {
+      void window.api.suggestFiles(agentId, prefix).then(items => {
+        setFileMenu(prev => (prev.open || items.length > 0
+          ? { open: items.length > 0, items, selected: 0 }
+          : prev))
+      })
+    }, MENTION_DEBOUNCE_MS)
+  }, [agentId, closeFileMenu])
+
+  const onInput = useCallback((raw: string) => {
+    syncMenu(raw)
+    syncMentions(raw)
+  }, [syncMenu, syncMentions])
+
+  useEffect(() => () => {
+    if (mentionDebounceRef.current) clearTimeout(mentionDebounceRef.current)
+  }, [])
+
+  const pickFile = useCallback((item: FileSuggestion) => {
+    const field = fieldRef.current
+    if (!field) return
+    const raw = field.value
+    const m = MENTION_RE.exec(raw)
+    if (!m) return
+    const atIndex = m.index + m[0].indexOf('@')
+    const caret = field.selectionStart ?? raw.length
+    const next = raw.slice(0, atIndex) + `@${item.path} ` + raw.slice(caret)
+    field.value = next
+    field.focus()
+    const pos = atIndex + item.path.length + 2
+    field.setSelectionRange(pos, pos)
+    closeFileMenu()
+    syncMenu(next)
+    syncMentions(next)
+    setMentions(prev => (prev.includes(item.path) ? prev : [...prev, item.path]))
+  }, [closeFileMenu, syncMenu, syncMentions])
+
+  const removeMention = useCallback((path: string) => {
+    const field = fieldRef.current
+    if (field) {
+      field.value = field.value.replace(new RegExp(`@${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s?`), '')
+    }
+    setMentions(prev => prev.filter(p => p !== path))
+    closeFileMenu()
+  }, [closeFileMenu])
 
   // Reads pasted/dropped image files into dataURL attachments, capped at
   // MAX_IMAGES attachments of MAX_IMAGE_SIZE each.
@@ -74,45 +169,17 @@ export default memo(function ChatInput({ running, mode, commands, onSubmit, onSt
     setImages(prev => prev.filter(img => img.id !== id))
   }, [])
 
-  const filtered = useMemo(() => {
-    if (!menu.open) return []
-    const list = menu.prefix
-      ? commands.filter(c => c.name.toLowerCase().startsWith(menu.prefix))
-      : commands
-    return list.slice(0, MAX_MENU_ITEMS)
-  }, [commands, menu])
-
-  const selectedIndex = filtered.findIndex(c => c.name === selectedName)
-
-  // Scroll only when the highlighted item moves, not while typing.
-  useEffect(() => {
-    if (!menu.open) return
-    selectedRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [selectedName, menu.open])
-
-  // Keep the menu state in sync with the raw textarea value. Typing plain text
-  // (no "/") leaves menu {open:false,prefix:''} unchanged — setMenu's bail-out
-  // returns the same object reference, so React skips re-rendering entirely.
-  // (An earlier version deferred this check to requestAnimationFrame to keep
-  // it off the input event, but rAF/cancelAnimationFrame are real scheduling
-  // calls, not free — for plain typing that replaced a no-op with two browser
-  // API calls per keystroke, making the common case slower for no benefit at
-  // this app's command-list size. Plain synchronous check wins here.)
-  const syncMenu = useCallback((raw: string) => {
-    const { isCommand, prefix } = parseCommandInput(raw)
-    setMenu(prev => (prev.open === isCommand && prev.prefix === prefix ? prev : { open: isCommand, prefix }))
-    if (isCommand) setSelectedName('')
-  }, [])
-
   const submit = useCallback(() => {
     const text = (fieldRef.current?.value ?? '').trim()
     if ((!text && images.length === 0) || running) return
     if (fieldRef.current) fieldRef.current.value = ''
     setMenu({ open: false, prefix: '' })
     setSelectedName('')
+    setMentions([])
+    closeFileMenu()
     onSubmit(text, images)
     setImages([])
-  }, [running, onSubmit, images])
+  }, [running, onSubmit, images, closeFileMenu])
 
   const applyCommand = useCallback((cmd: Command) => {
     if (fieldRef.current) fieldRef.current.value = `/${cmd.name} `
@@ -135,6 +202,19 @@ export default memo(function ChatInput({ running, mode, commands, onSubmit, onSt
     setSelectedName(filtered[next].name)
   }, [filtered, selectedIndex])
 
+  const moveFile = useCallback((delta: number) => {
+    setFileMenu(prev => {
+      if (!prev.open || prev.items.length === 0) return prev
+      const next = (prev.selected + delta + prev.items.length) % prev.items.length
+      return { ...prev, selected: next }
+    })
+  }, [])
+
+  // Scroll the highlighted file item into view only when the selection moves.
+  useEffect(() => {
+    if (fileMenu.open) fileSelectedRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [fileMenu.open, fileMenu.selected])
+
   return (
     <div className="chat-input">
       {menu.open && filtered.length > 0 && (
@@ -154,6 +234,22 @@ export default memo(function ChatInput({ running, mode, commands, onSubmit, onSt
           )}
         </div>
       )}
+      {fileMenu.open && fileMenu.items.length > 0 && (
+        <div className="command-menu file-menu">
+          {fileMenu.items.map((item, i) => (
+            <button
+              key={item.path}
+              ref={i === fileMenu.selected ? el => { fileSelectedRef.current = el } : undefined}
+              className={`command-item ${i === fileMenu.selected ? 'selected' : ''}`}
+              onMouseEnter={() => setFileMenu(prev => ({ ...prev, selected: i }))}
+              onClick={() => pickFile(item)}
+            >
+              <span className="command-name">{item.isDirectory ? '📁' : '📄'} {item.name}</span>
+              <span className="command-desc">{item.path}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <div className="chat-input-main">
         <textarea
           ref={fieldRef}
@@ -161,7 +257,7 @@ export default memo(function ChatInput({ running, mode, commands, onSubmit, onSt
           placeholder="Message Meow...  ( / for commands )"
           rows={2}
           disabled={running}
-          onInput={e => syncMenu((e.target as HTMLTextAreaElement).value)}
+          onInput={e => onInput((e.target as HTMLTextAreaElement).value)}
           onPaste={e => {
             const files = Array.from(e.clipboardData.items)
               .map(item => item.getAsFile())
@@ -189,32 +285,60 @@ export default memo(function ChatInput({ running, mode, commands, onSubmit, onSt
                 return
               }
             }
+            if (fileMenu.open && fileMenu.items.length > 0) {
+              if (e.key === 'ArrowDown') { e.preventDefault(); moveFile(1); return }
+              if (e.key === 'ArrowUp') { e.preventDefault(); moveFile(-1); return }
+              if (e.key === 'Tab' || e.key === 'Enter') {
+                e.preventDefault()
+                pickFile(fileMenu.items[fileMenu.selected] ?? fileMenu.items[0])
+                return
+              }
+            }
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
               submit()
             }
-            if (e.key === 'Escape') setMenu(prev => (prev.open ? { open: false, prefix: '' } : prev))
+            if (e.key === 'Escape') {
+              setMenu(prev => (prev.open ? { open: false, prefix: '' } : prev))
+              closeFileMenu()
+            }
           }}
         />
+        {mentions.length > 0 && (
+          <div className="chat-input-chips">
+            {mentions.map(path => (
+              <span key={path} className="chat-mention-chip">
+                <span className="chat-mention-name">@{path}</span>
+                <button
+                  className="chat-image-remove"
+                  aria-label={`remove @${path}`}
+                  onClick={() => removeMention(path)}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         {images.length > 0 && (
-        <div className="chat-input-chips">
-          {images.map(img => (
-            <span key={img.id} className="chat-image-chip">
-              {img.dataUrl
-                ? <img src={img.dataUrl} alt={img.name} className="chat-image-thumb" />
-                : <span className="chat-image-thumb chat-image-thumb-empty" />}
-              <span className="chat-image-name">{img.name}</span>
-              <button
-                className="chat-image-remove"
-                aria-label={`remove ${img.name}`}
-                onClick={() => removeImage(img.id)}
-              >
-                ×
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
+          <div className="chat-input-chips">
+            {images.map(img => (
+              <span key={img.id} className="chat-image-chip">
+                {img.dataUrl
+                  ? <img src={img.dataUrl} alt={img.name} className="chat-image-thumb" />
+                  : <span className="chat-image-thumb chat-image-thumb-empty" />}
+                <span className="chat-image-name">{img.name}</span>
+                <button
+                  className="chat-image-remove"
+                  aria-label={`remove ${img.name}`}
+                  onClick={() => removeImage(img.id)}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
       <input
         ref={fileInputRef}

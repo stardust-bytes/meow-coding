@@ -476,6 +476,8 @@ select.input { width: 100%; }
 .chat-input-attach:disabled { opacity: 0.4; cursor: default; }
 .chat-input-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chat-image-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 6px 3px 3px; background: var(--bg-panel); border: 1px solid var(--hairline); border-radius: 4px; font-size: var(--fs-sm); }
+.chat-mention-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; background: var(--bg-panel); border: 1px solid var(--hairline); border-radius: 4px; font-size: var(--fs-sm); font-family: var(--font-mono); }
+.chat-mention-name { color: var(--accent); }
 .chat-image-thumb { width: 28px; height: 28px; object-fit: cover; border-radius: 3px; background: #000; }
 .chat-image-thumb-empty { background: var(--bg-input); }
 .chat-image-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }

@@ -778,6 +778,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
           </div>
         </div>
         <ChatInput
+          agentId={agentId}
           running={running}
           mode={currentMode}
           commands={commands}
