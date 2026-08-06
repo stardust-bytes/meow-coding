@@ -112,54 +112,53 @@ describe('ModelsCatalog', () => {
     expect(readFileSync(file, 'utf-8')).toContain('fetchedAt')
   })
 
-  it('extracts reasoning effort values per model', async () => {
+  it('extracts variant descriptors per model via computeVariants', async () => {
     const fetchFn = async () => jsonResponse({
-      google: {
-        name: 'Google',
+      minimax: {
+        name: 'MiniMax',
+        npm: '@ai-sdk/anthropic',
         models: {
-          'gemini-2.5-pro': {
-            reasoning: true,
-            reasoning_options: [
-              { type: 'effort', values: ['none', 'low', 'medium', 'high', 'max'] }
-            ]
-          },
-          'gemini-no-reasoning': {}
+          'MiniMax-M3': { reasoning: true, reasoning_options: [{ type: 'toggle' }], release_date: '2026-06-01', limit: { output: 128000 } }
         }
       },
-      anthropic: {
-        name: 'Anthropic',
+      deepseek: {
+        name: 'DeepSeek',
+        npm: '@ai-sdk/openai-compatible',
         models: {
-          'claude-opus-4-5': {
-            reasoning: true,
-            reasoning_options: [
-              { type: 'budget_tokens', min: 1024, max: 32000 },
-              { type: 'toggle' }
-            ]
-          }
+          'deepseek-v4-flash': { reasoning: true, reasoning_options: [{ type: 'effort', values: ['low', 'high', 'max'] }] }
         }
       }
     })
     const catalog = new ModelsCatalog(path.join(dir, 'models.json'), fetchFn)
     const providers = await catalog.fetch()
-    expect(providers.google?.variants?.['gemini-2.5-pro']).toEqual(['none', 'low', 'medium', 'high', 'max'])
-    expect(providers.google?.variants?.['gemini-no-reasoning']).toBeUndefined()
-    expect(providers.anthropic?.variants?.['claude-opus-4-5']).toBeUndefined()
+    expect(providers.minimax?.variants?.['MiniMax-M3']).toEqual({
+      none: { openaiCompatible: { thinking: { type: 'disabled' } } },
+      thinking: { openaiCompatible: { thinking: { type: 'adaptive' } } }
+    })
+    expect(providers.deepseek?.variants?.['deepseek-v4-flash']).toEqual({
+      low: { openaiCompatible: { reasoningEffort: 'low' } },
+      high: { openaiCompatible: { reasoningEffort: 'high' } },
+      max: { openaiCompatible: { reasoningEffort: 'max' } }
+    })
   })
 
-  it('getVariants returns the list for a known model', async () => {
+  it('getVariants returns the variant id list, getVariantOptions returns a descriptor', async () => {
     const fetchFn = async () => jsonResponse({
-      google: {
-        name: 'Google',
+      deepseek: {
+        name: 'DeepSeek',
+        npm: '@ai-sdk/openai-compatible',
         models: {
-          'gemini-2.5-pro': {
-            reasoning_options: [{ type: 'effort', values: ['low', 'medium', 'high'] }]
-          }
+          'deepseek-v4-flash': { reasoning: true, reasoning_options: [{ type: 'effort', values: ['low', 'high'] }] }
         }
       }
     })
     const catalog = new ModelsCatalog(path.join(dir, 'models.json'), fetchFn)
-    expect(await catalog.getVariants('google', 'gemini-2.5-pro')).toEqual(['low', 'medium', 'high'])
-    expect(await catalog.getVariants('google', 'unknown-model')).toEqual([])
+    expect(await catalog.getVariants('deepseek', 'deepseek-v4-flash')).toEqual(['low', 'high'])
+    expect(await catalog.getVariants('deepseek', 'unknown-model')).toEqual([])
     expect(await catalog.getVariants('unknown-provider', 'x')).toEqual([])
+    expect(await catalog.getVariantOptions('deepseek', 'deepseek-v4-flash', 'high')).toEqual({
+      openaiCompatible: { reasoningEffort: 'high' }
+    })
+    expect(await catalog.getVariantOptions('deepseek', 'deepseek-v4-flash', 'nope')).toBeUndefined()
   })
 })

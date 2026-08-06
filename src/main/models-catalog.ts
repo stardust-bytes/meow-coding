@@ -1,6 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import type { CatalogProviderSummary } from '../shared/types'
+import { computeVariants } from './model-variants'
+import type { VariantBody } from './model-variants'
 import snapshot from './models-snapshot.json'
 
 export interface ModelLimit {
@@ -11,9 +13,10 @@ export interface ModelLimit {
 export interface CatalogProvider {
   name: string
   api?: string
+  npm?: string
   models: string[]
   limits?: Record<string, ModelLimit>
-  variants?: Record<string, string[]>
+  variants?: Record<string, Record<string, VariantBody>>
 }
 
 function modelLimits(json: Record<string, unknown> | undefined): Record<string, ModelLimit> | undefined {
@@ -33,30 +36,51 @@ function modelLimits(json: Record<string, unknown> | undefined): Record<string, 
   return found ? out : undefined
 }
 
-function reasoningEffortValues(model: unknown): string[] | undefined {
-  if (typeof model !== 'object' || model === null) return undefined
-  const opts = (model as { reasoning_options?: unknown }).reasoning_options
-  if (!Array.isArray(opts)) return undefined
-  const effort = opts.find((o: unknown) => {
-    return typeof o === 'object' && o !== null && (o as { type?: unknown }).type === 'effort'
-  }) as { values?: unknown } | undefined
-  if (!effort || !Array.isArray(effort.values)) return undefined
-  const values = effort.values.filter((v): v is string => typeof v === 'string')
-  return values.length > 0 ? values : undefined
+interface RawModel {
+  reasoning?: boolean
+  release_date?: string
+  limit?: { context?: number; output?: number }
+  reasoning_options?: unknown[]
 }
 
-function modelVariants(models: Record<string, unknown> | undefined): Record<string, string[]> | undefined {
-  if (typeof models !== 'object' || models === null) return undefined
-  const out: Record<string, string[]> = {}
-  let found = false
-  for (const [id, m] of Object.entries(models)) {
-    const values = reasoningEffortValues(m)
-    if (values) { out[id] = values; found = true }
+interface RawProvider {
+  name?: string
+  api?: string
+  npm?: string
+  models?: Record<string, RawModel>
+}
+
+function toRawModel(m: unknown): RawModel | undefined {
+  if (typeof m !== 'object' || m === null) return undefined
+  const model = m as Record<string, unknown>
+  return {
+    reasoning: typeof model.reasoning === 'boolean' ? model.reasoning : undefined,
+    release_date: typeof model.release_date === 'string' ? model.release_date : '',
+    limit: (model.limit as { context?: number; output?: number } | undefined),
+    reasoning_options: Array.isArray(model.reasoning_options) ? model.reasoning_options : undefined
   }
-  return found ? out : undefined
 }
 
-const SNAPSHOT = snapshot as unknown as Record<string, CatalogProvider>
+function toRawProvider(p: unknown): RawProvider | undefined {
+  if (typeof p !== 'object' || p === null) return undefined
+  const prov = p as Record<string, unknown>
+  const models = prov.models as Record<string, unknown> | undefined
+  return {
+    name: typeof prov.name === 'string' ? prov.name : undefined,
+    api: typeof prov.api === 'string' ? prov.api : undefined,
+    npm: typeof prov.npm === 'string' ? prov.npm : undefined,
+    models: models && typeof models === 'object'
+      ? Object.fromEntries(
+          Object.entries(models).flatMap(([id, m]) => {
+            const raw = toRawModel(m)
+            return raw ? [[id, raw] as const] : []
+          })
+        )
+      : undefined
+  }
+}
+
+const SNAPSHOT = snapshot as unknown as Record<string, unknown>
 const CATALOG_URL = 'https://models.dev/api.json'
 const TTL_MS = 5 * 60_000
 
@@ -65,16 +89,32 @@ interface CacheEntry {
   providers: Record<string, CatalogProvider>
 }
 
-function mapProviders(json: Record<string, { name?: string; api?: string; models?: Record<string, unknown> }>): Record<string, CatalogProvider> {
+function mapProviders(json: Record<string, unknown>): Record<string, CatalogProvider> {
   const providers: Record<string, CatalogProvider> = {}
-  for (const [id, p] of Object.entries(json)) {
-    if (typeof p !== 'object' || p === null) continue
+  for (const [id, rawP] of Object.entries(json)) {
+    const p = toRawProvider(rawP)
+    if (!p) continue
+    const variants: Record<string, Record<string, VariantBody>> = {}
+    for (const [modelId, m] of Object.entries(p.models ?? {})) {
+      const info = {
+        id: modelId,
+        providerId: id,
+        npm: p.npm ?? '@ai-sdk/openai-compatible',
+        reasoning: m.reasoning ?? false,
+        releaseDate: m.release_date ?? '',
+        limitOutput: m.limit?.output,
+        reasoningOptions: (m.reasoning_options ?? []) as Array<{ type: string; values?: unknown[]; min?: number; max?: number }>
+      }
+      const desc = computeVariants(info)
+      if (desc && Object.keys(desc).length > 0) variants[modelId] = desc
+    }
     providers[id] = {
       name: p.name ?? id,
       api: p.api,
+      npm: p.npm,
       models: Object.keys(p.models ?? {}),
-      limits: modelLimits(p.models),
-      variants: modelVariants(p.models)
+      limits: modelLimits(p.models as Record<string, unknown>),
+      ...(Object.keys(variants).length > 0 ? { variants } : {})
     }
   }
   return providers
@@ -89,17 +129,17 @@ export class ModelsCatalog {
   async fetch(): Promise<Record<string, CatalogProvider>> {
     const cached = this.loadCache()
     if (cached) return cached
-    let live: Record<string, CatalogProvider> | null = null
+    let live: Record<string, unknown> | null = null
     try {
       const res = await this.fetchFn(CATALOG_URL, { signal: AbortSignal.timeout(10_000) })
       if (res.ok) {
-        const json = (await res.json()) as Record<string, { name?: string; api?: string; models?: Record<string, unknown> }>
-        live = mapProviders(json)
+        live = (await res.json()) as Record<string, unknown>
       }
     } catch {
       /* offline: fall back to the bundled snapshot */
     }
-    const providers = live && Object.keys(live).length > 0 ? { ...SNAPSHOT, ...live } : SNAPSHOT
+    const raw = live && Object.keys(live).length > 0 ? { ...SNAPSHOT, ...live } : SNAPSHOT
+    const providers = mapProviders(raw)
     this.writeCache(providers)
     return providers
   }
@@ -121,14 +161,23 @@ export class ModelsCatalog {
 
   async getVariants(providerId: string, modelId: string): Promise<string[]> {
     const providers = await this.fetch()
-    return providers[providerId]?.variants?.[modelId] ?? []
+    return Object.keys(providers[providerId]?.variants?.[modelId] ?? {})
+  }
+
+  async getVariantOptions(providerId: string, modelId: string, variantId: string): Promise<VariantBody | undefined> {
+    const providers = await this.fetch()
+    return providers[providerId]?.variants?.[modelId]?.[variantId]
   }
 
   private loadCache(): Record<string, CatalogProvider> | null {
     if (!existsSync(this.cacheFile)) return null
     try {
       const entry = JSON.parse(readFileSync(this.cacheFile, 'utf-8')) as CacheEntry
-      if (entry?.providers && Date.now() - entry.fetchedAt < TTL_MS) {
+      const isOldShape = Object.values(entry?.providers ?? {}).some(p => {
+        const v = (p as CatalogProvider).variants
+        return v && Object.values(v).some(val => Array.isArray(val))
+      })
+      if (entry?.providers && !isOldShape && Date.now() - entry.fetchedAt < TTL_MS) {
         return entry.providers
       }
     } catch {
