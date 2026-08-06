@@ -20,6 +20,9 @@ export interface ToolContext {
   agentId?: string
   snapshots?: SnapshotStore
   diagnostics?: (filePath: string, text: string) => Promise<string>
+  // Notifies the loop that the model read/edited a file, so nearby AGENTS.md
+  // files get attached to the next message (opencode-style).
+  onFileRead?(filePath: string): void
 }
 
 export interface SubagentToolEvent {

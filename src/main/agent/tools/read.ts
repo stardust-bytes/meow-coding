@@ -25,6 +25,7 @@ export const readTool: ToolDefinition = {
     const full = resolveCwd(ctx.cwd, file_path)
     if (!existsSync(full)) return { error: `read: file not found: ${file_path}` }
     if (!statSync(full).isFile()) return { error: `read: not a file: ${file_path}` }
+    ctx.onFileRead?.(full)
     const lines = readFileSync(full, 'utf-8').split('\n')
     const slice = lines.slice(offset, offset + limit)
     let out = slice.join('\n')

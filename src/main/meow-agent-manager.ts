@@ -15,7 +15,7 @@ import type { SessionSummary, StoredSession } from './agent/session'
 import { McpManager } from './agent/mcp/manager'
 import { collectSkills, skillListText } from './agent/skill'
 import { loadUserTools } from './agent/plugin'
-import { instructionsText, loadInstructions } from './agent/instructions'
+import { INSTRUCTION_POINTER } from './agent/instructions'
 import { expandReferences } from './agent/references'
 import { suggestFiles } from './file-suggest'
 import { SnapshotStore } from './agent/snapshot'
@@ -667,7 +667,9 @@ export class MeowAgentManager {
       : undefined
     const contextTokens = modelLimit?.context ?? cfg.maxContextTokens
     const skills = collectSkills(agent.cwd, this.deps.userSkillsDir, this.deps.builtinSkillsDir)
-    const instructions = instructionsText(loadInstructions(agent.cwd, this.deps.userInstructionsDir))
+    // AGENTS.md contents are attached per-file on read (loop.ts); the system
+    // prompt only points the model at them instead of inlining everything.
+    const instructions = INSTRUCTION_POINTER
     const llmClient = (this.deps.createLlm ?? createLlm)(resolved.provider, resolved.apiKey ?? '', resolved.baseUrl)
     const taskTool = createTaskTool({ llm: llmClient, model: resolved.model, tools: this.tools })
     const runnerTools = new Map<string, ToolDefinition>([...this.tools])

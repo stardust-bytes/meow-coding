@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { SessionRunner } from '../../src/main/agent/loop'
 import type { LoopDeps } from '../../src/main/agent/loop'
 import type { LlmClient, LlmStreamOptions, LlmStreamPart } from '../../src/main/agent/llm'
@@ -533,5 +536,53 @@ describe('SessionRunner', () => {
       .filter((m): m is { role: 'user'; content: string } => m.role === 'user' && typeof m.content === 'string')
       .map(m => m.content)
     expect(texts).toContain('latest prompt')
+  })
+
+  it('attaches AGENTS.md files after the model reads a file in a subdir', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-loop-agents-'))
+    const sub = path.join(dir, 'src')
+    mkdirSync(sub)
+    writeFileSync(path.join(dir, 'AGENTS.md'), '# Root rules')
+    writeFileSync(path.join(sub, 'AGENTS.md'), '# Sub rules')
+    writeFileSync(path.join(sub, 'a.ts'), 'x')
+    try {
+      const readSpy = vi.fn(async (_input: Record<string, unknown>, ctx: { onFileRead?: (p: string) => void }) => {
+        ctx.onFileRead?.(path.join(sub, 'a.ts'))
+        return { output: 'x' }
+      })
+      const h = makeHarness({
+        cwd: dir,
+        tools: new Map([['read', stubTool('read', readSpy)]])
+      })
+      h.items.push({ kind: 'message', message: { id: 'u1', role: 'user', text: 'read src/a.ts', createdAt: 1 } })
+      h.llm.queue = [
+        [
+          { kind: 'tool-call', toolCallId: 'tc1', toolName: 'read', toolInput: { file_path: 'src/a.ts' } },
+          { kind: 'finish' }
+        ],
+        textParts('ok')
+      ]
+      h.runner.run()
+      await new Promise(r => setTimeout(r, 20))
+      const attached = h.llm.calls[1]?.messages ?? []
+      const content = attached.map(m => (m.role === 'user' && typeof m.content === 'string' ? m.content : ''))
+      expect(content.join('\n')).toContain('# Root rules')
+      expect(content.join('\n')).toContain('# Sub rules')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not attach instructions when no file was read', async () => {
+    const h = makeHarness()
+    h.items.push({ kind: 'message', message: { id: 'u1', role: 'user', text: 'hi', createdAt: 1 } })
+    h.llm.queue = [textParts('hello')]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 20))
+    const firstMessages = h.llm.calls[0]?.messages ?? []
+    const texts = firstMessages
+      .filter((m): m is { role: 'user'; content: string } => m.role === 'user' && typeof m.content === 'string')
+      .map(m => m.content)
+    expect(texts.join('\n')).not.toContain('Relevant project instructions')
   })
 })

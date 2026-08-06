@@ -8,6 +8,7 @@ import type { TranscriptItem } from './message'
 import type { ToolContext, ToolDefinition } from './tools/types'
 import type { PermissionDecision } from './permission'
 import { selectHeadTail, serializeItems, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, pruneToolOutputs } from './compact'
+import { instructionFilesForFile } from './instructions'
 import type { CompactionSettings } from './compact'
 import { estimateUsage } from './token'
 import type { TruncationStore } from './truncation'
@@ -47,6 +48,9 @@ const MAX_STEPS_PROMPT = 'Final step: wrap up and provide your final answer now.
 export class SessionRunner {
   private readonly maxSteps: number
   private compactedThisRun = 0
+  // Files the model read/edited this turn, so nearby AGENTS.md files can be
+  // attached to the next LLM message (opencode-style instruction injection).
+  private readFiles = new Set<string>()
 
   constructor(private deps: LoopDeps) {
     this.maxSteps = deps.maxSteps ?? DEFAULT_MAX_STEPS
@@ -56,6 +60,7 @@ export class SessionRunner {
     const { agentId } = this.deps
     let steps = 0
     this.compactedThisRun = 0
+    this.readFiles.clear()
     const runUsage = { input: 0, output: 0, total: 0 }
     while (true) {
       if (signal?.aborted) {
@@ -240,7 +245,8 @@ export class SessionRunner {
             })
             const resp = await this.deps.ask(promptId)
             return resp?.text ?? null
-          }
+          },
+          onFileRead: (filePath) => this.readFiles.add(filePath)
         }
         try {
           const r = await def.run(call.input, toolCtx)
@@ -327,9 +333,28 @@ export class SessionRunner {
     const items = this.deps.getItems()
     const toolOutputMaxChars = this.deps.compaction?.toolOutputMaxChars
     const messages = toLlmMessages(items, { toolOutputMaxChars, ...this.truncationOpts() })
+    const attached = this.attachInstructions()
     if (isLastStep) {
-      return [...messages, { role: 'user', content: MAX_STEPS_PROMPT }]
+      return [...messages, ...attached, { role: 'user', content: MAX_STEPS_PROMPT }]
     }
-    return messages
+    return attached.length > 0 ? [...messages, ...attached] : messages
+  }
+
+  // Attaches nearby AGENTS.md/CLAUDE.md files (walking up from each file the
+  // model read this turn) as a trailing user message, once per turn.
+  private attachInstructions(): Array<{ role: 'user'; content: string }> {
+    if (this.readFiles.size === 0) return []
+    const seen = new Set<string>()
+    const blocks: string[] = []
+    for (const file of this.readFiles) {
+      for (const f of instructionFilesForFile(file)) {
+        if (seen.has(f.path)) continue
+        seen.add(f.path)
+        blocks.push(`Instructions from: ${f.path}\n${f.content}`)
+      }
+    }
+    this.readFiles.clear()
+    if (blocks.length === 0) return []
+    return [{ role: 'user', content: 'Relevant project instructions:\n\n' + blocks.join('\n\n') }]
   }
 }
