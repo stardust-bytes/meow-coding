@@ -1,6 +1,6 @@
 import type {
   AgentState, CatalogProviderSummary, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ContextChangedEvent,
-  GitStatus, McpServerStatus, MeowSettings, ModelRef, ModelVariant, NewAgentInput, PromptResponse, SessionSummary,
+  GitStatus, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PromptResponse, SessionSummary,
   StatsSummary, Template, TodoItem, WorkspaceRuntime, WorkspaceSummary
 } from './types'
 
@@ -14,6 +14,7 @@ export const Channels = {
   AgentRemove: 'agent:remove',
   AgentSetMode: 'agent:set-mode',
   AgentSetVariant: 'agent:set-variant',
+  AgentGetVariants: 'agent:get-variants',
   AgentSetModel: 'agent:set-model',
   AgentGetModel: 'agent:get-model',
   ProviderModels: 'provider:models',
@@ -82,7 +83,8 @@ export interface AgentApi {
   addAgent(projectPath: string, input: NewAgentInput): Promise<WorkspaceRuntime>
   removeAgent(projectPath: string, agentId: string): Promise<void>
   setAgentMode(agentId: string, mode: 'build' | 'plan'): Promise<void>
-  setAgentVariant(agentId: string, variant: ModelVariant): Promise<void>
+  setAgentVariant(agentId: string, variant: string | null): Promise<void>
+  getAgentVariants(agentId: string): Promise<string[]>
   setAgentModel(agentId: string, provider: string, model: string): Promise<void>
   getAgentModel(agentId: string): Promise<ModelRef | null>
   getProviderModels(): Promise<ModelRef[]>
