@@ -29,4 +29,16 @@ describe('expandReferences', () => {
   it('handles a bare text without mentions', () => {
     expect(expandReferences(dir, 'plain prompt')).toBe('plain prompt')
   })
+
+  it('expands @./relative/path with dot prefix', () => {
+    writeFileSync(path.join(dir, 'a.txt'), 'dot prefix content')
+    const out = expandReferences(dir, 'read @./a.txt')
+    expect(out).toContain('dot prefix content')
+  })
+
+  it('expands @"path with space.txt"', () => {
+    writeFileSync(path.join(dir, 'my file.txt'), 'spaced content')
+    const out = expandReferences(dir, 'x @"my file.txt"')
+    expect(out).toContain('spaced content')
+  })
 })

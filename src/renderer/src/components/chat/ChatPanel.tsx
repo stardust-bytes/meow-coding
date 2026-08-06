@@ -25,6 +25,23 @@ interface PendingPrompt {
   custom?: boolean
 }
 
+// Splits user text on @path tokens and highlights them, matching the main-side
+// expandReferences syntax (bare or quoted forms).
+const MENTION_SPLIT_RE = /(@[\w./\\-]+)/g
+
+function MentionText({ text }: { text: string }) {
+  const parts = text.split(MENTION_SPLIT_RE)
+  return (
+    <div className="chat-text">
+      {parts.map((part, i) =>
+        part.startsWith('@')
+          ? <span key={i} className="chat-mention">{part}</span>
+          : part
+      )}
+    </div>
+  )
+}
+
 // Owns the per-message subtree so streamed deltas only re-render the message
 // that changed, not the whole feed. Props are primitives, so React.memo works.
 const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, onOpenImage }: {
@@ -61,7 +78,7 @@ const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, o
               ))}
             </div>
           )}
-          {text.trim() !== '' && <div className="chat-text">{text}</div>}
+          {text.trim() !== '' && <MentionText text={text} />}
         </>
       )}
     </div>

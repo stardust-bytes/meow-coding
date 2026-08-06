@@ -3,12 +3,14 @@ import path from 'node:path'
 
 const MAX_FILE = 32 * 1024
 
-const MENTION_RE = /@([\w./\\-]+)/g
+// Group 1 = whole token (quoted or not), group 2 = quoted content, group 3 =
+// bare token. Quoted form supports paths with spaces: @"my file.txt".
+const MENTION_RE = /@("([^"]+)"|([\w./\\-]+))/g
 
 export function expandReferences(cwd: string, text: string): string {
   const mentions: Array<{ token: string; path: string }> = []
   for (const m of text.matchAll(MENTION_RE)) {
-    const token = m[1]
+    const token = m[2] ?? m[3]
     const abs = path.isAbsolute(token) ? token : path.join(cwd, token)
     mentions.push({ token, path: abs })
   }
