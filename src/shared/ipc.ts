@@ -47,6 +47,8 @@ export const Channels = {
   ChatListTranscript: 'chat:list-transcript',
   ChatGetTodos: 'chat:get-todos',
   ChatRespondPrompt: 'chat:respond-prompt',
+  ChatQueueRemove: 'chat:queue-remove',
+  ChatQueueEdit: 'chat:queue-edit',
   SessionList: 'session:list',
   SessionCreate: 'session:create',
   SessionSwitch: 'session:switch',
@@ -125,6 +127,8 @@ export interface AgentApi {
   listChatTranscript(agentId: string): Promise<ChatTranscriptItem[]>
   getChatTodos(agentId: string): Promise<TodoItem[]>
   respondPrompt(agentId: string, promptId: string, resp: PromptResponse): Promise<void>
+  removeQueued(agentId: string, id: string): Promise<void>
+  editQueued(agentId: string, id: string, text: string): Promise<void>
   listSessions(agentId: string): Promise<SessionSummary[]>
   createSession(agentId: string): Promise<SessionSummary>
   switchSession(agentId: string, sessionId: string): Promise<SessionSummary | null>

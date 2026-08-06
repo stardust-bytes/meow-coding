@@ -13,7 +13,7 @@ describe('IPC contract', () => {
       'pickFolder', 'startAgent', 'stopAgent', 'restartAgent',
       'writeInput', 'injectPrompt', 'resizePty', 'openLog', 'getLogPath', 'quit', 'getAppVersion',
       'onPtyData', 'onAgentState', 'onGitStatus',
-      'sendChat', 'stopChat', 'runCommand', 'undoChat', 'redoChat', 'newChatSession', 'listChatMessages', 'listChatTranscript', 'respondPrompt',
+      'sendChat', 'stopChat', 'runCommand', 'undoChat', 'redoChat', 'newChatSession', 'listChatMessages', 'listChatTranscript', 'respondPrompt', 'removeQueued', 'editQueued',
       'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus', 'listCommands', 'saveCommand', 'removeCommand', 'getStats', 'onContextChanged',
       'suggestFiles', 'setAgentBackground', 'onAgentBackground',
       'listSessions', 'createSession', 'switchSession', 'deleteSession', 'renameSession',
@@ -66,6 +66,8 @@ describe('IPC contract', () => {
       listChatTranscript: async () => [],
       getChatTodos: async () => [],
       respondPrompt: async () => {},
+      removeQueued: async () => {},
+      editQueued: async () => {},
       onChatEvent: () => () => {},
       getSettings: async () => ({ providers: [], defaultProvider: '', agents: [], permission: {}, mcp: {}, maxContextTokens: 200000, maxSteps: Infinity, compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 2000 }, toolOutput: { maxBytes: 51200, maxLines: 2000 }, lsp: { enabled: true, diagnosticsTimeoutMs: 3000 } }),
       saveSettings: async (s) => s,
@@ -106,6 +108,8 @@ describe('IPC contract', () => {
     expect(Channels.ChatListMessages).toBe('chat:list-messages')
     expect(Channels.ChatListTranscript).toBe('chat:list-transcript')
     expect(Channels.ChatRespondPrompt).toBe('chat:respond-prompt')
+    expect(Channels.ChatQueueRemove).toBe('chat:queue-remove')
+    expect(Channels.ChatQueueEdit).toBe('chat:queue-edit')
     expect(Channels.EventChat).toBe('chat:event')
     expect(Channels.FilesSuggest).toBe('files:suggest')
     expect(Channels.AgentSetBackground).toBe('agent:set-background')

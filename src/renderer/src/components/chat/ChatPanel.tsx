@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import type { AgentMode, ChatEvent, ChatMessage, Command, ImageAttachment, QuestionOption, SessionSummary, TodoItem, TodoStatus, ToolCallData } from '@shared/types'
+import type { AgentMode, ChatEvent, ChatMessage, Command, ImageAttachment, QuestionOption, QueuedMessage, SessionSummary, TodoItem, TodoStatus, ToolCallData } from '@shared/types'
 import { appendStreamDelta } from '@shared/text'
 import { contextTokens } from '@shared/usage'
 import ChatInput from './ChatInput'
@@ -115,6 +115,9 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [todos, setTodos] = useState<TodoItem[]>([])
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
+  const [queue, setQueue] = useState<QueuedMessage[]>([])
+  const queueRef = useRef<QueuedMessage[]>([])
+  const [editTarget, setEditTarget] = useState<QueuedMessage | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const feedRef = useRef<HTMLDivElement>(null)
   const promptRef = useRef<HTMLDivElement>(null)
@@ -212,6 +215,9 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     setSessionCost(0)
     loadContextInfo()
     setTodos([])
+    setQueue([])
+    queueRef.current = []
+    setEditTarget(null)
     loadTranscript()
     loadTodos()
   }, [loadTranscript, loadTodos, loadContextInfo])
@@ -331,6 +337,18 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
       setTodos(e.todos)
       return
     }
+    if (e.type === 'queue-updated') {
+      const prev = queueRef.current
+      queueRef.current = e.queue
+      setQueue(e.queue)
+      const started = prev.find(p => !e.queue.some(q => q.id === p.id))
+      if (started) {
+        setItems(prevItems => [...prevItems, {
+          kind: 'message', id: 'u-' + started.id, role: 'user', text: started.text, images: started.images
+        }])
+      }
+      return
+    }
     if (e.type === 'usage') {
       setContextUsed(contextTokens(e.tokens))
       setSessionCost(e.sessionCost)
@@ -393,10 +411,14 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const send = useCallback((text: string, images?: ImageAttachment[]) => {
     const trimmed = text.trim()
     if (!trimmed && (!images || images.length === 0)) return
-    setItems(prev => [...prev, {
-      kind: 'message', id: 'u-' + Date.now(), role: 'user', text: trimmed, images
-    }])
-    setRunning(true)
+    // When a turn is already running the message is queued in main; the
+    // user message row appears only once the queue drains and the turn starts.
+    if (!running) {
+      setItems(prev => [...prev, {
+        kind: 'message', id: 'u-' + Date.now(), role: 'user', text: trimmed, images
+      }])
+      setRunning(true)
+    }
     const m = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(trimmed)
     if (m && commands.some(c => c.name === m[1])) {
       void window.api.runCommand(agentId, m[1], m[2] ? m[2].trim().split(/\s+/) : [])
@@ -404,7 +426,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
       void window.api.sendChat(agentId, trimmed, images)
     }
     reloadSessions()
-  }, [agentId, commands, reloadSessions])
+  }, [agentId, commands, running, reloadSessions])
 
   const handleStop = useCallback(() => {
     void window.api.stopChat(agentId)
@@ -650,6 +672,23 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
           return <div key={item.id} className="chat-error">{item.text}</div>
         })}
         {running && <div className="chat-running">Meow is working…</div>}
+        {queue.length > 0 && (
+          <div className="chat-queue">
+            {queue.map(q => (
+              <div key={q.id} className="chat-queue-item">
+                <span className="chat-queue-badge">queued</span>
+                <span className="chat-queue-text" onClick={() => setEditTarget(q)} title="edit">{q.text}</span>
+                <button
+                  className="chat-queue-remove"
+                  aria-label={`remove queued ${q.text}`}
+                  onClick={() => void window.api.removeQueued(agentId, q.id)}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div ref={endRef} />
       </div>
       <div className="chat-composer">
@@ -799,7 +838,13 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
           running={running}
           mode={currentMode}
           commands={commands}
+          editTarget={editTarget}
           onSubmit={send}
+          onEditSubmit={(id, text) => {
+            void window.api.editQueued(agentId, id, text)
+            setEditTarget(null)
+          }}
+          onEditCancel={() => setEditTarget(null)}
           onStop={handleStop}
         />
         <ContextFooter

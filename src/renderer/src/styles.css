@@ -400,6 +400,20 @@ select.input { width: 100%; }
 .subagent-text { white-space: pre-wrap; word-break: break-word; font-size: var(--fs-base); color: var(--text-dim); user-select: text; }
 .subagent-running { color: var(--blue); font-size: var(--fs-base); }
 .chat-running { color: var(--text-dim); font-style: italic; padding: 2px 0; }
+.chat-queue { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; }
+.chat-queue-item {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg-panel); border: 1px dashed var(--hairline);
+  padding: 4px 8px; font-size: var(--fs-md); max-width: 92%;
+}
+.chat-queue-badge {
+  flex: 0 0 auto; font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--yellow); border: 1px solid var(--yellow); padding: 0 4px;
+}
+.chat-queue-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; color: var(--text); }
+.chat-queue-text:hover { color: var(--accent); }
+.chat-queue-remove { appearance: none; background: none; border: none; color: var(--text-faint); cursor: pointer; font-size: 14px; padding: 2px; }
+.chat-queue-remove:hover { color: var(--red); }
 
 /* Tool call card */
 .tool-call {

@@ -429,7 +429,7 @@ function registerIpcHandlers(): void {
   })
   ipcMain.handle(Channels.ChatSend, (_e, agentId: string, text: string, images?: ImageAttachment[]) =>
     mainApp.meowAgent.send(agentId, text, images))
-  ipcMain.handle(Channels.ChatStop, (_e, agentId: string) => mainApp.meowAgent.stop(agentId))
+  ipcMain.handle(Channels.ChatStop, (_e, agentId: string) => mainApp.meowAgent.stopAndDrain(agentId))
   ipcMain.handle(Channels.ChatRunCommand, (_e, agentId: string, name: string, args: string[]) =>
     mainApp.meowAgent.runCommand(agentId, name, args))
   ipcMain.handle(Channels.ChatUndo, (_e, agentId: string) => mainApp.meowAgent.undo(agentId))
@@ -440,6 +440,10 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.ChatGetTodos, (_e, agentId: string) => mainApp.meowAgent.getTodos(agentId))
   ipcMain.handle(Channels.ChatRespondPrompt, (_e, agentId: string, promptId: string, resp: PromptResponse) =>
     mainApp.meowAgent.respondPrompt(agentId, promptId, resp))
+  ipcMain.handle(Channels.ChatQueueRemove, (_e, agentId: string, id: string) =>
+    mainApp.meowAgent.removeQueued(agentId, id))
+  ipcMain.handle(Channels.ChatQueueEdit, (_e, agentId: string, id: string, text: string) =>
+    mainApp.meowAgent.editQueued(agentId, id, text))
   ipcMain.handle(Channels.SessionList, (_e, agentId: string) => mainApp.meowAgent.listSessions(agentId))
   ipcMain.handle(Channels.SessionCreate, (_e, agentId: string) => mainApp.meowAgent.createSession(agentId))
   ipcMain.handle(Channels.SessionSwitch, (_e, agentId: string, sessionId: string) =>

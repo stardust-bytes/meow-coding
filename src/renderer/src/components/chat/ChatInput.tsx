@@ -7,7 +7,10 @@ interface Props {
   running: boolean
   mode: AgentMode
   commands: Command[]
+  editTarget?: { id: string; text: string } | null
   onSubmit(text: string, images: ImageAttachment[]): void
+  onEditSubmit?(id: string, text: string): void
+  onEditCancel?(): void
   onStop(): void
 }
 
@@ -50,7 +53,9 @@ function PaperclipIcon() {
   )
 }
 
-export default memo(function ChatInput({ agentId, running, mode, commands, onSubmit, onStop }: Props) {
+export default memo(function ChatInput({
+  agentId, running, mode, commands, editTarget, onSubmit, onEditSubmit, onEditCancel, onStop
+}: Props) {
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const selectedRef = useRef<HTMLButtonElement | null>(null)
@@ -179,15 +184,26 @@ export default memo(function ChatInput({ agentId, running, mode, commands, onSub
 
   const submit = useCallback(() => {
     const text = (fieldRef.current?.value ?? '').trim()
-    if ((!text && images.length === 0) || running) return
+    if (!text) return
     if (fieldRef.current) fieldRef.current.value = ''
     setMenu({ open: false, prefix: '' })
     setSelectedName('')
     setMentions([])
     closeFileMenu()
-    onSubmit(text, images)
+    if (editTarget) onEditSubmit?.(editTarget.id, text)
+    else onSubmit(text, images)
     setImages([])
-  }, [running, onSubmit, images, closeFileMenu])
+    onEditCancel?.()
+  }, [editTarget, onEditSubmit, onEditCancel, onSubmit, images, closeFileMenu])
+
+  // Load the queued message being edited into the textarea.
+  useEffect(() => {
+    if (!editTarget) return
+    if (fieldRef.current) {
+      fieldRef.current.value = editTarget.text
+      fieldRef.current.focus()
+    }
+  }, [editTarget])
 
   const applyCommand = useCallback((cmd: Command) => {
     if (fieldRef.current) fieldRef.current.value = `/${cmd.name} `
@@ -299,7 +315,6 @@ export default memo(function ChatInput({ agentId, running, mode, commands, onSub
           className={`chat-input-field mode-${mode}`}
           placeholder="Message Meow...  ( / for commands )"
           rows={2}
-          disabled={running}
           onInput={e => onInput((e.target as HTMLTextAreaElement).value)}
           onPaste={e => {
             const files = Array.from(e.clipboardData.items)
@@ -363,7 +378,6 @@ export default memo(function ChatInput({ agentId, running, mode, commands, onSub
         <button
           className="chat-input-attach"
           title="Upload file"
-          disabled={running}
           onClick={() => fileInputRef.current?.click()}
         >
           <span className="btn-icon"><PaperclipIcon /></span>

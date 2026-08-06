@@ -186,6 +186,73 @@ describe('MeowAgentManager', () => {
     expect(manager.isRunning('a1')).toBe(false)
   })
 
+  it('queues messages sent while a turn is running and drains them serially', async () => {
+    const { manager, events } = await makeManager({
+      partsQueue: [
+        [
+          { kind: 'tool-call', toolCallId: 'tc1', toolName: 'websearch', toolInput: { query: 'q' } },
+          { kind: 'finish' }
+        ],
+        [{ kind: 'text', text: 'r1' }, { kind: 'finish' }],
+        [{ kind: 'text', text: 'r2' }, { kind: 'finish' }]
+      ]
+    })
+    manager.newSession('a1')
+    const sendPromise = manager.send('a1', 'first')
+    // Wait for the first turn to block on a permission prompt.
+    await new Promise<void>(resolve => {
+      const t = setInterval(() => {
+        if (events.some(e => e.type === 'prompt-request')) {
+          clearInterval(t)
+          resolve()
+        }
+      }, 5)
+    })
+    expect(manager.isRunning('a1')).toBe(true)
+    await manager.send('a1', 'second')
+    await manager.send('a1', 'third')
+    const q = manager.listQueued('a1')
+    expect(q.map(m => m.text)).toEqual(['second', 'third'])
+    expect(events.some(e => e.type === 'queue-updated' && e.queue.length === 2)).toBe(true)
+    // Allow the permission prompt → first turn completes → queue drains serially.
+    await manager.respondPrompt('a1', events.find(e => e.type === 'prompt-request')!.promptId, { allow: true })
+    await sendPromise
+    expect(manager.listQueued('a1')).toEqual([])
+    const msgs = manager.listMessages('a1').filter(m => m.role === 'user').map(m => m.text)
+    expect(msgs).toContain('second')
+    expect(msgs).toContain('third')
+  })
+
+  it('removeQueued and editQueued update the queue', async () => {
+    const { manager, events } = await makeManager({ hangUntilAbort: true })
+    const sendPromise = manager.send('a1', 'first')
+    await new Promise(r => setTimeout(r, 20))
+    await manager.send('a1', 'second')
+    const q = manager.listQueued('a1')
+    const second = q[0]
+    manager.editQueued('a1', second.id, 'second-edited')
+    expect(manager.listQueued('a1')[0].text).toBe('second-edited')
+    manager.removeQueued('a1', second.id)
+    expect(manager.listQueued('a1')).toEqual([])
+    expect(events.some(e => e.type === 'queue-updated')).toBe(true)
+    // Clear the queue so stop doesn't drain into a hanging turn.
+    manager.stop('a1')
+    await sendPromise
+  })
+
+  it('rejects queuing more than 5 messages', async () => {
+    const { manager, events } = await makeManager({ hangUntilAbort: true })
+    const sendPromise = manager.send('a1', 'first')
+    await new Promise(r => setTimeout(r, 20))
+    for (let i = 0; i < 6; i++) await manager.send('a1', `msg ${i}`)
+    expect(manager.listQueued('a1')).toHaveLength(5)
+    expect(events.some(e => e.type === 'error')).toBe(true)
+    // Clear the queue so stop doesn't drain into a hanging turn.
+    for (const m of manager.listQueued('a1')) manager.removeQueued('a1', m.id)
+    manager.stop('a1')
+    await sendPromise
+  })
+
   it('respondPrompt allow lets a permission-ask tool run', async () => {
     const { manager: m2, events: evts } = await makeManager({
       partsQueue: [
@@ -220,11 +287,11 @@ describe('MeowAgentManager', () => {
     const { manager, store } = await makeManager()
     await manager.send('a1', 'x')
     expect(manager.listSessions('a1')).toHaveLength(1)
+    const oldId = manager.listSessions('a1')[0].id
     manager.newSession('a1')
     expect(manager.listMessages('a1')).toEqual([])
     expect(manager.listSessions('a1')).toHaveLength(2)
-    const old = manager.listSessions('a1')[1]
-    expect(store.get(old.id)?.items.length).toBeGreaterThan(0)
+    expect(store.get(oldId)?.items.length).toBeGreaterThan(0)
   })
 
   it('removeAgent deletes the agent sessions', async () => {

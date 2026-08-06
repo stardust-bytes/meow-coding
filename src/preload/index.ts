@@ -69,6 +69,10 @@ const api: AgentApi = {
   getChatTodos: (agentId: string) => ipcRenderer.invoke(Channels.ChatGetTodos, agentId),
   respondPrompt: (agentId: string, promptId: string, resp: PromptResponse) =>
     ipcRenderer.invoke(Channels.ChatRespondPrompt, agentId, promptId, resp),
+  removeQueued: (agentId: string, id: string) =>
+    ipcRenderer.invoke(Channels.ChatQueueRemove, agentId, id),
+  editQueued: (agentId: string, id: string, text: string) =>
+    ipcRenderer.invoke(Channels.ChatQueueEdit, agentId, id, text),
   listSessions: (agentId: string) => ipcRenderer.invoke(Channels.SessionList, agentId),
   createSession: (agentId: string) => ipcRenderer.invoke(Channels.SessionCreate, agentId),
   switchSession: (agentId: string, sessionId: string) =>

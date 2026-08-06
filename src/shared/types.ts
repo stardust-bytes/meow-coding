@@ -133,10 +133,17 @@ export type ChatEvent =
   | { type: 'compacted'; agentId: string; summary: string }
   | { type: 'usage'; agentId: string; tokens: MessageTokens; sessionCost: number }
   | { type: 'todo-updated'; agentId: string; todos: TodoItem[] }
+  | { type: 'queue-updated'; agentId: string; queue: QueuedMessage[] }
   | { type: 'subagent-event'; agentId: string; taskId: string
       sub: 'start' | 'delta' | 'tool' | 'done'
       subagentType?: string; text?: string; tool?: string
       state?: 'running' | 'completed' | 'cancelled' | 'error' }
+
+export interface QueuedMessage {
+  id: string
+  text: string
+  images?: ImageAttachment[]
+}
 
 export interface TokenUsage {
   input: number

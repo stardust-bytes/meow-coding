@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
-import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, ModelUsage, NotificationsSettings, PromptResponse, StatsSummary, TodoItem, UsageSummary } from '../shared/types'
+import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, ModelUsage, NotificationsSettings, PromptResponse, QueuedMessage, StatsSummary, TodoItem, UsageSummary } from '../shared/types'
 import type { AgentConfig, AgentMode, CatalogProviderSummary, Command, ModelRef } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, settingsToConfig, writeMeowConfig,
@@ -73,6 +73,7 @@ export class MeowAgentManager {
   private modelVariants = new Map<string, Record<string, VariantBody>>()
   private redoStacks = new Map<string, Array<{ items: ChatTranscriptItem[]; turn: SnapshotTurn }>>()
   private backgrounds = new Map<string, boolean>()
+  private queues = new Map<string, QueuedMessage[]>()
   private onEvent: (e: ChatEvent) => void = () => {}
 
   constructor(private deps: MeowAgentManagerDeps) {
@@ -149,6 +150,7 @@ export class MeowAgentManager {
     this.resolved.delete(agentId)
     this.activeSessions.delete(agentId)
     this.backgrounds.delete(agentId)
+    this.queues.delete(agentId)
     this.deps.snapshots.clear(agentId)
     this.deps.store.deleteForAgent(agentId)
   }
@@ -207,11 +209,67 @@ export class MeowAgentManager {
     return this.summary(next)
   }
 
+  private MAX_QUEUE = 5
+
+  emitQueue(agentId: string): void {
+    this.emit({ type: 'queue-updated', agentId, queue: this.queues.get(agentId) ?? [] })
+  }
+
+  listQueued(agentId: string): QueuedMessage[] {
+    return this.queues.get(agentId) ?? []
+  }
+
+  removeQueued(agentId: string, id: string): void {
+    const q = this.queues.get(agentId) ?? []
+    const next = q.filter(m => m.id !== id)
+    if (next.length === q.length) return
+    if (next.length === 0) this.queues.delete(agentId)
+    else this.queues.set(agentId, next)
+    this.emitQueue(agentId)
+  }
+
+  editQueued(agentId: string, id: string, text: string): void {
+    const q = this.queues.get(agentId) ?? []
+    const idx = q.findIndex(m => m.id === id)
+    if (idx < 0 || !text.trim()) return
+    q[idx] = { ...q[idx], text }
+    this.queues.set(agentId, q)
+    this.emitQueue(agentId)
+  }
+
   async send(agentId: string, text: string, images?: ImageAttachment[]): Promise<void> {
     const agent = this.agents.get(agentId)
     if (!agent) return
-    if (this.running.has(agentId)) return
+    if (this.running.has(agentId)) {
+      const q = this.queues.get(agentId) ?? []
+      if (q.length >= this.MAX_QUEUE) {
+        this.emit({ type: 'error', agentId, message: '[meow] Hàng đợi đã đầy (tối đa 5 tin). Hãy chờ turn hiện tại xong hoặc xóa tin đang chờ.' })
+        return
+      }
+      q.push({ id: randomUUID(), text, images })
+      this.queues.set(agentId, q)
+      this.emitQueue(agentId)
+      return
+    }
+    await this.runTurn(agentId, text, images)
+    await this.drainQueue(agentId)
+  }
 
+  private async drainQueue(agentId: string): Promise<void> {
+    if (this.running.has(agentId)) return
+    const q = this.queues.get(agentId)
+    if (!q || q.length === 0) return
+    const next = q.shift()!
+    if (q.length === 0) this.queues.delete(agentId)
+    else this.queues.set(agentId, q)
+    this.emitQueue(agentId)
+    await this.runTurn(agentId, next.text, next.images)
+    await this.drainQueue(agentId)
+  }
+
+  private async runTurn(agentId: string, text: string, images?: ImageAttachment[]): Promise<void> {
+    const agent = this.agents.get(agentId)
+    if (!agent) return
     this.deps.store.appendMessage(this.activeSessionId(agentId), {
       id: randomUUID(),
       role: 'user',
@@ -301,6 +359,13 @@ export class MeowAgentManager {
     this.controllers.delete(agentId)
     this.running.delete(agentId)
     this.resolvePendingFor(agentId, null)
+  }
+
+  // User-facing stop: aborts the active turn, keeps the queue, and immediately
+  // starts the next queued message (if any).
+  async stopAndDrain(agentId: string): Promise<void> {
+    this.stop(agentId)
+    await this.drainQueue(agentId)
   }
 
   stopAll(): void {
