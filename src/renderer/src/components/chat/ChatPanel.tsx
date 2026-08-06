@@ -1,11 +1,13 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { AgentMode, ChatEvent, ChatMessage, Command, QuestionOption, SessionSummary, TodoItem, TodoStatus, ToolCallData } from '@shared/types'
 import { appendStreamDelta } from '@shared/text'
+import { contextTokens } from '@shared/usage'
 import ChatInput from './ChatInput'
 import ToolCallCard from './ToolCallCard'
 import MarkdownText from './MarkdownText'
 import SessionBar from './SessionBar'
 import ModelPicker from './ModelPicker'
+import ContextFooter from './ContextFooter'
 
 type FeedItem =
   | { kind: 'message'; id: string; role: ChatMessage['role']; text: string; reasoning?: string }
@@ -68,8 +70,10 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const [selectedOptions, setSelectedOptions] = useState<string[]>([])
   const [customInput, setCustomInput] = useState(false)
   const [questionIndex, setQuestionIndex] = useState(0)
-  const [lastTokens, setLastTokens] = useState<{ input: number; output: number; total: number } | null>(null)
-  const [lastCost, setLastCost] = useState(0)
+  const [contextUsed, setContextUsed] = useState<number | null>(null)
+  const [sessionCost, setSessionCost] = useState(0)
+  const [contextLimit, setContextLimit] = useState<number | null>(null)
+  const [compactThreshold, setCompactThreshold] = useState<number | null>(null)
   const [commands, setCommands] = useState<Command[]>([])
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
@@ -100,16 +104,24 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     })
   }, [agentId, onVariantChange])
 
-  useEffect(() => { refreshVariants() }, [refreshVariants])
+  const loadContextInfo = useCallback(() => {
+    void window.api.getContextInfo(agentId).then(info => {
+      setContextLimit(info.limit)
+      setCompactThreshold(info.compactThreshold)
+      setSessionCost(info.sessionCost)
+    })
+  }, [agentId])
+
+  useEffect(() => { refreshVariants(); loadContextInfo() }, [refreshVariants, loadContextInfo])
 
   useEffect(() => {
     const onModelChanged = (e: Event) => {
       const detail = (e as CustomEvent<{ agentId: string }>).detail
-      if (detail?.agentId === agentId) refreshVariants()
+      if (detail?.agentId === agentId) { refreshVariants(); loadContextInfo() }
     }
     window.addEventListener('meow:model-changed', onModelChanged)
     return () => window.removeEventListener('meow:model-changed', onModelChanged)
-  }, [agentId, refreshVariants])
+  }, [agentId, refreshVariants, loadContextInfo])
 
   useEffect(() => {
     if (pendingPrompt && pendingPrompt.promptType === 'permission') {
@@ -123,6 +135,16 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
         ? { kind: 'message', id: it.message.id, role: it.message.role, text: it.message.text, reasoning: it.message.reasoning }
         : { kind: 'tool', id: it.tool.id, call: { ...it.tool } }
       ))
+      // Mức chiếm dụng context = token của assistant message cuối cùng có output,
+      // giống cách opencode chọn (subagent-footer.tsx:35).
+      let used: number | null = null
+      for (let i = items.length - 1; i >= 0; i--) {
+        const it = items[i]
+        if (it.kind !== 'message') continue
+        const t = it.message.tokens
+        if (it.message.role === 'assistant' && t && t.output > 0) { used = contextTokens(t); break }
+      }
+      setContextUsed(used)
       shouldJumpToEnd.current = true
     })
   }, [agentId])
@@ -146,12 +168,13 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     setQuestionText('')
     setSelectedOptions([])
     setCustomInput(false)
-    setLastTokens(null)
-    setLastCost(0)
+    setContextUsed(null)
+    setSessionCost(0)
+    loadContextInfo()
     setTodos([])
     loadTranscript()
     loadTodos()
-  }, [loadTranscript, loadTodos])
+  }, [loadTranscript, loadTodos, loadContextInfo])
 
   useEffect(() => {
     reloadSessions()
@@ -268,6 +291,11 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
       setTodos(e.todos)
       return
     }
+    if (e.type === 'usage') {
+      setContextUsed(contextTokens(e.tokens))
+      setSessionCost(e.sessionCost)
+      return
+    }
     if (e.type === 'compacted') {
       loadTranscript()
       return
@@ -276,10 +304,6 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
       flushDeltas()
       setRunning(false)
       setPendingPrompt(null)
-      if (e.type === 'done') {
-        if (e.tokens) setLastTokens(e.tokens)
-        if (e.cost !== undefined) setLastCost(e.cost)
-      }
       if (e.type === 'error') {
         setItems(prev => [...prev, { kind: 'error', id: 'err-' + Date.now(), text: e.message }])
       }
@@ -331,8 +355,6 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     if (!trimmed) return
     setItems(prev => [...prev, { kind: 'message', id: 'u-' + Date.now(), role: 'user', text: trimmed }])
     setRunning(true)
-    setLastTokens(null)
-    setLastCost(0)
     const m = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(trimmed)
     if (m && commands.some(c => c.name === m[1])) {
       void window.api.runCommand(agentId, m[1], m[2] ? m[2].trim().split(/\s+/) : [])
@@ -572,12 +594,6 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
           return <div key={item.id} className="chat-error">{item.text}</div>
         })}
         {running && <div className="chat-running">Meow is working…</div>}
-        {lastTokens && !running && (
-          <div className="chat-tokens">
-            tokens: {lastTokens.total} ({lastTokens.input} in / {lastTokens.output} out)
-            {lastCost > 0 && <span className="chat-tokens-cost"> · ${lastCost.toFixed(4)}</span>}
-          </div>
-        )}
         <div ref={endRef} />
       </div>
       <div className="chat-composer">
@@ -728,6 +744,12 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
           commands={commands}
           onSubmit={send}
           onStop={handleStop}
+        />
+        <ContextFooter
+          tokens={contextUsed}
+          limit={contextLimit}
+          compactThreshold={compactThreshold}
+          cost={sessionCost}
         />
       </div>
     </div>

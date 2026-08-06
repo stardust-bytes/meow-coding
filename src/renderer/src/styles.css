@@ -462,6 +462,12 @@ select.input { width: 100%; }
 .chat-input-send:disabled { opacity: 0.4; cursor: default; }
 .chat-input-send.running { background: var(--red); color: #fff; }
 .chat-input-send.running:hover { background: #f7a08b; }
+.context-footer { display: flex; gap: 6px; align-items: center; padding: 4px 2px 0; color: var(--text-dim); font-size: var(--fs-sm); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.context-footer-label { color: var(--text-faint); }
+.context-footer.warn { color: var(--yellow); }
+.context-footer.danger { color: var(--red); }
+.context-footer-cost { color: var(--green); }
+.context-footer.warn .context-footer-cost, .context-footer.danger .context-footer-cost { color: inherit; }
 
 /* Settings dialog */
 .settings-dialog { width: 760px; max-width: 92vw; height: 80vh; max-height: 80vh; overflow: hidden; }
@@ -646,8 +652,6 @@ select.input { width: 100%; }
 .chat-reasoning-text { white-space: pre-wrap; color: var(--text-dim); font-size: var(--fs-md); padding: 0 10px 8px; user-select: text; max-height: 200px; overflow-y: auto; }
 
 /* Token usage */
-.chat-tokens { color: var(--text-dim); font-size: var(--fs-base); padding: 2px 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-.chat-tokens-cost { color: var(--green); }
 
 /* Command menu */
 .command-menu {
