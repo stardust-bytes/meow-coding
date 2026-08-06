@@ -24,7 +24,7 @@ import { LspManager } from './agent/lsp/manager'
 import { ModelsCatalog } from './models-catalog'
 import { getWindowChromeOptions } from './window-chrome'
 import { Channels } from '../shared/ipc'
-import type { AgentState, Command, MeowSettings, NewAgentInput, PromptResponse, Template, Workspace, WorkspaceRuntime } from '../shared/types'
+import type { AgentState, Command, MeowSettings, ModelVariant, NewAgentInput, PromptResponse, Template, Workspace, WorkspaceRuntime } from '../shared/types'
 
 let win: BrowserWindow | null = null
 
@@ -237,7 +237,7 @@ class MainApp {
     }
   }
 
-  setAgentVariant(agentId: string, variant: 'medium' | 'high' | 'max'): void {
+  setAgentVariant(agentId: string, variant: ModelVariant): void {
     this.meowAgent.setVariant(agentId, variant)
     const ws = this.findWorkspaceByAgent(agentId)
     if (ws) {
@@ -368,7 +368,7 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(Channels.AgentSetMode, (_e, agentId: string, mode: 'build' | 'plan') =>
     mainApp.setAgentMode(agentId, mode))
-  ipcMain.handle(Channels.AgentSetVariant, (_e, agentId: string, variant: 'medium' | 'high' | 'max') =>
+  ipcMain.handle(Channels.AgentSetVariant, (_e, agentId: string, variant: ModelVariant) =>
     mainApp.setAgentVariant(agentId, variant))
   ipcMain.handle(Channels.AgentSetModel, (_e, agentId: string, provider: string, model: string) =>
     mainApp.setAgentModel(agentId, provider, model))

@@ -35,7 +35,7 @@ export default function Pane({
   const handleInject = useCallback((text: string) => void window.api.injectPrompt(id, text), [id])
   const handleOpenLog = useCallback(() => void window.api.openLog(id), [id])
   const handleModeChange = useCallback((m: 'build' | 'plan') => void window.api.setAgentMode(id, m), [id])
-  const handleVariantChange = useCallback((v: 'medium' | 'high' | 'max') => void window.api.setAgentVariant(id, v), [id])
+  const handleVariantChange = useCallback((v: string) => void window.api.setAgentVariant(id, v), [id])
 
   return (
     <div className={`pane ${zoomed ? 'zoomed' : ''}`} onClick={onFocus}>

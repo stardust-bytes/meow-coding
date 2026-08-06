@@ -1,6 +1,6 @@
 import type {
   AgentState, CatalogProviderSummary, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ContextChangedEvent,
-  GitStatus, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PromptResponse, SessionSummary,
+  GitStatus, McpServerStatus, MeowSettings, ModelRef, ModelVariant, NewAgentInput, PromptResponse, SessionSummary,
   StatsSummary, Template, TodoItem, WorkspaceRuntime, WorkspaceSummary
 } from './types'
 
@@ -82,7 +82,7 @@ export interface AgentApi {
   addAgent(projectPath: string, input: NewAgentInput): Promise<WorkspaceRuntime>
   removeAgent(projectPath: string, agentId: string): Promise<void>
   setAgentMode(agentId: string, mode: 'build' | 'plan'): Promise<void>
-  setAgentVariant(agentId: string, variant: 'medium' | 'high' | 'max'): Promise<void>
+  setAgentVariant(agentId: string, variant: ModelVariant): Promise<void>
   setAgentModel(agentId: string, provider: string, model: string): Promise<void>
   getAgentModel(agentId: string): Promise<ModelRef | null>
   getProviderModels(): Promise<ModelRef[]>

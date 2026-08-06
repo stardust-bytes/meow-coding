@@ -2,7 +2,7 @@ export type AgentStatus = 'spawning' | 'running' | 'idle' | 'exited' | 'stopped'
 export type AlertLevel = 'normal' | 'attention' | 'error'
 export type AgentKind = 'pty' | 'native'
 export type AgentMode = 'build' | 'plan'
-export type ModelVariant = 'medium' | 'high' | 'max'
+export type ModelVariant = string
 export type ChatRole = 'user' | 'assistant'
 
 export interface Template {
