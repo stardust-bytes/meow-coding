@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { expandReferences } from '../../src/main/agent/references'
@@ -40,5 +40,20 @@ describe('expandReferences', () => {
     writeFileSync(path.join(dir, 'my file.txt'), 'spaced content')
     const out = expandReferences(dir, 'x @"my file.txt"')
     expect(out).toContain('spaced content')
+  })
+
+  it('walks up to find AGENTS.md when cwd is a subdirectory', () => {
+    const sub = path.join(dir, 'src')
+    mkdirSync(sub)
+    writeFileSync(path.join(dir, 'AGENTS.md'), '# Root instructions')
+    const out = expandReferences(sub, 'Read @AGENTS.md before taking action.')
+    expect(out).toContain('# Root instructions')
+  })
+
+  it('still ignores mentions that resolve nowhere up the tree', () => {
+    const sub = path.join(dir, 'src')
+    mkdirSync(sub)
+    const out = expandReferences(sub, 'Hello @nope.md there')
+    expect(out).toBe('Hello @nope.md there')
   })
 })
