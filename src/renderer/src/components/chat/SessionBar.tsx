@@ -64,6 +64,7 @@ export default function SessionBar({ sessions, activeSessionId, onSelect, onCrea
 
   return (
     <div className="chat-sessions" ref={rootRef}>
+      <span className="session-label">Sessions:</span>
       <div className="session-dropdown">
         <button className="session-trigger" title="sessions" onClick={() => setOpen(v => !v)}>
           <span className="session-title">{active?.title ?? 'New session'}</span>

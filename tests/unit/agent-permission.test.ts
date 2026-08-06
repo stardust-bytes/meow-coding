@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { decidePermission, PLAN_RULES } from '../../src/main/agent/permission'
+import { DEFAULT_MEOW_CONFIG } from '../../src/main/agent/config'
 import type { PermissionRule } from '../../src/main/agent/config'
 
 const noSaved = () => false
@@ -23,6 +24,10 @@ describe('decidePermission (build mode)', () => {
 
   it('lets a deny rule beat a saved allow', () => {
     expect(decidePermission('build', { bash: 'deny' }, () => true, 'bash')).toBe('deny')
+  })
+
+  it('allows the question tool without a separate permission prompt', () => {
+    expect(decidePermission('build', DEFAULT_MEOW_CONFIG.permission, noSaved, 'question')).toBe('allow')
   })
 })
 

@@ -79,7 +79,9 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
       systemPrompt: 'You are Meow, a coding agent running inside the Meow Coding desktop app. ' +
         'You help the user build and maintain their codebase. You have access to tools like ' +
         'bash, read, write, edit, glob, grep, apply-patch and todowrite. Read files before ' +
-        'editing them, run tests after changes, and keep answers concise.'
+        'editing them, run tests after changes, and keep answers concise. Whenever you need ' +
+        'input or a decision from the user, use the question tool to show an interactive form ' +
+        'instead of writing questions as plain text.'
     }
   },
   permission: {
@@ -94,7 +96,7 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
     revert: 'allow',
     skill: 'allow',
     bash: 'ask',
-    question: 'ask'
+    question: 'allow'
   },
   mcp: {},
   maxContextTokens: DEFAULT_MAX_CONTEXT_TOKENS,

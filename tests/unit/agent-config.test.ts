@@ -28,6 +28,7 @@ describe('loadMeowConfig', () => {
     expect(cfg.model).toBe('')
     expect(cfg.provider).toEqual({})
     expect(cfg.agents.meow.systemPrompt).toBeTruthy()
+    expect(cfg.agents.meow.systemPrompt).toMatch(/question tool/i)
   })
 
   it('uses empty providers when the file is corrupt', () => {

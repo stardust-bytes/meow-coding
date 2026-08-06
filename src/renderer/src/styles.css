@@ -288,12 +288,13 @@ select.input { width: 100%; }
   background: var(--bg-chat);
 }
 .session-dropdown { position: relative; display: inline-flex; }
+.session-label { color: var(--text-dim); font-size: var(--fs-base); font-weight: var(--fw-semibold); white-space: nowrap; }
 .session-trigger {
   display: inline-flex; align-items: center; gap: 6px; max-width: 320px;
-  background: transparent; border: none; color: #fff;
+  background: var(--bg-input); border: none; color: #fff;
   font-size: var(--fs-md); cursor: pointer; padding: 3px 8px;
 }
-.session-trigger:hover { background: var(--bg-hover); }
+.session-trigger:hover { background: var(--bg-input-hover); }
 .session-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .session-caret { color: var(--text-dim); font-size: var(--fs-sm); }
 .session-menu {
@@ -353,19 +354,20 @@ select.input { width: 100%; }
 .chat-todo-content { white-space: pre-wrap; word-break: break-word; min-width: 0; }
 .chat-todo.status-completed .chat-todo-content,
 .chat-todo.status-cancelled .chat-todo-content { color: var(--text-dim); text-decoration: line-through; }
-.chat-feed { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
-.chat-msg { display: flex; flex-direction: column; gap: 4px; content-visibility: auto; contain-intrinsic-size: 0 80px; }
+.chat-feed { flex: 1; overflow-y: auto; padding: 12px; }
+.chat-feed > * + * { margin-top: 10px; }
+.chat-msg { display: flex; flex-direction: column; gap: 4px; content-visibility: auto; contain-intrinsic-size: auto 80px; }
 .chat-msg.user { align-items: flex-end; }
 .chat-msg.assistant { align-items: flex-start; }
 .chat-text {
   max-width: 92%; white-space: pre-wrap; word-break: break-word;
   padding: 8px 12px; background: var(--bg-bubble); color: var(--chat-text);
-  user-select: text; line-height: 1; font-size: var(--fs-md);
+  user-select: text; line-height: 1.45; font-size: var(--fs-md);
 }
 .chat-msg.user .chat-text { background: var(--bg-bubble-user); }
 .chat-error { color: var(--red); white-space: pre-wrap; padding: 4px 0; }
 .subagent {
-  align-self: flex-start; width: 100%; max-width: 92%;
+  margin-right: auto; width: 100%; max-width: 92%;
   background: var(--bg-panel); border-left: 2px solid var(--blue);
   padding: 8px 10px; display: flex; flex-direction: column; gap: 6px;
 }
@@ -386,8 +388,8 @@ select.input { width: 100%; }
 /* Tool call card */
 .tool-call {
   background: var(--bg-panel);
-  max-width: 92%; align-self: flex-start; width: 100%;
-  content-visibility: auto; contain-intrinsic-size: 0 100px;
+  max-width: 92%; margin-right: auto; width: 100%;
+  content-visibility: auto; contain-intrinsic-size: auto 100px;
 }
 .tool-call-header { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--hairline); }
 .tool-call-name { font-weight: var(--fw-bold); color: var(--accent); font-family: var(--font-mono); }
@@ -590,10 +592,10 @@ select.input { width: 100%; }
 .model-picker { position: relative; display: inline-flex; }
 .model-trigger {
   display: inline-flex; align-items: center; gap: 6px; max-width: 220px;
-  background: transparent; border: none; color: #fff;
+  background: var(--bg-input); border: none; color: #fff;
   font-size: var(--fs-base); font-family: var(--font-mono); cursor: pointer; padding: 2px 8px;
 }
-.model-trigger:hover { background: var(--bg-hover); color: #fff; }
+.model-trigger:hover { background: var(--bg-input-hover); color: #fff; }
 .model-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .model-caret { color: var(--text-dim); font-size: var(--fs-sm); }
 .model-menu {

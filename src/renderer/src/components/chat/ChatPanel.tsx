@@ -82,6 +82,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   // UI thread on every token and make typing in the input lag.
   const deltaBufRef = useRef<{ text: string; reasoning: string }>({ text: '', reasoning: '' })
   const rafRef = useRef<number | null>(null)
+  const pinRafRef = useRef<number | null>(null)
   const prevLastIdRef = useRef<string | null>(null)
   const stuckRef = useRef(true)
 
@@ -158,7 +159,22 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     prevLastIdRef.current = lastId
     if (shouldJumpToEnd.current) {
       shouldJumpToEnd.current = false
-      el.scrollIntoView()
+      const feed = feedRef.current
+      if (!feed) return
+      // content-visibility rows are laid out with estimated sizes on the first
+      // paint and settle to their real heights over several frames, so a single
+      // scrollIntoView can land short of the true bottom. Re-assert scrollTop
+      // every frame for a while (or until the user scrolls up) to land at the
+      // real end of the feed when opening a project/session.
+      let frames = 0
+      const pin = () => {
+        if (!stuckRef.current) return
+        feed.scrollTop = feed.scrollHeight
+        if (frames++ < 60) pinRafRef.current = requestAnimationFrame(pin)
+      }
+      pin()
+      pinRafRef.current = requestAnimationFrame(pin)
+      return
     } else if (isNewMessage) {
       el.scrollIntoView({ behavior: 'smooth' })
     } else {
@@ -200,6 +216,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
 
   useEffect(() => () => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current)
+    if (pinRafRef.current != null) cancelAnimationFrame(pinRafRef.current)
   }, [])
 
   const applyEvent = useCallback((e: ChatEvent) => {

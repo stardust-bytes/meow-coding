@@ -10,7 +10,8 @@ const optionSchema = z.object({
 export const questionTool: ToolDefinition = {
   name: 'question',
   description:
-    'Ask the user a question and return their answer. Use only when you truly need input. ' +
+    'Ask the user a question and return their answer. Use this tool instead of writing questions ' +
+    'as plain text in your reply: it renders an interactive form the user can answer with one click. ' +
     'For choice questions, provide `options` (label + optional description); answers come back as the ' +
     'selected label(s). When `custom` is enabled (default) the user can also type their own answer.',
   schema: z.object({
