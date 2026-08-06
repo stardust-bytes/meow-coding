@@ -1,16 +1,18 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AgentMode, Command } from '@shared/types'
+import type { AgentMode, Command, ImageAttachment } from '@shared/types'
 import { parseCommandInput } from './parseCommandInput'
 
 interface Props {
   running: boolean
   mode: AgentMode
   commands: Command[]
-  onSubmit(text: string): void
+  onSubmit(text: string, images: ImageAttachment[]): void
   onStop(): void
 }
 
 const MAX_MENU_ITEMS = 12
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024
+const MAX_IMAGES = 4
 
 // Item renders its own closures against `command.name`, so the parent can pass
 // stable callbacks and React.memo actually skips re-rendering unchanged items.
@@ -38,9 +40,39 @@ const CommandMenuItem = memo(function CommandMenuItem({
 
 export default memo(function ChatInput({ running, mode, commands, onSubmit, onStop }: Props) {
   const fieldRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const selectedRef = useRef<HTMLButtonElement | null>(null)
   const [menu, setMenu] = useState<{ open: boolean; prefix: string }>({ open: false, prefix: '' })
   const [selectedName, setSelectedName] = useState('')
+  const [images, setImages] = useState<ImageAttachment[]>([])
+
+  // Reads pasted/dropped image files into dataURL attachments, capped at
+  // MAX_IMAGES attachments of MAX_IMAGE_SIZE each.
+  const addImageFiles = useCallback((files: File[]) => {
+    setImages(prev => {
+      const next = [...prev]
+      for (const file of files) {
+        if (!file.type.startsWith('image/')) continue
+        if (file.size > MAX_IMAGE_SIZE) continue
+        if (next.length >= MAX_IMAGES) break
+        const id = crypto.randomUUID()
+        const reader = new FileReader()
+        reader.onload = () => {
+          const dataUrl = String(reader.result ?? '')
+          setImages(cur => cur.map(img =>
+            img.id === id ? { ...img, dataUrl } : img
+          ))
+        }
+        next.push({ id, name: file.name || 'paste', mimeType: file.type, dataUrl: '', size: file.size })
+        reader.readAsDataURL(file)
+      }
+      return next
+    })
+  }, [])
+
+  const removeImage = useCallback((id: string) => {
+    setImages(prev => prev.filter(img => img.id !== id))
+  }, [])
 
   const filtered = useMemo(() => {
     if (!menu.open) return []
@@ -74,12 +106,13 @@ export default memo(function ChatInput({ running, mode, commands, onSubmit, onSt
 
   const submit = useCallback(() => {
     const text = (fieldRef.current?.value ?? '').trim()
-    if (!text || running) return
+    if ((!text && images.length === 0) || running) return
     if (fieldRef.current) fieldRef.current.value = ''
     setMenu({ open: false, prefix: '' })
     setSelectedName('')
-    onSubmit(text)
-  }, [running, onSubmit])
+    onSubmit(text, images)
+    setImages([])
+  }, [running, onSubmit, images])
 
   const applyCommand = useCallback((cmd: Command) => {
     if (fieldRef.current) fieldRef.current.value = `/${cmd.name} `
@@ -128,6 +161,22 @@ export default memo(function ChatInput({ running, mode, commands, onSubmit, onSt
         rows={2}
         disabled={running}
         onInput={e => syncMenu((e.target as HTMLTextAreaElement).value)}
+        onPaste={e => {
+          const files = Array.from(e.clipboardData.items)
+            .map(item => item.getAsFile())
+            .filter((f): f is File => f !== null)
+          if (files.length > 0) {
+            e.preventDefault()
+            addImageFiles(files)
+          }
+        }}
+        onDrop={e => {
+          const files = Array.from(e.dataTransfer.files)
+          if (files.length > 0) {
+            e.preventDefault()
+            addImageFiles(files)
+          }
+        }}
         onKeyDown={e => {
           if (menu.open && filtered.length > 0) {
             if (e.key === 'ArrowDown') { e.preventDefault(); move(1); return }
@@ -146,6 +195,45 @@ export default memo(function ChatInput({ running, mode, commands, onSubmit, onSt
           if (e.key === 'Escape') setMenu(prev => (prev.open ? { open: false, prefix: '' } : prev))
         }}
       />
+      {images.length > 0 && (
+        <div className="chat-input-chips">
+          {images.map(img => (
+            <span key={img.id} className="chat-image-chip">
+              {img.dataUrl
+                ? <img src={img.dataUrl} alt={img.name} className="chat-image-thumb" />
+                : <span className="chat-image-thumb chat-image-thumb-empty" />}
+              <span className="chat-image-name">{img.name}</span>
+              <button
+                className="chat-image-remove"
+                aria-label={`remove ${img.name}`}
+                onClick={() => removeImage(img.id)}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        hidden
+        onChange={e => {
+          addImageFiles(Array.from(e.target.files ?? []))
+          e.target.value = ''
+        }}
+      />
+      <button
+        className="chat-input-attach"
+        title="attach image"
+        aria-label="attach image"
+        disabled={running}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        +
+      </button>
       <button
         className={`chat-input-send ${running ? 'running' : ''}`}
         onClick={running ? onStop : submit}

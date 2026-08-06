@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import type { AgentMode, ChatEvent, ChatMessage, Command, QuestionOption, SessionSummary, TodoItem, TodoStatus, ToolCallData } from '@shared/types'
+import type { AgentMode, ChatEvent, ChatMessage, Command, ImageAttachment, QuestionOption, SessionSummary, TodoItem, TodoStatus, ToolCallData } from '@shared/types'
 import { appendStreamDelta } from '@shared/text'
 import { contextTokens } from '@shared/usage'
 import ChatInput from './ChatInput'
@@ -10,7 +10,7 @@ import ModelPicker from './ModelPicker'
 import ContextFooter from './ContextFooter'
 
 type FeedItem =
-  | { kind: 'message'; id: string; role: ChatMessage['role']; text: string; reasoning?: string }
+  | { kind: 'message'; id: string; role: ChatMessage['role']; text: string; reasoning?: string; images?: ImageAttachment[] }
   | { kind: 'tool'; id: string; call: ToolCallData }
   | { kind: 'error'; id: string; text: string }
   | { kind: 'subagent'; taskId: string; subagentType?: string; text: string; tools: string[]; state: 'running' | 'completed' | 'cancelled' | 'error' }
@@ -350,16 +350,18 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     })
   }, [agentId, flushDeltas])
 
-  const send = useCallback((text: string) => {
+  const send = useCallback((text: string, images?: ImageAttachment[]) => {
     const trimmed = text.trim()
-    if (!trimmed) return
-    setItems(prev => [...prev, { kind: 'message', id: 'u-' + Date.now(), role: 'user', text: trimmed }])
+    if (!trimmed && (!images || images.length === 0)) return
+    setItems(prev => [...prev, {
+      kind: 'message', id: 'u-' + Date.now(), role: 'user', text: trimmed, images
+    }])
     setRunning(true)
     const m = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(trimmed)
     if (m && commands.some(c => c.name === m[1])) {
       void window.api.runCommand(agentId, m[1], m[2] ? m[2].trim().split(/\s+/) : [])
     } else {
-      void window.api.sendChat(agentId, trimmed)
+      void window.api.sendChat(agentId, trimmed, images)
     }
     reloadSessions()
   }, [agentId, commands, reloadSessions])
