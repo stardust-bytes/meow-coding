@@ -434,6 +434,53 @@ describe('SessionRunner', () => {
     expect(JSON.stringify(toolMsg)).toContain('[truncated]')
   })
 
+  it('persists provider token usage on the assistant message', async () => {
+    const h = makeHarness()
+    h.llm.queue = [[
+      { kind: 'text', text: 'hi' },
+      { kind: 'finish', tokens: { input: 100, output: 20, total: 130, cacheRead: 500 } }
+    ]]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 20))
+
+    const msg = h.items.find(i => i.kind === 'message')
+    expect(msg?.kind === 'message' && msg.message.tokens).toEqual({
+      input: 100, output: 20, total: 130, cacheRead: 500
+    })
+  })
+
+  it('reports usage once per step, not once per run', async () => {
+    const reported: number[] = []
+    const h = makeHarness({
+      tools: new Map([['read', stubTool('read')]]),
+      onUsage: (t) => reported.push(t.total)
+    })
+    h.llm.queue = [
+      [
+        { kind: 'tool-call', toolCallId: 'tc1', toolName: 'read', toolInput: {} },
+        { kind: 'finish', tokens: { input: 10, output: 1, total: 11 } }
+      ],
+      [
+        { kind: 'text', text: 'done' },
+        { kind: 'finish', tokens: { input: 20, output: 2, total: 22 } }
+      ]
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+
+    expect(reported).toEqual([11, 22])
+  })
+
+  it('does not report usage when the provider omits it', async () => {
+    const reported: unknown[] = []
+    const h = makeHarness({ onUsage: (t) => reported.push(t) })
+    h.llm.queue = [textParts('hi')]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 20))
+
+    expect(reported).toEqual([])
+  })
+
   it('does not compact when compaction auto is disabled', async () => {
     const replaced: TranscriptItem[][] = []
     const h = makeHarness({
