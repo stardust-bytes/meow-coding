@@ -108,16 +108,16 @@ export interface AgentConfig {
 
 ### `src/main/models-catalog.ts`
 
+`models: string[]` GIỮ NGUYÊN (đang được dùng ở `connectProvider`, `fetchProviderModels`,
+`refreshModelLimits`, `ProvidersTab`, tests, ...). Thêm field song song `variants`:
+
 ```ts
-export interface CatalogModel {
-  name?: string
-  limit?: ModelLimit
-  variants?: string[]              // effort values lọc từ reasoning_options
-}
 export interface CatalogProvider {
   name: string
   api?: string
-  models: Record<string, CatalogModel>  // đổi từ string[] → Record
+  models: string[]                              // không đổi
+  limits?: Record<string, ModelLimit>           // không đổi
+  variants?: Record<string, string[]>           // mới: modelId → effort values
 }
 ```
 
@@ -145,29 +145,29 @@ function reasoningEffortValues(model: any): string[] | undefined {
   return effort.values.map(String)
 }
 
+function modelVariants(p: any): Record<string, string[]> | undefined {
+  const out: Record<string, string[]> = {}
+  let found = false
+  for (const [modelId, model] of Object.entries(p.models ?? {})) {
+    const values = reasoningEffortValues(model)
+    if (values) { out[modelId] = values; found = true }
+  }
+  return found ? out : undefined
+}
+
 function mapProviders(json: any): Record<string, CatalogProvider> {
-  const out: Record<string, CatalogProvider> = {}
-  for (const [providerId, provider] of Object.entries(json ?? {})) {
-    const p = provider as any
-    const models: Record<string, CatalogModel> = {}
-    for (const [modelId, m] of Object.entries(p.models ?? {})) {
-      const model = m as any
-      models[modelId] = {
-        name: model.name,
-        limit: {
-          context: model.limit?.context,
-          output: model.limit?.output,
-        },
-        variants: reasoningEffortValues(model),
-      }
-    }
-    out[providerId] = {
-      name: p.name ?? providerId,
+  const providers: Record<string, CatalogProvider> = {}
+  for (const [id, p] of Object.entries(json)) {
+    if (typeof p !== 'object' || p === null) continue
+    providers[id] = {
+      name: p.name ?? id,
       api: p.api,
-      models,
+      models: Object.keys(p.models ?? {}),
+      limits: modelLimits(p.models),
+      variants: modelVariants(p)
     }
   }
-  return out
+  return providers
 }
 ```
 
@@ -252,43 +252,66 @@ window.dispatchEvent(new CustomEvent('meow:model-changed', { detail: { agentId }
 
 ## 9. Validation khi đổi model
 
-`MeowAgentManager.setVariant()` (`src/main/meow-agent-manager.ts:313-324`) — clamp ngay tại điểm set:
+Hai lớp clamp đảm bảo `workspaces.json` không bao giờ giữ variant ngoài `allowed` của model hiện tại.
+
+**Lớp 1 — `MeowAgentManager.setVariant()` (`src/main/meow-agent-manager.ts:313-324`)**: clamp trước khi set
+in-memory, trước khi runner rebuild:
 
 ```ts
 setVariant(agentId: string, variant: string | undefined): void {
   const agent = this.agents.get(agentId)
   if (!agent) return
-  const resolved = this.resolveAgentConfig(agent)
-  const allowed = this.modelsCatalog.getVariants(resolved.provider, resolved.modelId)
+  const allowed = this.allowedVariantsFor(agent)
   const valid = variant && allowed.includes(variant) ? variant : undefined
   agent.variant = valid
   this.agents.set(agentId, agent)
-  this.workspaces.updateAgent(resolved.projectPath, agentId, { variant: valid })
   if (!this.running.has(agentId)) {
     this.runners.delete(agentId)
     this.resolved.delete(agentId)
     this.register(agent)
   }
 }
-```
 
-`MeowAgentManager.register()` (`src/main/meow-agent-manager.ts:509-581`) — defense-in-depth: cũng clamp
-lúc build runner (cover case variant trên disk không còn hợp lệ vì model đã đổi từ nơi khác):
-
-```ts
-const resolved = this.resolveAgentConfig(agent)
-const allowed = this.modelsCatalog.getVariants(resolved.provider, resolved.modelId)
-const validVariant =
-  agent.variant && allowed.includes(agent.variant) ? agent.variant : undefined
-this.runners.set(agentId, new SessionRunner({ ..., variant: validVariant }))
-if (validVariant !== agent.variant) {
-  agent.variant = validVariant
-  this.agents.set(agentId, agent)
-  this.workspaces.updateAgent(resolved.projectPath, agentId, { variant: validVariant })
+private allowedVariantsFor(agent: AgentConfig): string[] {
+  if (!this.deps.catalog) return []
+  const cfg = loadMeowConfig(this.deps.configPath)
+  const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env, agent.model)
+  if (!resolved.provider || !resolved.model) return []
+  return this.deps.catalog.getVariants(resolved.provider, resolved.model)
 }
 ```
 
-Hai lớp clamp này đảm bảo `workspaces.json` không bao giờ giữ variant ngoài `allowed` của model hiện tại.
+**Lớp 2 — `MainApp.setAgentVariant()` (`src/main/index.ts:240-246`)**: persist theo giá trị đã được
+clamp trong lớp 1. Vì `meowAgent.setVariant` đã mutate `agent.variant` thành `valid` rồi, MainApp đọc lại:
+
+```ts
+setAgentVariant(agentId: string, variant: string | null): void {
+  this.meowAgent.setVariant(agentId, variant ?? undefined)
+  const ws = this.findWorkspaceByAgent(agentId)
+  const stored = this.meowAgent.getVariant(agentId)  // getter mới: trả về agent.variant sau clamp
+  if (ws) {
+    this.workspaces.updateAgent(ws.projectPath, agentId, { variant: stored })
+  }
+}
+```
+
+Getter `MeowAgentManager.getVariant(agentId)` trả về `agent.variant` hiện tại (đã qua clamp).
+
+**Lớp 3 — `MeowAgentManager.register()` (`src/main/meow-manager.ts:509-581`)**: defense-in-depth, cover
+case variant trên disk không hợp lệ vì model đã đổi từ nơi khác:
+
+```ts
+const allowed = this.allowedVariantsFor(agent)
+const validVariant = agent.variant && allowed.includes(agent.variant) ? agent.variant : undefined
+if (validVariant !== agent.variant) {
+  agent.variant = validVariant
+  this.agents.set(agent.id, agent)
+}
+const runner = new SessionRunner({ ..., variant: validVariant })
+```
+
+Ba lớp này đảm bảo: (1) clamp ngay tại input, (2) persist đúng giá trị đã clamp, (3) runner luôn nhận variant
+hợp lệ ngay cả khi data trên disk stale.
 
 ## 10. Snapshot regen script
 
@@ -309,27 +332,19 @@ async function main() {
   const out: Record<string, unknown> = {}
   for (const [pid, p] of Object.entries(json as Record<string, any>)) {
     const prov = p as any
-    const models: Record<string, unknown> = {}
+    const models = Object.keys(prov.models ?? {})
+    const variants: Record<string, string[]> = {}
     for (const [mid, m] of Object.entries(prov.models ?? {})) {
-      const model = m as any
-      const variants = (model.reasoning_options ?? [])
-        .filter((o: any) => o?.type === 'effort' && Array.isArray(o.values))
-        .flatMap((o: any) => o.values.map(String))
-      const filtered: Record<string, unknown> = {}
-      if (typeof model.name === 'string') filtered.name = model.name
-      if (model.limit && (model.limit.context || model.limit.output)) {
-        filtered.limit = {
-          ...(model.limit.context ? { context: model.limit.context } : {}),
-          ...(model.limit.output ? { output: model.limit.output } : {}),
-        }
-      }
-      if (variants.length) filtered.variants = variants
-      models[mid] = filtered
+      const values = (m as any).reasoning_options
+        ?.filter((o: any) => o?.type === 'effort' && Array.isArray(o.values))
+        ?.flatMap((o: any) => o.values.map(String))
+      if (values?.length) variants[mid] = values
     }
     out[pid] = {
       name: prov.name ?? pid,
       ...(prov.api ? { api: prov.api } : {}),
       models,
+      ...(Object.keys(variants).length ? { variants } : {})
     }
   }
 
@@ -365,7 +380,7 @@ main().catch(err => { console.error(err); process.exit(1) })
 | `src/main/meow-agent-manager.ts` | sửa |
 | `src/main/agent/llm.ts` | sửa |
 | `src/main/agent/loop.ts` | sửa |
-| `src/main/agent/config.ts` | sửa (thêm `modelId` field nếu chưa có) |
+| `src/main/agent/config.ts` | không đổi (`ResolvedAgentConfig.model` đã có) |
 | `src/main/models-catalog.ts` | sửa (parser + public API `getVariants`) |
 | `src/main/models-snapshot.json` | regen |
 | `src/renderer/src/components/chat/ChatPanel.tsx` | sửa |
