@@ -64,11 +64,26 @@ export interface NewAgentInput {
   mode?: AgentMode
 }
 
+export interface MessageTokens {
+  input: number
+  output: number
+  total: number
+  reasoning?: number
+  cacheRead?: number
+}
+
+export interface ContextInfo {
+  limit: number | null
+  compactThreshold: number | null
+  sessionCost: number
+}
+
 export interface ChatMessage {
   id: string
   role: ChatRole
   text: string
   reasoning?: string
+  tokens?: MessageTokens
   createdAt: number
 }
 
@@ -105,6 +120,7 @@ export type ChatEvent =
   | { type: 'done'; agentId: string; reason: string; tokens?: TokenUsage; cost?: number }
   | { type: 'error'; agentId: string; message: string }
   | { type: 'compacted'; agentId: string; summary: string }
+  | { type: 'usage'; agentId: string; tokens: MessageTokens; sessionCost: number }
   | { type: 'todo-updated'; agentId: string; todos: TodoItem[] }
   | { type: 'subagent-event'; agentId: string; taskId: string
       sub: 'start' | 'delta' | 'tool' | 'done'
