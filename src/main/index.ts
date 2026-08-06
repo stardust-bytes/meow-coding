@@ -24,7 +24,7 @@ import { LspManager } from './agent/lsp/manager'
 import { ModelsCatalog } from './models-catalog'
 import { getWindowChromeOptions } from './window-chrome'
 import { Channels } from '../shared/ipc'
-import type { AgentState, Command, MeowSettings, NewAgentInput, PromptResponse, Template, Workspace, WorkspaceRuntime } from '../shared/types'
+import type { AgentState, Command, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, Workspace, WorkspaceRuntime } from '../shared/types'
 
 let win: BrowserWindow | null = null
 
@@ -412,8 +412,8 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.LogOpen, (_e, agentId: string) => {
     void shell.openPath(mainApp.logs.pathFor(agentId))
   })
-  ipcMain.handle(Channels.ChatSend, (_e, agentId: string, text: string) =>
-    mainApp.meowAgent.send(agentId, text))
+  ipcMain.handle(Channels.ChatSend, (_e, agentId: string, text: string, images?: ImageAttachment[]) =>
+    mainApp.meowAgent.send(agentId, text, images))
   ipcMain.handle(Channels.ChatStop, (_e, agentId: string) => mainApp.meowAgent.stop(agentId))
   ipcMain.handle(Channels.ChatRunCommand, (_e, agentId: string, name: string, args: string[]) =>
     mainApp.meowAgent.runCommand(agentId, name, args))

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
-import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, McpServerStatus, MeowSettings, ModelUsage, PromptResponse, StatsSummary, TodoItem, UsageSummary } from '../shared/types'
+import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, ImageAttachment, McpServerStatus, MeowSettings, ModelUsage, PromptResponse, StatsSummary, TodoItem, UsageSummary } from '../shared/types'
 import type { AgentConfig, AgentMode, CatalogProviderSummary, Command, ModelRef } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, settingsToConfig, writeMeowConfig,
@@ -167,7 +167,7 @@ export class MeowAgentManager {
     return this.summary(next)
   }
 
-  async send(agentId: string, text: string): Promise<void> {
+  async send(agentId: string, text: string, images?: ImageAttachment[]): Promise<void> {
     const agent = this.agents.get(agentId)
     if (!agent) return
     if (this.running.has(agentId)) return
@@ -176,6 +176,7 @@ export class MeowAgentManager {
       id: randomUUID(),
       role: 'user',
       text: expandReferences(agent.cwd, text),
+      images,
       createdAt: Date.now()
     })
     const config = this.resolved.get(agentId)

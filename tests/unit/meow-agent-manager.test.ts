@@ -116,6 +116,15 @@ describe('MeowAgentManager', () => {
     expect(manager.isRunning('a1')).toBe(false)
   })
 
+  it('send() stores images on the user message', async () => {
+    const { manager } = await makeManager()
+    const img = { id: 'i1', name: 'a.png', mimeType: 'image/png', dataUrl: 'data:image/png;base64,AAA', size: 3 }
+    await manager.send('a1', 'look at this', [img])
+    const messages = manager.listMessages('a1')
+    expect(messages[0].text).toBe('look at this')
+    expect(messages[0].images).toEqual([img])
+  })
+
   it('listTranscript returns the full transcript including tool steps', async () => {
     const { manager } = await makeManager({
       partsQueue: [

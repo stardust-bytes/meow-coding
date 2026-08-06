@@ -44,7 +44,18 @@ export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): Mod
     if (item.kind === 'message') {
       flush()
       if (item.message.role === 'user') {
-        result.push({ role: 'user', content: item.message.text })
+        const images = item.message.images ?? []
+        if (images.length === 0) {
+          result.push({ role: 'user', content: item.message.text })
+        } else {
+          result.push({
+            role: 'user',
+            content: [
+              { type: 'text', text: item.message.text },
+              ...images.map(img => ({ type: 'image' as const, image: img.dataUrl }))
+            ]
+          })
+        }
       } else {
         pendingAssistant = { text: item.message.text, calls: [] }
       }

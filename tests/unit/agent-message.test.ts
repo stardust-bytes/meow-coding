@@ -78,6 +78,21 @@ describe('toLlmMessages', () => {
       .filter(p => p.type === 'tool-call').map(p => p.toolCallId))
       .toEqual(['t1', 't2'])
   })
+
+  it('emits image parts for user message with images', () => {
+    const items: TranscriptItem[] = [{
+      kind: 'message',
+      message: {
+        id: '1', role: 'user', text: 'fix this', createdAt: 0,
+        images: [{ id: 'i1', name: 'a.png', mimeType: 'image/png', dataUrl: 'data:image/png;base64,AAA', size: 3 }]
+      }
+    }]
+    const msgs = toLlmMessages(items)
+    const content = msgs[0].content
+    expect(Array.isArray(content)).toBe(true)
+    expect((content as Array<{ type: string; text?: string; image?: string }>)[0]).toMatchObject({ type: 'text', text: 'fix this' })
+    expect((content as Array<{ type: string; image?: string }>)[1]).toMatchObject({ type: 'image', image: 'data:image/png;base64,AAA' })
+  })
 })
 
 describe('toToolDefinition', () => {
