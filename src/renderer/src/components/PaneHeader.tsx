@@ -6,6 +6,7 @@ interface Props {
   state: AgentState
   git: GitStatus | null
   zoomed: boolean
+  background?: boolean
   native?: boolean
   active?: boolean
   onZoom: () => void
@@ -13,6 +14,7 @@ interface Props {
   onRestart: () => void
   onInject: (text: string) => void
   onOpenLog: () => void
+  onToggleBackground?: () => void
   onRemove: () => void
 }
 
@@ -32,7 +34,8 @@ function MoreIcon() {
 }
 
 export default function PaneHeader({
-  name, state, git, zoomed, native = false, active = false, onZoom, onStop, onRestart, onInject, onOpenLog, onRemove
+  name, state, git, zoomed, background = false, native = false, active = false,
+  onZoom, onStop, onRestart, onInject, onOpenLog, onToggleBackground, onRemove
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [injecting, setInjecting] = useState(false)
@@ -112,6 +115,11 @@ export default function PaneHeader({
               <button className="menu-item" onClick={() => { close(); onRestart() }}>
                 {native ? 'New session' : 'Restart'}
               </button>
+              {onToggleBackground && (
+                <button className="menu-item" onClick={() => { close(); onToggleBackground() }}>
+                  {background ? 'Open pane' : 'Run in background'}
+                </button>
+              )}
               <button className="menu-item danger" onClick={() => { close(); onRemove() }}>Delete agent</button>
             </div>
           )}

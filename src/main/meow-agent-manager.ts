@@ -53,6 +53,7 @@ export interface MeowAgentManagerDeps {
   lsp?: LspManager
   notify?: NotificationService
   onActivateAgent?: (agentId: string) => void
+  onBackgroundChange?: (agentId: string, background: boolean) => void
   notifications?: NotificationsSettings
 }
 
@@ -70,6 +71,7 @@ export class MeowAgentManager {
   private modelLimits = new Map<string, { context?: number; output?: number }>()
   private modelVariants = new Map<string, Record<string, VariantBody>>()
   private redoStacks = new Map<string, Array<{ items: ChatTranscriptItem[]; turn: SnapshotTurn }>>()
+  private backgrounds = new Map<string, boolean>()
   private onEvent: (e: ChatEvent) => void = () => {}
 
   constructor(private deps: MeowAgentManagerDeps) {
@@ -112,6 +114,15 @@ export class MeowAgentManager {
     return this.running.has(agentId)
   }
 
+  isBackground(agentId: string): boolean {
+    return this.backgrounds.get(agentId) ?? false
+  }
+
+  setBackground(agentId: string, background: boolean): void {
+    this.backgrounds.set(agentId, background)
+    this.deps.onBackgroundChange?.(agentId, background)
+  }
+
   async init(agents: AgentConfig[]): Promise<void> {
     await this.syncTools()
     await this.refreshModelLimits()
@@ -130,6 +141,7 @@ export class MeowAgentManager {
     this.agents.delete(agentId)
     this.resolved.delete(agentId)
     this.activeSessions.delete(agentId)
+    this.backgrounds.delete(agentId)
     this.deps.snapshots.clear(agentId)
     this.deps.store.deleteForAgent(agentId)
   }

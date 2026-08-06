@@ -7,6 +7,7 @@ import ChatPanel from './chat/ChatPanel'
 
 interface Props {
   pane: PaneModel
+  background: boolean
   zoomed: boolean
   active: boolean
   onFocus: () => void
@@ -17,7 +18,7 @@ interface Props {
 }
 
 export default function Pane({
-  pane, zoomed, active, onFocus, onZoom, onRemove, onRegisterTerminal, onUnregisterTerminal
+  pane, background, zoomed, active, onFocus, onZoom, onRemove, onRegisterTerminal, onUnregisterTerminal
 }: Props) {
   const id = pane.agent.id
   const write = (data: string) => void window.api.writeInput(id, data)
@@ -36,6 +37,9 @@ export default function Pane({
   const handleOpenLog = useCallback(() => void window.api.openLog(id), [id])
   const handleModeChange = useCallback((m: 'build' | 'plan') => void window.api.setAgentMode(id, m), [id])
   const handleVariantChange = useCallback((v: string | undefined) => void window.api.setAgentVariant(id, v ?? null), [id])
+  const handleToggleBackground = useCallback(() => {
+    void window.api.setAgentBackground(id, !background)
+  }, [id, background])
 
   return (
     <div className={`pane ${zoomed ? 'zoomed' : ''}`} onClick={onFocus}>
@@ -44,6 +48,7 @@ export default function Pane({
         state={pane.state}
         git={pane.git}
         zoomed={zoomed}
+        background={background}
         native={native}
         active={active}
         onZoom={onZoom}
@@ -51,9 +56,17 @@ export default function Pane({
         onRestart={handleRestart}
         onInject={handleInject}
         onOpenLog={handleOpenLog}
+        onToggleBackground={handleToggleBackground}
         onRemove={onRemove}
       />
-      {native ? (
+      {background ? (
+        <button className="pane-background-badge" onClick={() => void window.api.setAgentBackground(id, false)}>
+          <span className="pane-background-name">{pane.agent.name}</span>
+          <span className="pane-background-status">{pane.state.status}</span>
+          <span className="pane-background-hint">click to open</span>
+        </button>
+      ) : null}
+      {!background && (native ? (
         <ChatPanel
           agentId={id}
           cwd={pane.agent.cwd}
@@ -70,7 +83,7 @@ export default function Pane({
           onInput={write}
           onResize={(cols, rows) => void window.api.resizePty(id, cols, rows)}
         />
-      )}
+      ))}
     </div>
   )
 }

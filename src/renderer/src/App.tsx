@@ -19,6 +19,7 @@ export default function App() {
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
   const [templates, setTemplates] = useState<Template[]>([])
   const [runtime, setRuntime] = useState<WorkspaceRuntime | null>(null)
+  const [backgrounds, setBackgrounds] = useState<Record<string, boolean>>({})
   const termsRef = useRef<Map<string, Terminal>>(new Map())
   const buffersRef = useRef<Map<string, string>>(new Map())
 
@@ -50,10 +51,14 @@ export default function App() {
         ? { ...prev, git }
         : prev)
     })
+    const offBg = window.api.onAgentBackground(({ agentId, background }) => {
+      setBackgrounds(prev => ({ ...prev, [agentId]: background }))
+    })
     return () => {
       offData()
       offState()
       offGit()
+      offBg()
     }
   }, [])
 
@@ -138,6 +143,7 @@ export default function App() {
           {panes.length > 0 ? (
             <PaneGrid
               panes={panes}
+              backgrounds={backgrounds}
               onRemove={removeAgent}
               onRegisterTerminal={registerTerminal}
               onUnregisterTerminal={unregisterTerminal}

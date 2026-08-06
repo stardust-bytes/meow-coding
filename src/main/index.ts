@@ -81,6 +81,9 @@ class MainApp {
       if (win.isMinimized()) win.restore()
       win.show()
       win.focus()
+    },
+    onBackgroundChange: (agentId, background) => {
+      win?.webContents.send(Channels.EventAgentBackground, { agentId, background })
     }
   })
 
@@ -385,6 +388,8 @@ function registerIpcHandlers(): void {
     mainApp.setAgentModel(agentId, provider, model))
   ipcMain.handle(Channels.AgentGetModel, (_e, agentId: string) => mainApp.meowAgent.getAgentModel(agentId))
   ipcMain.handle(Channels.AgentGetContext, (_e, agentId: string) => mainApp.meowAgent.getContextInfo(agentId))
+  ipcMain.handle(Channels.AgentSetBackground, (_e, agentId: string, background: boolean) =>
+    mainApp.meowAgent.setBackground(agentId, background))
   ipcMain.handle(Channels.ProviderModels, () => mainApp.meowAgent.getProviderModels())
   ipcMain.handle(Channels.ProviderFetchModels, (_e, providerId: string) =>
     mainApp.meowAgent.fetchProviderModels(providerId))
