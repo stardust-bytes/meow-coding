@@ -127,6 +127,12 @@ describe('apply-patch tool', () => {
 })
 
 describe('todowrite', () => {
+  it('description instructs per-task updates, not batched completion', () => {
+    expect(todowriteTool.description).toContain('You start a task — mark it `in_progress`')
+    expect(todowriteTool.description).toContain("don't batch completions")
+    expect(todowriteTool.description).toContain('Keep exactly one `in_progress` while work remains')
+  })
+
   it('stores todos via ctx.setTodos and returns them as json', async () => {
     const saved: Array<{ content: string; status: string }> = []
     const todoCtx: ToolContext = { cwd: '', ask: async () => null, setTodos: (t) => saved.push(...t) }
