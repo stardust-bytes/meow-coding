@@ -15,6 +15,7 @@ describe('IPC contract', () => {
       'onPtyData', 'onAgentState', 'onGitStatus',
       'sendChat', 'stopChat', 'runCommand', 'undoChat', 'redoChat', 'newChatSession', 'listChatMessages', 'listChatTranscript', 'respondPrompt',
       'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus', 'listCommands', 'saveCommand', 'removeCommand', 'getStats', 'onContextChanged',
+      'suggestFiles', 'setAgentBackground', 'onAgentBackground',
       'listSessions', 'createSession', 'switchSession', 'deleteSession', 'renameSession',
       'getChatTodos',
       'minimizeWindow', 'toggleMaximizeWindow', 'closeWindow', 'isWindowMaximized', 'onWindowMaximizedChange'
@@ -79,6 +80,9 @@ describe('IPC contract', () => {
       removeCommand: async () => {},
       getStats: async () => ({ totalCost: 0, totalTokens: 0, perModel: {}, perSession: [] }),
       onContextChanged: () => () => {},
+      suggestFiles: async () => [],
+      setAgentBackground: async () => {},
+      onAgentBackground: () => () => {},
       listSessions: async () => [],
       createSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),
       switchSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),

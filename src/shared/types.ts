@@ -78,12 +78,23 @@ export interface ContextInfo {
   sessionCost: number
 }
 
+export interface ImageAttachment {
+  id: string
+  name: string
+  mimeType: string
+  dataUrl: string
+  size: number
+  width?: number
+  height?: number
+}
+
 export interface ChatMessage {
   id: string
   role: ChatRole
   text: string
   reasoning?: string
   tokens?: MessageTokens
+  images?: ImageAttachment[]
   createdAt: number
 }
 
@@ -214,6 +225,7 @@ export interface MeowSettings {
   compaction: CompactionSettings
   toolOutput: ToolOutputSettings
   lsp: LspSettings
+  notifications?: NotificationsSettings
 }
 
 export interface ModelRef {
@@ -267,4 +279,17 @@ export interface StatsSummary {
 export interface ContextChangedEvent {
   projectPath: string
   files: string[]
+}
+
+export type BackgroundState = 'foreground' | 'background'
+
+export interface FileSuggestion {
+  path: string
+  name: string
+  isDirectory: boolean
+}
+
+export interface NotificationsSettings {
+  needsInput: boolean
+  onDone: boolean
 }
