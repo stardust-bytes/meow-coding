@@ -1,7 +1,7 @@
 import type {
   AgentState, CatalogProviderSummary, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ContextChangedEvent,
-  ContextInfo, GitStatus, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PromptResponse, SessionSummary,
-  StatsSummary, Template, TodoItem, WorkspaceRuntime, WorkspaceSummary
+  ContextInfo, FileSuggestion, GitStatus, ImageAttachment, McpServerStatus, MeowSettings, ModelRef, NewAgentInput,
+  PromptResponse, SessionSummary, StatsSummary, Template, TodoItem, WorkspaceRuntime, WorkspaceSummary
 } from './types'
 
 export const Channels = {
@@ -67,7 +67,10 @@ export const Channels = {
   EventAgentState: 'agent:state',
   EventGitStatus: 'git:status',
   EventContextChanged: 'context:changed',
-  EventChat: 'chat:event'
+  EventChat: 'chat:event',
+  FilesSuggest: 'files:suggest',
+  AgentSetBackground: 'agent:set-background',
+  EventAgentBackground: 'agent:background'
 } as const
 
 export interface PtyDataEvent { agentId: string; data: string }
@@ -107,8 +110,11 @@ export interface AgentApi {
   openLog(agentId: string): Promise<void>
   getLogPath(agentId: string): Promise<string>
   quit(): Promise<void>
-  sendChat(agentId: string, text: string): Promise<void>
+  sendChat(agentId: string, text: string, images?: ImageAttachment[]): Promise<void>
   stopChat(agentId: string): Promise<void>
+  suggestFiles(agentId: string, prefix: string): Promise<FileSuggestion[]>
+  setAgentBackground(agentId: string, background: boolean): Promise<void>
+  onAgentBackground(cb: (e: { agentId: string; background: boolean }) => void): () => void
   runCommand(agentId: string, name: string, args: string[]): Promise<void>
   undoChat(agentId: string): Promise<boolean>
   redoChat(agentId: string): Promise<boolean>

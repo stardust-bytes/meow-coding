@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
-import type { ChatEvent, Command, ContextChangedEvent, MeowSettings, NewAgentInput, PromptResponse, Template } from '../shared/types'
+import type { ChatEvent, Command, ContextChangedEvent, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template } from '../shared/types'
 import type { AgentApi, AgentStateEvent, GitStatusEvent, PtyDataEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
 
 function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
@@ -55,8 +55,8 @@ const api: AgentApi = {
   openLog: (agentId: string) => ipcRenderer.invoke(Channels.LogOpen, agentId),
   getLogPath: (agentId: string) => ipcRenderer.invoke(Channels.LogPath, agentId),
   quit: () => ipcRenderer.invoke(Channels.AppQuit),
-  sendChat: (agentId: string, text: string) =>
-    ipcRenderer.invoke(Channels.ChatSend, agentId, text),
+  sendChat: (agentId: string, text: string, images?: ImageAttachment[]) =>
+    ipcRenderer.invoke(Channels.ChatSend, agentId, text, images),
   stopChat: (agentId: string) => ipcRenderer.invoke(Channels.ChatStop, agentId),
   runCommand: (agentId: string, name: string, args: string[]) =>
     ipcRenderer.invoke(Channels.ChatRunCommand, agentId, name, args),
@@ -94,7 +94,13 @@ const api: AgentApi = {
   onAgentState: (cb: (e: AgentStateEvent) => void) => subscribe(Channels.EventAgentState, cb),
   onGitStatus: (cb: (e: GitStatusEvent) => void) => subscribe(Channels.EventGitStatus, cb),
   onContextChanged: (cb: (e: ContextChangedEvent) => void) => subscribe(Channels.EventContextChanged, cb),
-  onChatEvent: (cb: (e: ChatEvent) => void) => subscribe(Channels.EventChat, cb)
+  onChatEvent: (cb: (e: ChatEvent) => void) => subscribe(Channels.EventChat, cb),
+  suggestFiles: (agentId: string, prefix: string) =>
+    ipcRenderer.invoke(Channels.FilesSuggest, agentId, prefix),
+  setAgentBackground: (agentId: string, background: boolean) =>
+    ipcRenderer.invoke(Channels.AgentSetBackground, agentId, background),
+  onAgentBackground: (cb: (e: { agentId: string; background: boolean }) => void) =>
+    subscribe(Channels.EventAgentBackground, cb)
 }
 
 contextBridge.exposeInMainWorld('api', api)
