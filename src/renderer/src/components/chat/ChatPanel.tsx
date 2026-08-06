@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import type { AgentMode, ChatEvent, ChatMessage, Command, ModelVariant, QuestionOption, SessionSummary, TodoItem, TodoStatus, ToolCallData } from '@shared/types'
+import type { AgentMode, ChatEvent, ChatMessage, Command, QuestionOption, SessionSummary, TodoItem, TodoStatus, ToolCallData } from '@shared/types'
 import { appendStreamDelta } from '@shared/text'
 import ChatInput from './ChatInput'
 import ToolCallCard from './ToolCallCard'
@@ -51,16 +51,17 @@ interface Props {
   agentId: string
   cwd: string
   mode?: AgentMode
-  variant?: ModelVariant
+  variant?: string
   onModeChange?: (mode: AgentMode) => void
-  onVariantChange?: (variant: ModelVariant) => void
+  onVariantChange?: (variant: string | undefined) => void
 }
 
 function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVariantChange }: Props) {
   const [items, setItems] = useState<FeedItem[]>([])
   const [running, setRunning] = useState(false)
   const [currentMode, setCurrentMode] = useState<AgentMode>(mode)
-  const [currentVariant, setCurrentVariant] = useState<ModelVariant>(variant ?? 'high')
+  const [currentVariant, setCurrentVariant] = useState<string>(variant ?? '')
+  const [availableVariants, setAvailableVariants] = useState<string[]>([])
   const [pendingPrompt, setPendingPrompt] = useState<PendingPrompt | null>(null)
   const [selectedAction, setSelectedAction] = useState(0)
   const [questionText, setQuestionText] = useState('')
@@ -85,6 +86,30 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const pinRafRef = useRef<number | null>(null)
   const prevLastIdRef = useRef<string | null>(null)
   const stuckRef = useRef(true)
+
+  const refreshVariants = useCallback(() => {
+    void window.api.getAgentVariants(agentId).then(list => {
+      setAvailableVariants(list)
+      setCurrentVariant(current => {
+        if (current && !list.includes(current)) {
+          onVariantChange?.(undefined)
+          return ''
+        }
+        return current
+      })
+    })
+  }, [agentId, onVariantChange])
+
+  useEffect(() => { refreshVariants() }, [refreshVariants])
+
+  useEffect(() => {
+    const onModelChanged = (e: Event) => {
+      const detail = (e as CustomEvent<{ agentId: string }>).detail
+      if (detail?.agentId === agentId) refreshVariants()
+    }
+    window.addEventListener('meow:model-changed', onModelChanged)
+    return () => window.removeEventListener('meow:model-changed', onModelChanged)
+  }, [agentId, refreshVariants])
 
   useEffect(() => {
     if (pendingPrompt && pendingPrompt.promptType === 'permission') {
@@ -678,20 +703,23 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
           {currentMode === 'plan' && <span className="chat-mode-hint">read-only — edits denied</span>}
           <div className="chat-mode-tools">
             <ModelPicker agentId={agentId} />
-            <select
-              className="input chat-variant-select"
-              value={currentVariant}
-              aria-label="model effort"
-              onChange={e => {
-                const v = e.target.value as ModelVariant
-                setCurrentVariant(v)
-                onVariantChange?.(v)
-              }}
-            >
-              <option value="medium">medium</option>
-              <option value="high">high</option>
-              <option value="max">max</option>
-            </select>
+            {availableVariants.length > 0 && (
+              <select
+                className="input chat-variant-select"
+                value={currentVariant}
+                aria-label="model effort"
+                onChange={e => {
+                  const v = e.target.value
+                  setCurrentVariant(v)
+                  onVariantChange?.(v === '' ? undefined : v)
+                }}
+              >
+                <option value="">Default</option>
+                {availableVariants.map(v => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
         <ChatInput

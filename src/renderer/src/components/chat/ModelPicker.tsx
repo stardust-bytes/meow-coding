@@ -79,6 +79,7 @@ export default function ModelPicker({ agentId }: Props) {
                       setOpen(false)
                       setCurrent({ provider, model: m })
                       void window.api.setAgentModel(agentId, provider, m)
+                      window.dispatchEvent(new CustomEvent('meow:model-changed', { detail: { agentId } }))
                     }}
                   >
                     {m}
