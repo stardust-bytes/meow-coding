@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
-import type { ChatEvent, Command, ContextChangedEvent, MeowSettings, ModelVariant, NewAgentInput, PromptResponse, Template } from '../shared/types'
+import type { ChatEvent, Command, ContextChangedEvent, MeowSettings, NewAgentInput, PromptResponse, Template } from '../shared/types'
 import type { AgentApi, AgentStateEvent, GitStatusEvent, PtyDataEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
 
 function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
@@ -25,8 +25,10 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.AgentRemove, projectPath, agentId),
   setAgentMode: (agentId: string, mode: 'build' | 'plan') =>
     ipcRenderer.invoke(Channels.AgentSetMode, agentId, mode),
-  setAgentVariant: (agentId: string, variant: ModelVariant) =>
+  setAgentVariant: (agentId: string, variant: string | null) =>
     ipcRenderer.invoke(Channels.AgentSetVariant, agentId, variant),
+  getAgentVariants: (agentId: string) =>
+    ipcRenderer.invoke(Channels.AgentGetVariants, agentId),
   setAgentModel: (agentId: string, provider: string, model: string) =>
     ipcRenderer.invoke(Channels.AgentSetModel, agentId, provider, model),
   getAgentModel: (agentId: string) => ipcRenderer.invoke(Channels.AgentGetModel, agentId),
