@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { CatalogProviderSummary, MeowSettings } from '@shared/types'
+import Modal from './Modal'
 
 interface Props {
   settings: MeowSettings
@@ -8,15 +9,17 @@ interface Props {
   onRefresh: () => void
 }
 
+type ConnectModal =
+  | { kind: 'catalog'; id: string; name: string }
+  | { kind: 'manual' }
+  | null
+
 export default function ProvidersTab({ settings, catalog, onChange, onRefresh }: Props) {
   const [search, setSearch] = useState('')
-  const [connectingId, setConnectingId] = useState<string | null>(null)
+  const [modal, setModal] = useState<ConnectModal>(null)
+  const [providerId, setProviderId] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
-  const [manualOpen, setManualOpen] = useState(false)
-  const [manualId, setManualId] = useState('')
-  const [manualApiKey, setManualApiKey] = useState('')
-  const [manualBaseUrl, setManualBaseUrl] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [models, setModels] = useState<string[]>([])
   const [status, setStatus] = useState('')
@@ -29,28 +32,26 @@ export default function ProvidersTab({ settings, catalog, onChange, onRefresh }:
     c.id.toLowerCase().includes(search.toLowerCase())
   )
 
-  const connect = async (id: string) => {
-    setStatus('')
-    const result = await window.api.connectProvider(id, apiKey.trim(), baseUrl.trim() || undefined)
-    setConnectingId(null)
+  const openCatalog = (id: string, name: string) => {
+    setProviderId(id)
     setApiKey('')
     setBaseUrl('')
-    onChange({ providers: result.providers, defaultProvider: result.defaultProvider })
-    const provider = result.providers.find(p => p.id === id)
-    setStatus(provider && provider.models.length > 0
-      ? `Connected ${id}. ${provider.models.length} model(s) synced.`
-      : `Connected ${id}. Models will sync when models.dev is reachable.`)
+    setModal({ kind: 'catalog', id, name })
   }
 
-  const connectManual = async () => {
-    const id = manualId.trim()
-    if (!id) return
+  const openManual = () => {
+    setProviderId('')
+    setApiKey('')
+    setBaseUrl('')
+    setModal({ kind: 'manual' })
+  }
+
+  const connect = async () => {
+    const id = providerId.trim()
+    if (!id || !apiKey.trim()) return
     setStatus('')
-    const result = await window.api.connectProvider(id, manualApiKey.trim(), manualBaseUrl.trim() || undefined)
-    setManualOpen(false)
-    setManualId('')
-    setManualApiKey('')
-    setManualBaseUrl('')
+    const result = await window.api.connectProvider(id, apiKey.trim(), baseUrl.trim() || undefined)
+    setModal(null)
     onChange({ providers: result.providers, defaultProvider: result.defaultProvider })
     const provider = result.providers.find(p => p.id === id)
     setStatus(provider && provider.models.length > 0
@@ -85,34 +86,8 @@ export default function ProvidersTab({ settings, catalog, onChange, onRefresh }:
   return (
     <div className="settings-tab providers-tab">
       <div className="provider-actions">
-        <button className="btn" onClick={() => setManualOpen(v => !v)}>+ Connect provider</button>
+        <button className="btn" onClick={openManual}>+ Connect provider</button>
       </div>
-      {manualOpen && (
-        <div className="provider-manual">
-          <input
-            className="input provider-manual-id"
-            placeholder="provider id (e.g. deepseek)"
-            value={manualId}
-            onChange={e => setManualId(e.target.value)}
-          />
-          <input
-            className="input provider-manual-key"
-            type="password"
-            placeholder="api key"
-            value={manualApiKey}
-            onChange={e => setManualApiKey(e.target.value)}
-          />
-          <input
-            className="input provider-manual-baseurl"
-            placeholder="baseUrl (optional)"
-            value={manualBaseUrl}
-            onChange={e => setManualBaseUrl(e.target.value)}
-          />
-          <button className="btn primary" disabled={!manualId.trim() || !manualApiKey.trim()} onClick={() => void connectManual()}>
-            Connect
-          </button>
-        </div>
-      )}
       <p className="settings-hint">
         Find a provider below and enter your API key, or use "+ Connect provider". Models are synced
         automatically from models.dev.
@@ -136,27 +111,8 @@ export default function ProvidersTab({ settings, catalog, onChange, onRefresh }:
                 <span className="provider-catalog-meta">{c.modelCount} models</span>
                 {isConnected ? (
                   <span className="provider-catalog-connected">connected</span>
-                ) : connectingId === c.id ? (
-                  <span className="provider-connect-form">
-                    <input
-                      className="input provider-key"
-                      type="password"
-                      placeholder="api key"
-                      value={apiKey}
-                      onChange={e => setApiKey(e.target.value)}
-                    />
-                    <input
-                      className="input provider-baseurl"
-                      placeholder="baseUrl (optional)"
-                      value={baseUrl}
-                      onChange={e => setBaseUrl(e.target.value)}
-                    />
-                    <button className="btn small" disabled={!apiKey.trim()} onClick={() => void connect(c.id)}>
-                      connect
-                    </button>
-                  </span>
                 ) : (
-                  <button className="btn small" onClick={() => { setConnectingId(c.id); setApiKey(''); setBaseUrl('') }}>
+                  <button className="btn small" onClick={() => openCatalog(c.id, c.name)}>
                     connect
                   </button>
                 )}
@@ -175,19 +131,16 @@ export default function ProvidersTab({ settings, catalog, onChange, onRefresh }:
               <button className="provider-connected-toggle" onClick={() => void viewModels(p.id)}>
                 <span className="mcp-dot connected" />
                 <span className="provider-connected-name">{p.id}</span>
-                <span className="provider-connected-meta">{p.models.length} models</span>
-                {settings.defaultProvider === p.id && (
-                  <span className="provider-default">default</span>
-                )}
               </button>
-              <button className="btn small" onClick={() => void setDefault(p.id)}>default</button>
-              <button className="btn small" onClick={() => void disconnect(p.id)}>remove</button>
+              {p.baseUrl && <span className="provider-connected-baseurl">{p.baseUrl}</span>}
+              <button className="btn small" onClick={() => void setDefault(p.id)}>
+                {settings.defaultProvider === p.id ? 'default' : 'set default'}
+              </button>
+              <button className="btn small" onClick={() => void disconnect(p.id)}>disconnect</button>
             </div>
             {expandedId === p.id && (
               <div className="provider-models">
-                {models.length === 0
-                  ? <span className="settings-hint">No models found.</span>
-                  : models.map(m => <code key={m}>{m}</code>)}
+                {models.length > 0 ? models.map(m => <code key={m}>{m}</code>) : <span className="settings-hint">Loading models…</span>}
               </div>
             )}
           </div>
@@ -196,6 +149,42 @@ export default function ProvidersTab({ settings, catalog, onChange, onRefresh }:
       </div>
 
       {status && <div className="settings-status">{status}</div>}
+
+      {modal && (
+        <Modal
+          title={modal.kind === 'catalog' ? `Connect ${modal.name}` : 'Connect provider'}
+          onClose={() => setModal(null)}
+          onSubmit={() => void connect()}
+          submitLabel="Connect"
+          submitDisabled={!providerId.trim() || !apiKey.trim()}
+        >
+          {modal.kind === 'catalog' ? (
+            <p className="settings-hint">
+              Provider <code>{modal.id}</code> — enter your API key below.
+            </p>
+          ) : (
+            <input
+              className="input"
+              placeholder="provider id (e.g. deepseek)"
+              value={providerId}
+              onChange={e => setProviderId(e.target.value)}
+            />
+          )}
+          <input
+            className="input provider-key"
+            type="password"
+            placeholder="api key"
+            value={apiKey}
+            onChange={e => setApiKey(e.target.value)}
+          />
+          <input
+            className="input provider-baseurl"
+            placeholder="baseUrl (optional)"
+            value={baseUrl}
+            onChange={e => setBaseUrl(e.target.value)}
+          />
+        </Modal>
+      )}
     </div>
   )
 }

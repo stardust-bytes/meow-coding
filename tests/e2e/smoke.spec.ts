@@ -96,11 +96,13 @@ test('settings screen connects a provider and syncs models', async () => {
 
       await window.locator('.provider-search').fill('deepseek')
       await window.locator('.provider-catalog-row', { hasText: 'deepseek' }).getByRole('button', { name: 'connect' }).click()
-      await window.locator('.provider-key').fill('sk-test')
-      await window.locator('.provider-connect-form button').click()
+      const popup = window.locator('.dialog:not(.settings-dialog)')
+      await expect(popup).toBeVisible()
+      await popup.locator('.provider-key').fill('sk-test')
+      await popup.locator('.submit').click()
 
       await expect(window.locator('.provider-connected')).toContainText('deepseek')
-      await expect(window.locator('.provider-connected')).toContainText('2 models')
+      await expect(window.locator('.settings-status').last()).toContainText('2 model(s) synced')
       await window.getByRole('button', { name: 'Save' }).click()
       await expect(window.locator('.settings-status').last()).toContainText('saved')
       await window.getByRole('button', { name: 'Cancel' }).click()
