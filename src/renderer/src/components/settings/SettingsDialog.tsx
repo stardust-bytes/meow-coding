@@ -99,7 +99,7 @@ export default function SettingsDialog({ onClose, projectPath }: Props) {
           </nav>
           <div className="settings-content">
             {draft && tab === 'providers' && (
-              <ProvidersTab settings={draft} catalog={catalog} onChange={patch} onRefresh={refresh} />
+              <ProvidersTab settings={draft} catalog={catalog} onChange={patch} />
             )}
             {draft && tab === 'agents' && (
               <AgentsTab agents={draft.agents} onChange={agents => patch({ agents })} />

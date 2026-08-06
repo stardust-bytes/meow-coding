@@ -103,6 +103,20 @@ test('settings screen connects a provider and syncs models', async () => {
 
       await expect(window.locator('.provider-connected')).toContainText('deepseek')
       await expect(window.locator('.settings-status').last()).toContainText('2 model(s) synced')
+      // deepseek is the first provider, so it auto-becomes default.
+      await expect(window.getByRole('button', { name: 'default', exact: true })).toBeVisible()
+      // Add a second provider so 'set default' is exercised on deepseek.
+      await window.getByRole('button', { name: '+ Connect provider' }).click()
+      const manualPopup = window.locator('.dialog:not(.settings-dialog)')
+      await manualPopup.getByPlaceholder('provider id (e.g. deepseek)').fill('other')
+      await manualPopup.getByPlaceholder('api key').fill('sk-other')
+      await manualPopup.locator('.submit').click()
+      await expect(window.locator('.provider-connected')).toContainText('other')
+      // 'other' auto-becomes default; deepseek now offers 'set default'.
+      await expect(window.getByRole('button', { name: 'set default' })).toBeVisible()
+      await window.getByRole('button', { name: 'set default' }).click()
+      // Clicking persists immediately and flips the label.
+      await expect(window.getByRole('button', { name: 'default', exact: true })).toBeVisible()
       await window.getByRole('button', { name: 'Save' }).click()
       await expect(window.locator('.settings-status').last()).toContainText('saved')
       await window.getByRole('button', { name: 'Cancel' }).click()

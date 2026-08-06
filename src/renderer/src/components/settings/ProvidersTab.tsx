@@ -6,7 +6,6 @@ interface Props {
   settings: MeowSettings
   catalog: CatalogProviderSummary[]
   onChange: (patch: Partial<MeowSettings>) => void
-  onRefresh: () => void
 }
 
 type ConnectModal =
@@ -14,7 +13,7 @@ type ConnectModal =
   | { kind: 'manual' }
   | null
 
-export default function ProvidersTab({ settings, catalog, onChange, onRefresh }: Props) {
+export default function ProvidersTab({ settings, catalog, onChange }: Props) {
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState<ConnectModal>(null)
   const [providerId, setProviderId] = useState('')
@@ -79,8 +78,10 @@ export default function ProvidersTab({ settings, catalog, onChange, onRefresh }:
   }
 
   const setDefault = async (id: string) => {
+    // Persist immediately (like connect/disconnect) instead of patching the
+    // draft: onRefresh would re-fetch the unsaved value and clobber the change.
+    await window.api.saveSettings({ ...settings, defaultProvider: id })
     onChange({ defaultProvider: id })
-    await onRefresh()
   }
 
   return (
