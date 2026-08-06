@@ -3,6 +3,7 @@ import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { ModelMessage } from 'ai'
+import type { MessageTokens } from '../../shared/types'
 import { toToolDefinition } from './message'
 import type { ToolDefinition } from './tools/types'
 
@@ -14,7 +15,7 @@ export interface LlmStreamPart {
   toolInput?: Record<string, unknown>
   finishReason?: string
   error?: string
-  tokens?: { input: number; output: number; total: number }
+  tokens?: MessageTokens
 }
 
 export interface LlmStreamOptions {
@@ -31,6 +32,25 @@ export interface LlmClient {
 }
 
 type StreamProviderOptions = NonNullable<Parameters<typeof streamText>[0]['providerOptions']>
+
+interface SdkUsage {
+  inputTokens?: number
+  outputTokens?: number
+  totalTokens?: number
+  reasoningTokens?: number
+  cachedInputTokens?: number
+}
+
+export function toMessageTokens(usage: SdkUsage | undefined): MessageTokens | undefined {
+  if (!usage) return undefined
+  return {
+    input: usage.inputTokens ?? 0,
+    output: usage.outputTokens ?? 0,
+    total: usage.totalTokens ?? 0,
+    reasoning: usage.reasoningTokens,
+    cacheRead: usage.cachedInputTokens
+  }
+}
 
 export function createAnthropicLlm(apiKey: string): LlmClient {
   return createLlm('anthropic', apiKey)
@@ -94,13 +114,7 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string): L
             yield {
               kind: 'finish',
               finishReason: part.finishReason,
-              tokens: part.totalUsage
-                ? {
-                    input: part.totalUsage.inputTokens ?? 0,
-                    output: part.totalUsage.outputTokens ?? 0,
-                    total: part.totalUsage.totalTokens ?? 0
-                  }
-                : undefined
+              tokens: toMessageTokens(part.totalUsage)
             }
             break
           case 'error':

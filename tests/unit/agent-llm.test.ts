@@ -8,7 +8,7 @@ vi.mock('ai', () => ({
   tool: (t: unknown) => t
 }))
 
-import { createAnthropicLlm, createOpenAICompatibleLlm, formatLlmError } from '../../src/main/agent/llm'
+import { createAnthropicLlm, createOpenAICompatibleLlm, formatLlmError, toMessageTokens } from '../../src/main/agent/llm'
 import type { LlmStreamPart } from '../../src/main/agent/llm'
 
 function fakeFullStream(parts: Array<Record<string, unknown>>) {
@@ -161,5 +161,22 @@ describe('createOpenAICompatibleLlm', () => {
       out.push(p)
     }
     expect(out).toEqual([{ kind: 'finish', finishReason: 'stop' }])
+  })
+})
+
+describe('toMessageTokens', () => {
+  it('maps the full AI SDK usage breakdown', () => {
+    expect(toMessageTokens({
+      inputTokens: 100, outputTokens: 20, totalTokens: 130,
+      reasoningTokens: 8, cachedInputTokens: 500
+    })).toEqual({ input: 100, output: 20, total: 130, reasoning: 8, cacheRead: 500 })
+  })
+
+  it('defaults missing counters to 0 and leaves optional fields undefined', () => {
+    expect(toMessageTokens({})).toEqual({ input: 0, output: 0, total: 0, reasoning: undefined, cacheRead: undefined })
+  })
+
+  it('returns undefined when the provider reports no usage', () => {
+    expect(toMessageTokens(undefined)).toBeUndefined()
   })
 })
