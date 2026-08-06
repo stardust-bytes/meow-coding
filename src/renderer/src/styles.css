@@ -600,7 +600,7 @@ select.input { width: 100%; }
 .model-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .model-caret { color: var(--text-dim); font-size: var(--fs-sm); }
 .model-menu {
-  position: absolute; bottom: calc(100% + 4px); left: 0; z-index: 40;
+  position: absolute; bottom: calc(100% + 4px); right: 0; z-index: 40;
   width: 300px; max-height: 340px;
   background: var(--bg-panel); box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45), 0 8px 24px rgba(0, 0, 0, 0.45);
   padding: 6px; display: flex; flex-direction: column; gap: 4px;
