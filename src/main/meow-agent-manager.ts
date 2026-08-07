@@ -143,7 +143,7 @@ export class MeowAgentManager {
     await this.syncTools()
     await this.refreshModelLimits()
     for (const agent of agents) {
-      if (agent.kind === 'native') this.register(agent)
+      if (agent.kind === 'native') this.register(agent, true)
     }
   }
 
@@ -675,10 +675,15 @@ export class MeowAgentManager {
     ])
   }
 
-  private register(agent: AgentConfig): void {
+  private register(agent: AgentConfig, force = false): void {
     this.agents.set(agent.id, agent)
     if (agent.background !== undefined) this.backgrounds.set(agent.id, agent.background)
-    if (this.runners.has(agent.id)) return
+    if (this.runners.has(agent.id)) {
+      // Rebuild with freshly synced tools (MCP/user) unless a turn is running.
+      if (!force || this.running.has(agent.id)) return
+      this.runners.delete(agent.id)
+      this.resolved.delete(agent.id)
+    }
     const cfg = this.loadConfigWithChatGptWebSeed()
     const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env, agent.model)
     this.resolved.set(agent.id, resolved)

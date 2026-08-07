@@ -221,13 +221,24 @@ class MainApp {
     if (!ws) throw new Error(`Workspace not found: ${projectPath}`)
     this.activeProject = projectPath
     this.meowAgent.setProjectPath(projectPath)
-    await this.meowAgent.init(ws.agents)
+    // Register native agents synchronously (cheap) so the chat panel mounts
+    // with its real transcript immediately; full tools/MCP come from init below.
     for (const agent of ws.agents) {
-      await this.startAgent(agent.id)
+      if (agent.kind === 'native') this.meowAgent.addAgent(agent)
     }
+    const rt = this.runtimeFor(ws)
     this.startGitPoll(projectPath)
     this.startFileWatcher(projectPath)
-    return this.runtimeFor(ws)
+    // Tools/MCP sync, model catalog refresh and PTY startup run off the
+    // critical path so the pane shell paints instantly instead of waiting for
+    // all of them (measured ~0.5s+ on first open).
+    void this.prepareWorkspace(ws).catch(err => console.error('[meow] prepareWorkspace:', err))
+    return rt
+  }
+
+  private async prepareWorkspace(ws: Workspace): Promise<void> {
+    await this.meowAgent.init(ws.agents)
+    await Promise.all(ws.agents.map(a => this.startAgent(a.id)))
   }
 
   private startFileWatcher(projectPath: string): void {
