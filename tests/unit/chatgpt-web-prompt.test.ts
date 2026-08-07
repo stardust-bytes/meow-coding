@@ -6,7 +6,7 @@ import type { ToolDefinition } from '../../src/main/agent/tools/types'
 const bashTool: ToolDefinition = {
   name: 'bash',
   description: 'Run a shell command',
-  inputSchema: { type: 'object', properties: { command: { type: 'string' } }, required: ['command'] },
+  schema: { type: 'object', properties: { command: { type: 'string' } }, required: ['command'] },
   async run() { return { output: '' } }
 } as unknown as ToolDefinition
 

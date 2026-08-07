@@ -13,7 +13,7 @@ function toolSummary(tools: ToolDefinition[]) {
   return tools.map(t => ({
     name: t.name,
     description: t.description,
-    inputSchema: t.inputSchema
+    inputSchema: t.schema
   }))
 }
 
