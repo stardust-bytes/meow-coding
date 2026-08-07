@@ -180,6 +180,22 @@ function normalizeNotifications(raw: Partial<NotificationsConfig> | undefined): 
   }
 }
 
+function normalizeMcp(raw: Record<string, McpServerConfig> | undefined): Record<string, McpServerConfig> {
+  const out: Record<string, McpServerConfig> = {}
+  for (const [name, cfg] of Object.entries(raw ?? {})) {
+    const next: McpServerConfig = { ...cfg }
+    if (next.command) {
+      const parts = next.command.trim().split(/\s+/).filter(Boolean)
+      if (parts.length > 1 && (!next.args || next.args.length === 0)) {
+        next.command = parts[0]
+        next.args = parts.slice(1)
+      }
+    }
+    out[name] = next
+  }
+  return out
+}
+
 function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
   const providers: Record<string, MeowProviderConfig> = {}
   for (const [id, p] of Object.entries(raw.provider ?? {})) {
@@ -190,7 +206,7 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     model: raw.model ?? DEFAULT_MEOW_CONFIG.model,
     agents: normalizeAgents(raw.agents),
     permission: { ...DEFAULT_MEOW_CONFIG.permission, ...(raw.permission ?? {}) },
-    mcp: raw.mcp ?? {},
+    mcp: normalizeMcp(raw.mcp),
     maxContextTokens: raw.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
     maxSteps: raw.maxSteps ?? DEFAULT_MAX_STEPS,
     compaction: normalizeCompaction(raw.compaction),
@@ -315,7 +331,7 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
     permission: settings.permission
       ? { ...DEFAULT_MEOW_CONFIG.permission, ...settings.permission }
       : (base.permission ?? DEFAULT_MEOW_CONFIG.permission),
-    mcp: settings.mcp ?? base.mcp ?? {},
+    mcp: normalizeMcp(settings.mcp ?? base.mcp ?? {}),
     maxContextTokens: settings.maxContextTokens ?? base.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
     maxSteps: settings.maxSteps ?? base.maxSteps ?? DEFAULT_MAX_STEPS,
     compaction: settings.compaction ? normalizeCompaction(settings.compaction) : normalizeCompaction(base.compaction),

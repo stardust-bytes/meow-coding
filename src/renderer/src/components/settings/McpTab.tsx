@@ -13,6 +13,14 @@ export default function McpTab({ mcp, status, onChange }: Props) {
   const [newCommand, setNewCommand] = useState('')
   const [newArgs, setNewArgs] = useState('')
 
+  const splitCommand = (value: string): Partial<McpServerConfig> => {
+    const parts = value.trim().split(/\s+/).filter(Boolean)
+    if (parts.length === 0) return {}
+    return parts.length === 1
+      ? { command: parts[0] }
+      : { command: parts[0], args: parts.slice(1) }
+  }
+
   const updateServer = (name: string, patch: Partial<McpServerConfig>) => {
     const next = { ...mcp }
     next[name] = { ...next[name], ...patch }
@@ -24,11 +32,9 @@ export default function McpTab({ mcp, status, onChange }: Props) {
     if (!name || mcp[name]) return
     const cfg: McpServerConfig = {}
     if (newUrl.trim()) cfg.url = newUrl.trim()
-    if (newCommand.trim()) {
-      cfg.command = newCommand.trim()
-      const args = newArgs.split(' ').map(a => a.trim()).filter(Boolean)
-      if (args.length > 0) cfg.args = args
-    }
+    Object.assign(cfg, splitCommand(newCommand))
+    const args = newArgs.split(' ').map(a => a.trim()).filter(Boolean)
+    if (args.length > 0) cfg.args = args
     onChange({ ...mcp, [name]: cfg })
     setNewName('')
     setNewUrl('')
@@ -73,9 +79,9 @@ export default function McpTab({ mcp, status, onChange }: Props) {
               />
               <input
                 className="input"
-                placeholder="command (e.g. npx)"
+                placeholder="command (e.g. npx @playwright/mcp)"
                 value={cfg.command ?? ''}
-                onChange={e => updateServer(name, { command: e.target.value })}
+                onChange={e => updateServer(name, splitCommand(e.target.value))}
               />
               <input
                 className="input"

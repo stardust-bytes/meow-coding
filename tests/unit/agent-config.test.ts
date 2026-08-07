@@ -230,6 +230,20 @@ describe('configToSettings / settingsToConfig', () => {
     expect(cfg.mcp.mytools.command).toBe('npx')
   })
 
+  it('splits a full command string into command + args', () => {
+    writeFileSync(file, JSON.stringify({ mcp: { playwright: { command: 'npx @playwright/mcp' } } }))
+    const cfg = loadMeowConfig(file)
+    expect(cfg.mcp.playwright.command).toBe('npx')
+    expect(cfg.mcp.playwright.args).toEqual(['@playwright/mcp'])
+  })
+
+  it('keeps existing args when a command string is also present', () => {
+    writeFileSync(file, JSON.stringify({ mcp: { t: { command: 'npx -y @foo/bar', args: ['-y', '@foo/bar'] } } }))
+    const cfg = loadMeowConfig(file)
+    expect(cfg.mcp.t.command).toBe('npx -y @foo/bar')
+    expect(cfg.mcp.t.args).toEqual(['-y', '@foo/bar'])
+  })
+
   it('defaults to token-based compaction settings', () => {
     const cfg = loadMeowConfig(file)
     expect(cfg.maxContextTokens).toBe(200000)
