@@ -50,6 +50,48 @@ describe('runChatGptWebTurn', () => {
     expect(page.close).toHaveBeenCalled()
   })
 
+  it('falls back to recreate(visible) and calls onFallback when Cloudflare challenge detected', async () => {
+    const failingPage: ChatGptWebPage = {
+      goto: vi.fn(async () => undefined),
+      waitForSelector: vi.fn(async () => { throw new Error('Timeout 30000ms exceeded') }),
+      click: vi.fn(async () => undefined),
+      insertText: vi.fn(async () => undefined),
+      readDialogText: vi.fn(async () => null),
+      readSnapshot: vi.fn(async () => ({ hasStopButton: false, hasCopyButton: false, text: '' })),
+      title: vi.fn(async () => 'Just a moment...'),
+      url: vi.fn(() => 'https://chatgpt.com/'),
+      close: vi.fn(async () => undefined)
+    }
+    const visiblePage = fakePage({ snapshots: [{ hasStopButton: false, hasCopyButton: true, text: 'Answer' }] })
+    const recreate = vi.fn(async (mode: string) => {
+      expect(mode).toBe('visible')
+      return visiblePage
+    })
+    const onFallback = vi.fn()
+    const result = await runChatGptWebTurn(failingPage, recreate, 'hello', CHATGPT_WEB_EFFORT_LEVELS[0], undefined, { pollIntervalMs: 0, onFallback })
+    expect(recreate).toHaveBeenCalledWith('visible')
+    expect(onFallback).toHaveBeenCalledWith('cloudflare')
+    expect(failingPage.close).toHaveBeenCalled()
+    expect(result).toBe('Answer')
+  })
+
+  it('throws Vietnamese [meow] error when redirected to /auth/login', async () => {
+    const failingPage: ChatGptWebPage = {
+      goto: vi.fn(async () => undefined),
+      waitForSelector: vi.fn(async () => { throw new Error('Timeout 30000ms exceeded') }),
+      click: vi.fn(async () => undefined),
+      insertText: vi.fn(async () => undefined),
+      readDialogText: vi.fn(async () => null),
+      readSnapshot: vi.fn(async () => ({ hasStopButton: false, hasCopyButton: false, text: '' })),
+      title: vi.fn(async () => 'Log in'),
+      url: vi.fn(() => 'https://chatgpt.com/auth/login'),
+      close: vi.fn(async () => undefined)
+    }
+    await expect(
+      runChatGptWebTurn(failingPage, async () => failingPage, 'hello', CHATGPT_WEB_EFFORT_LEVELS[0], undefined, { pollIntervalMs: 0 })
+    ).rejects.toThrow(/\[meow\] Phiên đăng nhập/)
+  })
+
   it('aborts and closes the page when the signal fires', async () => {
     const controller = new AbortController()
     controller.abort()
