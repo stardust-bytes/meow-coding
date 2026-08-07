@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { runChatGptWebTurn, type ChatGptWebPage } from '../../src/main/chatgpt-web/browser-worker'
+import { runChatGptWebTurn, SELECTORS, type ChatGptWebPage } from '../../src/main/chatgpt-web/browser-worker'
 import { CHATGPT_WEB_EFFORT_LEVELS } from '../../src/main/chatgpt-web/model-catalog'
 
 function fakePage(opts: {
@@ -12,6 +12,7 @@ function fakePage(opts: {
     waitForSelector: vi.fn(async () => {}),
     click: vi.fn(async () => {}),
     insertText: vi.fn(async () => {}),
+    count: vi.fn(async (sel: string) => sel === SELECTORS.composer ? 1 : 0),
     readDialogText: vi.fn(async () => opts.dialogText ?? null),
     readSnapshot: vi.fn(async () => {
       const snap = opts.snapshots[Math.min(call, opts.snapshots.length - 1)]
@@ -56,6 +57,7 @@ describe('runChatGptWebTurn', () => {
       waitForSelector: vi.fn(async () => { throw new Error('Timeout 30000ms exceeded') }),
       click: vi.fn(async () => undefined),
       insertText: vi.fn(async () => undefined),
+      count: vi.fn(async () => 0),
       readDialogText: vi.fn(async () => null),
       readSnapshot: vi.fn(async () => ({ hasStopButton: false, hasCopyButton: false, text: '' })),
       title: vi.fn(async () => 'Just a moment...'),
@@ -75,12 +77,70 @@ describe('runChatGptWebTurn', () => {
     expect(result).toBe('Answer')
   })
 
+  it('detects Cloudflare via challenge selectors even when the title is normal', async () => {
+    const failingPage: ChatGptWebPage = {
+      goto: vi.fn(async () => undefined),
+      waitForSelector: vi.fn(async () => { throw new Error('Timeout 30000ms exceeded') }),
+      click: vi.fn(async () => undefined),
+      insertText: vi.fn(async () => undefined),
+      count: vi.fn(async (sel: string) =>
+        sel === 'iframe[src*="challenges.cloudflare.com"]' ? 1 : 0),
+      readDialogText: vi.fn(async () => null),
+      readSnapshot: vi.fn(async () => ({ hasStopButton: false, hasCopyButton: false, text: '' })),
+      title: vi.fn(async () => 'ChatGPT'),
+      url: vi.fn(() => 'https://chatgpt.com/'),
+      close: vi.fn(async () => undefined)
+    }
+    const visiblePage = fakePage({ snapshots: [{ hasStopButton: false, hasCopyButton: true, text: 'Done' }] })
+    const recreate = vi.fn(async (mode: string) => {
+      expect(mode).toBe('visible')
+      return visiblePage
+    })
+    const onFallback = vi.fn()
+    const result = await runChatGptWebTurn(failingPage, recreate, 'hello', CHATGPT_WEB_EFFORT_LEVELS[0], undefined, { pollIntervalMs: 0, onFallback })
+    expect(onFallback).toHaveBeenCalledWith('cloudflare')
+    expect(result).toBe('Done')
+  })
+
+  it('opens a visible browser and resends the prompt when Cloudflare challenges mid-turn', async () => {
+    let challenged = false
+    const page: ChatGptWebPage = {
+      goto: vi.fn(async () => undefined),
+      waitForSelector: vi.fn(async () => undefined),
+      click: vi.fn(async () => undefined),
+      insertText: vi.fn(async () => undefined),
+      count: vi.fn(async (sel: string) => sel === SELECTORS.composer && !challenged ? 1 : 0),
+      readDialogText: vi.fn(async () => null),
+      readSnapshot: vi.fn(async () => {
+        challenged = true
+        return { hasStopButton: true, hasCopyButton: false, text: 'Thinking' }
+      }),
+      title: vi.fn(async () => challenged ? 'Just a moment...' : 'ChatGPT'),
+      url: vi.fn(() => 'https://chatgpt.com/'),
+      close: vi.fn(async () => undefined)
+    }
+    const freshPage = fakePage({ snapshots: [{ hasStopButton: false, hasCopyButton: true, text: 'Answer' }] })
+    const recreate = vi.fn(async (mode: string) => {
+      expect(mode).toBe('visible')
+      return freshPage
+    })
+    const onFallback = vi.fn()
+    const result = await runChatGptWebTurn(page, recreate, 'hello', CHATGPT_WEB_EFFORT_LEVELS[0], undefined, { pollIntervalMs: 0, onFallback })
+    expect(onFallback).toHaveBeenCalledWith('cloudflare')
+    expect(recreate).toHaveBeenCalledWith('visible')
+    expect(page.close).toHaveBeenCalled()
+    // prompt resent on the fresh visible page
+    expect(freshPage.insertText).toHaveBeenCalledWith('hello')
+    expect(result).toBe('Answer')
+  })
+
   it('throws Vietnamese [meow] error when redirected to /auth/login', async () => {
     const failingPage: ChatGptWebPage = {
       goto: vi.fn(async () => undefined),
       waitForSelector: vi.fn(async () => { throw new Error('Timeout 30000ms exceeded') }),
       click: vi.fn(async () => undefined),
       insertText: vi.fn(async () => undefined),
+      count: vi.fn(async () => 0),
       readDialogText: vi.fn(async () => null),
       readSnapshot: vi.fn(async () => ({ hasStopButton: false, hasCopyButton: false, text: '' })),
       title: vi.fn(async () => 'Log in'),

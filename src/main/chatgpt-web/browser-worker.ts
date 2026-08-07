@@ -19,6 +19,7 @@ export interface ChatGptWebPage {
   waitForSelector(selector: string, opts?: { timeout?: number }): Promise<void>
   click(selector: string): Promise<void>
   insertText(text: string): Promise<void>
+  count(selector: string): Promise<number>
   readDialogText(): Promise<string | null>
   readSnapshot(): Promise<{ hasStopButton: boolean; hasCopyButton: boolean; text: string }>
   title(): Promise<string>
@@ -34,6 +35,42 @@ export interface RunTurnOptions {
   pollIntervalMs?: number
   timeoutMs?: number
   onFallback?: (reason: ChallengeReason) => void
+}
+
+const CHALLENGE_SELECTORS = [
+  'iframe[src*="challenges.cloudflare.com"]',
+  '#challenge-form',
+  '.cf-challenge',
+  '#challenge-running',
+  '#turnstile-wrapper',
+  '[data-testid="cf-turnstile"]',
+  'form[action*="__cf_chl"]'
+]
+const CHALLENGE_TITLE_RE = /just a moment|verify you are a? human|attention required|cf[_-]?challenge/i
+
+// Cloudflare challenge pages vary (titles, turnstile forms, challenge iframes),
+// so detect by selectors/URL/title rather than a single title string.
+export async function detectChallenge(page: ChatGptWebPage): Promise<boolean> {
+  try {
+    for (const selector of CHALLENGE_SELECTORS) {
+      if ((await page.count(selector)) > 0) return true
+    }
+    const url = page.url()
+    if (url.includes('challenges.cloudflare.com') || url.includes('__cf_chl')) return true
+    if (CHALLENGE_TITLE_RE.test(await page.title())) return true
+  } catch {
+    /* page may be mid-navigation */
+  }
+  return false
+}
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+async function sendPrompt(page: ChatGptWebPage, prompt: string, effort: ChatGptWebEffortLevel): Promise<void> {
+  await page.click(SELECTORS.effortMenuTrigger)
+  await page.click(SELECTORS.effortMenuItem(effort.uiEffortIndex))
+  await page.insertText(prompt)
+  await page.click(SELECTORS.sendButton)
 }
 
 export async function runChatGptWebTurn(
@@ -59,33 +96,56 @@ async function runTurnBody(
   const timeoutMs = options.timeoutMs ?? 5 * 60 * 1000
   const deadline = Date.now() + timeoutMs
 
+  // Hands the session to a visible browser so the user can solve the challenge
+  // manually, then waits for the composer to come back.
+  const recoverFromChallenge = async (): Promise<ChatGptWebPage> => {
+    options.onFallback?.('cloudflare')
+    await page.close()
+    const visible = await recreate('visible')
+    await visible.goto('https://chatgpt.com/?temporary-chat=true')
+    await visible.waitForSelector(SELECTORS.composer, { timeout: 5 * 60 * 1000 })
+    return visible
+  }
+
   try {
     if (signal?.aborted) throw new Error('aborted before turn started')
 
     await page.goto('https://chatgpt.com/?temporary-chat=true')
-    try {
-      await page.waitForSelector(SELECTORS.composer)
-    } catch (err) {
-      const title = (await page.title()).toLowerCase()
-      if (title.includes('just a moment')) {
-        options.onFallback?.('cloudflare')
-        await page.close()
-        page = await recreate('visible')
-        await page.waitForSelector(SELECTORS.composer, { timeout: 5 * 60 * 1000 })
-      } else if (page.url().includes('/auth/login')) {
-        throw new Error('[meow] Phiên đăng nhập ChatGPT đã hết hạn. Vui lòng đăng nhập lại từ Settings.')
-      } else {
-        throw err
+
+    // Wait for the composer or a Cloudflare challenge on load.
+    let ready = false
+    const loadDeadline = Date.now() + 30_000
+    while (Date.now() < loadDeadline) {
+      if (signal?.aborted) throw new Error('aborted before turn started')
+      if (await detectChallenge(page)) {
+        page = await recoverFromChallenge()
+        ready = true
+        break
       }
+      if ((await page.count(SELECTORS.composer)) > 0) {
+        ready = true
+        break
+      }
+      if (page.url().includes('/auth/login')) {
+        throw new Error('[meow] Phiên đăng nhập ChatGPT đã hết hạn. Vui lòng đăng nhập lại từ Settings.')
+      }
+      await sleep(pollIntervalMs > 0 ? pollIntervalMs : 100)
     }
-    await page.click(SELECTORS.effortMenuTrigger)
-    await page.click(SELECTORS.effortMenuItem(effort.uiEffortIndex))
-    await page.insertText(prompt)
-    await page.click(SELECTORS.sendButton)
+    if (!ready) throw new Error('chatgpt-web: could not load chatgpt.com')
+
+    await sendPrompt(page, prompt, effort)
 
     while (true) {
       if (signal?.aborted) throw new Error('aborted during turn')
       if (Date.now() > deadline) throw new Error('chatgpt-web turn timed out')
+
+      // Cloudflare may challenge mid-turn; open a visible browser, wait for the
+      // user to verify, then resend the prompt.
+      if (await detectChallenge(page)) {
+        page = await recoverFromChallenge()
+        await sendPrompt(page, prompt, effort)
+        continue
+      }
 
       const dialogText = await page.readDialogText()
       if (dialogText && isChatGptWebRateLimitDialog(dialogText)) {
@@ -101,7 +161,7 @@ async function runTurnBody(
         return snapshot.text
       }
 
-      if (pollIntervalMs > 0) await new Promise(r => setTimeout(r, pollIntervalMs))
+      if (pollIntervalMs > 0) await sleep(pollIntervalMs)
     }
   } finally {
     await page.close()
@@ -117,6 +177,7 @@ export function wrapPlaywrightPage(page: import('playwright-core').Page): ChatGp
     waitForSelector: (selector, opts) => page.waitForSelector(selector, opts).then(() => undefined),
     click: selector => page.click(selector),
     insertText: text => page.keyboard.insertText(text),
+    count: selector => page.locator(selector).count(),
     readDialogText: () => page.locator(SELECTORS.dialog).first().textContent(),
     readSnapshot: async () => {
       const html = await page.locator(SELECTORS.answerRoot).last().innerHTML().catch(() => '')
