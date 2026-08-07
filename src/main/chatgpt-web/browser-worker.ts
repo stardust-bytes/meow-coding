@@ -98,3 +98,26 @@ export function wrapPlaywrightPage(page: import('playwright-core').Page): ChatGp
     close: () => page.close()
   }
 }
+
+export async function createChatGptWebPage(storageStatePath: string, chromeExecutablePath?: string): Promise<ChatGptWebPage> {
+  const { existsSync } = await import('node:fs')
+  const { chromium } = await import('playwright-core')
+  const { resolveChromeExecutablePath } = await import('./browser-login')
+
+  const executablePath = resolveChromeExecutablePath({
+    override: chromeExecutablePath,
+    platform: process.platform,
+    exists: existsSync
+  })
+  if (!executablePath) {
+    throw new Error('No Chrome installation found. Set a custom Chrome path in Settings.')
+  }
+  if (!existsSync(storageStatePath)) {
+    throw new Error('Not logged into ChatGPT Web. Log in from Settings first.')
+  }
+
+  const browser = await chromium.launch({ executablePath, headless: true })
+  const context = await browser.newContext({ storageState: storageStatePath })
+  const page = await context.newPage()
+  return wrapPlaywrightPage(page)
+}
