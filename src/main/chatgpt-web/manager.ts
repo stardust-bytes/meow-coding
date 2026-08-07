@@ -4,6 +4,8 @@ import { ChatGptWebSessionStore } from './session-store'
 import { getChatGptWebModelRefs } from './model-catalog'
 import type { ChatGptWebStatus, ModelRef } from '../../shared/types'
 import type { ChallengeEvent } from '../../shared/ipc'
+import type { LlmClient } from '../agent/llm'
+import { createChatGptWebLlmClient } from './client'
 
 export interface ChatGptWebManagerDeps {
   login?: (store: ChatGptWebSessionStore, userDataDir: string) => Promise<{ authenticated: boolean; verifiedAt: string }>
@@ -39,6 +41,7 @@ export class ChatGptWebManager {
   logout(): ChatGptWebStatus {
     const dir = this.store.userDataDir()
     rmSync(path.join(dir, 'storage-state.json'), { force: true })
+    rmSync(path.join(dir, 'storage-state.verified.json'), { force: true })
     rmSync(path.join(dir, 'browser-profile'), { recursive: true, force: true })
     return this.getStatus()
   }
@@ -50,5 +53,11 @@ export class ChatGptWebManager {
 
   getSessionStore(): ChatGptWebSessionStore {
     return this.store
+  }
+
+  createLlmClient(): LlmClient {
+    return createChatGptWebLlmClient(this.store, {
+      notifyChallenge: this.deps.notifyChallenge
+    })
   }
 }

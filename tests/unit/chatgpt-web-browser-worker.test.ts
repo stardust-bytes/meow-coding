@@ -18,6 +18,8 @@ function fakePage(opts: {
       call++
       return snap
     }),
+    title: vi.fn(async () => 'ChatGPT'),
+    url: vi.fn(() => 'https://chatgpt.com/'),
     close: vi.fn(async () => {})
   }
 }
@@ -31,7 +33,7 @@ describe('runChatGptWebTurn', () => {
         { hasStopButton: false, hasCopyButton: true, text: 'Final answer' }
       ]
     })
-    const result = await runChatGptWebTurn(page, 'hello', CHATGPT_WEB_EFFORT_LEVELS[0], undefined, { pollIntervalMs: 0 })
+    const result = await runChatGptWebTurn(page, async () => page, 'hello', CHATGPT_WEB_EFFORT_LEVELS[0], undefined, { pollIntervalMs: 0 })
     expect(result).toBe('Final answer')
     expect(page.insertText).toHaveBeenCalledWith('hello')
     expect(page.close).toHaveBeenCalled()
@@ -43,7 +45,7 @@ describe('runChatGptWebTurn', () => {
       dialogText: 'You are sending messages too quickly.'
     })
     await expect(
-      runChatGptWebTurn(page, 'hello', CHATGPT_WEB_EFFORT_LEVELS[0], undefined, { pollIntervalMs: 0 })
+      runChatGptWebTurn(page, async () => page, 'hello', CHATGPT_WEB_EFFORT_LEVELS[0], undefined, { pollIntervalMs: 0 })
     ).rejects.toThrow(/rate.limit/i)
     expect(page.close).toHaveBeenCalled()
   })
@@ -53,7 +55,7 @@ describe('runChatGptWebTurn', () => {
     controller.abort()
     const page = fakePage({ snapshots: [{ hasStopButton: true, hasCopyButton: false, text: '' }] })
     await expect(
-      runChatGptWebTurn(page, 'hello', CHATGPT_WEB_EFFORT_LEVELS[0], controller.signal, { pollIntervalMs: 0 })
+      runChatGptWebTurn(page, async () => page, 'hello', CHATGPT_WEB_EFFORT_LEVELS[0], controller.signal, { pollIntervalMs: 0 })
     ).rejects.toThrow(/abort/i)
     expect(page.close).toHaveBeenCalled()
   })

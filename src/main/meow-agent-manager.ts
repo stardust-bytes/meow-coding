@@ -9,7 +9,6 @@ import {
 import { SessionRunner } from './agent/loop'
 import { createLlm } from './agent/llm'
 import type { LlmClient } from './agent/llm'
-import { createChatGptWebLlmClient } from './chatgpt-web/client'
 import { CHATGPT_WEB_PROVIDER_ID, getChatGptWebModelRefs } from './chatgpt-web/model-catalog'
 import type { ChatGptWebManager } from './chatgpt-web/manager'
 import { decidePermission } from './agent/permission'
@@ -38,7 +37,7 @@ import type { ToolDefinition } from './agent/tools/types'
 import type { NotificationService } from './notification-service'
 
 function defaultCreateChatGptWebLlmClient(manager: ChatGptWebManager): LlmClient {
-  return createChatGptWebLlmClient(manager.getSessionStore())
+  return manager.createLlmClient()
 }
 
 export interface MeowAgentManagerDeps {
