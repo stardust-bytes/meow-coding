@@ -103,6 +103,7 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
     revert: 'allow',
     skill: 'allow',
     bash: 'ask',
+    office: 'ask',
     question: 'allow'
   },
   mcp: {},

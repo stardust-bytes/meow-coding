@@ -71,7 +71,8 @@ class MainApp {
     chatGptWeb: this.chatGptWeb,
     tools: createDefaultTools({
       getUserSkillsDir: () => path.join(app.getPath('userData'), 'skills'),
-      getBuiltinSkillsDir: () => this.builtinSkillsDir
+      getBuiltinSkillsDir: () => this.builtinSkillsDir,
+      getUserDataDir: () => app.getPath('userData')
     }),
     userSkillsDir: path.join(app.getPath('userData'), 'skills'),
     userToolsDir: path.join(app.getPath('userData'), 'tools'),
