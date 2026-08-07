@@ -696,4 +696,16 @@ describe('MeowAgentManager', () => {
     const refs = manager.getProviderModels()
     expect(refs).toContainEqual({ provider: CHATGPT_WEB_PROVIDER_ID, model: 'high' })
   })
+
+  it('getAgentModel resolves a chatgpt-web agent instead of returning null', async () => {
+    const fakeClient: LlmClient = { async *stream() { yield { kind: 'finish' } } }
+    const createChatGptWebLlmClient = vi.fn(() => fakeClient)
+    const chatGptWeb = new ChatGptWebManager('/tmp/chatgpt-web-test-does-not-need-to-exist-for-this-fake')
+    const { manager } = await makeManager({ chatGptWeb, createChatGptWebLlmClient })
+    manager.addAgent({
+      id: 'a4', name: 'chatgpt', templateId: 'meow', cwd: '/proj', kind: 'native',
+      model: `${CHATGPT_WEB_PROVIDER_ID}/high`
+    })
+    expect(manager.getAgentModel('a4')).toEqual({ provider: CHATGPT_WEB_PROVIDER_ID, model: 'high' })
+  })
 })
