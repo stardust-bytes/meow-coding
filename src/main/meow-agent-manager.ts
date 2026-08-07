@@ -9,6 +9,9 @@ import {
 import { SessionRunner } from './agent/loop'
 import { createLlm } from './agent/llm'
 import type { LlmClient } from './agent/llm'
+import { createChatGptWebLlmClient } from './chatgpt-web/client'
+import { CHATGPT_WEB_PROVIDER_ID, getChatGptWebModelRefs } from './chatgpt-web/model-catalog'
+import type { ChatGptWebManager } from './chatgpt-web/manager'
 import { decidePermission } from './agent/permission'
 import { SessionStore } from './agent/session'
 import type { SessionSummary, StoredSession } from './agent/session'
@@ -34,11 +37,17 @@ import { createTaskTool } from './agent/tools/task'
 import type { ToolDefinition } from './agent/tools/types'
 import type { NotificationService } from './notification-service'
 
+function defaultCreateChatGptWebLlmClient(manager: ChatGptWebManager): LlmClient {
+  return createChatGptWebLlmClient(manager.getSessionStore())
+}
+
 export interface MeowAgentManagerDeps {
   configPath: string
   store: SessionStore
   tools: Map<string, ToolDefinition>
   createLlm?: (provider: string, apiKey: string, baseUrl?: string) => LlmClient
+  chatGptWeb?: ChatGptWebManager
+  createChatGptWebLlmClient?: (manager: ChatGptWebManager) => LlmClient
   env?: NodeJS.ProcessEnv
   userSkillsDir?: string
   userToolsDir?: string
@@ -476,6 +485,7 @@ export class MeowAgentManager {
     for (const [provider, p] of Object.entries(cfg.provider)) {
       for (const model of p.models) refs.push({ provider, model })
     }
+    refs.push(...(this.deps.chatGptWeb?.getModelRefsIfActive() ?? []))
     return refs
   }
 
@@ -660,6 +670,16 @@ export class MeowAgentManager {
     this.agents.set(agent.id, agent)
     if (this.runners.has(agent.id)) return
     const cfg = loadMeowConfig(this.deps.configPath)
+    // The chatgpt-web "provider" is a browser-driven session, not an API-key
+    // entry a user configures in meow.json. Seed a synthetic provider entry so
+    // resolveAgentConfig's generic provider/model lookup resolves it like any
+    // other provider, without requiring changes to agent/config.ts.
+    if (this.deps.chatGptWeb && !cfg.provider[CHATGPT_WEB_PROVIDER_ID]) {
+      cfg.provider[CHATGPT_WEB_PROVIDER_ID] = {
+        apiKey: CHATGPT_WEB_PROVIDER_ID,
+        models: getChatGptWebModelRefs().map(r => r.model)
+      }
+    }
     const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env, agent.model)
     this.resolved.set(agent.id, resolved)
     const modelLimit = resolved.provider && resolved.model
@@ -670,7 +690,9 @@ export class MeowAgentManager {
     // AGENTS.md contents are attached per-file on read (loop.ts); the system
     // prompt only points the model at them instead of inlining everything.
     const instructions = INSTRUCTION_POINTER
-    const llmClient = (this.deps.createLlm ?? createLlm)(resolved.provider, resolved.apiKey ?? '', resolved.baseUrl)
+    const llmClient = resolved.provider === CHATGPT_WEB_PROVIDER_ID
+      ? (this.deps.createChatGptWebLlmClient ?? defaultCreateChatGptWebLlmClient)(this.deps.chatGptWeb as ChatGptWebManager)
+      : (this.deps.createLlm ?? createLlm)(resolved.provider, resolved.apiKey ?? '', resolved.baseUrl)
     const taskTool = createTaskTool({
       llm: llmClient,
       model: resolved.model,

@@ -41,4 +41,8 @@ export class ChatGptWebManager {
     const status = this.getStatus()
     return status.enabled && status.loggedIn ? getChatGptWebModelRefs() : []
   }
+
+  getSessionStore(): ChatGptWebSessionStore {
+    return this.store
+  }
 }

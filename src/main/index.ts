@@ -63,6 +63,7 @@ class MainApp {
   meowAgent = new MeowAgentManager({
     configPath: path.join(app.getPath('userData'), 'meow.json'),
     store: new SessionStore(createJsonStore<StoredSession>(path.join(app.getPath('userData'), 'sessions.json'))),
+    chatGptWeb: this.chatGptWeb,
     tools: createDefaultTools({
       getUserSkillsDir: () => path.join(app.getPath('userData'), 'skills'),
       getBuiltinSkillsDir: () => this.builtinSkillsDir

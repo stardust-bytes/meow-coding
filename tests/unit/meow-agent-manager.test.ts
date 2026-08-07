@@ -3,6 +3,9 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { MeowAgentManager } from '../../src/main/meow-agent-manager'
+import type { MeowAgentManagerDeps } from '../../src/main/meow-agent-manager'
+import { CHATGPT_WEB_PROVIDER_ID } from '../../src/main/chatgpt-web/model-catalog'
+import { ChatGptWebManager } from '../../src/main/chatgpt-web/manager'
 import { SessionStore } from '../../src/main/agent/session'
 import type { StoredSession } from '../../src/main/agent/session'
 import type { JsonStore } from '../../src/main/json-store'
@@ -29,7 +32,12 @@ interface StubLlmOptions {
   partsQueue?: LlmStreamPart[][]
 }
 
-async function makeManager(opts: StubLlmOptions & { configPath?: string; catalog?: ModelsCatalog } = {}) {
+async function makeManager(opts: StubLlmOptions & {
+  configPath?: string
+  catalog?: ModelsCatalog
+  chatGptWeb?: MeowAgentManagerDeps['chatGptWeb']
+  createChatGptWebLlmClient?: MeowAgentManagerDeps['createChatGptWebLlmClient']
+} = {}) {
   const cfgDir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-cfg-'))
   const defaultCfg = path.join(cfgDir, 'meow.json')
   if (!opts.configPath) {
@@ -91,7 +99,9 @@ async function makeManager(opts: StubLlmOptions & { configPath?: string; catalog
     truncation: new TruncationStore(path.join(cfgDir, 'truncation')),
     commands: new CommandStore(path.join(cfgDir, 'commands.json')),
     prices: { 'test/test-model': { input: 1, output: 2 } },
-    env: { ANTHROPIC_API_KEY: 'sk-test' } as NodeJS.ProcessEnv
+    env: { ANTHROPIC_API_KEY: 'sk-test' } as NodeJS.ProcessEnv,
+    chatGptWeb: opts.chatGptWeb,
+    createChatGptWebLlmClient: opts.createChatGptWebLlmClient
   })
   manager.setOnEvent(e => events.push(e))
   await manager.init([{ ...MEOW_AGENT }, { ...PTY_AGENT }])
@@ -663,5 +673,27 @@ describe('MeowAgentManager', () => {
     expect(stats.totalCost).toBeGreaterThan(0)
     expect(stats.perModel['test-model']).toBeDefined()
     expect(stats.perSession).toHaveLength(2)
+  })
+
+  it('constructs a ChatGptWebLlmClient instead of createLlm when provider is chatgpt-web', async () => {
+    const fakeClient: LlmClient = { async *stream() { yield { kind: 'finish' } } }
+    const createChatGptWebLlmClient = vi.fn(() => fakeClient)
+    const chatGptWeb = new ChatGptWebManager('/tmp/chatgpt-web-test-does-not-need-to-exist-for-this-fake')
+    const { manager, createLlm } = await makeManager({ chatGptWeb, createChatGptWebLlmClient })
+    createLlm.mockClear()
+    manager.addAgent({
+      id: 'a3', name: 'chatgpt', templateId: 'meow', cwd: '/proj', kind: 'native',
+      model: `${CHATGPT_WEB_PROVIDER_ID}/high`
+    })
+    expect(createChatGptWebLlmClient).toHaveBeenCalledTimes(1)
+    expect(createLlm).not.toHaveBeenCalled()
+  })
+
+  it('includes chatgpt-web models in getProviderModels when the provider is enabled and logged in', async () => {
+    const chatGptWeb = new ChatGptWebManager('/tmp/chatgpt-web-test-does-not-need-to-exist-for-this-fake')
+    vi.spyOn(chatGptWeb, 'getModelRefsIfActive').mockReturnValue([{ provider: CHATGPT_WEB_PROVIDER_ID, model: 'high' }])
+    const { manager } = await makeManager({ chatGptWeb })
+    const refs = manager.getProviderModels()
+    expect(refs).toContainEqual({ provider: CHATGPT_WEB_PROVIDER_ID, model: 'high' })
   })
 })
