@@ -8,6 +8,7 @@ import PaneGrid from './components/PaneGrid'
 import EmptyState from './components/EmptyState'
 import StatusBar from './components/StatusBar'
 import TitleBar from './components/TitleBar'
+import SettingsDialog from './components/settings/SettingsDialog'
 
 export interface PaneModel {
   agent: AgentConfig
@@ -18,6 +19,7 @@ export interface PaneModel {
 export default function App() {
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
   const [templates, setTemplates] = useState<Template[]>([])
+  const [showSettings, setShowSettings] = useState(false)
   const [runtime, setRuntime] = useState<WorkspaceRuntime | null>(null)
   const [backgrounds, setBackgrounds] = useState<Record<string, boolean>>({})
   const termsRef = useRef<Map<string, Terminal>>(new Map())
@@ -128,7 +130,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <TitleBar />
+      <TitleBar onOpenSettings={() => setShowSettings(true)} />
       <div className="app-body">
         <Sidebar
           workspaces={workspaces}
@@ -137,7 +139,6 @@ export default function App() {
           onOpen={openWorkspace}
           onRemove={removeWorkspace}
           onRefresh={refreshWorkspaces}
-          onTemplatesChange={setTemplates}
         />
         <main className="main">
           {panes.length > 0 ? (
@@ -158,6 +159,14 @@ export default function App() {
         git={runtime?.git ?? null}
         agents={runtime?.agents ?? []}
       />
+      {showSettings && (
+        <SettingsDialog
+          onClose={() => setShowSettings(false)}
+          projectPath={runtime?.workspace.projectPath ?? undefined}
+          templates={templates}
+          onTemplatesChange={setTemplates}
+        />
+      )}
     </div>
   )
 }

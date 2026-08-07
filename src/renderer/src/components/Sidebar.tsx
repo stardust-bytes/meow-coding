@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react'
 import type { NewAgentInput, Template, WorkspaceSummary } from '@shared/types'
 import AddProjectDialog from './AddProjectDialog'
 import AddAgentDialog from './AddAgentDialog'
-import TemplatesPanel from './TemplatesPanel'
-import SettingsDialog from './settings/SettingsDialog'
 
 function MoreIcon() {
   return (
@@ -22,17 +20,13 @@ interface Props {
   onOpen: (path: string) => void
   onRemove: (path: string) => void
   onRefresh: () => void
-  onTemplatesChange: (templates: Template[]) => void
 }
 
 export default function Sidebar({
-  workspaces, templates, activePath, onOpen, onRemove, onRefresh, onTemplatesChange
+  workspaces, templates, activePath, onOpen, onRemove, onRefresh
 }: Props) {
   const [showAddProject, setShowAddProject] = useState(false)
   const [addAgentPath, setAddAgentPath] = useState<string | null>(null)
-  const [showTemplates, setShowTemplates] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
   const [openProjectMenu, setOpenProjectMenu] = useState<string | null>(null)
   const [projectMenuPos, setProjectMenuPos] = useState<{ x: number; y: number } | null>(null)
   const [error, setError] = useState('')
@@ -40,15 +34,13 @@ export default function Sidebar({
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       const target = e.target as Node
-      if (!(target instanceof Element) || !target.closest('.sidebar-menu, .project-menu')) {
-        setMenuOpen(false)
+      if (!(target instanceof Element) || !target.closest('.project-menu')) {
         setOpenProjectMenu(null)
         setProjectMenuPos(null)
       }
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setMenuOpen(false)
         setOpenProjectMenu(null)
         setProjectMenuPos(null)
       }
@@ -60,8 +52,6 @@ export default function Sidebar({
       document.removeEventListener('keydown', onKey)
     }
   }, [])
-
-  const closeMenu = () => setMenuOpen(false)
 
   const handleAddProject = async (projectPath: string, name: string) => {
     try {
@@ -92,18 +82,7 @@ export default function Sidebar({
       {error && <div className="sidebar-error">{error}</div>}
       <div className="panel-head sidebar-head">
         <span className="panel-title">Projects</span>
-        <div className="sidebar-menu">
-          <button className="btn ghost small" title="menu" aria-label="menu" onClick={() => setMenuOpen(v => !v)}>
-            <span className="btn-icon"><MoreIcon /></span>
-          </button>
-          {menuOpen && (
-            <div className="sidebar-menu-dropdown">
-              <button className="menu-item" onClick={() => { closeMenu(); setShowAddProject(true) }}>Add project</button>
-              <button className="menu-item" onClick={() => { closeMenu(); setShowTemplates(v => !v) }}>Templates</button>
-              <button className="menu-item" onClick={() => { closeMenu(); setShowSettings(true) }}>Settings</button>
-            </div>
-          )}
-        </div>
+        <button className="btn ghost small" onClick={() => setShowAddProject(true)}>Add Project</button>
       </div>
       <ul className="project-list">
         {workspaces.map(ws => (
@@ -173,7 +152,6 @@ export default function Sidebar({
           </li>
         ))}
       </ul>
-      {showTemplates && <TemplatesPanel templates={templates} onChange={onTemplatesChange} />}
       {showAddProject && (
         <AddProjectDialog onAdd={(p, n) => void handleAddProject(p, n)} onClose={() => setShowAddProject(false)} />
       )}
@@ -185,7 +163,6 @@ export default function Sidebar({
           onClose={() => setAddAgentPath(null)}
         />
       )}
-      {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} projectPath={activePath ?? undefined} />}
     </aside>
   )
 }

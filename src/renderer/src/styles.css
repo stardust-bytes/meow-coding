@@ -82,6 +82,17 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .title-bar-darwin .title-bar-brand { padding-left: 74px; }
 .title-bar-logo { width: 16px; height: 16px; flex: none; }
 .title-bar-title { font-size: var(--fs-base); color: var(--text); white-space: nowrap; }
+.title-bar-toolbar-btn {
+  -webkit-app-region: no-drag;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  padding: 2px 8px;
+  margin-left: 8px;
+  cursor: pointer;
+}
+.title-bar-toolbar-btn:hover { color: var(--text-strong); background: var(--bg-hover); }
 .title-bar-controls { display: flex; height: 100%; -webkit-app-region: no-drag; }
 .title-bar-btn {
   width: 46px; height: 100%; display: flex; align-items: center; justify-content: center;
@@ -274,7 +285,6 @@ select.input { width: 100%; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 6px; }
 
 /* Templates panel */
-.templates-panel { border-top: 1px solid var(--hairline); padding-top: 8px; display: flex; flex-direction: column; gap: 6px; }
 .template-form { display: flex; flex-direction: column; gap: 4px; }
 .template-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .template-list li { display: flex; align-items: center; gap: 6px; font-size: var(--fs-md); }

@@ -89,8 +89,7 @@ test('settings screen connects a provider and syncs models', async () => {
     })
     const window = await app.firstWindow()
     try {
-      await window.getByRole('button', { name: 'menu' }).click()
-      await window.getByRole('button', { name: 'settings' }).click()
+      await window.getByRole('button', { name: /settings/i }).click()
       await expect(window.locator('.settings-dialog')).toBeVisible()
       await expect(window.locator('.settings-nav-item', { hasText: 'Providers' })).toBeVisible()
 
