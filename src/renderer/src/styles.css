@@ -124,13 +124,27 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   display: flex; align-items: center; gap: 6px;
   padding: 3px 8px; cursor: pointer; font-size: var(--fs-md);
 }
+.project-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.project-path {
+  color: var(--text-faint);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .project-row:hover { background: var(--bg-hover); }
 .project-list li.active .project-row {
   background: var(--bg-active);
   box-shadow: inset 2px 0 0 var(--accent);
 }
 .project-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
-.project-count { color: var(--text-dim); font-size: var(--fs-md); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.project-count { color: var(--text-dim); font-size: var(--fs-md); font-family: var(--font-mono); font-variant-numeric: tabular-nums; align-self: flex-start; margin-top: 2px; }
 .sidebar-error { color: var(--red); font-size: var(--fs-md); padding: 4px 8px; }
 
 /* Buttons & inputs */

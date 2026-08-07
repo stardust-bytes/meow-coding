@@ -117,7 +117,10 @@ export default function Sidebar({
                 setOpenProjectMenu(ws.projectPath)
               }}
             >
-              <span className="project-name">{ws.name}</span>
+              <div className="project-info">
+                <span className="project-name">{ws.name}</span>
+                <span className="project-path" title={ws.projectPath}>{ws.projectPath}</span>
+              </div>
               <span className="project-count">{ws.agentCount}</span>
               <div className="project-menu" onClick={e => e.stopPropagation()}>
                 <button
