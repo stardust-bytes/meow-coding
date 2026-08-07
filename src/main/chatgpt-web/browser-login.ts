@@ -58,7 +58,7 @@ export async function loginToChatGptWeb(
     const { writeFileSync, mkdirSync } = await import('node:fs')
     const path = await import('node:path')
     mkdirSync(path.dirname(store.storageStatePath()), { recursive: true })
-    writeFileSync(store.storageStatePath(), JSON.stringify(state, null, 2))
+    writeFileSync(store.storageStatePath(), JSON.stringify(state, null, 2), { mode: 0o600 })
 
     const marker = { authenticated: true, verifiedAt: new Date().toISOString() }
     store.writeVerifiedMarker(marker)
