@@ -40,7 +40,7 @@ export function createDefaultTools(opts: DefaultToolsOptions = {}): Map<string, 
   const userDataDir = opts.getUserDataDir?.()
   if (userDataDir) {
     const binary = new OfficeCliBinary({ userDataDir })
-    tools.push(createOfficeTool({ resolveBinary: () => binary.resolveBinaryPath() }))
+    tools.push(createOfficeTool({ resolveBinary: signal => binary.resolveBinaryPath(signal) }))
   }
   return new Map(tools.map(t => [t.name, t]))
 }

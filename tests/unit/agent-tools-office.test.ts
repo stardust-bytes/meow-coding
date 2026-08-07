@@ -48,11 +48,11 @@ describe('buildOfficeArgs', () => {
 })
 
 describe('office tool', () => {
-  it('spawns the resolved binary with args in ctx.cwd and returns stdout', async () => {
-    let spawnCall: { bin: string; args: string[]; opts: { cwd: string } } | undefined
+  it('spawns the resolved binary with args in ctx.cwd, disables auto-update and returns stdout', async () => {
+    let spawnCall: { bin: string; args: string[]; opts: { cwd: string; env: Record<string, string> } } | undefined
     const tool = createOfficeTool({
       resolveBinary: async () => '/fake/officecli',
-      spawnFn: ((bin: string, args: string[], opts: { cwd: string }) => {
+      spawnFn: ((bin: string, args: string[], opts: { cwd: string; env: Record<string, string> }) => {
         spawnCall = { bin, args, opts }
         return fakeChild({ stdout: '{"success":true}' })
       }) as never
@@ -62,6 +62,35 @@ describe('office tool', () => {
     expect(spawnCall?.bin).toBe('/fake/officecli')
     expect(spawnCall?.args).toEqual(['create', 'deck.pptx', '--json'])
     expect(spawnCall?.opts.cwd).toBe(dir)
+    expect(spawnCall?.opts.env.OFFICECLI_SKIP_UPDATE).toBe('1')
+  })
+
+  it('passes the abort signal through to resolveBinary', async () => {
+    let gotSignal: AbortSignal | undefined
+    const ac = new AbortController()
+    const tool = createOfficeTool({
+      resolveBinary: (signal) => {
+        gotSignal = signal
+        return Promise.resolve('officecli')
+      },
+      spawnFn: (() => fakeChild({ stdout: 'ok' })) as never
+    })
+    const c = ctx()
+    c.signal = ac.signal
+    const r = await tool.run({ args: ['create', 'x.pptx'] }, c)
+    expect(r.output).toBe('ok')
+    expect(gotSignal).toBe(ac.signal)
+  })
+
+  it('prepends a [meow] note when falling back from a missing cwd', async () => {
+    const tool = createOfficeTool({
+      resolveBinary: async () => 'officecli',
+      spawnFn: (() => fakeChild({ stdout: 'out' })) as never
+    })
+    const c = ctx()
+    c.cwd = path.join(c.cwd, 'does-not-exist')
+    const r = await tool.run({ args: ['create', 'x.pptx'] }, c)
+    expect(r.output).toMatch(/\[meow\] working dir/)
   })
 
   it('reports a nonzero exit with stdout and stderr', async () => {

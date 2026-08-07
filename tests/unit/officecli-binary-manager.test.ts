@@ -1,6 +1,6 @@
-import { describe, expect, it, afterEach } from 'vitest'
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import { createHash } from 'node:crypto'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import {
@@ -11,12 +11,20 @@ import {
   type FetchedResponse
 } from '../../src/main/officecli/binary-manager'
 
+const { spawnSyncMock } = vi.hoisted(() => ({ spawnSyncMock: vi.fn() }))
+vi.mock('node:child_process', () => ({ spawnSync: spawnSyncMock }))
+
 let dir = ''
 
 function makeDir(): string {
   dir = mkdtempSync(path.join(tmpdir(), 'meow-officecli-'))
   return dir
 }
+
+beforeEach(() => {
+  spawnSyncMock.mockReset()
+  spawnSyncMock.mockReturnValue({ status: 0 })
+})
 
 afterEach(() => {
   if (dir) {
@@ -48,6 +56,9 @@ const VERSION_URL = 'https://d.officecli.ai/releases/latest'
 const ASSET_NAME = 'officecli-win-x64.exe'
 const ASSET_URL = `https://d.officecli.ai/releases/download/v1.2.3/${ASSET_NAME}`
 const SUMS_URL = `https://d.officecli.ai/releases/download/v1.2.3/SHA256SUMS`
+const GITHUB_VERSION_URL = 'https://github.com/iOfficeAI/OfficeCLI/releases/latest'
+const GITHUB_ASSET_URL = `https://github.com/iOfficeAI/OfficeCLI/releases/download/v1.2.3/${ASSET_NAME}`
+const GITHUB_SUMS_URL = `https://github.com/iOfficeAI/OfficeCLI/releases/download/v1.2.3/SHA256SUMS`
 const BINARY_BYTES = Buffer.from('fake-officecli-binary')
 const SUMS_LINE = (bytes: Buffer, name: string) => {
   const hex = createHash('sha256').update(bytes).digest('hex')
@@ -114,7 +125,7 @@ describe('OfficeCliBinary.resolveBinaryPath', () => {
     expect(await bin.resolveBinaryPath()).toBe(localPath)
   })
 
-  it('downloads, verifies checksum and writes the binary', async () => {
+  it('downloads, verifies checksum, smoke-tests and writes the binary', async () => {
     const dir = makeDir()
     const fetchFn = makeFetch({
       [VERSION_URL]: () => res('https://d.officecli.ai/releases/tag/v1.2.3', ''),
@@ -127,6 +138,7 @@ describe('OfficeCliBinary.resolveBinaryPath', () => {
     expect(resolved).toBe(localPath)
     expect(existsSync(localPath)).toBe(true)
     expect(readFileSync(localPath)).toEqual(BINARY_BYTES)
+    expect(spawnSyncMock).toHaveBeenCalledWith(localPath, ['--version'], expect.objectContaining({ timeout: 10_000 }))
   })
 
   it('throws and keeps no binary when checksum mismatches', async () => {
@@ -137,8 +149,87 @@ describe('OfficeCliBinary.resolveBinaryPath', () => {
       [SUMS_URL]: () => res(SUMS_URL, '0000000000000000000000000000000000000000000000000000000000000000  officecli-win-x64.exe\n')
     })
     const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', fetchFn })
-    await expect(bin.resolveBinaryPath()).rejects.toThrow()
+    await expect(bin.resolveBinaryPath()).rejects.toThrow(/checksum mismatch/)
     expect(existsSync(path.join(dir, 'officecli', 'officecli.exe'))).toBe(false)
+  })
+
+  it('fails closed when SHA256SUMS is fetched OK but does not list the asset', async () => {
+    const dir = makeDir()
+    const fetchFn = makeFetch({
+      [VERSION_URL]: () => res('https://d.officecli.ai/releases/tag/v1.2.3', ''),
+      [ASSET_URL]: () => res(ASSET_URL, BINARY_BYTES),
+      [SUMS_URL]: () => res(SUMS_URL, SUMS_LINE(BINARY_BYTES, 'some-other-file.txt'))
+    })
+    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', fetchFn })
+    await expect(bin.resolveBinaryPath()).rejects.toThrow(/checksum file does not list officecli-win-x64\.exe/)
+    expect(existsSync(path.join(dir, 'officecli', 'officecli.exe'))).toBe(false)
+  })
+
+  it('matches SHA256SUMS lines with a coreutils binary-mode prefix', async () => {
+    const dir = makeDir()
+    const hex = createHash('sha256').update(BINARY_BYTES).digest('hex')
+    const fetchFn = makeFetch({
+      [VERSION_URL]: () => res('https://d.officecli.ai/releases/tag/v1.2.3', ''),
+      [ASSET_URL]: () => res(ASSET_URL, BINARY_BYTES),
+      [SUMS_URL]: () => res(SUMS_URL, `${hex}  *${ASSET_NAME}\n`)
+    })
+    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', fetchFn })
+    const localPath = path.join(dir, 'officecli', 'officecli.exe')
+    expect(await bin.resolveBinaryPath()).toBe(localPath)
+    expect(existsSync(localPath)).toBe(true)
+  })
+
+  it('skips checksum verification when SHA256SUMS is unavailable', async () => {
+    const dir = makeDir()
+    const fetchFn = makeFetch({
+      [VERSION_URL]: () => res('https://d.officecli.ai/releases/tag/v1.2.3', ''),
+      [ASSET_URL]: () => res(ASSET_URL, BINARY_BYTES),
+      [SUMS_URL]: () => res(SUMS_URL, 'unreachable', false, 404)
+    })
+    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', fetchFn })
+    const localPath = path.join(dir, 'officecli', 'officecli.exe')
+    expect(await bin.resolveBinaryPath()).toBe(localPath)
+    expect(existsSync(localPath)).toBe(true)
+  })
+
+  it('falls back from the mirror to GitHub when the mirror base is unavailable', async () => {
+    const dir = makeDir()
+    const fetchFn = makeFetch({
+      [GITHUB_VERSION_URL]: () => res('https://github.com/iOfficeAI/OfficeCLI/releases/tag/v1.2.3', ''),
+      [GITHUB_ASSET_URL]: () => res(GITHUB_ASSET_URL, BINARY_BYTES),
+      [GITHUB_SUMS_URL]: () => res(GITHUB_SUMS_URL, SUMS_LINE(BINARY_BYTES, ASSET_NAME))
+    })
+    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', fetchFn })
+    const localPath = path.join(dir, 'officecli', 'officecli.exe')
+    expect(await bin.resolveBinaryPath()).toBe(localPath)
+    expect(existsSync(localPath)).toBe(true)
+  })
+
+  it('deletes the binary and rejects when the downloaded binary fails the smoke test', async () => {
+    const dir = makeDir()
+    spawnSyncMock.mockReturnValueOnce({ status: 1 })
+    const fetchFn = makeFetch({
+      [VERSION_URL]: () => res('https://d.officecli.ai/releases/tag/v1.2.3', ''),
+      [ASSET_URL]: () => res(ASSET_URL, BINARY_BYTES),
+      [SUMS_URL]: () => res(SUMS_URL, SUMS_LINE(BINARY_BYTES, ASSET_NAME))
+    })
+    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', fetchFn })
+    await expect(bin.resolveBinaryPath()).rejects.toThrow(/downloaded binary failed smoke test/)
+    const binDir = path.join(dir, 'officecli')
+    expect(existsSync(binDir)).toBe(true)
+    expect(readdirSync(binDir)).toEqual([])
+  })
+
+  it('propagates an aborted caller signal as a rejection', async () => {
+    const dir = makeDir()
+    const ac = new AbortController()
+    ac.abort()
+    const fetchFn = async (_url: string, init?: { signal?: AbortSignal }) => {
+      init?.signal?.throwIfAborted()
+      throw new Error('unreachable')
+    }
+    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', fetchFn })
+    await expect(bin.resolveBinaryPath(ac.signal)).rejects.toThrow(/aborted/)
   })
 
   it('fails when no version can be resolved', async () => {

@@ -1,13 +1,12 @@
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
-import path from 'node:path'
 import kill from 'tree-kill'
 import { z } from 'zod'
 import type { ToolDefinition, ToolRunResult } from './types'
 
 export interface OfficeToolDeps {
-  resolveBinary: () => Promise<string>
+  resolveBinary: (signal?: AbortSignal) => Promise<string>
   spawnFn?: typeof spawn
 }
 
@@ -37,9 +36,13 @@ export function createOfficeTool(deps: OfficeToolDeps): ToolDefinition {
       }
       const argv = buildOfficeArgs(args)
       const fallbackCwd = existsSync(ctx.cwd) ? ctx.cwd : homedir()
+      const usedFallback = fallbackCwd !== ctx.cwd
+      const note = usedFallback
+        ? `[meow] working dir "${ctx.cwd}" khong ton tai, chay tu "${fallbackCwd}".\n`
+        : ''
       let binary: string
       try {
-        binary = await deps.resolveBinary()
+        binary = await deps.resolveBinary(ctx.signal)
       } catch (err) {
         return {
           error:
@@ -52,7 +55,7 @@ export function createOfficeTool(deps: OfficeToolDeps): ToolDefinition {
       return new Promise<ToolRunResult>(resolve => {
         const child = spawnFn(binary, argv, {
           cwd: fallbackCwd,
-          env: process.env as Record<string, string>,
+          env: { ...(process.env as Record<string, string>), OFFICECLI_SKIP_UPDATE: '1' },
           windowsHide: true
         })
         let stdout = ''
@@ -88,8 +91,8 @@ export function createOfficeTool(deps: OfficeToolDeps): ToolDefinition {
           if (timedOut) return
           const output = (stdout + (stderr ? '\n[stderr]\n' + stderr : '')).trim()
           const body = output || '(no output)'
-          if (code === 0) return done({ output: body })
-          done({ error: `office: exit code ${code}\n${body}` })
+          if (code === 0) return done({ output: note + body })
+          done({ error: `office: exit code ${code}\n${note}${output}` })
         })
       })
     }
