@@ -27,7 +27,7 @@
 **Interfaces:**
 - Produces: `playwright-core` importable from any file in `src/main/chatgpt-web/`.
 
-- [ ] **Step 1: Add the dependency**
+- [x] **Step 1: Add the dependency**
 
 In `package.json`, inside `"dependencies"` (alphabetical position, next to `"marked"` / before `"react"` — match existing sort order), add:
 
@@ -35,12 +35,12 @@ In `package.json`, inside `"dependencies"` (alphabetical position, next to `"mar
     "playwright-core": "^1.62.0",
 ```
 
-- [ ] **Step 2: Install**
+- [x] **Step 2: Install**
 
 Run: `npm install`
 Expected: lockfile updates, no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add package.json package-lock.json
@@ -63,7 +63,7 @@ git commit -m "chore: add playwright-core dependency for chatgpt-web provider"
   - `export function getChatGptWebModelRefs(): ModelRef[]`
   - `export function resolveChatGptWebEffort(model: string): ChatGptWebEffortLevel | null`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // tests/unit/chatgpt-web-model-catalog.test.ts
@@ -98,12 +98,12 @@ describe('chatgpt-web model catalog', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/unit/chatgpt-web-model-catalog.test.ts`
 Expected: FAIL — module `src/main/chatgpt-web/model-catalog` not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```typescript
 // src/main/chatgpt-web/model-catalog.ts
@@ -137,12 +137,12 @@ export function resolveChatGptWebEffort(model: string): ChatGptWebEffortLevel | 
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run tests/unit/chatgpt-web-model-catalog.test.ts`
 Expected: PASS (4 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/chatgpt-web/model-catalog.ts tests/unit/chatgpt-web-model-catalog.test.ts
@@ -165,7 +165,7 @@ git commit -m "feat: add chatgpt-web model/effort catalog"
   - `export class ChatGptWebSessionStore { constructor(dir: string); loadConfig(): ChatGptWebConfig; saveConfig(cfg: ChatGptWebConfig): void; storageStatePath(): string; readVerifiedMarker(): ChatGptWebVerifiedMarker | null; writeVerifiedMarker(m: ChatGptWebVerifiedMarker): void; clearSession(): void }`
   - Used by Task 10 (`manager.ts`) and Task 7/8 (browser worker/login need `storageStatePath()`).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // tests/unit/chatgpt-web-session-store.test.ts
@@ -219,12 +219,12 @@ describe('ChatGptWebSessionStore', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/unit/chatgpt-web-session-store.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```typescript
 // src/main/chatgpt-web/session-store.ts
@@ -295,12 +295,12 @@ export class ChatGptWebSessionStore {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run tests/unit/chatgpt-web-session-store.test.ts`
 Expected: PASS (6 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/chatgpt-web/session-store.ts tests/unit/chatgpt-web-session-store.test.ts
@@ -319,7 +319,7 @@ git commit -m "feat: add chatgpt-web session store (config + storage-state paths
 - Consumes: `LlmStreamOptions` from `src/main/agent/llm.ts` (already defined: `{ model, system, messages, tools, signal?, variantOptions? }`), `ToolDefinition` from `src/main/agent/tools/types`.
 - Produces: `export const CHATGPT_WEB_TOOL_CALL_FENCE = 'tool_call'`, `export function compileChatGptWebPrompt(opts: Pick<LlmStreamOptions, 'system' | 'messages' | 'tools'>): string`. Used by Task 9 (`client.ts`).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // tests/unit/chatgpt-web-prompt.test.ts
@@ -364,12 +364,12 @@ describe('compileChatGptWebPrompt', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/unit/chatgpt-web-prompt.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```typescript
 // src/main/chatgpt-web/prompt.ts
@@ -422,12 +422,12 @@ export function compileChatGptWebPrompt(opts: PromptInput): string {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run tests/unit/chatgpt-web-prompt.test.ts`
 Expected: PASS (4 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/chatgpt-web/prompt.ts tests/unit/chatgpt-web-prompt.test.ts
@@ -446,7 +446,7 @@ git commit -m "feat: add chatgpt-web prompt compiler with tool_call protocol"
 - Consumes: `LlmStreamPart` from `src/main/agent/llm.ts`, `CHATGPT_WEB_TOOL_CALL_FENCE` from Task 4.
 - Produces: `export function parseChatGptWebResponse(markdown: string): LlmStreamPart[]`. Used by Task 9 (`client.ts`).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // tests/unit/chatgpt-web-response-parser.test.ts
@@ -501,12 +501,12 @@ describe('parseChatGptWebResponse', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/unit/chatgpt-web-response-parser.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```typescript
 // src/main/chatgpt-web/response-parser.ts
@@ -558,12 +558,12 @@ export function parseChatGptWebResponse(markdown: string): LlmStreamPart[] {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run tests/unit/chatgpt-web-response-parser.test.ts`
 Expected: PASS (5 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/chatgpt-web/response-parser.ts tests/unit/chatgpt-web-response-parser.test.ts
@@ -586,7 +586,7 @@ git commit -m "feat: add chatgpt-web response parser (text + tool_call blocks)"
   - `export function isChatGptWebRateLimitDialog(dialogText: string): boolean`
   - Used by Task 7 (`browser-worker.ts`).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // tests/unit/chatgpt-web-turn-state.test.ts
@@ -644,12 +644,12 @@ describe('isChatGptWebRateLimitDialog', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/unit/chatgpt-web-turn-state.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```typescript
 // src/main/chatgpt-web/turn-state.ts
@@ -696,12 +696,12 @@ export function isChatGptWebRateLimitDialog(dialogText: string): boolean {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run tests/unit/chatgpt-web-turn-state.test.ts`
 Expected: PASS (7 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/chatgpt-web/turn-state.ts tests/unit/chatgpt-web-turn-state.test.ts
@@ -727,7 +727,7 @@ git commit -m "feat: add chatgpt-web tab limiter and turn-completion helpers"
 
 **Note on why this plan does not stream token-by-token for this provider:** ChatGPT's answer can contain a `tool_call` fenced block that must not leak into the visible chat transcript as raw JSON while it's still being typed out. Splitting/re-joining that block correctly across partial DOM snapshots is a real source of bugs for very little UX benefit here (this is an experimental, opt-in provider). v1 polls until the turn is complete, then does one parse pass (Task 5) over the full text. This is a deliberate scope cut, not an oversight — revisit only if users report chatgpt-web turns feel too silent.
 
-- [ ] **Step 1: Write the failing test (for the narrow-interface, DOM-independent logic only)**
+- [x] **Step 1: Write the failing test (for the narrow-interface, DOM-independent logic only)**
 
 ```typescript
 // tests/unit/chatgpt-web-browser-worker.test.ts
@@ -793,12 +793,12 @@ describe('runChatGptWebTurn', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/unit/chatgpt-web-browser-worker.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Selectors below are best-effort and MUST be confirmed live before this feature is used end-to-end: open `https://chatgpt.com/?temporary-chat=true` in a real Chrome, sign in, open DevTools → Elements, and inspect (a) the prompt textbox, (b) the send button, (c) the effort/model-picker trigger and its menu items, (d) the stop button, (e) the per-turn "copy" action button, (f) the rate-limit dialog container. Update the `SELECTORS` object below to match what you find — do this as part of running this task, before moving to Task 8.
 
@@ -902,12 +902,12 @@ export function wrapPlaywrightPage(page: import('playwright-core').Page): ChatGp
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run tests/unit/chatgpt-web-browser-worker.test.ts`
 Expected: PASS (3 tests). `wrapPlaywrightPage` is not covered by this test (it needs a real Playwright `Page`); that's expected per the spec's testing plan (§9).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/chatgpt-web/browser-worker.ts tests/unit/chatgpt-web-browser-worker.test.ts
@@ -928,7 +928,7 @@ git commit -m "feat: add chatgpt-web browser worker turn execution"
   - `export function resolveChromeExecutablePath(opts: { override?: string; platform: NodeJS.Platform; exists: (p: string) => boolean }): string | null`
   - `export async function loginToChatGptWeb(store: ChatGptWebSessionStore): Promise<{ authenticated: boolean; verifiedAt: string }>` — not unit tested (opens a real browser); see Task 14 for the manual smoke test.
 
-- [ ] **Step 1: Write the failing test (pure resolver only)**
+- [x] **Step 1: Write the failing test (pure resolver only)**
 
 ```typescript
 // tests/unit/chatgpt-web-browser-login.test.ts
@@ -979,12 +979,12 @@ describe('resolveChromeExecutablePath', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/unit/chatgpt-web-browser-login.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```typescript
 // src/main/chatgpt-web/browser-login.ts
@@ -1059,12 +1059,12 @@ export async function loginToChatGptWeb(
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run tests/unit/chatgpt-web-browser-login.test.ts`
 Expected: PASS (5 tests). `loginToChatGptWeb` is intentionally uncovered here.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/chatgpt-web/browser-login.ts tests/unit/chatgpt-web-browser-login.test.ts
@@ -1083,7 +1083,7 @@ git commit -m "feat: add chatgpt-web manual login flow"
 - Consumes: `LlmClient`, `LlmStreamOptions`, `LlmStreamPart` from `src/main/agent/llm.ts`; `compileChatGptWebPrompt` from Task 4; `parseChatGptWebResponse` from Task 5; `resolveChatGptWebEffort` from Task 2; `runChatGptWebTurn`, `CHATGPT_WEB_TAB_LIMITER` from Task 7; `ChatGptWebSessionStore` from Task 3.
 - Produces: `export function createChatGptWebLlmClient(store: ChatGptWebSessionStore): LlmClient`. Used by Task 12 (`meow-agent-manager.ts`).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // tests/unit/chatgpt-web-client.test.ts
@@ -1129,12 +1129,12 @@ describe('createChatGptWebLlmClient', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/unit/chatgpt-web-client.test.ts`
 Expected: FAIL — module not found (`client.ts` and `createChatGptWebPage` don't exist yet).
 
-- [ ] **Step 3: Add `createChatGptWebPage` to `browser-worker.ts`**
+- [x] **Step 3: Add `createChatGptWebPage` to `browser-worker.ts`**
 
 Append to `src/main/chatgpt-web/browser-worker.ts` (this is the real Playwright context/page setup that `client.ts` needs; it composes pieces already built in Task 7 and 8):
 
@@ -1164,7 +1164,7 @@ export async function createChatGptWebPage(storageStatePath: string, chromeExecu
 }
 ```
 
-- [ ] **Step 4: Implement `client.ts`**
+- [x] **Step 4: Implement `client.ts`**
 
 ```typescript
 // src/main/chatgpt-web/client.ts
@@ -1202,12 +1202,12 @@ export function createChatGptWebLlmClient(store: ChatGptWebSessionStore): LlmCli
 }
 ```
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes**
 
 Run: `npx vitest run tests/unit/chatgpt-web-client.test.ts`
 Expected: PASS (2 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/main/chatgpt-web/browser-worker.ts src/main/chatgpt-web/client.ts tests/unit/chatgpt-web-client.test.ts
@@ -1227,7 +1227,7 @@ git commit -m "feat: add chatgpt-web LlmClient implementation"
 - Produces: `export class ChatGptWebManager { constructor(configDir: string); getStatus(): ChatGptWebStatus; setEnabled(enabled: boolean): ChatGptWebStatus; login(): Promise<ChatGptWebStatus>; logout(): ChatGptWebStatus; getModelRefsIfActive(): ModelRef[] }`. Used by Task 11 (IPC wiring) and Task 12 (`meow-agent-manager.ts`).
 - `ChatGptWebStatus` is defined in Task 11 (`src/shared/types.ts`); this task defines it locally first and Task 11 re-exports the shared one — to avoid a forward dependency, define `ChatGptWebStatus` in `manager.ts` in this task, then Task 11 moves it to `src/shared/types.ts` and updates the import (called out explicitly in Task 11 Step 1).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // tests/unit/chatgpt-web-manager.test.ts
@@ -1284,12 +1284,12 @@ describe('ChatGptWebManager', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/unit/chatgpt-web-manager.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```typescript
 // src/main/chatgpt-web/manager.ts
@@ -1344,12 +1344,12 @@ export class ChatGptWebManager {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run tests/unit/chatgpt-web-manager.test.ts`
 Expected: PASS (5 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/chatgpt-web/manager.ts tests/unit/chatgpt-web-manager.test.ts
@@ -1372,7 +1372,7 @@ git commit -m "feat: add chatgpt-web manager facade (status/enable/login/logout)
 - Consumes: `ChatGptWebManager` from Task 10.
 - Produces: `window.api.getChatGptWebStatus/setChatGptWebEnabled/loginChatGptWeb/logoutChatGptWeb`, `mainApp.chatGptWeb: ChatGptWebManager`. Used by Task 12 and Task 13.
 
-- [ ] **Step 1: Move `ChatGptWebStatus` into shared types**
+- [x] **Step 1: Move `ChatGptWebStatus` into shared types**
 
 In `src/shared/types.ts`, add near `ModelRef`/`CatalogProviderSummary` (around line 239):
 
@@ -1392,7 +1392,7 @@ import type { ChatGptWebStatus, ModelRef } from '../../shared/types'
 
 (remove the now-duplicate `ModelRef` import line if one already exists from Task 10's implementation — keep a single import statement).
 
-- [ ] **Step 2: Add IPC channels**
+- [x] **Step 2: Add IPC channels**
 
 In `src/shared/ipc.ts`, add to the `Channels` object (after `McpStatus`, line 63):
 
@@ -1414,7 +1414,7 @@ Add to the `AgentApi` interface (after `getMcpStatus(): Promise<McpServerStatus[
 
 Add `ChatGptWebStatus` to the type import at the top of `src/shared/ipc.ts` (line 1-5), alphabetically alongside the other imported types from `./types`.
 
-- [ ] **Step 3: Wire preload**
+- [x] **Step 3: Wire preload**
 
 In `src/preload/index.ts`, add `ChatGptWebStatus` to the type import (line 3), and add to the `api` object (after `getMcpStatus`, line 90):
 
@@ -1425,7 +1425,7 @@ In `src/preload/index.ts`, add `ChatGptWebStatus` to the type import (line 3), a
   logoutChatGptWeb: () => ipcRenderer.invoke(Channels.ChatGptWebLogout),
 ```
 
-- [ ] **Step 4: Wire main process**
+- [x] **Step 4: Wire main process**
 
 In `src/main/index.ts`, add the import (alongside the other manager imports near the top):
 
@@ -1448,7 +1448,7 @@ Register the four IPC handlers (near the other `Channels.Provider*`/`Channels.Mc
   ipcMain.handle(Channels.ChatGptWebLogout, () => mainApp.chatGptWeb.logout())
 ```
 
-- [ ] **Step 5: Update the IPC contract test**
+- [x] **Step 5: Update the IPC contract test**
 
 In `tests/unit/ipc-contract.test.ts`:
 - Add `'getChatGptWebStatus', 'setChatGptWebEnabled', 'loginChatGptWeb', 'logoutChatGptWeb'` to the `required` array (Step 1's list, near `getMcpStatus`).
@@ -1470,7 +1470,7 @@ In `tests/unit/ipc-contract.test.ts`:
     expect(Channels.ChatGptWebLogout).toBe('chatgpt-web:logout')
 ```
 
-- [ ] **Step 6: Run the contract test and typecheck**
+- [x] **Step 6: Run the contract test and typecheck**
 
 Run: `npx vitest run tests/unit/ipc-contract.test.ts tests/unit/chatgpt-web-manager.test.ts`
 Expected: PASS (all tests, including the moved `ChatGptWebStatus` type still resolving correctly in Task 10's tests).
@@ -1478,7 +1478,7 @@ Expected: PASS (all tests, including the moved `ChatGptWebStatus` type still res
 Run: `npx tsc -p tsconfig.node.json --noEmit`
 Expected: no errors.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/shared/types.ts src/shared/ipc.ts src/preload/index.ts src/main/index.ts src/main/chatgpt-web/manager.ts tests/unit/ipc-contract.test.ts
@@ -1497,11 +1497,11 @@ git commit -m "feat: wire chatgpt-web status/login/logout IPC channels"
 - Consumes: `ChatGptWebManager` from Task 10, `createChatGptWebLlmClient` from Task 9, `CHATGPT_WEB_PROVIDER_ID` from Task 2.
 - Produces: agents with `model: 'chatgpt-web/<effort>'` resolve to a `ChatGptWebLlmClient`; `getProviderModels()` includes chatgpt-web models when active.
 
-- [ ] **Step 1: Read the existing test file's dependency-injection pattern**
+- [x] **Step 1: Read the existing test file's dependency-injection pattern**
 
 Open `tests/unit/meow-agent-manager.test.ts` and find how `deps.createLlm` is stubbed for existing tests (it's passed into the `MeowAgentManagerDeps` object at manager construction). Follow the exact same pattern for the new `deps.chatGptWeb` / `deps.createChatGptWebLlmClient`.
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Add to `tests/unit/meow-agent-manager.test.ts` (adjust the exact setup helper name/import list to match what the file already uses for constructing a `MeowAgentManager` in other tests in this file):
 
@@ -1533,12 +1533,12 @@ it('includes chatgpt-web models in getProviderModels when the provider is enable
 
 Adjust `makeManager({...})` / `addAgentForTest({...})` to whatever the file's actual existing test-setup helper functions are called — read the file first (Step 1) and match its conventions exactly rather than inventing new helper names.
 
-- [ ] **Step 3: Run tests to verify they fail**
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `npx vitest run tests/unit/meow-agent-manager.test.ts`
 Expected: FAIL — `deps.chatGptWeb`/`deps.createChatGptWebLlmClient` not recognized, or `createLlm` still called.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 In `src/main/meow-agent-manager.ts`:
 
@@ -1605,7 +1605,7 @@ Finally, in `src/main/index.ts` (Task 11 already added `chatGptWeb = new ChatGpt
     chatGptWeb: this.chatGptWeb,
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `npx vitest run tests/unit/meow-agent-manager.test.ts`
 Expected: PASS, including the two new tests and every pre-existing test in the file (anthropic/google/openai-compatible paths unaffected).
@@ -1614,7 +1614,7 @@ Run the full unit suite to confirm no regressions elsewhere:
 Run: `npx vitest run`
 Expected: all tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/main/meow-agent-manager.ts src/main/chatgpt-web/manager.ts src/main/index.ts tests/unit/meow-agent-manager.test.ts
@@ -1634,7 +1634,7 @@ git commit -m "feat: resolve chatgpt-web provider to ChatGptWebLlmClient in agen
 - Consumes: `window.api.getChatGptWebStatus/setChatGptWebEnabled/loginChatGptWeb/logoutChatGptWeb` from Task 11.
 - Produces: a new "ChatGPT Web (Experimental)" tab, fully separate from `ProvidersTab.tsx`, with its own state (not part of the settings draft/save flow — changes apply immediately, matching how session state, not preferences, should behave).
 
-- [ ] **Step 1: Create the tab component**
+- [x] **Step 1: Create the tab component**
 
 ```typescript
 // src/renderer/src/components/settings/ChatGptWebTab.tsx
@@ -1732,7 +1732,7 @@ export default function ChatGptWebTab() {
 }
 ```
 
-- [ ] **Step 2: Wire the tab into `SettingsDialog.tsx`**
+- [x] **Step 2: Wire the tab into `SettingsDialog.tsx`**
 
 In `src/renderer/src/components/settings/SettingsDialog.tsx`:
 
@@ -1760,7 +1760,7 @@ Add the render branch (after the `commands` branch, line 127):
             {tab === 'chatgpt-web' && <ChatGptWebTab />}
 ```
 
-- [ ] **Step 3: Add minimal styles**
+- [x] **Step 3: Add minimal styles**
 
 In `src/renderer/src/styles.css`, add (near the other `.settings-*`/`.provider-*` rules — find that section and append):
 
@@ -1787,12 +1787,12 @@ In `src/renderer/src/styles.css`, add (near the other `.settings-*`/`.provider-*
 
 If `--color-warning-bg`/`--color-warning-border`/`--color-border` custom properties don't already exist in this codebase's theme, check `src/renderer/src/styles.css` for the actual variable names in use nearby and substitute those instead of introducing new ones.
 
-- [ ] **Step 4: Manual verification**
+- [x] **Step 4: Manual verification**
 
 Run: `npm run dev`
 Expected: app launches; open Settings → "ChatGPT Web (Experimental)" tab appears last in the nav; toggling Enable persists across a dialog close/reopen; clicking "Login with ChatGPT" is disabled until enabled. (Do not actually complete a real login yet — that requires Task 14's Chrome setup.)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/renderer/src/components/settings/ChatGptWebTab.tsx src/renderer/src/components/settings/SettingsDialog.tsx src/renderer/src/styles.css
@@ -1810,7 +1810,7 @@ git commit -m "feat: add ChatGPT Web settings tab"
 - Consumes: the whole feature, end to end.
 - Produces: a repeatable manual verification checklist (this mechanism cannot be fully automated — same limitation the reference project documents).
 
-- [ ] **Step 1: Write the smoke-test doc**
+- [x] **Step 1: Write the smoke-test doc**
 
 ```markdown
 <!-- docs/chatgpt-web-smoke-test.md -->
@@ -1875,7 +1875,7 @@ each release that touches this feature.
    Chrome process is spawned by the app at all (check your OS process list).
 ```
 
-- [ ] **Step 2: Run the full automated suite one more time**
+- [x] **Step 2: Run the full automated suite one more time**
 
 Run: `npx vitest run`
 Expected: all tests pass, including every `chatgpt-web-*` test file from Tasks 2-12.
@@ -1883,13 +1883,13 @@ Expected: all tests pass, including every `chatgpt-web-*` test file from Tasks 2
 Run: `npx tsc -p tsconfig.node.json --noEmit && npx tsc -p tsconfig.web.json --noEmit`
 Expected: no type errors in either the main or renderer project.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/chatgpt-web-smoke-test.md
 git commit -m "docs: add chatgpt-web manual smoke-test checklist"
 ```
 
-- [ ] **Step 4: Walk through the manual smoke test yourself**
+- [x] **Step 4: Walk through the manual smoke test yourself**
 
 Follow `docs/chatgpt-web-smoke-test.md` end to end at least once before considering this feature done. Fix any selector drift or bug found, adding a regression test to the relevant pure-logic module where possible (e.g., if a new dialog phrasing needs matching, add a case to `isChatGptWebRateLimitDialog`'s test in Task 6).
