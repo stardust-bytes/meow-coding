@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { NewAgentInput, Template, WorkspaceSummary } from '@shared/types'
 import AddProjectDialog from './AddProjectDialog'
 import AddAgentDialog from './AddAgentDialog'
@@ -34,10 +35,11 @@ export default function Sidebar({
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       const target = e.target as Node
-      if (!(target instanceof Element) || !target.closest('.project-menu')) {
-        setOpenProjectMenu(null)
-        setProjectMenuPos(null)
-      }
+      // Menu may be portaled to <body>, so also ignore clicks inside it.
+      if (target instanceof Element &&
+        (target.closest('.project-menu') || target.closest('.project-menu-dropdown'))) return
+      setOpenProjectMenu(null)
+      setProjectMenuPos(null)
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -99,27 +101,31 @@ export default function Sidebar({
               <div className="project-info">
                 <span className="project-name">{ws.name}</span>
                 <span className="project-path" title={ws.projectPath}>{ws.projectPath}</span>
+                <span className="project-count">
+                  {ws.agentCount} Agent{ws.agentCount === 1 ? '' : 's'}
+                </span>
               </div>
-              <span className="project-count">{ws.agentCount}</span>
               <div className="project-menu" onClick={e => e.stopPropagation()}>
                 <button
                   className="btn ghost small"
                   title="project menu"
                   aria-label={`menu ${ws.name}`}
-                  onClick={() => { setProjectMenuPos(null); setOpenProjectMenu(p => (p === ws.projectPath ? null : ws.projectPath)) }}
+                  onClick={e => {
+                    // Anchor the portaled menu at the button, clamped to the viewport.
+                    const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                    const width = 160
+                    const x = Math.max(4, Math.min(r.right - width, window.innerWidth - width - 8))
+                    const y = r.bottom + 4
+                    setProjectMenuPos({ x, y })
+                    setOpenProjectMenu(p => (p === ws.projectPath ? null : ws.projectPath))
+                  }}
                 >
                   <span className="btn-icon"><MoreIcon /></span>
                 </button>
-                {openProjectMenu === ws.projectPath && (
+                {openProjectMenu === ws.projectPath && projectMenuPos && createPortal(
                   <div
                     className="sidebar-menu-dropdown project-menu-dropdown"
-                    style={projectMenuPos ? {
-                      position: 'fixed',
-                      left: projectMenuPos.x,
-                      top: projectMenuPos.y,
-                      right: 'auto',
-                      bottom: 'auto'
-                    } : undefined}
+                    style={{ position: 'fixed', left: projectMenuPos.x, top: projectMenuPos.y, right: 'auto', bottom: 'auto' }}
                   >
                     <button
                       className="menu-item"
@@ -145,7 +151,8 @@ export default function Sidebar({
                     >
                       Remove
                     </button>
-                  </div>
+                  </div>,
+                  document.body
                 )}
               </div>
             </div>
