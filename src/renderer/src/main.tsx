@@ -1,6 +1,8 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import '@fontsource-variable/instrument-sans'
+import '@fontsource-variable/bricolage-grotesque'
 import './styles.css'
 
 const rootEl = document.getElementById('root')!

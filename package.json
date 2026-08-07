@@ -36,6 +36,8 @@
     "@ai-sdk/anthropic": "^3.0.105",
     "@ai-sdk/google": "^3.0.103",
     "@ai-sdk/openai-compatible": "^2.0.63",
+    "@fontsource-variable/bricolage-grotesque": "^5.3.0",
+    "@fontsource-variable/instrument-sans": "^5.3.0",
     "@lydell/node-pty": "^1.2.0-beta.14",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@xterm/addon-fit": "^0.11.0",
@@ -89,11 +91,15 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "deb",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build/icons",
