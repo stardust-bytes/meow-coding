@@ -61,7 +61,6 @@ export async function loginToChatGptWeb(
     writeFileSync(store.storageStatePath(), JSON.stringify(state, null, 2), { mode: 0o600 })
 
     const marker = { authenticated: true, verifiedAt: new Date().toISOString() }
-    store.writeVerifiedMarker(marker)
     return marker
   } finally {
     await context.close()
