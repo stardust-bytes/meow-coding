@@ -6,8 +6,9 @@ import PermissionsTab from './PermissionsTab'
 import McpTab from './McpTab'
 import ContextTab from './ContextTab'
 import CommandsTab from './CommandsTab'
+import ChatGptWebTab from './ChatGptWebTab'
 
-type TabId = 'providers' | 'agents' | 'permissions' | 'mcp' | 'context' | 'commands'
+type TabId = 'providers' | 'agents' | 'permissions' | 'mcp' | 'context' | 'commands' | 'chatgpt-web'
 
 const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'providers', label: 'Providers' },
@@ -15,7 +16,8 @@ const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'permissions', label: 'Permissions' },
   { id: 'mcp', label: 'MCP' },
   { id: 'context', label: 'Context' },
-  { id: 'commands', label: 'Commands' }
+  { id: 'commands', label: 'Commands' },
+  { id: 'chatgpt-web', label: 'ChatGPT Web (Experimental)' }
 ]
 
 interface Props {
@@ -125,6 +127,7 @@ export default function SettingsDialog({ onClose, projectPath }: Props) {
               />
             )}
             {tab === 'commands' && <CommandsTab projectPath={projectPath} />}
+            {tab === 'chatgpt-web' && <ChatGptWebTab />}
           </div>
         </div>
         {status && <div className="settings-status">{status}</div>}

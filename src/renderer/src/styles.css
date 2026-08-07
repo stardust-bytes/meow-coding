@@ -600,6 +600,28 @@ select.input { width: 100%; }
 .settings-actions .spacer { flex: 1; }
 .settings-status { color: var(--green); font-size: var(--fs-md); }
 
+/* ChatGPT Web tab */
+.chatgpt-web-banner {
+  background: rgba(255, 159, 10, 0.08);
+  border: 1px solid rgba(255, 159, 10, 0.35);
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  font-size: var(--fs-md);
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.chatgpt-web-banner strong { color: var(--yellow); }
+.chatgpt-web-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hairline);
+  font-size: var(--fs-md);
+}
+
 /* Agents tab */
 .agents-row { display: flex; flex-direction: column; gap: 6px; }
 .agents-row-head { display: flex; align-items: center; gap: 8px; }
