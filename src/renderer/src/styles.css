@@ -102,6 +102,12 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   overflow-y: auto;
 }
 .panel-head { display: flex; align-items: center; gap: 4px; }
+.sidebar-head {
+  background: var(--bg);
+  border-bottom: 1px solid var(--hairline);
+  margin: -8px -8px 4px;
+  padding: 6px 8px;
+}
 .panel-title {
   font-size: var(--fs-md);
   font-weight: var(--fw-semibold);

@@ -90,7 +90,7 @@ export default function Sidebar({
   return (
     <aside className="sidebar">
       {error && <div className="sidebar-error">{error}</div>}
-      <div className="panel-head">
+      <div className="panel-head sidebar-head">
         <span className="panel-title">Projects</span>
         <div className="sidebar-menu">
           <button className="btn ghost small" title="menu" aria-label="menu" onClick={() => setMenuOpen(v => !v)}>
