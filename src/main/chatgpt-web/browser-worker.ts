@@ -1,3 +1,4 @@
+import TurndownService from 'turndown'
 import { ChatGptWebTabLimiter, isChatGptWebTurnComplete, isChatGptWebRateLimitDialog } from './turn-state'
 import type { ChatGptWebEffortLevel } from './model-catalog'
 
@@ -86,11 +87,14 @@ export function wrapPlaywrightPage(page: import('playwright-core').Page): ChatGp
     click: selector => page.click(selector),
     insertText: text => page.keyboard.insertText(text),
     readDialogText: () => page.locator(SELECTORS.dialog).first().textContent(),
-    readSnapshot: async () => ({
-      hasStopButton: await page.locator(SELECTORS.stopButton).count() > 0,
-      hasCopyButton: await page.locator(SELECTORS.copyButton).count() > 0,
-      text: await page.locator(SELECTORS.answerRoot).last().innerHTML().catch(() => '')
-    }),
+    readSnapshot: async () => {
+      const html = await page.locator(SELECTORS.answerRoot).last().innerHTML().catch(() => '')
+      return {
+        hasStopButton: await page.locator(SELECTORS.stopButton).count() > 0,
+        hasCopyButton: await page.locator(SELECTORS.copyButton).count() > 0,
+        text: new TurndownService({ codeBlockStyle: 'fenced' }).turndown(html)
+      }
+    },
     close: () => page.close()
   }
 }
