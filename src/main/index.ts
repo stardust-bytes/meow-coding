@@ -126,6 +126,13 @@ class MainApp {
       this.setState(agentId, patch)
     })
     this.meowAgent.setOnEvent(event => {
+      // Native agents have no PTY, so their AgentState comes from chat events.
+      // Keeps the pane header/badge/background panel status truthful.
+      if (event.type === 'turn-started') {
+        this.setState(event.agentId, { status: 'running', lastOutputAt: Date.now(), alert: 'normal' })
+      } else if (event.type === 'done' || event.type === 'error') {
+        this.setState(event.agentId, { status: 'idle', alert: 'normal' })
+      }
       win?.webContents.send(Channels.EventChat, event)
     })
   }
@@ -158,7 +165,11 @@ class MainApp {
     return {
       workspace,
       agents: workspace.agents.map(a => this.states.get(a.id) ?? {
-        agentId: a.id, status: 'spawning', exitCode: null, lastOutputAt: null, alert: 'normal'
+        agentId: a.id,
+        status: a.kind === 'native' ? 'idle' : 'spawning',
+        exitCode: null,
+        lastOutputAt: null,
+        alert: 'normal'
       }),
       git: null
     }
@@ -248,6 +259,14 @@ class MainApp {
     const ws = this.findWorkspaceByAgent(agentId)
     if (ws) {
       this.workspaces.updateAgent(ws.projectPath, agentId, { mode })
+    }
+  }
+
+  setAgentBackground(agentId: string, background: boolean): void {
+    this.meowAgent.setBackground(agentId, background)
+    const ws = this.findWorkspaceByAgent(agentId)
+    if (ws) {
+      this.workspaces.updateAgent(ws.projectPath, agentId, { background })
     }
   }
 
@@ -392,7 +411,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.AgentGetModel, (_e, agentId: string) => mainApp.meowAgent.getAgentModel(agentId))
   ipcMain.handle(Channels.AgentGetContext, (_e, agentId: string) => mainApp.meowAgent.getContextInfo(agentId))
   ipcMain.handle(Channels.AgentSetBackground, (_e, agentId: string, background: boolean) =>
-    mainApp.meowAgent.setBackground(agentId, background))
+    mainApp.setAgentBackground(agentId, background))
   ipcMain.handle(Channels.FilesSuggest, (_e, agentId: string, prefix: string) =>
     mainApp.meowAgent.suggestFiles(agentId, prefix))
   ipcMain.handle(Channels.ProviderModels, () => mainApp.meowAgent.getProviderModels())

@@ -23,6 +23,7 @@ export interface AgentConfig {
   mode?: AgentMode
   variant?: ModelVariant
   model?: string
+  background?: boolean
 }
 
 export interface Workspace {

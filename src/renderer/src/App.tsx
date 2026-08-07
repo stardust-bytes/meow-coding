@@ -5,6 +5,7 @@ import type {
 } from '@shared/types'
 import Sidebar from './components/Sidebar'
 import PaneGrid from './components/PaneGrid'
+import BackgroundPanel from './components/BackgroundPanel'
 import EmptyState from './components/EmptyState'
 import StatusBar from './components/StatusBar'
 import TitleBar from './components/TitleBar'
@@ -67,6 +68,7 @@ export default function App() {
   const openWorkspace = useCallback(async (path: string) => {
     const rt = await window.api.openWorkspace(path)
     setRuntime(rt)
+    setBackgrounds(Object.fromEntries(rt.workspace.agents.map(a => [a.id, a.background ?? false])))
     for (const id of buffersRef.current.keys()) {
       if (!rt.workspace.agents.some(a => a.id === id)) buffersRef.current.delete(id)
     }
@@ -142,13 +144,25 @@ export default function App() {
         />
         <main className="main">
           {panes.length > 0 ? (
-            <PaneGrid
-              panes={panes}
-              backgrounds={backgrounds}
-              onRemove={removeAgent}
-              onRegisterTerminal={registerTerminal}
-              onUnregisterTerminal={unregisterTerminal}
-            />
+            <>
+              <PaneGrid
+                panes={panes}
+                backgrounds={backgrounds}
+                onRemove={removeAgent}
+                onRegisterTerminal={registerTerminal}
+                onUnregisterTerminal={unregisterTerminal}
+              />
+              <BackgroundPanel
+                panes={panes}
+                backgrounds={backgrounds}
+                onOpen={agentId => void window.api.setAgentBackground(agentId, false)}
+                onStop={agentId => {
+                  const pane = panes.find(p => p.agent.id === agentId)
+                  if (pane?.agent.kind === 'native') void window.api.stopChat(agentId)
+                  else void window.api.stopAgent(agentId)
+                }}
+              />
+            </>
           ) : (
             <EmptyState hasWorkspace={runtime !== null} />
           )}

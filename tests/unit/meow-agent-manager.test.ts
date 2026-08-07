@@ -115,6 +115,21 @@ describe('MeowAgentManager', () => {
     expect(manager.isNative('a2')).toBe(false)
   })
 
+  it('tracks and restores background state per agent', async () => {
+    const { manager } = await makeManager()
+    expect(manager.isBackground('a1')).toBe(false)
+    manager.setBackground('a1', true)
+    expect(manager.isBackground('a1')).toBe(true)
+    manager.setBackground('a1', false)
+    expect(manager.isBackground('a1')).toBe(false)
+  })
+
+  it('seeds background state from the stored agent config on register', async () => {
+    const { manager } = await makeManager()
+    manager.addAgent({ ...MEOW_AGENT, id: 'a9', background: true })
+    expect(manager.isBackground('a9')).toBe(true)
+  })
+
   it('send appends the user message and emits events', async () => {
     const { manager, store, events } = await makeManager()
     await manager.send('a1', 'hello')

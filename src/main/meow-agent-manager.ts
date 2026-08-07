@@ -669,6 +669,7 @@ export class MeowAgentManager {
 
   private register(agent: AgentConfig): void {
     this.agents.set(agent.id, agent)
+    if (agent.background !== undefined) this.backgrounds.set(agent.id, agent.background)
     if (this.runners.has(agent.id)) return
     const cfg = this.loadConfigWithChatGptWebSeed()
     const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env, agent.model)

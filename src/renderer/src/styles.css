@@ -72,7 +72,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 
 .app { height: 100%; display: flex; flex-direction: column; }
 .app-body { flex: 1; display: flex; min-width: 0; min-height: 0; }
-.main { flex: 1; display: flex; min-width: 0; min-height: 0; }
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 
 .title-bar {
   height: 32px; flex: 0 0 32px; display: flex; align-items: center; justify-content: space-between;
@@ -201,6 +201,7 @@ select.input { width: 100%; }
   gap: 4px;
   padding: 4px;
   min-width: 0;
+  min-height: 0;
 }
 .pane-grid.zoom-mode .pane { display: none; }
 .pane-grid.zoom-mode .pane.zoomed {
@@ -217,6 +218,13 @@ select.input { width: 100%; }
   min-width: 0;
   cursor: default;
 }
+.pane-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pane.backgrounded .pane-body { display: none; }
 .pane-background-badge {
   flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 6px; background: var(--bg-panel); border: none; border-top: 1px solid var(--hairline); color: var(--text);
@@ -226,6 +234,22 @@ select.input { width: 100%; }
 .pane-background-name { font-weight: var(--fw-semibold); }
 .pane-background-status { color: var(--text-dim); font-size: var(--fs-sm); font-family: var(--font-mono); }
 .pane-background-hint { color: var(--text-faint); font-size: var(--fs-sm); }
+.background-panel {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 6px;
+  padding: 4px 8px; border-top: 1px solid var(--hairline);
+  background: var(--bg-panel); overflow-x: auto; white-space: nowrap;
+}
+.background-panel-title {
+  font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: 0.05em; margin-right: 4px;
+}
+.background-item {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 2px 8px; background: var(--bg-active); border-radius: 3px;
+}
+.background-name { font-weight: var(--fw-semibold); }
+.background-status { color: var(--text-dim); font-size: var(--fs-sm); font-family: var(--font-mono); }
+.background-actions { display: inline-flex; gap: 4px; margin-left: 4px; }
 .pane-header {
   display: flex;
   align-items: center;

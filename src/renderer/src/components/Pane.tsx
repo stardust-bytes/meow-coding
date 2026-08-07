@@ -42,7 +42,7 @@ export default function Pane({
   }, [id, background])
 
   return (
-    <div className={`pane ${zoomed ? 'zoomed' : ''}`} onClick={onFocus}>
+    <div className={`pane ${zoomed ? 'zoomed' : ''} ${background ? 'backgrounded' : ''}`} onClick={onFocus}>
       <PaneHeader
         name={pane.agent.name}
         state={pane.state}
@@ -66,24 +66,26 @@ export default function Pane({
           <span className="pane-background-hint">click to open</span>
         </button>
       ) : null}
-      {!background && (native ? (
-        <ChatPanel
-          agentId={id}
-          cwd={pane.agent.cwd}
-          mode={pane.agent.mode ?? 'build'}
-          variant={pane.agent.variant}
-          onModeChange={handleModeChange}
-          onVariantChange={handleVariantChange}
-        />
-      ) : (
-        <XtermHost
-          agentId={id}
-          onReady={term => onRegisterTerminal(id, term)}
-          onDispose={onUnregisterTerminal}
-          onInput={write}
-          onResize={(cols, rows) => void window.api.resizePty(id, cols, rows)}
-        />
-      ))}
+      <div className="pane-body">
+        {native ? (
+          <ChatPanel
+            agentId={id}
+            cwd={pane.agent.cwd}
+            mode={pane.agent.mode ?? 'build'}
+            variant={pane.agent.variant}
+            onModeChange={handleModeChange}
+            onVariantChange={handleVariantChange}
+          />
+        ) : (
+          <XtermHost
+            agentId={id}
+            onReady={term => onRegisterTerminal(id, term)}
+            onDispose={onUnregisterTerminal}
+            onInput={write}
+            onResize={(cols, rows) => void window.api.resizePty(id, cols, rows)}
+          />
+        )}
+      </div>
     </div>
   )
 }
