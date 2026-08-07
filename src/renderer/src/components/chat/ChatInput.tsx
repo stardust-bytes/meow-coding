@@ -45,14 +45,6 @@ const CommandMenuItem = memo(function CommandMenuItem({
   )
 })
 
-function PaperclipIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-      <path d="M9.5 4.5 5 9a2.1 2.1 0 0 0 3 3l4.6-4.6a3.7 3.7 0 0 0-5.2-5.2L3.2 6.6a5.3 5.3 0 0 0 7.5 7.5l3.8-3.8" />
-    </svg>
-  )
-}
-
 export default memo(function ChatInput({
   agentId, running, mode, commands, editTarget, onSubmit, onEditSubmit, onEditCancel, onStop
 }: Props) {
@@ -380,7 +372,6 @@ export default memo(function ChatInput({
           title="Upload file"
           onClick={() => fileInputRef.current?.click()}
         >
-          <span className="btn-icon"><PaperclipIcon /></span>
           Upload file
         </button>
         <span className="chat-input-toolbar-spacer" />

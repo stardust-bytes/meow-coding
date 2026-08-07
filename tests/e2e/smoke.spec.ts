@@ -66,6 +66,84 @@ test('native meow agent renders a chat panel and sends a message', async () => {
   }
 })
 
+test('pasted/attached image previews render in input, feed, and lightbox', async () => {
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  // 1x1 transparent PNG (valid image data so naturalWidth reflects a decode)
+  const pngPath = path.join(project, 'pixel.png')
+  writeFileSync(pngPath, Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+    'base64'
+  ))
+  try {
+    const workspaces = [{
+      projectPath: project,
+      name: 'E2E Project',
+      agents: [
+        { id: 'e2e-meow', name: 'meow', templateId: 'meow', cwd: project, kind: 'native' }
+      ]
+    }]
+    writeFileSync(path.join(userData, 'workspaces.json'), JSON.stringify(workspaces, null, 2))
+
+    const app = await electron.launch({
+      args: ['.'],
+      env: { ...process.env as Record<string, string>, MEOW_USER_DATA: userData }
+    })
+    const window = await app.firstWindow()
+    try {
+      await expect(window.locator('.project-row')).toBeVisible()
+      await window.locator('.project-row').click()
+      await expect(window.locator('.chat-panel')).toBeVisible()
+
+      const field = window.locator('.chat-input-field')
+      await field.click()
+
+      // Ctrl+V path: dispatch a real paste event carrying an image file.
+      await field.evaluate((el) => {
+        const b64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+        const bin = atob(b64)
+        const bytes = new Uint8Array(bin.length)
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+        const dt = new DataTransfer()
+        dt.items.add(new File([bytes], 'pixel.png', { type: 'image/png' }))
+        el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
+      })
+
+      // The input chip thumbnail must actually decode the data: URL (CSP-blocked
+      // images keep naturalWidth === 0 and never render).
+      const chipThumb = window.locator('.chat-image-chip img.chat-image-thumb')
+      await expect(chipThumb).toBeVisible()
+      await expect.poll(() => chipThumb.evaluate(el => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
+
+      // Attach path: hidden file input triggers the same addImageFiles flow.
+      await window.locator('.chat-input input[type="file"]').setInputFiles(pngPath)
+      await expect(window.locator('.chat-image-chip img.chat-image-thumb')).toHaveCount(2)
+      await expect.poll(() => window.locator('.chat-image-chip img.chat-image-thumb').last()
+        .evaluate(el => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
+
+      await field.fill('check the image')
+      await field.press('Enter')
+
+      // After sending, the user message shows the image thumbnails in the feed.
+      const feedThumb = window.locator('.chat-msg.user img.chat-thumb')
+      await expect(feedThumb).toHaveCount(2)
+      await expect.poll(() => feedThumb.first()
+        .evaluate(el => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
+
+      // Lightbox preview also renders the data: URL.
+      await feedThumb.first().click()
+      const lightboxImg = window.locator('.chat-lightbox img')
+      await expect(lightboxImg).toBeVisible()
+      await expect.poll(() => lightboxImg.evaluate(el => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
+    } finally {
+      await app.close()
+    }
+  } finally {
+    rmSync(userData, { recursive: true, force: true })
+    rmSync(project, { recursive: true, force: true })
+  }
+})
+
 test('settings screen connects a provider and syncs models', async () => {
   const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
   const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
