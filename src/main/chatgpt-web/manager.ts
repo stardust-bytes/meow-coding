@@ -1,12 +1,6 @@
 import { ChatGptWebSessionStore } from './session-store'
 import { getChatGptWebModelRefs } from './model-catalog'
-import type { ModelRef } from '../../shared/types'
-
-export interface ChatGptWebStatus {
-  enabled: boolean
-  loggedIn: boolean
-  verifiedAt: string | null
-}
+import type { ChatGptWebStatus, ModelRef } from '../../shared/types'
 
 export interface ChatGptWebManagerDeps {
   login?: (store: ChatGptWebSessionStore) => Promise<{ authenticated: boolean; verifiedAt: string }>
