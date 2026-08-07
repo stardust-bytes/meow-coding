@@ -141,6 +141,7 @@ export type ChatEvent =
       subagentType?: string; text?: string; tool?: string
       reasoning?: string; background?: boolean; result?: string
       state?: 'running' | 'completed' | 'cancelled' | 'error' }
+  | { type: 'session-created'; agentId: string }
 
 export interface QueuedMessage {
   id: string
@@ -267,6 +268,7 @@ export interface Command {
   name: string
   description: string
   template: string
+  type?: 'prompt' | 'system'
   agent?: string
   model?: string
 }

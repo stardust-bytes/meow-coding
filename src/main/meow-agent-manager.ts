@@ -578,6 +578,15 @@ export class MeowAgentManager {
       this.emit({ type: 'error', agentId, message: `[meow] Không tìm thấy command "${name}".` })
       return
     }
+    // System commands act on state (e.g. creating a session) instead of
+    // dispatching a prompt to the LLM.
+    if (command.type === 'system') {
+      if (command.name === 'new') {
+        this.newSession(agentId)
+        this.emit({ type: 'session-created', agentId })
+      }
+      return
+    }
     const text = await resolveCommand(command, args, { cwd: agent.cwd, commands: all })
     await this.send(agentId, text)
   }

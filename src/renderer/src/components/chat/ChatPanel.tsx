@@ -390,6 +390,11 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
       }
       return
     }
+    if (e.type === 'session-created') {
+      resetView()
+      reloadSessions()
+      return
+    }
     if (e.type === 'turn-started') {
       setRunning(true)
       return
@@ -433,7 +438,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
       }
       return next
     })
-  }, [agentId, flushDeltas])
+  }, [agentId, flushDeltas, resetView, reloadSessions])
 
   const send = useCallback((text: string, images?: ImageAttachment[]) => {
     const trimmed = text.trim()

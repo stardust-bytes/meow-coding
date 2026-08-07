@@ -25,6 +25,15 @@ export const REVIEW_COMMAND: Command = {
     'suggested improvements. Do not modify files.'
 }
 
+// System commands are dispatched in main (meow-agent-manager.ts runCommand)
+// instead of being resolved into a prompt sent to the LLM.
+export const NEW_COMMAND: Command = {
+  name: 'new',
+  description: 'Start a new session',
+  template: '',
+  type: 'system'
+}
+
 // Superpowers slash commands. Embedded built-ins modeled on the opencode
 // `.opencode/commands/sp-*.md` files: each dispatches the current request to the
 // matching Superpowers skill so the agent follows that workflow explicitly.
@@ -117,7 +126,7 @@ export async function resolveCommand(
 
 export class CommandStore {
   private builtin = new Map<string, Command>(
-    [INIT_COMMAND, REVIEW_COMMAND, ...SUPERPOWERS_COMMANDS].map(c => [c.name, c])
+    [INIT_COMMAND, REVIEW_COMMAND, NEW_COMMAND, ...SUPERPOWERS_COMMANDS].map(c => [c.name, c])
   )
 
   constructor(private userCommandsFile: string) {}

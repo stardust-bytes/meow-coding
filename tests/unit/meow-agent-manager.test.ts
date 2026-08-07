@@ -647,6 +647,20 @@ describe('MeowAgentManager', () => {
     expect(events.some(e => e.type === 'done')).toBe(true)
   })
 
+  it('runs /new as a system command that creates a new session without calling the LLM', async () => {
+    const { manager, events, createLlm } = await makeManager()
+    expect(manager.listCommands('/proj').map(c => c.name)).toContain('new')
+    const before = manager.listSessions('a1')[0]?.id
+    createLlm.mockClear()
+    await manager.runCommand('a1', 'new', [])
+    const after = manager.listSessions('a1')[0]?.id
+    expect(after).toBeDefined()
+    expect(after).not.toBe(before)
+    expect(events.some(e => e.type === 'session-created')).toBe(true)
+    expect(createLlm).not.toHaveBeenCalled()
+    expect(events.some(e => e.type === 'done')).toBe(false)
+  })
+
   it('reports cost in the done event and accumulates session usage', async () => {
     const { manager, events, store } = await makeManager({
       partsQueue: [[{ kind: 'text', text: 'hi' }, { kind: 'finish', tokens: { input: 1000, output: 500, total: 1500 } }]]
