@@ -22,22 +22,38 @@ export interface ChatGptWebPage {
   readDialogText(): Promise<string | null>
   readSnapshot(): Promise<{ hasStopButton: boolean; hasCopyButton: boolean; text: string }>
   title(): Promise<string>
+  url(): string
   close(): Promise<void>
 }
 
 export const CHATGPT_WEB_TAB_LIMITER = new ChatGptWebTabLimiter(3)
 
+import type { ChallengeReason } from '../../shared/ipc'
+
 export interface RunTurnOptions {
   pollIntervalMs?: number
   timeoutMs?: number
+  onFallback?: (reason: ChallengeReason) => void
 }
 
 export async function runChatGptWebTurn(
   page: ChatGptWebPage,
+  recreate: (mode: PageMode) => Promise<ChatGptWebPage>,
   prompt: string,
   effort: ChatGptWebEffortLevel,
   signal?: AbortSignal,
   options: RunTurnOptions = {}
+): Promise<string> {
+  return runTurnBody(page, recreate, prompt, effort, signal, options)
+}
+
+async function runTurnBody(
+  page: ChatGptWebPage,
+  recreate: (mode: PageMode) => Promise<ChatGptWebPage>,
+  prompt: string,
+  effort: ChatGptWebEffortLevel,
+  signal: AbortSignal | undefined,
+  options: RunTurnOptions
 ): Promise<string> {
   const pollIntervalMs = options.pollIntervalMs ?? 400
   const timeoutMs = options.timeoutMs ?? 5 * 60 * 1000
@@ -47,7 +63,21 @@ export async function runChatGptWebTurn(
     if (signal?.aborted) throw new Error('aborted before turn started')
 
     await page.goto('https://chatgpt.com/?temporary-chat=true')
-    await page.waitForSelector(SELECTORS.composer)
+    try {
+      await page.waitForSelector(SELECTORS.composer)
+    } catch (err) {
+      const title = (await page.title()).toLowerCase()
+      if (title.includes('just a moment')) {
+        options.onFallback?.('cloudflare')
+        await page.close()
+        page = await recreate('visible')
+        await page.waitForSelector(SELECTORS.composer, { timeout: 5 * 60 * 1000 })
+      } else if (page.url().includes('/auth/login')) {
+        throw new Error('[meow] Phiên đăng nhập ChatGPT đã hết hạn. Vui lòng đăng nhập lại từ Settings.')
+      } else {
+        throw err
+      }
+    }
     await page.click(SELECTORS.effortMenuTrigger)
     await page.click(SELECTORS.effortMenuItem(effort.uiEffortIndex))
     await page.insertText(prompt)
@@ -97,12 +127,20 @@ export function wrapPlaywrightPage(page: import('playwright-core').Page): ChatGp
       }
     },
     title: () => page.title(),
+    url: () => page.url(),
     close: () => page.close()
   }
 }
 
-export async function createChatGptWebPage(storageStatePath: string, chromeExecutablePath?: string): Promise<ChatGptWebPage> {
-  const { existsSync } = await import('node:fs')
+export type PageMode = 'headless' | 'visible'
+
+export async function createChatGptWebPage(
+  userDataDir: string,
+  storageStatePath: string,
+  chromeExecutablePath?: string,
+  mode: PageMode = 'headless'
+): Promise<ChatGptWebPage> {
+  const { existsSync, mkdirSync } = await import('node:fs')
   const { chromium } = await import('playwright-core')
   const { resolveChromeExecutablePath } = await import('./browser-login')
 
@@ -114,12 +152,12 @@ export async function createChatGptWebPage(storageStatePath: string, chromeExecu
   if (!executablePath) {
     throw new Error('No Chrome installation found. Set a custom Chrome path in Settings.')
   }
-  if (!existsSync(storageStatePath)) {
-    throw new Error('Not logged into ChatGPT Web. Log in from Settings first.')
-  }
+  mkdirSync(userDataDir, { recursive: true })
 
-  const browser = await chromium.launch({ executablePath, headless: true })
-  const context = await browser.newContext({ storageState: storageStatePath })
-  const page = await context.newPage()
+  const context = await chromium.launchPersistentContext(userDataDir, {
+    executablePath,
+    headless: mode === 'headless'
+  })
+  const page = context.pages()[0] ?? (await context.newPage())
   return wrapPlaywrightPage(page)
 }
