@@ -1,10 +1,15 @@
-import { describe, expect, it, afterEach } from 'vitest'
+import { describe, expect, it, afterEach, vi } from 'vitest'
 import { EventEmitter } from 'node:events'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createOfficeTool, buildOfficeArgs } from '../../src/main/agent/tools/office'
 import type { ToolContext } from '../../src/main/agent/tools/types'
+
+const { killMock } = vi.hoisted(() => ({
+  killMock: vi.fn((_pid: number, cb: (err?: unknown) => void) => cb())
+}))
+vi.mock('tree-kill', () => ({ default: killMock }))
 
 let dir = ''
 afterEach(() => {
@@ -81,6 +86,7 @@ describe('office tool', () => {
     })
     const r = await tool.run({ args: ['create', 'x.pptx'], timeoutMs: 100 }, ctx())
     expect(r.error).toMatch(/timeout/)
+    expect(killMock).toHaveBeenCalledWith(1234, expect.any(Function))
   }, 5000)
 
   it('returns a helpful error when the binary cannot be resolved', async () => {
