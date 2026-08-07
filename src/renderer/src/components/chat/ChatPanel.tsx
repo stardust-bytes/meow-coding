@@ -231,6 +231,9 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     loadTranscript()
     loadTodos()
     void window.api.listCommands(cwd).then(setCommands)
+    // The agent may already be mid-turn from before a project switch/remount;
+    // restore the running state so the Stop button and indicator come back.
+    void window.api.isChatRunning(agentId).then(setRunning)
     const off = window.api.onChatEvent(e => applyEvent(e))
     return off
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -385,6 +388,10 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
       if (e.type === 'error') {
         setItems(prev => [...prev, { kind: 'error', id: 'err-' + Date.now(), text: e.message }])
       }
+      return
+    }
+    if (e.type === 'turn-started') {
+      setRunning(true)
       return
     }
     if (e.type === 'prompt-request') {

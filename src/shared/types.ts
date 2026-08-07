@@ -128,6 +128,7 @@ export type ChatEvent =
   | { type: 'prompt-request'; agentId: string; promptId: string
       kind: 'permission' | 'question'; call?: ToolCallData; question?: string
       options?: QuestionOption[]; multiple?: boolean; custom?: boolean }
+  | { type: 'turn-started'; agentId: string }
   | { type: 'done'; agentId: string; reason: string; tokens?: TokenUsage; cost?: number }
   | { type: 'error'; agentId: string; message: string }
   | { type: 'compacted'; agentId: string; summary: string }

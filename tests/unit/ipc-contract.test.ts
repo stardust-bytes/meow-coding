@@ -18,6 +18,7 @@ describe('IPC contract', () => {
       'suggestFiles', 'setAgentBackground', 'onAgentBackground',
       'listSessions', 'createSession', 'switchSession', 'deleteSession', 'renameSession',
       'getChatTodos',
+      'isChatRunning',
       'minimizeWindow', 'toggleMaximizeWindow', 'closeWindow', 'isWindowMaximized', 'onWindowMaximizedChange'
     ]
     const api: AgentApi = {
@@ -65,6 +66,7 @@ describe('IPC contract', () => {
       listChatMessages: async () => [],
       listChatTranscript: async () => [],
       getChatTodos: async () => [],
+      isChatRunning: async () => false,
       respondPrompt: async () => {},
       removeQueued: async () => {},
       editQueued: async () => {},
@@ -111,6 +113,7 @@ describe('IPC contract', () => {
     expect(Channels.ChatNewSession).toBe('chat:new-session')
     expect(Channels.ChatListMessages).toBe('chat:list-messages')
     expect(Channels.ChatListTranscript).toBe('chat:list-transcript')
+    expect(Channels.ChatIsRunning).toBe('chat:is-running')
     expect(Channels.ChatRespondPrompt).toBe('chat:respond-prompt')
     expect(Channels.ChatQueueRemove).toBe('chat:queue-remove')
     expect(Channels.ChatQueueEdit).toBe('chat:queue-edit')

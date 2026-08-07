@@ -302,6 +302,7 @@ export class MeowAgentManager {
     const controller = new AbortController()
     this.controllers.set(agentId, controller)
     this.running.add(agentId)
+    this.emit({ type: 'turn-started', agentId })
     this.redoStacks.delete(agentId)
     this.deps.snapshots.beginTurn(agentId)
     try {

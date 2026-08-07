@@ -126,6 +126,23 @@ describe('MeowAgentManager', () => {
     expect(manager.isRunning('a1')).toBe(false)
   })
 
+  it('emits turn-started when a turn begins, including queued drains', async () => {
+    const { manager, events } = await makeManager({ hangUntilAbort: true })
+    const first = manager.send('a1', 'first')
+    await new Promise(r => setTimeout(r, 20))
+    expect(events.some(e => e.type === 'turn-started' && e.agentId === 'a1')).toBe(true)
+    // Queue a second message; when the first is stopped the queue drains into a
+    // new turn that also signals turn-started so the UI can restore Stop.
+    void manager.send('a1', 'second')
+    manager.stop('a1')
+    await new Promise(r => setTimeout(r, 30))
+    const started = events.filter(e => e.type === 'turn-started')
+    expect(started.length).toBeGreaterThanOrEqual(2)
+    expect(manager.isRunning('a1')).toBe(true)
+    manager.stop('a1')
+    await first
+  })
+
   it('send() stores images on the user message', async () => {
     const { manager } = await makeManager()
     const img = { id: 'i1', name: 'a.png', mimeType: 'image/png', dataUrl: 'data:image/png;base64,AAA', size: 3 }

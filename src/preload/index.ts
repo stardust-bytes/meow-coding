@@ -67,6 +67,7 @@ const api: AgentApi = {
   listChatMessages: (agentId: string) => ipcRenderer.invoke(Channels.ChatListMessages, agentId),
   listChatTranscript: (agentId: string) => ipcRenderer.invoke(Channels.ChatListTranscript, agentId),
   getChatTodos: (agentId: string) => ipcRenderer.invoke(Channels.ChatGetTodos, agentId),
+  isChatRunning: (agentId: string) => ipcRenderer.invoke(Channels.ChatIsRunning, agentId),
   respondPrompt: (agentId: string, promptId: string, resp: PromptResponse) =>
     ipcRenderer.invoke(Channels.ChatRespondPrompt, agentId, promptId, resp),
   removeQueued: (agentId: string, id: string) =>
