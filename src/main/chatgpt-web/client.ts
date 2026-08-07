@@ -3,8 +3,12 @@ import { compileChatGptWebPrompt } from './prompt'
 import { parseChatGptWebResponse } from './response-parser'
 import { resolveChatGptWebEffort } from './model-catalog'
 import type { ChatGptWebSessionStore } from './session-store'
+import type { ChallengeEvent } from '../../shared/ipc'
 
-export function createChatGptWebLlmClient(store: ChatGptWebSessionStore): LlmClient {
+export function createChatGptWebLlmClient(
+  store: ChatGptWebSessionStore,
+  deps: { notifyChallenge?: (event: ChallengeEvent) => void } = {}
+): LlmClient {
   return {
     async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
       const effort = resolveChatGptWebEffort(opts.model)
@@ -18,8 +22,17 @@ export function createChatGptWebLlmClient(store: ChatGptWebSessionStore): LlmCli
       const release = await CHATGPT_WEB_TAB_LIMITER.acquire()
       try {
         const prompt = compileChatGptWebPrompt(opts)
-        const page = await createChatGptWebPage(store.storageStatePath(), cfg.chromeExecutablePath)
-        const markdown = await runChatGptWebTurn(page, prompt, effort, opts.signal)
+        const userDataDir = store.userDataDir()
+        const storageStatePath = store.storageStatePath()
+        const chromePath = cfg.chromeExecutablePath
+        const page = await createChatGptWebPage(userDataDir, storageStatePath, chromePath)
+        const recreate = async (mode: 'headless' | 'visible'): Promise<import('./browser-worker').ChatGptWebPage> => {
+          await page.close().catch(() => undefined)
+          return createChatGptWebPage(userDataDir, storageStatePath, chromePath, mode)
+        }
+        const markdown = await runChatGptWebTurn(page, recreate, prompt, effort, opts.signal, {
+          onFallback: (reason) => deps.notifyChallenge?.({ reason, timestamp: new Date().toISOString() })
+        })
         for (const part of parseChatGptWebResponse(markdown)) yield part
         yield { kind: 'finish', finishReason: 'stop' }
       } catch (err) {

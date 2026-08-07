@@ -1,3 +1,4 @@
+import { mkdirSync } from 'node:fs'
 import type { ChatGptWebSessionStore } from './session-store'
 
 interface ResolveChromeOpts {
@@ -26,7 +27,8 @@ export function resolveChromeExecutablePath(opts: ResolveChromeOpts): string | n
 // Requires a live browser — verified via the manual smoke test in Task 14,
 // not covered by unit tests.
 export async function loginToChatGptWeb(
-  store: ChatGptWebSessionStore
+  store: ChatGptWebSessionStore,
+  userDataDir: string
 ): Promise<{ authenticated: boolean; verifiedAt: string }> {
   const { existsSync } = await import('node:fs')
   const { chromium } = await import('playwright-core')
@@ -41,7 +43,8 @@ export async function loginToChatGptWeb(
     throw new Error('No Chrome installation found. Set a custom Chrome path in Settings.')
   }
 
-  const context = await chromium.launchPersistentContext('', {
+  mkdirSync(userDataDir, { recursive: true })
+  const context = await chromium.launchPersistentContext(userDataDir, {
     executablePath,
     headless: false,
     viewport: null,

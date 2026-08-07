@@ -28,6 +28,10 @@ export class ChatGptWebSessionStore {
     return path.join(this.dir, 'storage-state.json')
   }
 
+  userDataDir(): string {
+    return this.dir
+  }
+
   loadConfig(): ChatGptWebConfig {
     if (!existsSync(this.configPath())) return { ...DEFAULT_CONFIG }
     try {

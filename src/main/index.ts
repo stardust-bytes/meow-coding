@@ -59,7 +59,12 @@ class MainApp {
   builtinSkillsDir = app.isPackaged
     ? path.join(process.resourcesPath, 'skills')
     : path.join(app.getAppPath(), 'resources', 'skills')
-  chatGptWeb = new ChatGptWebManager(path.join(app.getPath('userData'), 'chatgpt-web'))
+    chatGptWeb = new ChatGptWebManager(path.join(app.getPath('userData'), 'chatgpt-web'), {
+    notifyChallenge: (event) => {
+      const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+      win?.webContents.send(Channels.EventChatGptWebChallenge, event)
+    }
+  })
   meowAgent = new MeowAgentManager({
     configPath: path.join(app.getPath('userData'), 'meow.json'),
     store: new SessionStore(createJsonStore<StoredSession>(path.join(app.getPath('userData'), 'sessions.json'))),

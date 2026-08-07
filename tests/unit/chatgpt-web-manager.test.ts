@@ -49,4 +49,28 @@ describe('ChatGptWebManager', () => {
     expect(status.loggedIn).toBe(false)
     expect(manager.getModelRefsIfActive()).toEqual([])
   })
+
+  it('login() passes userDataDir to the login function', async () => {
+    const loginFn = vi.fn(async () => ({ authenticated: true, verifiedAt: '2026-08-07T00:00:00.000Z' }))
+    const manager = new ChatGptWebManager(dir, { login: loginFn })
+    await manager.login()
+    expect(loginFn).toHaveBeenCalledTimes(1)
+    const callArgs = loginFn.mock.calls[0]
+    expect(callArgs[1]).toBe(dir)
+  })
+
+  it('logout() removes storage-state.verified.json and browser-profile/', async () => {
+    const fs = await import('node:fs')
+    const profileDir = path.join(dir, 'browser-profile')
+    fs.mkdirSync(profileDir, { recursive: true })
+    fs.writeFileSync(path.join(dir, 'storage-state.json'), '{}')
+    fs.writeFileSync(path.join(dir, 'storage-state.verified.json'), '{}')
+
+    const manager = new ChatGptWebManager(dir)
+    manager.logout()
+
+    expect(fs.existsSync(path.join(dir, 'storage-state.json'))).toBe(false)
+    expect(fs.existsSync(path.join(dir, 'storage-state.verified.json'))).toBe(false)
+    expect(fs.existsSync(profileDir)).toBe(false)
+  })
 })

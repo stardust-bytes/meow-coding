@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ChallengeEvent } from '@shared/ipc'
+import { ChallengeToast } from './components/ChallengeToast'
 import { Terminal } from '@xterm/xterm'
 import type {
   AgentConfig, AgentState, GitStatus, Template, WorkspaceRuntime, WorkspaceSummary
@@ -23,6 +25,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [runtime, setRuntime] = useState<WorkspaceRuntime | null>(null)
   const [backgrounds, setBackgrounds] = useState<Record<string, boolean>>({})
+  const [challenge, setChallenge] = useState<ChallengeEvent | null>(null)
   const termsRef = useRef<Map<string, Terminal>>(new Map())
   const buffersRef = useRef<Map<string, string>>(new Map())
 
@@ -57,11 +60,15 @@ export default function App() {
     const offBg = window.api.onAgentBackground(({ agentId, background }) => {
       setBackgrounds(prev => ({ ...prev, [agentId]: background }))
     })
+    const offChallenge = window.api.onChatGptWebChallenge((e) => {
+      setChallenge(e)
+    })
     return () => {
       offData()
       offState()
       offGit()
       offBg()
+      offChallenge()
     }
   }, [])
 
@@ -132,6 +139,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <ChallengeToast challenge={challenge} onDismiss={() => setChallenge(null)} />
       <TitleBar onOpenSettings={() => setShowSettings(true)} />
       <div className="app-body">
         <Sidebar

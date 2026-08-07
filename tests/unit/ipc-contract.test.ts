@@ -15,7 +15,7 @@ describe('IPC contract', () => {
       'onPtyData', 'onAgentState', 'onGitStatus',
       'sendChat', 'stopChat', 'runCommand', 'undoChat', 'redoChat', 'newChatSession', 'listChatMessages', 'listChatTranscript', 'respondPrompt', 'removeQueued', 'editQueued',
       'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus', 'getChatGptWebStatus', 'setChatGptWebEnabled', 'loginChatGptWeb', 'logoutChatGptWeb', 'listCommands', 'saveCommand', 'removeCommand', 'getStats', 'onContextChanged',
-      'suggestFiles', 'setAgentBackground', 'onAgentBackground',
+      'suggestFiles', 'setAgentBackground', 'onAgentBackground', 'onChatGptWebChallenge',
       'listSessions', 'createSession', 'switchSession', 'deleteSession', 'renameSession',
       'getChatTodos',
       'isChatRunning',
@@ -92,6 +92,7 @@ describe('IPC contract', () => {
       suggestFiles: async () => [],
       setAgentBackground: async () => {},
       onAgentBackground: () => () => {},
+      onChatGptWebChallenge: () => () => {},
       listSessions: async () => [],
       createSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),
       switchSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),
@@ -121,6 +122,7 @@ describe('IPC contract', () => {
     expect(Channels.FilesSuggest).toBe('files:suggest')
     expect(Channels.AgentSetBackground).toBe('agent:set-background')
     expect(Channels.EventAgentBackground).toBe('agent:background')
+    expect(Channels.EventChatGptWebChallenge).toBe('chatgpt-web:challenge')
     expect(Channels.AppVersion).toBe('app:version')
     expect(Channels.SessionList).toBe('session:list')
     expect(Channels.SessionCreate).toBe('session:create')
