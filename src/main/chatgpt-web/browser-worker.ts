@@ -21,6 +21,7 @@ export interface ChatGptWebPage {
   insertText(text: string): Promise<void>
   readDialogText(): Promise<string | null>
   readSnapshot(): Promise<{ hasStopButton: boolean; hasCopyButton: boolean; text: string }>
+  title(): Promise<string>
   close(): Promise<void>
 }
 
@@ -95,6 +96,7 @@ export function wrapPlaywrightPage(page: import('playwright-core').Page): ChatGp
         text: new TurndownService({ codeBlockStyle: 'fenced' }).turndown(html)
       }
     },
+    title: () => page.title(),
     close: () => page.close()
   }
 }
