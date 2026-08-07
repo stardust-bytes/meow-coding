@@ -105,7 +105,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .sidebar {
   width: 260px;
   background: var(--bg-panel);
-  box-shadow: inset -1px 0 0 var(--hairline);
+  border-right: 1px solid var(--bg-input);
   display: flex;
   flex-direction: column;
   gap: 8px;

@@ -82,7 +82,7 @@ export default function Sidebar({
       {error && <div className="sidebar-error">{error}</div>}
       <div className="panel-head sidebar-head">
         <span className="panel-title">Projects</span>
-        <button className="btn ghost small" onClick={() => setShowAddProject(true)}>Add Project</button>
+        <button className="btn primary small" onClick={() => setShowAddProject(true)}>Add Project</button>
       </div>
       <ul className="project-list">
         {workspaces.map(ws => (
