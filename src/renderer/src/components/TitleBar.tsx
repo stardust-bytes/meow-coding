@@ -58,7 +58,7 @@ export default function TitleBar({ onOpenSettings }: Props) {
       <div className="title-bar-brand">
         <img src={logoMark} className="title-bar-logo" alt="" />
         <span className="title-bar-title">Meow Coding</span>
-        <button className="title-bar-toolbar-btn" onClick={onOpenSettings}>⚙ Settings</button>
+        <button className="title-bar-toolbar-btn" onClick={onOpenSettings}>Settings</button>
       </div>
       {showCustomControls && (
         <div className="title-bar-controls" onDoubleClick={e => e.stopPropagation()}>
