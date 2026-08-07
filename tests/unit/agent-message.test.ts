@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { z } from 'zod'
-import { toLlmMessages, toToolDefinition } from '../../src/main/agent/message'
+import { normalizeToolInput, toLlmMessages, toToolDefinition } from '../../src/main/agent/message'
 import type { ChatMessage, ToolCallData } from '../../src/shared/types'
 import type { ToolDefinition } from '../../src/main/agent/tools/types'
 
@@ -11,6 +11,29 @@ function msg(role: ChatMessage['role'], text: string): ChatMessage {
 function toolCall(tool: string, input: Record<string, unknown>, id = 'c1'): ToolCallData {
   return { id, tool, input, permission: 'allowed' }
 }
+
+describe('normalizeToolInput', () => {
+  it('passes plain objects through unchanged', () => {
+    expect(normalizeToolInput({ a: 1 })).toEqual({ a: 1 })
+  })
+
+  it('parses a valid JSON string into an object', () => {
+    expect(normalizeToolInput('{"pattern":"**/*.ts"}')).toEqual({ pattern: '**/*.ts' })
+  })
+
+  it('returns {} for malformed JSON strings instead of double-encoding them', () => {
+    expect(normalizeToolInput('{"co')).toEqual({})
+    expect(normalizeToolInput('')).toEqual({})
+    expect(normalizeToolInput('   ')).toEqual({})
+  })
+
+  it('returns {} for arrays, scalars, and null', () => {
+    expect(normalizeToolInput('[1,2]')).toEqual({})
+    expect(normalizeToolInput('42')).toEqual({})
+    expect(normalizeToolInput(null)).toEqual({})
+    expect(normalizeToolInput(undefined)).toEqual({})
+  })
+})
 
 describe('toLlmMessages', () => {
   it('converts a simple user/assistant exchange', () => {
@@ -40,6 +63,23 @@ describe('toLlmMessages', () => {
       { type: 'tool-call', toolCallId: 'c1', toolName: 'glob', input: { pattern: '**/*.ts' } }
     ])
     expect(toolResult.role).toBe('tool')
+  })
+
+  it('replays string tool inputs as parsed objects (no double-encoding)', () => {
+    const items = [
+      { kind: 'message' as const, message: msg('user', 'read a file') },
+      { kind: 'message' as const, message: msg('assistant', '') },
+      { kind: 'tool' as const, tool: { ...toolCall('read', { file_path: 'a.ts' }, 'tc1'), input: '{"file_path":"a.ts"}' } },
+      { kind: 'tool' as const, tool: { ...toolCall('bash', {}, 'tc2'), input: '{"co' } },
+      { kind: 'tool' as const, tool: { ...toolCall('bash', {}, 'tc3'), input: '' } }
+    ]
+    const llm = toLlmMessages(items)
+    const assistant = llm[1] as { role: 'assistant'; content: Array<{ type: string; input: unknown }> }
+    expect(assistant.content.filter(c => c.type === 'tool-call').map(c => c.input)).toEqual([
+      { file_path: 'a.ts' },
+      {},
+      {}
+    ])
   })
 
   it('uses tool output and falls back to error/ok', () => {

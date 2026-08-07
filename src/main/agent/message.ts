@@ -13,6 +13,30 @@ export interface ToLlmOptions {
   truncate?: (toolId: string, text: string) => string
 }
 
+// OpenAI-compatible providers stream `function.arguments` as a raw JSON string;
+// the AI SDK only parses it into an object when the JSON is valid. Malformed or
+// empty arguments (common with DeepSeek streaming) come through as a string with
+// invalid=true. Replaying that string makes the request serializer JSON.stringify
+// it again → double-encoded arguments → provider error 2013 "invalid function
+// arguments json string". Normalize to a plain object so replay (e.g. the first
+// turn after a model switch) always sends valid JSON object arguments.
+export function normalizeToolInput(input: unknown): Record<string, unknown> {
+  if (input && typeof input === 'object' && !Array.isArray(input)) return input as Record<string, unknown>
+  if (typeof input === 'string') {
+    const trimmed = input.trim()
+    if (!trimmed) return {}
+    try {
+      const parsed = JSON.parse(trimmed) as unknown
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>
+      }
+    } catch {
+      // malformed JSON — fall back to empty args instead of double-encoding
+    }
+  }
+  return {}
+}
+
 export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): ModelMessage[] {
   const result: ModelMessage[] = []
   let pendingAssistant: { text: string; calls: ToolCallData[] } | null = null
@@ -27,7 +51,7 @@ export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): Mod
           type: 'tool-call',
           toolCallId: call.id,
           toolName: call.tool,
-          input: call.input ?? {}
+          input: normalizeToolInput(call.input)
         })
       }
       result.push({ role: 'assistant', content })
