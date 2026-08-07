@@ -1,9 +1,13 @@
+import { rmSync } from 'node:fs'
+import path from 'node:path'
 import { ChatGptWebSessionStore } from './session-store'
 import { getChatGptWebModelRefs } from './model-catalog'
 import type { ChatGptWebStatus, ModelRef } from '../../shared/types'
+import type { ChallengeEvent } from '../../shared/ipc'
 
 export interface ChatGptWebManagerDeps {
-  login?: (store: ChatGptWebSessionStore) => Promise<{ authenticated: boolean; verifiedAt: string }>
+  login?: (store: ChatGptWebSessionStore, userDataDir: string) => Promise<{ authenticated: boolean; verifiedAt: string }>
+  notifyChallenge?: (event: ChallengeEvent) => void
 }
 
 export class ChatGptWebManager {
@@ -27,13 +31,15 @@ export class ChatGptWebManager {
 
   async login(): Promise<ChatGptWebStatus> {
     const loginFn = this.deps.login ?? (await import('./browser-login')).loginToChatGptWeb
-    const marker = await loginFn(this.store)
+    const marker = await loginFn(this.store, this.store.userDataDir())
     this.store.writeVerifiedMarker(marker)
     return this.getStatus()
   }
 
   logout(): ChatGptWebStatus {
-    this.store.clearSession()
+    const dir = this.store.userDataDir()
+    rmSync(path.join(dir, 'storage-state.json'), { force: true })
+    rmSync(path.join(dir, 'browser-profile'), { recursive: true, force: true })
     return this.getStatus()
   }
 

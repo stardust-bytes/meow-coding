@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
 import type { ChatEvent, ChatGptWebStatus, Command, ContextChangedEvent, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template } from '../shared/types'
-import type { AgentApi, AgentStateEvent, GitStatusEvent, PtyDataEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
+import type { AgentApi, AgentStateEvent, ChallengeEvent, GitStatusEvent, PtyDataEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
 
 function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
   const listener = (_event: unknown, payload: T) => cb(payload)
@@ -110,7 +110,9 @@ const api: AgentApi = {
   setAgentBackground: (agentId: string, background: boolean) =>
     ipcRenderer.invoke(Channels.AgentSetBackground, agentId, background),
   onAgentBackground: (cb: (e: { agentId: string; background: boolean }) => void) =>
-    subscribe(Channels.EventAgentBackground, cb)
+    subscribe(Channels.EventAgentBackground, cb),
+  onChatGptWebChallenge: (cb: (e: ChallengeEvent) => void) =>
+    subscribe(Channels.EventChatGptWebChallenge, cb)
 }
 
 contextBridge.exposeInMainWorld('api', api)

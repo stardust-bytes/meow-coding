@@ -79,13 +79,21 @@ export const Channels = {
   EventChat: 'chat:event',
   FilesSuggest: 'files:suggest',
   AgentSetBackground: 'agent:set-background',
-  EventAgentBackground: 'agent:background'
+  EventAgentBackground: 'agent:background',
+  EventChatGptWebChallenge: 'chatgpt-web:challenge'
 } as const
 
 export interface PtyDataEvent { agentId: string; data: string }
 export interface AgentStateEvent { agentId: string; state: AgentState }
 export interface GitStatusEvent { projectPath: string; git: GitStatus | null }
 export interface WindowMaximizedChangeEvent { maximized: boolean }
+
+export type ChallengeReason = 'cloudflare' | 'session-expired'
+
+export interface ChallengeEvent {
+  reason: ChallengeReason
+  timestamp: string
+}
 
 export interface AgentApi {
   listWorkspaces(): Promise<WorkspaceSummary[]>
@@ -163,4 +171,5 @@ export interface AgentApi {
   onGitStatus(cb: (e: GitStatusEvent) => void): () => void
   onContextChanged(cb: (e: ContextChangedEvent) => void): () => void
   onChatEvent(cb: (e: ChatEvent) => void): () => void
+  onChatGptWebChallenge(cb: (e: ChallengeEvent) => void): () => void
 }
