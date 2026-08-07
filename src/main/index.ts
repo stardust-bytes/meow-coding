@@ -24,6 +24,7 @@ import { FileWatcher } from './file-watcher'
 import { LspManager } from './agent/lsp/manager'
 import { ModelsCatalog } from './models-catalog'
 import { getWindowChromeOptions } from './window-chrome'
+import { ChatGptWebManager } from './chatgpt-web/manager'
 import { Channels } from '../shared/ipc'
 import type { AgentState, Command, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, Workspace, WorkspaceRuntime } from '../shared/types'
 
@@ -58,9 +59,11 @@ class MainApp {
   builtinSkillsDir = app.isPackaged
     ? path.join(process.resourcesPath, 'skills')
     : path.join(app.getAppPath(), 'resources', 'skills')
+  chatGptWeb = new ChatGptWebManager(path.join(app.getPath('userData'), 'chatgpt-web'))
   meowAgent = new MeowAgentManager({
     configPath: path.join(app.getPath('userData'), 'meow.json'),
     store: new SessionStore(createJsonStore<StoredSession>(path.join(app.getPath('userData'), 'sessions.json'))),
+    chatGptWeb: this.chatGptWeb,
     tools: createDefaultTools({
       getUserSkillsDir: () => path.join(app.getPath('userData'), 'skills'),
       getBuiltinSkillsDir: () => this.builtinSkillsDir
@@ -456,6 +459,10 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.SettingsSave, (_e, settings: MeowSettings) =>
     mainApp.meowAgent.saveSettings(settings))
   ipcMain.handle(Channels.McpStatus, () => mainApp.meowAgent.getMcpStatus())
+  ipcMain.handle(Channels.ChatGptWebGetStatus, () => mainApp.chatGptWeb.getStatus())
+  ipcMain.handle(Channels.ChatGptWebSetEnabled, (_e, enabled: boolean) => mainApp.chatGptWeb.setEnabled(enabled))
+  ipcMain.handle(Channels.ChatGptWebLogin, () => mainApp.chatGptWeb.login())
+  ipcMain.handle(Channels.ChatGptWebLogout, () => mainApp.chatGptWeb.logout())
   ipcMain.handle(Channels.CommandList, (_e, projectPath: string) => mainApp.meowAgent.listCommands(projectPath))
   ipcMain.handle(Channels.CommandSave, (_e, command: Command) => mainApp.meowAgent.saveCommand(command))
   ipcMain.handle(Channels.CommandRemove, (_e, name: string) => mainApp.meowAgent.removeCommand(name))

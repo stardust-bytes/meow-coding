@@ -241,6 +241,12 @@ export interface ModelRef {
   model: string
 }
 
+export interface ChatGptWebStatus {
+  enabled: boolean
+  loggedIn: boolean
+  verifiedAt: string | null
+}
+
 export interface CatalogProviderSummary {
   id: string
   name: string

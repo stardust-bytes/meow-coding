@@ -14,7 +14,7 @@ describe('IPC contract', () => {
       'writeInput', 'injectPrompt', 'resizePty', 'openLog', 'getLogPath', 'quit', 'getAppVersion',
       'onPtyData', 'onAgentState', 'onGitStatus',
       'sendChat', 'stopChat', 'runCommand', 'undoChat', 'redoChat', 'newChatSession', 'listChatMessages', 'listChatTranscript', 'respondPrompt', 'removeQueued', 'editQueued',
-      'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus', 'listCommands', 'saveCommand', 'removeCommand', 'getStats', 'onContextChanged',
+      'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus', 'getChatGptWebStatus', 'setChatGptWebEnabled', 'loginChatGptWeb', 'logoutChatGptWeb', 'listCommands', 'saveCommand', 'removeCommand', 'getStats', 'onContextChanged',
       'suggestFiles', 'setAgentBackground', 'onAgentBackground',
       'listSessions', 'createSession', 'switchSession', 'deleteSession', 'renameSession',
       'getChatTodos',
@@ -72,6 +72,10 @@ describe('IPC contract', () => {
       getSettings: async () => ({ providers: [], defaultProvider: '', agents: [], permission: {}, mcp: {}, maxContextTokens: 200000, maxSteps: Infinity, compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 2000 }, toolOutput: { maxBytes: 51200, maxLines: 2000 }, lsp: { enabled: true, diagnosticsTimeoutMs: 3000 } }),
       saveSettings: async (s) => s,
       getMcpStatus: async () => [],
+      getChatGptWebStatus: async () => ({ enabled: false, loggedIn: false, verifiedAt: null }),
+      setChatGptWebEnabled: async () => ({ enabled: false, loggedIn: false, verifiedAt: null }),
+      loginChatGptWeb: async () => ({ enabled: false, loggedIn: false, verifiedAt: null }),
+      logoutChatGptWeb: async () => ({ enabled: false, loggedIn: false, verifiedAt: null }),
       platform: 'win32',
       minimizeWindow: async () => {},
       toggleMaximizeWindow: async () => {},
@@ -139,6 +143,10 @@ describe('IPC contract', () => {
     expect(Channels.ProviderConnect).toBe('provider:connect')
     expect(Channels.ProviderDisconnect).toBe('provider:disconnect')
     expect(Channels.McpStatus).toBe('mcp:status')
+    expect(Channels.ChatGptWebGetStatus).toBe('chatgpt-web:get-status')
+    expect(Channels.ChatGptWebSetEnabled).toBe('chatgpt-web:set-enabled')
+    expect(Channels.ChatGptWebLogin).toBe('chatgpt-web:login')
+    expect(Channels.ChatGptWebLogout).toBe('chatgpt-web:logout')
     expect(Channels.WindowMinimize).toBe('window:minimize')
     expect(Channels.WindowToggleMaximize).toBe('window:toggle-maximize')
     expect(Channels.WindowClose).toBe('window:close')

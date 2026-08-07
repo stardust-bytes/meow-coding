@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
-import type { ChatEvent, Command, ContextChangedEvent, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template } from '../shared/types'
+import type { ChatEvent, ChatGptWebStatus, Command, ContextChangedEvent, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template } from '../shared/types'
 import type { AgentApi, AgentStateEvent, GitStatusEvent, PtyDataEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
 
 function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
@@ -88,6 +88,10 @@ const api: AgentApi = {
   removeCommand: (name: string) => ipcRenderer.invoke(Channels.CommandRemove, name),
   getStats: () => ipcRenderer.invoke(Channels.StatsGet),
   getMcpStatus: () => ipcRenderer.invoke(Channels.McpStatus),
+  getChatGptWebStatus: () => ipcRenderer.invoke(Channels.ChatGptWebGetStatus),
+  setChatGptWebEnabled: (enabled: boolean) => ipcRenderer.invoke(Channels.ChatGptWebSetEnabled, enabled),
+  loginChatGptWeb: () => ipcRenderer.invoke(Channels.ChatGptWebLogin),
+  logoutChatGptWeb: () => ipcRenderer.invoke(Channels.ChatGptWebLogout),
   platform: process.platform,
   minimizeWindow: () => ipcRenderer.invoke(Channels.WindowMinimize),
   toggleMaximizeWindow: () => ipcRenderer.invoke(Channels.WindowToggleMaximize),

@@ -1,7 +1,8 @@
 import type {
-  AgentState, CatalogProviderSummary, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ContextChangedEvent,
-  ContextInfo, FileSuggestion, GitStatus, ImageAttachment, McpServerStatus, MeowSettings, ModelRef, NewAgentInput,
-  PromptResponse, SessionSummary, StatsSummary, Template, TodoItem, WorkspaceRuntime, WorkspaceSummary
+  AgentState, CatalogProviderSummary, ChatEvent, ChatGptWebStatus, ChatMessage, ChatTranscriptItem, Command,
+  ContextChangedEvent, ContextInfo, FileSuggestion, GitStatus, ImageAttachment, McpServerStatus, MeowSettings,
+  ModelRef, NewAgentInput, PromptResponse, SessionSummary, StatsSummary, Template, TodoItem, WorkspaceRuntime,
+  WorkspaceSummary
 } from './types'
 
 export const Channels = {
@@ -61,6 +62,10 @@ export const Channels = {
   CommandRemove: 'commands:remove',
   StatsGet: 'stats:get',
   McpStatus: 'mcp:status',
+  ChatGptWebGetStatus: 'chatgpt-web:get-status',
+  ChatGptWebSetEnabled: 'chatgpt-web:set-enabled',
+  ChatGptWebLogin: 'chatgpt-web:login',
+  ChatGptWebLogout: 'chatgpt-web:logout',
   WindowMinimize: 'window:minimize',
   WindowToggleMaximize: 'window:toggle-maximize',
   WindowClose: 'window:close',
@@ -141,6 +146,10 @@ export interface AgentApi {
   removeCommand(name: string): Promise<void>
   getStats(): Promise<StatsSummary>
   getMcpStatus(): Promise<McpServerStatus[]>
+  getChatGptWebStatus(): Promise<ChatGptWebStatus>
+  setChatGptWebEnabled(enabled: boolean): Promise<ChatGptWebStatus>
+  loginChatGptWeb(): Promise<ChatGptWebStatus>
+  logoutChatGptWeb(): Promise<ChatGptWebStatus>
   platform: string
   minimizeWindow(): Promise<void>
   toggleMaximizeWindow(): Promise<void>
