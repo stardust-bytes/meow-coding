@@ -7,6 +7,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { ListRootsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { ToolDefinition } from '../tools/types'
 import type { McpServerConfig } from '../../../shared/types'
+import { buildSpawnCommand } from '../../pty-manager'
 
 export type { McpServerConfig }
 
@@ -91,14 +92,21 @@ export class McpManager {
   getTools(): Map<string, ToolDefinition> {
     const out = new Map<string, ToolDefinition>()
     for (const conn of this.connections.values()) {
+      const serverName = conn.serverName
       for (const tool of conn.tools) {
-        const fullName = `mcp__${conn.serverName}__${tool.name}`
+        const fullName = `mcp__${serverName}__${tool.name}`
         out.set(fullName, {
           name: fullName,
-          description: tool.description ?? `MCP tool ${tool.name} from server ${conn.serverName}`,
+          description: tool.description ?? `MCP tool ${tool.name} from server ${serverName}`,
           schema: tool.inputSchema ?? { type: 'object', properties: {} },
           run: async (input) => {
-            const res = await conn.client.callTool({ name: tool.name, arguments: input })
+            // Resolve the connection at call time, not snapshot time: every
+            // syncTools() → connect() closes all previous clients, so a tool
+            // definition captured by an older runner would otherwise call a
+            // closed client and fail with "Not connected".
+            const current = this.connections.get(serverName)
+            if (!current) return { error: `MCP server "${serverName}" is not connected` }
+            const res = await current.client.callTool({ name: tool.name, arguments: input })
             const content = (res.content ?? []) as Array<{ type: string; text?: string }>
             const texts = content.filter(c => c.type === 'text').map(c => c.text ?? '')
             const text = texts.join('\n')
@@ -126,9 +134,15 @@ export class McpManager {
     if (this.deps.createTransport) return this.deps.createTransport(cfg)
     if (cfg.url) return new StreamableHTTPClientTransport(new URL(cfg.url))
     if (!cfg.command) throw new Error('MCP server needs either "command" or "url"')
+    // Windows shim rule (same as PtyManager): npm-installed CLIs (npx,
+    // @playwright/mcp, …) only ship as .cmd shims. cross-spawn resolves
+    // them itself, but going through cmd.exe explicitly is more robust
+    // (e.g. when PATH in the packaged app lacks the npm dir) and matches
+    // how the terminal panes spawn agents.
+    const spawn = buildSpawnCommand(cfg.command, cfg.args ?? [])
     return new StdioClientTransport({
-      command: cfg.command,
-      args: cfg.args,
+      command: spawn.command,
+      args: spawn.args,
       env: cfg.env,
       // Spawn the server in the project dir so servers that use process.cwd()
       // as their workspace (Playwright MCP output dir/file guard) operate on

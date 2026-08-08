@@ -120,4 +120,33 @@ describe('McpManager', () => {
     const r = await mcp.getTools().get('mcp__mock__fail')!.run({}, ctx)
     expect(r.error).toBe('boom')
   })
+
+  it('routes calls through the current connection, so stale tool snapshots survive a reconnect', async () => {
+    const mcp = new McpManager({
+      // Fresh echo server + transport per connect (a real reconnect spawns a
+      // new server process; the closed transport cannot be reused).
+      createTransport: () => {
+        const server = makeEchoServer()
+        servers.push(server)
+        const [serverSide, clientSide] = InMemoryTransport.createLinkedPair()
+        void server.connect(serverSide)
+        return clientSide
+      }
+    })
+    managers.push(mcp)
+
+    // First sync: snapshot the tools like an agent runner would.
+    await mcp.connect({ mock: { command: 'node' } })
+    const staleTools = mcp.getTools()
+    const echo = staleTools.get('mcp__mock__echo')!
+    expect(await echo.run({ text: 'hi' }, ctx)).toEqual({ output: 'echo:hi' })
+
+    // Second sync (new workspace / config reload) closes all previous clients.
+    await mcp.connect({ mock: { command: 'node' } })
+
+    // The old snapshot must not blow up with "Not connected": calls resolve
+    // against the live connection by server name at call time.
+    const r = await echo.run({ text: 'again' }, ctx)
+    expect(r.output).toBe('echo:again')
+  })
 })
