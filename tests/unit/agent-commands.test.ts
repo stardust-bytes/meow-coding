@@ -3,8 +3,8 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import {
-  CommandStore, INIT_COMMAND, REVIEW_COMMAND, SUPERPOWERS_COMMANDS, projectCommands, uniqueCommands,
-  resolveCommandTemplate, resolveShell, resolveCommand
+  CommandStore, INIT_COMMAND, REVIEW_COMMAND, FRONTEND_DESIGN_COMMAND, SUPERPOWERS_COMMANDS,
+  projectCommands, uniqueCommands, resolveCommandTemplate, resolveShell, resolveCommand
 } from '../../src/main/agent/commands'
 
 describe('resolveCommandTemplate', () => {
@@ -60,6 +60,26 @@ describe('CommandStore', () => {
     expect(list.map(c => c.name)).toContain('sp-brainstorming')
     store.save({ name: '/custom', description: 'd', template: 'do $1' })
     expect(store.list().map(c => c.name)).toContain('custom')
+  })
+
+  it('lists the frontend-design built-in command', () => {
+    const store = new CommandStore(file)
+    expect(store.list().map(c => c.name)).toContain('frontend-design')
+    expect(store.get('frontend-design')?.description).toContain('frontend-design skill')
+  })
+
+  it('frontend-design command resolves $ARGUMENTS into the skill dispatch prompt', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-fd-'))
+    try {
+      const out = await resolveCommand(FRONTEND_DESIGN_COMMAND, ['redesign the landing page'], {
+        cwd: dir, commands: []
+      })
+      expect(out).toContain('Use the `frontend-design` skill for this request and follow it strictly.')
+      expect(out).toContain('Read @AGENTS.md before taking action.')
+      expect(out).toContain('User request:\nredesign the landing page')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('superpowers commands resolve $ARGUMENTS into the skill dispatch prompt', async () => {
