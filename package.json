@@ -15,7 +15,9 @@
     "dist": "electron-vite build && electron-builder --win",
     "dist:dir": "electron-vite build && electron-builder --dir",
     "dist:linux": "electron-vite build && electron-builder --linux",
-    "dist:linux:dir": "electron-vite build && electron-builder --linux dir"
+    "dist:linux:dir": "electron-vite build && electron-builder --linux dir",
+    "dist:mac": "electron-vite build && electron-builder --mac",
+    "dist:mac:dir": "electron-vite build && electron-builder --mac dir"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.7.2",
@@ -105,6 +107,26 @@
       "icon": "build/icons",
       "category": "Development",
       "maintainer": "Meow Coding"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.developer-tools",
+      "icon": "moew-coding-logo.png"
     },
     "nsis": {
       "oneClick": false,
