@@ -54,6 +54,21 @@ const SUPERPOWERS: Array<{ name: string; context: string }> = [
   { name: 'writing-skills', context: 'Review the target skill files and any related plugin structure before editing.' }
 ]
 
+export const FRONTEND_DESIGN_COMMAND: Command = {
+  name: 'frontend-design',
+  description: 'Design or redesign UI following the frontend-design skill',
+  template: [
+    'Use the `frontend-design` skill for this request and follow it strictly.',
+    '',
+    'Project context:',
+    '- Read @AGENTS.md before taking action.',
+    '- Ground the design in the product subject, its audience, and the single job the page must do.',
+    '',
+    'User request:',
+    '$ARGUMENTS'
+  ].join('\n')
+}
+
 export const SUPERPOWERS_COMMANDS: Command[] = SUPERPOWERS.map(({ name, context }) => ({
   name: `sp-${name}`,
   description: `Invoke the Superpowers ${name} skill`,
@@ -126,7 +141,7 @@ export async function resolveCommand(
 
 export class CommandStore {
   private builtin = new Map<string, Command>(
-    [INIT_COMMAND, REVIEW_COMMAND, NEW_COMMAND, ...SUPERPOWERS_COMMANDS].map(c => [c.name, c])
+    [INIT_COMMAND, REVIEW_COMMAND, NEW_COMMAND, FRONTEND_DESIGN_COMMAND, ...SUPERPOWERS_COMMANDS].map(c => [c.name, c])
   )
 
   constructor(private userCommandsFile: string) {}
