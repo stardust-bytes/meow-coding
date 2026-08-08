@@ -115,6 +115,7 @@ npm run build       # build
 npm run start       # preview build
 npm run dist        # package Windows installer (NSIS + portable)
 npm run dist:linux  # package Linux (AppImage + deb)
+npm run dist:mac    # package macOS (dmg + zip; must run on macOS)
 ```
 
 ## Testing
