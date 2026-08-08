@@ -1,7 +1,10 @@
+import { existsSync } from 'node:fs'
+import { pathToFileURL } from 'node:url'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { ListRootsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { ToolDefinition } from '../tools/types'
 import type { McpServerConfig } from '../../../shared/types'
 
@@ -28,6 +31,8 @@ export interface McpServerStatus {
 
 export interface McpManagerDeps {
   createTransport?: (cfg: McpServerConfig) => Transport
+  /** Project dir served to servers as workspace root and used as spawn cwd. */
+  projectPath?: string
 }
 
 export class McpManager {
@@ -36,12 +41,27 @@ export class McpManager {
 
   constructor(private deps: McpManagerDeps = {}) {}
 
-  async connect(servers: Record<string, McpServerConfig>): Promise<void> {
+  async connect(servers: Record<string, McpServerConfig>, projectPath?: string): Promise<void> {
+    if (projectPath !== undefined) this.deps = { ...this.deps, projectPath }
     await this.closeAll()
     this.statuses.clear()
     for (const [name, cfg] of Object.entries(servers)) {
       try {
-        const client = new Client({ name: 'meow-coding', version: '0.1.0' })
+        const client = new Client(
+          { name: 'meow-coding', version: '0.1.0' },
+          {
+            capabilities: {
+              roots: {
+                listChanged: false
+              }
+            }
+          }
+        )
+        // Playwright MCP & co. ask the client for workspace roots and anchor
+        // file access/output dir on them — serve the project dir.
+        client.setRequestHandler(ListRootsRequestSchema, async () => ({
+          roots: this.rootUris()
+        }))
         const transport = this.makeTransport(cfg)
         await client.connect(transport)
         const listed = await client.listTools()
@@ -60,6 +80,12 @@ export class McpManager {
 
   status(): McpServerStatus[] {
     return [...this.statuses.values()]
+  }
+
+  private rootUris(): Array<{ uri: string; name?: string }> {
+    const projectPath = this.deps.projectPath
+    if (!projectPath) return []
+    return existsSync(projectPath) ? [{ uri: pathToFileURL(projectPath).toString(), name: projectPath }] : []
   }
 
   getTools(): Map<string, ToolDefinition> {
@@ -100,6 +126,14 @@ export class McpManager {
     if (this.deps.createTransport) return this.deps.createTransport(cfg)
     if (cfg.url) return new StreamableHTTPClientTransport(new URL(cfg.url))
     if (!cfg.command) throw new Error('MCP server needs either "command" or "url"')
-    return new StdioClientTransport({ command: cfg.command, args: cfg.args, env: cfg.env })
+    return new StdioClientTransport({
+      command: cfg.command,
+      args: cfg.args,
+      env: cfg.env,
+      // Spawn the server in the project dir so servers that use process.cwd()
+      // as their workspace (Playwright MCP output dir/file guard) operate on
+      // the right folder instead of the Electron app dir.
+      cwd: this.deps.projectPath
+    })
   }
 }

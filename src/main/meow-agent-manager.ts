@@ -664,7 +664,7 @@ export class MeowAgentManager {
 
   private async syncTools(): Promise<void> {
     const cfg = loadMeowConfig(this.deps.configPath)
-    await this.mcp.connect(cfg.mcp ?? {})
+    await this.mcp.connect(cfg.mcp ?? {}, this.deps.projectPath)
     const userTools = await loadUserTools(
       [this.deps.userToolsDir].filter((d): d is string => Boolean(d))
     )
