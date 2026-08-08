@@ -850,7 +850,7 @@ select.input { width: 100%; }
 /* Diff view */
 .tool-call-diff { color: var(--text); }
 .diff-view { font-family: var(--font-mono); font-size: var(--fs-md); user-select: text; max-height: 260px; overflow-y: auto; }
-.diff-line { display: flex; gap: 6px; padding: 0 10px; white-space: pre-wrap; word-break: break-word; }
+.diff-line { display: flex; gap: 6px; padding: 0 10px; white-space: pre-wrap; word-break: break-word; border-radius: 0; }
 .diff-line.del { background: rgba(255, 77, 79, 0.1); color: var(--red); }
 .diff-line.add { background: rgba(76, 227, 161, 0.1); color: var(--green); }
 .diff-sign { flex: 0 0 auto; }
