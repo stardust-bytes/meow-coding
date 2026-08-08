@@ -5,6 +5,10 @@ Claude Code, aider, and any other CLI agent you put on `PATH` — in parallel te
 single window. It also ships a built-in **native "Meow" agent** with its own chat UI, tool registry,
 sessions, permissions, and skill system.
 
+<p align="center">
+  <img src="media/meow-app-screen.png" alt="Meow Coding — multiple CLI coding agents in parallel panes" width="720">
+</p>
+
 ## Highlights
 
 - **Multi-agent panes** — spawn several CLI coding agents in one window, each in its own terminal
