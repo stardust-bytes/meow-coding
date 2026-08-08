@@ -116,6 +116,12 @@ npm run start       # preview build
 npm run dist        # package Windows installer (NSIS + portable)
 npm run dist:linux  # package Linux (AppImage + deb)
 npm run dist:mac    # package macOS (dmg + zip; must run on macOS)
+
+### CI / Releases
+
+GitHub Actions (`.github/workflows/build.yml`) builds Windows, macOS, and Linux installers on each
+push to `master` and on every `v*` tag. Tagged releases are published automatically — grab the
+latest installers from the [Releases](https://github.com/stardust-bytes/meow-coding/releases) page.
 ```
 
 ## Testing
