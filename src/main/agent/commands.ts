@@ -2,7 +2,6 @@ import { execFile } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import type { Command } from '../../shared/types'
-import { expandReferences } from './references'
 
 const SHELL_TIMEOUT = 10_000
 
@@ -61,7 +60,7 @@ export const FRONTEND_DESIGN_COMMAND: Command = {
     'Use the `frontend-design` skill for this request and follow it strictly.',
     '',
     'Project context:',
-    '- Read @AGENTS.md before taking action.',
+    '- Read AGENTS.md before taking action.',
     '- Ground the design in the product subject, its audience, and the single job the page must do.',
     '',
     'User request:',
@@ -76,7 +75,7 @@ export const SUPERPOWERS_COMMANDS: Command[] = SUPERPOWERS.map(({ name, context 
     `Use the Superpowers skill \`${name}\` for this request and follow it strictly.`,
     '',
     'Project context:',
-    '- Read @AGENTS.md before taking action.',
+    '- Read AGENTS.md before taking action.',
     `- ${context}`,
     '',
     'User request:',
@@ -86,6 +85,9 @@ export const SUPERPOWERS_COMMANDS: Command[] = SUPERPOWERS.map(({ name, context 
 
 const SHELL_EXEC_RE = /!`([^`]*)`/g
 const ARG_RE = /\$(\d+)|\$ARGUMENTS/g
+// Quote-aware tokenizer for numbered placeholders, like opencode's argsRegex:
+// keeps "quoted strings" as a single token.
+const ARGS_TOKEN_RE = /"[^"]*"|'[^']*'|[^\s"']+/g
 export interface CommandResolverOptions {
   cwd: string
   commands: Command[]
@@ -113,29 +115,37 @@ export function resolveShell(text: string, cwd: string): Promise<string> {
   })
 }
 
-export function resolveCommandTemplate(template: string, args: string[]): string {
+function tokenizeArgs(args: string): string[] {
+  const out: string[] = []
+  for (const m of args.matchAll(ARGS_TOKEN_RE)) {
+    out.push(m[0].replace(/^["']|["']$/g, ''))
+  }
+  return out
+}
+
+export function resolveCommandTemplate(template: string, args: string): string {
   const used = new Set<number>()
   for (const m of template.matchAll(/\$(\d+)/g)) used.add(Number(m[1]))
   const maxUsed = used.size > 0 ? Math.max(...used) : 0
+  const tokens = tokenizeArgs(args)
   let out = template
   out = out.replace(ARG_RE, (full, num: string) => {
-    if (full === '$ARGUMENTS') return args.join(' ')
+    if (full === '$ARGUMENTS') return args
     const idx = Number(num) - 1
     if (idx < 0) return ''
     // The highest referenced placeholder slurps the remaining args.
-    return num === String(maxUsed) ? args.slice(idx).join(' ') : (args[idx] ?? '')
+    return num === String(maxUsed) ? tokens.slice(idx).join(' ') : (tokens[idx] ?? '')
   })
   return out
 }
 
 export async function resolveCommand(
   command: Command,
-  args: string[],
+  args: string,
   opts: CommandResolverOptions
 ): Promise<string> {
   let text = resolveCommandTemplate(command.template, args)
   text = await resolveShell(text, opts.cwd)
-  text = expandReferences(opts.cwd, text)
   return text
 }
 

@@ -17,7 +17,7 @@ import type { SessionSummary, StoredSession } from './agent/session'
 import { McpManager } from './agent/mcp/manager'
 import { collectSkills, skillListText } from './agent/skill'
 import { loadUserTools } from './agent/plugin'
-import { INSTRUCTION_POINTER } from './agent/instructions'
+import { instructionsText, loadInstructions } from './agent/instructions'
 import { expandReferences } from './agent/references'
 import { suggestFiles } from './file-suggest'
 import { SnapshotStore } from './agent/snapshot'
@@ -569,7 +569,7 @@ export class MeowAgentManager {
     this.deps.commands.remove(name)
   }
 
-  async runCommand(agentId: string, name: string, args: string[]): Promise<void> {
+  async runCommand(agentId: string, name: string, args: string): Promise<void> {
     const agent = this.agents.get(agentId)
     if (!agent) return
     const all = this.listCommands(agent.cwd)
@@ -692,9 +692,9 @@ export class MeowAgentManager {
       : undefined
     const contextTokens = modelLimit?.context ?? cfg.maxContextTokens
     const skills = collectSkills(agent.cwd, this.deps.userSkillsDir, this.deps.builtinSkillsDir)
-    // AGENTS.md contents are attached per-file on read (loop.ts); the system
-    // prompt only points the model at them instead of inlining everything.
-    const instructions = INSTRUCTION_POINTER
+    // AGENTS.md/CLAUDE.md walking up from cwd are inlined into the system
+    // prompt (opencode-style); module-level ones attach on read via loop.ts.
+    const instructions = instructionsText(loadInstructions(agent.cwd, this.deps.userInstructionsDir))
     const llmClient = resolved.provider === CHATGPT_WEB_PROVIDER_ID
       ? (this.deps.createChatGptWebLlmClient ?? defaultCreateChatGptWebLlmClient)(this.deps.chatGptWeb as ChatGptWebManager)
       : (this.deps.createLlm ?? createLlm)(resolved.provider, resolved.apiKey ?? '', resolved.baseUrl)

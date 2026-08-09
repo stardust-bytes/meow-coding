@@ -9,20 +9,26 @@ import {
 
 describe('resolveCommandTemplate', () => {
   it('fills numbered args with the last one slurping the remainder', () => {
-    expect(resolveCommandTemplate('do $1 and $2', ['a', 'b'])).toBe('do a and b')
-    expect(resolveCommandTemplate('do $1 then $2', ['a', 'b', 'c'])).toBe('do a then b c')
+    expect(resolveCommandTemplate('do $1 and $2', 'a b')).toBe('do a and b')
+    expect(resolveCommandTemplate('do $1 then $2', 'a b c')).toBe('do a then b c')
   })
 
   it('leaves missing numbered args empty', () => {
-    expect(resolveCommandTemplate('do $1 and $2', ['a'])).toBe('do a and ')
+    expect(resolveCommandTemplate('do $1 and $2', 'a')).toBe('do a and ')
   })
 
-  it('fills $ARGUMENTS with all args joined', () => {
-    expect(resolveCommandTemplate('run $ARGUMENTS', ['a', 'b'])).toBe('run a b')
+  it('fills $ARGUMENTS with the raw string preserving whitespace', () => {
+    expect(resolveCommandTemplate('run $ARGUMENTS', 'a b')).toBe('run a b')
+    expect(resolveCommandTemplate('run $ARGUMENTS', 'line1\n  indented  line2')).toBe(
+      'run line1\n  indented  line2')
   })
 
   it('leaves unmatched placeholders empty', () => {
-    expect(resolveCommandTemplate('x $3', ['a'])).toBe('x ')
+    expect(resolveCommandTemplate('x $3', 'a')).toBe('x ')
+  })
+
+  it('tokenizes quoted strings for numbered placeholders', () => {
+    expect(resolveCommandTemplate('do $1 with $2', '"a b" c')).toBe('do a b with c')
   })
 })
 
@@ -71,11 +77,11 @@ describe('CommandStore', () => {
   it('frontend-design command resolves $ARGUMENTS into the skill dispatch prompt', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'meow-fd-'))
     try {
-      const out = await resolveCommand(FRONTEND_DESIGN_COMMAND, ['redesign the landing page'], {
+      const out = await resolveCommand(FRONTEND_DESIGN_COMMAND, 'redesign the landing page', {
         cwd: dir, commands: []
       })
       expect(out).toContain('Use the `frontend-design` skill for this request and follow it strictly.')
-      expect(out).toContain('Read @AGENTS.md before taking action.')
+      expect(out).toContain('Read AGENTS.md before taking action.')
       expect(out).toContain('User request:\nredesign the landing page')
     } finally {
       rmSync(dir, { recursive: true, force: true })
@@ -87,9 +93,9 @@ describe('CommandStore', () => {
     try {
       const cmd = SUPERPOWERS_COMMANDS.find(c => c.name === 'sp-using-superpowers')
       expect(cmd).toBeDefined()
-      const out = await resolveCommand(cmd!, ['analyze the build config'], { cwd: dir, commands: [] })
+      const out = await resolveCommand(cmd!, 'analyze the build config', { cwd: dir, commands: [] })
       expect(out).toContain('Use the Superpowers skill `using-superpowers`')
-      expect(out).toContain('Read @AGENTS.md before taking action.')
+      expect(out).toContain('Read AGENTS.md before taking action.')
       expect(out).toContain('User request:\nanalyze the build config')
       expect(SUPERPOWERS_COMMANDS.length).toBeGreaterThanOrEqual(14)
     } finally {
@@ -183,9 +189,10 @@ describe('resolveCommand end-to-end', () => {
     try {
       writeFileSync(path.join(dir, 'note.txt'), 'hello world')
       const cmd = { name: 'readit', description: '', template: 'Read the file $1 and summarize: @$1' }
-      const out = await resolveCommand(cmd, ['note.txt'], { cwd: dir, commands: [] })
+      const out = await resolveCommand(cmd, 'note.txt', { cwd: dir, commands: [] })
       expect(out).toContain('Read the file note.txt')
-      expect(out).toContain('hello world')
+      // References are expanded later in runTurn, not by resolveCommand.
+      expect(out).not.toContain('hello world')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

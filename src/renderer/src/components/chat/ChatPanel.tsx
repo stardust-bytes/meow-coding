@@ -453,7 +453,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     }
     const m = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(trimmed)
     if (m && commands.some(c => c.name === m[1])) {
-      void window.api.runCommand(agentId, m[1], m[2] ? m[2].trim().split(/\s+/) : [])
+      void window.api.runCommand(agentId, m[1], m[2] ?? '')
     } else {
       void window.api.sendChat(agentId, trimmed, images)
     }

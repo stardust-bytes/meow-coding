@@ -639,7 +639,7 @@ describe('MeowAgentManager', () => {
     const { manager, events } = await makeManager()
     const list = manager.listCommands('/proj')
     expect(list.map(c => c.name)).toContain('init')
-    const p = manager.runCommand('a1', 'init', [])
+    const p = manager.runCommand('a1', 'init', '')
     await new Promise(r => setTimeout(r, 20))
     // command sends a message to the agent → running then done
     expect(manager.isRunning('a1')).toBe(false)
@@ -652,7 +652,7 @@ describe('MeowAgentManager', () => {
     expect(manager.listCommands('/proj').map(c => c.name)).toContain('new')
     const before = manager.listSessions('a1')[0]?.id
     createLlm.mockClear()
-    await manager.runCommand('a1', 'new', [])
+    await manager.runCommand('a1', 'new', '')
     const after = manager.listSessions('a1')[0]?.id
     expect(after).toBeDefined()
     expect(after).not.toBe(before)

@@ -469,7 +469,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.ChatSend, (_e, agentId: string, text: string, images?: ImageAttachment[]) =>
     mainApp.meowAgent.send(agentId, text, images))
   ipcMain.handle(Channels.ChatStop, (_e, agentId: string) => mainApp.meowAgent.stopAndDrain(agentId))
-  ipcMain.handle(Channels.ChatRunCommand, (_e, agentId: string, name: string, args: string[]) =>
+  ipcMain.handle(Channels.ChatRunCommand, (_e, agentId: string, name: string, args: string) =>
     mainApp.meowAgent.runCommand(agentId, name, args))
   ipcMain.handle(Channels.ChatUndo, (_e, agentId: string) => mainApp.meowAgent.undo(agentId))
   ipcMain.handle(Channels.ChatRedo, (_e, agentId: string) => mainApp.meowAgent.redo(agentId))

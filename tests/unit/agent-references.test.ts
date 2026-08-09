@@ -56,4 +56,18 @@ describe('expandReferences', () => {
     const out = expandReferences(sub, 'Hello @nope.md there')
     expect(out).toBe('Hello @nope.md there')
   })
+
+  it('reads AGENTS.md in full even past the regular cap', () => {
+    writeFileSync(path.join(dir, 'AGENTS.md'), 'x'.repeat(60 * 1024) + 'THE-END')
+    const out = expandReferences(dir, 'Read @AGENTS.md')
+    expect(out).toContain('THE-END')
+    expect(out).not.toContain('truncated')
+  })
+
+  it('caps regular referenced files at 50KB with a read-tool hint', () => {
+    writeFileSync(path.join(dir, 'big.ts'), 'y'.repeat(60 * 1024))
+    const out = expandReferences(dir, 'look at @big.ts')
+    expect(out).toContain('use the read tool with offset')
+    expect(out).not.toContain('y'.repeat(55 * 1024))
+  })
 })
