@@ -26,6 +26,7 @@ Ngày: 2026-08-08 · Trạng thái: chờ duyệt
 | Attach-on-read | **Giữ nguyên** `loop.ts attachInstructions()` (module-level khi model đọc/ghi file) — đã hoạt động đúng như opencode. |
 | Cap dung lượng | AGENTS.md/CLAUDE.md: **bỏ cap** (đọc toàn bộ). File `@` thường: cap **50KB** (khớp `MAX_BYTES = 50*1024` opencode) + hướng dẫn đọc tiếp. |
 | Double expand | Bỏ `expandReferences` trong `resolveCommand` (giữ `resolveShell`); `runTurn` là nơi expand duy nhất. |
+| Template `@AGENTS.md` | **Bỏ ký tự `@`** trong template slash (`- Read AGENTS.md before taking action.`) — nội dung AGENTS.md đã nằm trong system prompt, tránh trùng nội dung khi `expandReferences` chạy 1 lần. |
 | System prompt cache | Prompt được build ở `register()`; refresh khi đổi model/variant/agent. Không tự reload khi AGENTS.md đổi giữa chừng (chấp nhận cho v1, ghi rõ). |
 
 ## 3. Kiến trúc / luồng dữ liệu
@@ -102,8 +103,8 @@ system prompt, kèm yêu cầu user (nguyên trạng) trong user message.
   Instructions from: <path2>
   <content2>
   ```
-- `INSTRUCTION_POINTER` không còn được dùng cho system prompt (có thể xóa export hoặc giữ cho
-  tương thích — quyết định khi implement).
+- `INSTRUCTION_POINTER` bị **xóa** (không còn nơi dùng — nội dung AGENTS.md thay thế chữ chỉ dẫn).
+- Project không có AGENTS.md nào → phần instructions trống (không có pointer, model tự biết xử lý).
 
 ## 6. Kiểm thử
 
