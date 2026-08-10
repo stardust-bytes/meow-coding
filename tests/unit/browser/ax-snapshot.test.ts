@@ -8,7 +8,6 @@ function axn(
 ): AxNodeLike {
   return {
     nodeId,
-    ignored: false,
     role: opts.role,
     name: opts.name,
     backendDOMNodeId: opts.backendDOMNodeId,
@@ -109,5 +108,28 @@ describe('axTreeToSnapshot', () => {
 
   it('returns an empty tree for an empty node list', () => {
     expect(axTreeToSnapshot([])).toEqual({ tree: [], refs: [] })
+  })
+
+  it('promotes non-ignored descendants of an ignored ancestor', () => {
+    const nodes: AxNodeLike[] = [
+      axn('1', { role: role('rootwebarea'), childIds: ['2'] }),
+      axn('2', { role: role('generic'), ignored: true, childIds: ['3'] }),
+      axn('3', { role: role('button'), name: name('Visible'), backendDOMNodeId: 6 })
+    ]
+    const { tree, refs } = axTreeToSnapshot(nodes, {})
+    expect(tree[0].children).toHaveLength(1)
+    expect(tree[0].children![0]).toMatchObject({ role: 'button', name: 'Visible', ref: 'r1' })
+    expect(refs).toHaveLength(1)
+  })
+
+  it('full mode gives refs to non-interactive element nodes too', () => {
+    const nodes: AxNodeLike[] = [
+      axn('1', { role: role('rootwebarea'), childIds: ['2'] }),
+      axn('2', { role: role('navigation'), name: name('Main'), backendDOMNodeId: 4 })
+    ]
+    const interactive = axTreeToSnapshot(nodes, { mode: 'interactive' })
+    expect(interactive.refs).toHaveLength(0)
+    const full = axTreeToSnapshot(nodes, { mode: 'full' })
+    expect(full.refs).toEqual([{ ref: 'r1', backendDOMNodeId: 4 }])
   })
 })

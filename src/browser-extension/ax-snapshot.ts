@@ -51,9 +51,18 @@ export function axTreeToSnapshot(
   const refTargets = new Map<SnapshotNode, number>()
   let count = 0
 
-  const visit = (n: AxNodeLike): SnapshotNode | null => {
-    if (maxNodes > 0 && count >= maxNodes) return null
-    if (n.ignored) return null
+  const visit = (n: AxNodeLike): SnapshotNode[] => {
+    if (maxNodes > 0 && count >= maxNodes) return []
+    if (n.ignored) {
+      const promoted: SnapshotNode[] = []
+      for (const childId of n.childIds ?? []) {
+        if (maxNodes > 0 && count >= maxNodes) break
+        const c = byId.get(childId)
+        if (!c) continue
+        promoted.push(...visit(c))
+      }
+      return promoted
+    }
     const role = axString(n.role).toLowerCase()
     const name = axString(n.name).trim().replace(/\s+/g, ' ').slice(0, textMaxChars)
     const textLike = TEXT_ROLES.has(role)
@@ -61,9 +70,9 @@ export function axTreeToSnapshot(
     const skipRole = SKIPPED_ROLES.has(role)
 
     if (textLike) {
-      if (!name) return null
+      if (!name) return []
       count++
-      return { role: 'text', name }
+      return [{ role: 'text', name }]
     }
 
     count++
@@ -73,15 +82,14 @@ export function axTreeToSnapshot(
       if (maxNodes > 0 && count >= maxNodes) break
       const c = byId.get(childId)
       if (!c) continue
-      const cn = visit(c)
-      if (cn) children.push(cn)
+      children.push(...visit(c))
     }
 
     const kids = name ? children.filter(c => !(c.role === 'text' && c.name === name)) : children
 
     if (mode === 'interactive' && !interactive && skipRole && !name && kids.length === 0) {
       count--
-      return null
+      return []
     }
 
     const node: SnapshotNode = {
@@ -93,10 +101,11 @@ export function axTreeToSnapshot(
     if (wantRef && n.backendDOMNodeId != null) {
       refTargets.set(node, n.backendDOMNodeId)
     }
-    return node
+    return [node]
   }
 
-  const rootNode = visit(root)
+  const rootList = visit(root)
+  const rootNode = rootList[0] ?? null
 
   const refs: AxSnapshotRef[] = []
   if (rootNode) {
