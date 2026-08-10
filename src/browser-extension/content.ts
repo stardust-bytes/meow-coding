@@ -1,4 +1,5 @@
 import type { BrowserCommandName } from '../../src/shared/browser-types'
+import { buildAriaTree, createRefMap, resolveRef, DEFAULT_MAX_NODES } from './snapshot'
 
 declare global {
   interface XMLHttpRequest {
@@ -16,7 +17,8 @@ interface CmdRequest {
 }
 
 const MAX_READ_CHARS = 12000
-const MAX_ELEMENTS = 20
+
+let refMap = new Map<string, Element>()
 
 function query(selector: string): Element | null {
   return document.querySelector(selector)
@@ -59,21 +61,6 @@ function setNativeValue(el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectE
   el.dispatchEvent(new Event('change', { bubbles: true }))
 }
 
-function collectInteractive(maxElements = MAX_ELEMENTS): Array<{ tag: string; text: string; selector: string }> {
-  const out: Array<{ tag: string; text: string; selector: string }> = []
-  const els = document.querySelectorAll<HTMLElement>(
-    'a, button, input, select, textarea, [role="button"], [role="link"], [role="checkbox"], [role="radio"]'
-  )
-  for (const el of els) {
-    if (maxElements > 0 && out.length >= maxElements) break
-    const text = (el.innerText || (el as HTMLInputElement).value || el.getAttribute('aria-label') || '').trim()
-      .replace(/\s+/g, ' ').slice(0, 80)
-    if (!text) continue
-    out.push({ tag: el.tagName.toLowerCase(), text, selector: uniqueSelector(el) })
-  }
-  return out
-}
-
 function waitForEl(selector: string, timeoutMs: number): Promise<Element | null> {
   return new Promise(resolve => {
     const el = query(selector)
@@ -100,6 +87,13 @@ async function execute(name: BrowserCommandName, params: Record<string, unknown>
       return { ok: true }
     }
     case 'click': {
+      if (params.ref != null) {
+        const el = resolveRef(String(params.ref), refMap)
+        if (!el) return { ok: false, error: `snapshot stale: re-read the page (ref ${params.ref} no longer valid)` }
+        scrollIntoView(el)
+        ;(el as HTMLElement).click()
+        return { ok: true, data: { ref: params.ref } }
+      }
       if (params.selector != null) {
         const el = query(String(params.selector))
         if (!el) return { ok: false, error: `selector not found: ${params.selector}` }
@@ -113,11 +107,12 @@ async function execute(name: BrowserCommandName, params: Record<string, unknown>
         ;(el as HTMLElement).click()
         return { ok: true, data: { x: params.x, y: params.y } }
       }
-      return { ok: false, error: 'click requires selector or x/y' }
+      return { ok: false, error: 'click requires ref, selector or x/y' }
     }
     case 'type': {
-      const el = query(String(params.selector))
-      if (!el) return { ok: false, error: `selector not found: ${params.selector}` }
+      if (params.ref == null && params.selector == null) return { ok: false, error: 'type requires ref or selector' }
+      const el = params.ref != null ? resolveRef(String(params.ref), refMap) : query(String(params.selector))
+      if (!el) return { ok: false, error: params.ref != null ? `snapshot stale: re-read the page (ref ${params.ref})` : `selector not found: ${params.selector}` }
       const text = String(params.text ?? '')
       if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
         el.focus()
@@ -129,8 +124,9 @@ async function execute(name: BrowserCommandName, params: Record<string, unknown>
       return { ok: true }
     }
     case 'select': {
-      const el = query(String(params.selector))
-      if (!el) return { ok: false, error: `selector not found: ${params.selector}` }
+      if (params.ref == null && params.selector == null) return { ok: false, error: 'select requires ref or selector' }
+      const el = params.ref != null ? resolveRef(String(params.ref), refMap) : query(String(params.selector))
+      if (!el) return { ok: false, error: params.ref != null ? `snapshot stale: re-read the page (ref ${params.ref})` : `selector not found: ${params.selector}` }
       const select = el as HTMLSelectElement
       select.value = String(params.value)
       select.dispatchEvent(new Event('change', { bubbles: true }))
@@ -153,14 +149,16 @@ async function execute(name: BrowserCommandName, params: Record<string, unknown>
     case 'read': {
       const root = params.selector != null ? query(String(params.selector)) : document.body
       if (!root) return { ok: false, error: `selector not found: ${params.selector}` }
+      const raw = Number(params.maxElements)
+      const maxNodes = Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : DEFAULT_MAX_NODES
+      const { tree, refs } = buildAriaTree(root, { maxNodes })
+      refMap = createRefMap(refs)
       const rootText = 'innerText' in root ? String(root.innerText) : root.textContent ?? ''
       const text = (rootText || '').replace(/\n{3,}/g, '\n\n').trim()
       const truncated = text.length > MAX_READ_CHARS ? text.slice(0, MAX_READ_CHARS) + '\n...(truncated)' : text
-      const raw = Number(params.maxElements)
-      const maxElements = Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : MAX_ELEMENTS
       return {
         ok: true,
-        data: { url: location.href, title: document.title, text: truncated, elements: collectInteractive(maxElements) }
+        data: { url: location.href, title: document.title, text: truncated, tree }
       }
     }
     case 'waitFor': {
