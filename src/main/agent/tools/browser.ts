@@ -44,7 +44,7 @@ export function createBrowserTools(
     },
     {
       name: 'browser_navigate',
-      description: 'Navigate the active tab to a URL (http/https).',
+      description: 'Navigate the working tab (the tab the agent is currently operating on) to a URL (http/https).',
       schema: z.object({
         url: z.string().describe('The http(s) URL to open.')
       }),
@@ -58,7 +58,8 @@ export function createBrowserTools(
       name: 'browser_open_tab',
       description:
         'Open a URL in a new background tab of an existing Chrome window, grouped under "Meow". ' +
-        'Never opens a new Chrome window unless none are open, and does not focus Chrome.',
+        'Never opens a new Chrome window unless none are open, and does not focus Chrome. ' +
+        'Returns a tabId you can pass to browser_switch_tab / browser_close_tab.',
       schema: z.object({
         url: z.string().describe('The http(s) URL to open.')
       }),
@@ -126,7 +127,8 @@ export function createBrowserTools(
       description:
         'Return the page as a nested accessibility tree (role + accessible name per node) with refs ' +
         'on interactive elements, plus the visible text. Use a ref with browser_click/type/select. ' +
-        'Pass maxElements to raise the tree node cap (default 200, use 0 for no limit).',
+        'Pass maxElements to raise the tree node cap (default 200, use 0 for no limit). ' +
+        'Re-read after navigating or if the page changed.',
       schema: z.object({
         selector: z.string().optional().describe('Optional CSS selector; defaults to the whole page.'),
         maxElements: z.number().int().min(0).max(500).optional().describe('Max tree nodes; 0 means no limit (default 200).')

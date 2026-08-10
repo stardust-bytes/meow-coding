@@ -21,6 +21,11 @@ const GROUP_COLOR = 'blue' as chrome.tabGroups.ColorEnum
 let workingTabId: number | null = null
 let groupLock: Promise<unknown> = Promise.resolve()
 
+function persistWorkingTab(id: number | null): void {
+  workingTabId = id
+  void chrome.storage.session.set({ workingTabId: id }).catch(() => {})
+}
+
 function saveState(patch: Partial<StoredState>): void {
   void chrome.storage.local.get(STORAGE_KEY).then((res: Record<string, StoredState | undefined>) => {
     const cur = res[STORAGE_KEY] ?? {}
@@ -58,6 +63,16 @@ function connect(): void {
     clearTimeout(reconnectTimer)
     reconnectTimer = null
   }
+  void chrome.storage.session.get('workingTabId').then(async (res) => {
+    const id = (res as { workingTabId?: number | null }).workingTabId
+    if (id == null) return
+    try {
+      const t = await chrome.tabs.get(id)
+      workingTabId = t.id ?? null
+    } catch {
+      workingTabId = null
+    }
+  })
   void (async () => {
     const port = await detectPort()
     const state = await loadState()
@@ -218,15 +233,22 @@ async function handleCommand(msg: Extract<BridgeToExtension, { type: 'cmd' }>): 
         const tab = windowId != null
           ? await chrome.tabs.create({ url, windowId, active: false })
           : await chrome.tabs.create({ url })
-        workingTabId = tab.id ?? null
-        const group = tab.id != null ? await addToMeowGroup(tab.id) : {}
-        send({ ok: true, data: { id: tab.id, url: tab.url, ...group } })
+        persistWorkingTab(tab.id ?? null)
+        let group: { groupId?: number; groupTitle?: string } = {}
+        if (tab.id != null) {
+          try {
+            group = await addToMeowGroup(tab.id)
+          } catch {
+            /* group creation failed; the tab itself is still open */
+          }
+        }
+        send({ ok: true, data: { id: tab.id, tabId: tab.id, url: tab.url, ...group } })
         return
       }
       case 'switchTab': {
         const tabId = Number(params.tabId)
         const tab = await chrome.tabs.update(tabId, { active: true })
-        workingTabId = tab?.id ?? null
+        persistWorkingTab(tab?.id ?? null)
         send({ ok: true, data: { id: tab?.id, url: tab?.url } })
         return
       }
@@ -239,6 +261,7 @@ async function handleCommand(msg: Extract<BridgeToExtension, { type: 'cmd' }>): 
         const tabId = params.tabId != null ? Number(params.tabId) : (await defaultTabId())
         if (tabId == null) { send({ ok: false, error: 'no target tab' }); return }
         await chrome.tabs.reload(tabId)
+        persistWorkingTab(tabId)
         send({ ok: true })
         return
       }
@@ -246,6 +269,7 @@ async function handleCommand(msg: Extract<BridgeToExtension, { type: 'cmd' }>): 
         const tabId = params.tabId != null ? Number(params.tabId) : (await defaultTabId())
         if (tabId == null) { send({ ok: false, error: 'no target tab' }); return }
         await chrome.tabs.update(tabId, { url: String(params.url) })
+        persistWorkingTab(tabId)
         send({ ok: true, data: { url: params.url } })
         return
       }
@@ -259,6 +283,7 @@ async function handleCommand(msg: Extract<BridgeToExtension, { type: 'cmd' }>): 
             format: 'png', captureBeyondViewport: true, fromSurface: true
           })
           await chrome.debugger.detach({ tabId }).catch(() => {})
+          persistWorkingTab(tabId)
           send({ ok: true, data: { base64: (res as { data: string }).data } })
         } catch (err) {
           await chrome.debugger.detach({ tabId }).catch(() => {})
@@ -270,7 +295,7 @@ async function handleCommand(msg: Extract<BridgeToExtension, { type: 'cmd' }>): 
         const tabId = params.tabId != null ? Number(params.tabId) : (await defaultTabId())
         if (tabId == null) { send({ ok: false, error: 'no target tab' }); return }
         const res = await sendToTab(tabId, name, params)
-        if (res.ok) workingTabId = tabId
+        if (res.ok) persistWorkingTab(tabId)
         send(res)
       }
     }
