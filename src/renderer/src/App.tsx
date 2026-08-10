@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChallengeEvent } from '@shared/ipc'
+import type { BrowserStatusInfo } from '@shared/browser-types'
 import { ChallengeToast } from './components/ChallengeToast'
 import { Terminal } from '@xterm/xterm'
 import type {
@@ -12,6 +13,7 @@ import EmptyState from './components/EmptyState'
 import StatusBar from './components/StatusBar'
 import TitleBar from './components/TitleBar'
 import SettingsDialog from './components/settings/SettingsDialog'
+import BrowserDialog from './components/BrowserDialog'
 
 export interface PaneModel {
   agent: AgentConfig
@@ -26,6 +28,8 @@ export default function App() {
   const [runtime, setRuntime] = useState<WorkspaceRuntime | null>(null)
   const [backgrounds, setBackgrounds] = useState<Record<string, boolean>>({})
   const [challenge, setChallenge] = useState<ChallengeEvent | null>(null)
+  const [browser, setBrowser] = useState<BrowserStatusInfo | null>(null)
+  const [browserDialogOpen, setBrowserDialogOpen] = useState(false)
   const termsRef = useRef<Map<string, Terminal>>(new Map())
   const buffersRef = useRef<Map<string, string>>(new Map())
 
@@ -63,12 +67,17 @@ export default function App() {
     const offChallenge = window.api.onChatGptWebChallenge((e) => {
       setChallenge(e)
     })
+    const offBrowser = window.api.onBrowserStatus((info) => {
+      setBrowser(info)
+    })
+    void window.api.getBrowserStatus().then(setBrowser)
     return () => {
       offData()
       offState()
       offGit()
       offBg()
       offChallenge()
+      offBrowser()
     }
   }, [])
 
@@ -180,7 +189,12 @@ export default function App() {
         workspaceName={runtime?.workspace.name ?? null}
         git={runtime?.git ?? null}
         agents={runtime?.agents ?? []}
+        browser={browser}
+        onBrowserClick={() => setBrowserDialogOpen(true)}
       />
+      {browserDialogOpen && (
+        <BrowserDialog status={browser} onClose={() => setBrowserDialogOpen(false)} />
+      )}
       {showSettings && (
         <SettingsDialog
           onClose={() => setShowSettings(false)}
