@@ -125,17 +125,22 @@ export function createBrowserTools(
     {
       name: 'browser_read',
       description:
-        'Return the page as a nested accessibility tree (role + accessible name per node) with refs ' +
-        'on interactive elements, plus the visible text. Use a ref with browser_click/type/select. ' +
-        'Pass maxElements to raise the tree node cap (default 200, use 0 for no limit). ' +
-        'Re-read after navigating or if the page changed.',
+        'Return the page as a nested accessibility tree (role + accessible name) with refs, using Chrome\'s ' +
+        'accessibility engine (covers shadow DOM and iframes). Use a ref with browser_click/type/select. ' +
+        'mode "interactive" (default) refs interactive elements; "full" includes every accessible node. ' +
+        'Pass maxElements to raise the node cap (interactive default 200, full default 500; 0 = no limit).',
       schema: z.object({
-        selector: z.string().optional().describe('Optional CSS selector; defaults to the whole page.'),
-        maxElements: z.number().int().min(0).max(500).optional().describe('Max tree nodes; 0 means no limit (default 200).')
+        selector: z.string().optional().describe('Optional CSS selector; ignored when snapshotting via CDP.'),
+        mode: z.enum(['interactive', 'full']).optional().describe('interactive (default) or full snapshot.'),
+        maxElements: z.number().int().min(0).max(2000).optional().describe('Max tree nodes; 0 means no limit (default 200 interactive / 500 full).')
       }),
       async run(input): Promise<ToolRunResult> {
-        const { selector, maxElements } = input as unknown as { selector?: string; maxElements?: number }
-        return fmt(await bridge.execute('read', selector ? { selector, maxElements } : { maxElements }))
+        const { selector, mode, maxElements } = input as unknown as { selector?: string; mode?: 'interactive' | 'full'; maxElements?: number }
+        const params: Record<string, unknown> = {}
+        if (selector != null) params.selector = selector
+        if (mode != null) params.mode = mode
+        if (maxElements != null) params.maxElements = maxElements
+        return fmt(await bridge.execute('read', params))
       }
     },
     {

@@ -159,6 +159,14 @@ describe('browser tools', () => {
     expect(bridge.calls[1]).toEqual({ name: 'read', params: { selector: '#app', maxElements: 100 } })
   })
 
+  it('browser_read forwards mode alongside maxElements', async () => {
+    const bridge = fakeBridge()
+    const tools = createBrowserTools(bridge, fakeLauncher())
+    const read = tools.find(t => t.name === 'browser_read')!
+    await read.run({ mode: 'full', maxElements: 0 }, ctx)
+    expect(bridge.calls).toEqual([{ name: 'read', params: { mode: 'full', maxElements: 0 } }])
+  })
+
   it('browser_wait_for passes through a longer timeout to the bridge', async () => {
     const bridge = fakeBridge()
     const tools = createBrowserTools(bridge, fakeLauncher())
