@@ -372,6 +372,7 @@ select.input { width: 100%; }
 .dialog h3 { margin: 0; font-size: var(--fs-lg); font-family: var(--font-display); font-weight: var(--fw-semibold); }
 .label { font-size: var(--fs-base); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-strong); font-family: var(--font-display); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.dialog-actions .btn { min-width: 80px; text-align: center; }
 .dialog.browser-dialog { width: 540px; }
 
 /* Templates panel */
