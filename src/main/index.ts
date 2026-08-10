@@ -25,6 +25,8 @@ import { LspManager } from './agent/lsp/manager'
 import { ModelsCatalog } from './models-catalog'
 import { getWindowChromeOptions } from './window-chrome'
 import { ChatGptWebManager } from './chatgpt-web/manager'
+import { BrowserBridge } from './browser/bridge'
+import { createChromeLauncher, ensureExtensionInstalled } from './browser/chrome-launcher'
 import { Channels } from '../shared/ipc'
 import type { AgentState, Command, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, Workspace, WorkspaceRuntime } from '../shared/types'
 
@@ -59,7 +61,14 @@ class MainApp {
   builtinSkillsDir = app.isPackaged
     ? path.join(process.resourcesPath, 'skills')
     : path.join(app.getAppPath(), 'resources', 'skills')
-    chatGptWeb = new ChatGptWebManager(path.join(app.getPath('userData'), 'chatgpt-web'), {
+  browserBridge = new BrowserBridge({
+    screenshotDir: path.join(app.getPath('userData'), 'browser-screenshots')
+  })
+  browserLauncher = createChromeLauncher({
+    getWindow: () => win,
+    extensionDir: path.join(app.getPath('userData'), 'browser-extension')
+  })
+  chatGptWeb = new ChatGptWebManager(path.join(app.getPath('userData'), 'chatgpt-web'), {
     notifyChallenge: (event) => {
       const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
       win?.webContents.send(Channels.EventChatGptWebChallenge, event)
@@ -72,7 +81,8 @@ class MainApp {
     tools: createDefaultTools({
       getUserSkillsDir: () => path.join(app.getPath('userData'), 'skills'),
       getBuiltinSkillsDir: () => this.builtinSkillsDir,
-      getUserDataDir: () => app.getPath('userData')
+      getUserDataDir: () => app.getPath('userData'),
+      browser: { bridge: this.browserBridge, launcher: this.browserLauncher }
     }),
     userSkillsDir: path.join(app.getPath('userData'), 'skills'),
     userToolsDir: path.join(app.getPath('userData'), 'tools'),
@@ -514,10 +524,26 @@ function registerIpcHandlers(): void {
   })
   ipcMain.handle(Channels.WindowClose, () => win?.close())
   ipcMain.handle(Channels.WindowIsMaximized, () => win?.isMaximized() ?? false)
+  ipcMain.handle(Channels.BrowserGetStatus, () => mainApp.browserBridge.getStatus())
+  ipcMain.handle(Channels.BrowserPair, () => mainApp.browserBridge.pair())
+  ipcMain.handle(Channels.BrowserOpenInstallGuide, () => mainApp.browserLauncher.showInstallGuide())
+  ipcMain.handle(Channels.BrowserOpenExtensionFolder, () => mainApp.browserLauncher.openExtensionFolder())
+  ipcMain.handle(Channels.BrowserGetConsoleLogs, (_e, limit?: number) => mainApp.browserBridge.getConsoleLogs(limit))
+  ipcMain.handle(Channels.BrowserGetNetworkLogs, (_e, limit?: number) => mainApp.browserBridge.getNetworkLogs(limit))
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   mainApp.meowAgent.truncationCleanup()
+  await mainApp.browserBridge.start().catch(err => {
+    console.error('[meow] browser bridge start failed:', err)
+  })
+  mainApp.browserBridge.onStatusChange(info => {
+    win?.webContents.send(Channels.EventBrowserStatus, { info })
+  })
+  const extSource = app.isPackaged
+    ? path.join(process.resourcesPath, 'browser-extension')
+    : path.join(app.getAppPath(), 'out', 'browser-extension')
+  ensureExtensionInstalled(extSource, path.join(app.getPath('userData'), 'browser-extension'))
   registerIpcHandlers()
   createWindow()
   app.on('activate', () => {
@@ -532,6 +558,8 @@ app.on('before-quit', (event) => {
   cleaningUp = true
   mainApp.stopGitPoll()
   void mainApp.meowAgent.dispose().then(() => {
+    return mainApp.browserBridge.close()
+  }).then(() => {
     mainApp.pty
       .stopAll()
       .finally(() => app.exit(0))
