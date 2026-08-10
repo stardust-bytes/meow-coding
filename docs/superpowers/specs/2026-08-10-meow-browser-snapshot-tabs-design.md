@@ -106,7 +106,7 @@ File `src/browser-extension/content.ts`, thay `collectInteractive()`.
 - Background route: `params.tabId ?? workingTabId` (thay `activeTabId` làm mặc định).
 - Tools:
   - `browser_click`/`browser_type`/`browser_select`: schema + `ref` (optional string).
-  - `browser_read`: `{selector?, tabId?, maxElements?}` → trả tree text + page summary.
+  - `browser_read`: `{selector?, maxElements?}` → trả tree text + page summary. (Không có param `tabId` — việc chọn tab đích do **working tab** xử lý: command không kèm `tabId` chạy trên tab cuối agent mở/đọc, kể cả `navigate`/`reload`.)
   - `browser_open_tab`: `{url, tabId?}` → trả `{tabId, groupId, groupTitle}`.
   - `browser_list_tabs`: thêm `windowId`, `groupId`, `groupTitle`.
   - `browser_switch_tab`: `{tabId}` → active:true (không focus window).
