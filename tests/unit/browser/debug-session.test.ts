@@ -65,4 +65,25 @@ describe('createDebugSession', () => {
     await Promise.resolve()
     expect(dbg.detach).toHaveBeenCalledWith({ tabId: 10 })
   })
+
+  it('cleans up the attach when enabling a domain fails', async () => {
+    const dbg = fakeDbg()
+    dbg.sendCommand.mockRejectedValueOnce(new Error('boom'))
+    const session = createDebugSession(dbg)
+    await expect(session.ensure(10)).rejects.toThrow('boom')
+    expect(dbg.detach).toHaveBeenCalledWith({ tabId: 10 })
+    expect(session.attachedTabId()).toBeNull()
+  })
+
+  it('does not let a stale idle timer from a previous tab detach the new one', async () => {
+    vi.useFakeTimers()
+    const dbg = fakeDbg()
+    const session = createDebugSession(dbg, 1000)
+    await session.ensure(10)
+    vi.advanceTimersByTime(900)
+    await session.ensure(20)
+    vi.advanceTimersByTime(200)
+    expect(dbg.detach).not.toHaveBeenCalledWith({ tabId: 20 })
+    expect(session.attachedTabId()).toBe(20)
+  })
 })

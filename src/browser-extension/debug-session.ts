@@ -41,12 +41,17 @@ export function createDebugSession(dbg: ChromeDebuggerLike, idleMs = 60_000): De
     }
     await close()
     await dbg.attach({ tabId }, '1.3')
-    await Promise.all([
-      dbg.sendCommand({ tabId }, 'DOM.enable'),
-      dbg.sendCommand({ tabId }, 'Page.enable'),
-      dbg.sendCommand({ tabId }, 'Runtime.enable'),
-      dbg.sendCommand({ tabId }, 'Accessibility.enable')
-    ])
+    try {
+      await Promise.all([
+        dbg.sendCommand({ tabId }, 'DOM.enable'),
+        dbg.sendCommand({ tabId }, 'Page.enable'),
+        dbg.sendCommand({ tabId }, 'Runtime.enable'),
+        dbg.sendCommand({ tabId }, 'Accessibility.enable')
+      ])
+    } catch (err) {
+      await dbg.detach({ tabId }).catch(() => {})
+      throw err
+    }
     debugTabId = tabId
     resetIdle()
   }
