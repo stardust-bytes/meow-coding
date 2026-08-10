@@ -27,7 +27,7 @@ export function rulesForMode(mode: AgentMode): Record<string, PermissionRule> {
   return mode === 'plan' ? PLAN_RULES : {}
 }
 
-function matchPattern(pattern: string, toolName: string): boolean {
+export function matchPattern(pattern: string, toolName: string): boolean {
   if (pattern === '*') return true
   if (pattern.endsWith('*')) return toolName.startsWith(pattern.slice(0, -1))
   return pattern === toolName

@@ -32,6 +32,7 @@ interface Props {
 export default function SettingsDialog({ onClose, projectPath, templates, onTemplatesChange }: Props) {
   const [tab, setTab] = useState<TabId>('providers')
   const [draft, setDraft] = useState<MeowSettings | null>(null)
+  const [saved, setSaved] = useState<MeowSettings | null>(null)
   const [catalog, setCatalog] = useState<CatalogProviderSummary[]>([])
   const [mcpStatus, setMcpStatus] = useState<McpServerStatus[]>([])
   const [status, setStatus] = useState('')
@@ -46,6 +47,7 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
         window.api.getMcpStatus()
       ])
       setDraft(settings)
+      setSaved(settings)
       setCatalog(cat)
       setMcpStatus(mcps)
     } catch (err) {
@@ -57,14 +59,23 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
     void refresh()
   }, [refresh])
 
+  const isDirty = draft !== null && saved !== null && JSON.stringify(draft) !== JSON.stringify(saved)
+
+  // Closing with unsaved changes (Escape, Cancel) would otherwise discard
+  // them silently — nothing auto-saves until the Save button is clicked.
+  const closeGuarded = useCallback(() => {
+    if (isDirty && !window.confirm('Discard unsaved settings changes?')) return
+    onClose()
+  }, [isDirty, onClose])
+
   // Close on Escape only — the backdrop no longer closes on outside click.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') closeGuarded()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [closeGuarded])
 
   const patch = useCallback((patch: Partial<MeowSettings>) => {
     setDraft(prev => (prev ? { ...prev, ...patch } : prev))
@@ -76,8 +87,9 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
     setStatus('')
     setError('')
     try {
-      const saved = await window.api.saveSettings(draft)
-      setDraft(saved)
+      const result = await window.api.saveSettings(draft)
+      setDraft(result)
+      setSaved(result)
       setMcpStatus(await window.api.getMcpStatus())
       setStatus('Settings saved.')
     } catch (err) {
@@ -138,7 +150,7 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
         {status && <div className="settings-status">{status}</div>}
         {error && <div className="settings-error">{error}</div>}
         <div className="dialog-actions">
-          <button className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn" onClick={closeGuarded}>Cancel</button>
           <button className="btn primary" disabled={!draft || saving} onClick={() => void save()}>
             {saving ? 'Saving…' : 'Save'}
           </button>
