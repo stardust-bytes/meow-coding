@@ -62,7 +62,8 @@ class MainApp {
     ? path.join(process.resourcesPath, 'skills')
     : path.join(app.getAppPath(), 'resources', 'skills')
   browserBridge = new BrowserBridge({
-    screenshotDir: path.join(app.getPath('userData'), 'browser-screenshots')
+    screenshotDir: path.join(app.getPath('userData'), 'browser-screenshots'),
+    snapshotDir: path.join(app.getPath('userData'), 'browser-snapshots')
   })
   browserLauncher = createChromeLauncher({
     getWindow: () => win,

@@ -5,7 +5,6 @@ import type { AxNodeLike } from './ax-snapshot'
 
 const DEFAULT_PORT = 3927
 const STORAGE_KEY = 'meowBridge'
-const MAX_READ_CHARS = 12000
 
 interface StoredState {
   port?: number
@@ -225,13 +224,32 @@ async function sendToTab(tabId: number, name: string, params: Record<string, unk
   }
 }
 
-async function pageInnerText(tabId: number): Promise<string> {
-  const res = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
-    expression: 'document.body ? document.body.innerText : ""',
+async function waitForPageSettle(tabId: number, timeoutMs = 5000): Promise<void> {
+  await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
+    expression: `
+      new Promise((resolve) => {
+        const deadline = Date.now() + ${timeoutMs};
+        let lastChange = Date.now();
+        let obs;
+        try {
+          obs = new MutationObserver(() => { lastChange = Date.now(); });
+          obs.observe(document.documentElement, { childList: true, subtree: true, attributes: true, characterData: true });
+        } catch {}
+        const tick = () => {
+          const settled = document.readyState === 'complete' && (Date.now() - lastChange) > 300;
+          if (settled || Date.now() >= deadline) {
+            try { if (obs) obs.disconnect(); } catch {}
+            resolve(true);
+            return;
+          }
+          setTimeout(tick, 150);
+        };
+        tick();
+      })
+    `,
+    awaitPromise: true,
     returnByValue: true
-  }) as { result?: { value?: string } }
-  const t = String(res.result?.value ?? '').replace(/\n{3,}/g, '\n\n').trim()
-  return t.length > MAX_READ_CHARS ? t.slice(0, MAX_READ_CHARS) + '\n...(truncated)' : t
+  })
 }
 
 async function callOnNode(tabId: number, backendNodeId: number, functionDeclaration: string, args: unknown[] = []): Promise<void> {
@@ -379,18 +397,14 @@ async function handleCommand(msg: Extract<BridgeToExtension, { type: 'cmd' }>): 
           return
         }
         try {
+          await waitForPageSettle(tabId)
           const mode = params.mode === 'full' ? 'full' : 'interactive'
-          const raw = Number(params.maxElements)
-          const maxNodes = Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : (mode === 'full' ? 500 : 200)
           const { nodes } = await chrome.debugger.sendCommand({ tabId }, 'Accessibility.getFullAXTree') as { nodes: unknown[] }
-          const { tree, refs } = axTreeToSnapshot(nodes as AxNodeLike[], { mode, maxNodes })
+          const { tree, refs } = axTreeToSnapshot(nodes as AxNodeLike[], { mode, maxNodes: 0 })
           snapshot = { tabId, refs: new Map(refs.map(r => [r.ref, r.backendDOMNodeId])) }
-          const [text, tab] = await Promise.all([
-            pageInnerText(tabId).catch(() => ''),
-            chrome.tabs.get(tabId)
-          ])
+          const tab = await chrome.tabs.get(tabId)
           persistWorkingTab(tabId)
-          send({ ok: true, data: { url: tab.url, title: tab.title, text, tree } })
+          send({ ok: true, data: { url: tab.url, title: tab.title, tree } })
         } catch (err) {
           send({ ok: false, error: `browser_read: ${String(err)}` })
         }

@@ -137,35 +137,21 @@ export function createBrowserTools(
     {
       name: 'browser_read',
       description:
-        'Return the page as a nested accessibility tree (role + accessible name) with refs, using Chrome\'s ' +
-        'accessibility engine (covers shadow DOM and iframes). Use a ref with browser_click/type/select. ' +
-        'mode "interactive" (default) refs interactive elements; "full" includes every accessible node. ' +
-        'Pass maxElements to raise the node cap (interactive default 200, full default 500; 0 = no limit).',
+        'Snapshot the active/visible tab (or tabId) into a page-structure file, Playwright-MCP style: ' +
+        'every element on one indented line as `role "name" [ref]` (anchors <a> are role "link", plus ' +
+        'button, textbox, checkbox, ... — the snapshot is complete, never truncated). ' +
+        'Returns the file path, node count and a preview. Read the file (with the file read tool, in ' +
+        'chunks if large) to see every element, then click/type/select using the [ref] shown.',
       schema: z.object({
-        selector: z.string().optional().describe('Optional CSS selector; ignored when snapshotting via CDP.'),
-        mode: z.enum(['interactive', 'full']).optional().describe('interactive (default) or full snapshot.'),
-        maxElements: z.number().int().min(0).max(2000).optional().describe('Max tree nodes; 0 means no limit (default 200 interactive / 500 full).'),
+        mode: z.enum(['interactive', 'full']).optional().describe('interactive (default) refs interactive elements; full refs every element.'),
         tabId: z.number().int().optional().describe('Optional tab id to snapshot; defaults to the active/visible tab.')
       }),
       async run(input): Promise<ToolRunResult> {
-        const { selector, mode, maxElements, tabId } = input as unknown as { selector?: string; mode?: 'interactive' | 'full'; maxElements?: number; tabId?: number }
+        const { mode, tabId } = input as unknown as { mode?: 'interactive' | 'full'; tabId?: number }
         const params: Record<string, unknown> = {}
-        if (selector != null) params.selector = selector
         if (mode != null) params.mode = mode
-        if (maxElements != null) params.maxElements = maxElements
         if (tabId != null) params.tabId = tabId
         return fmt(await bridge.execute('read', params))
-      }
-    },
-    {
-      name: 'browser_screenshot',
-      description: 'Capture a full-page PNG of the active/visible tab (or a tabId you specify) without switching tabs or focusing Chrome.',
-      schema: z.object({
-        tabId: z.number().int().optional().describe('Optional tab id to capture; defaults to the active/visible tab.')
-      }),
-      async run(input): Promise<ToolRunResult> {
-        const { tabId } = input as unknown as { tabId?: number }
-        return fmt(await bridge.execute('screenshot', tabId != null ? { tabId } : {}))
       }
     },
     {

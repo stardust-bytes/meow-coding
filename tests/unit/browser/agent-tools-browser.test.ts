@@ -31,11 +31,11 @@ function fakeLauncher(overrides: Partial<BrowserLauncherLike> = {}): BrowserLaun
 }
 
 describe('browser tools', () => {
-  it('registers all 15 tools with names', () => {
+  it('registers all 14 tools with names', () => {
     const tools = createBrowserTools(fakeBridge(), fakeLauncher())
     expect(tools.map(t => t.name)).toEqual([
       'browser_start', 'browser_navigate', 'browser_open_tab', 'browser_click', 'browser_type',
-      'browser_select', 'browser_scroll', 'browser_read', 'browser_screenshot', 'browser_list_tabs',
+      'browser_select', 'browser_scroll', 'browser_read', 'browser_list_tabs',
       'browser_switch_tab', 'browser_close_tab', 'browser_console', 'browser_network', 'browser_wait_for'
     ])
   })
@@ -168,22 +168,12 @@ describe('browser tools', () => {
     expect(n.output).toContain('http://x')
   })
 
-  it('browser_read passes maxElements through to the bridge', async () => {
+  it('browser_read forwards mode and tabId', async () => {
     const bridge = fakeBridge()
     const tools = createBrowserTools(bridge, fakeLauncher())
     const read = tools.find(t => t.name === 'browser_read')!
-    await read.run({ maxElements: 0 }, ctx)
-    expect(bridge.calls).toEqual([{ name: 'read', params: { maxElements: 0 } }])
-    await read.run({ selector: '#app', maxElements: 100 }, ctx)
-    expect(bridge.calls[1]).toEqual({ name: 'read', params: { selector: '#app', maxElements: 100 } })
-  })
-
-  it('browser_read forwards mode alongside maxElements', async () => {
-    const bridge = fakeBridge()
-    const tools = createBrowserTools(bridge, fakeLauncher())
-    const read = tools.find(t => t.name === 'browser_read')!
-    await read.run({ mode: 'full', maxElements: 0 }, ctx)
-    expect(bridge.calls).toEqual([{ name: 'read', params: { mode: 'full', maxElements: 0 } }])
+    await read.run({ mode: 'full', tabId: 7 }, ctx)
+    expect(bridge.calls).toEqual([{ name: 'read', params: { mode: 'full', tabId: 7 } }])
   })
 
   it('browser_wait_for passes through a longer timeout to the bridge', async () => {
