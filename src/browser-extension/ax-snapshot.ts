@@ -97,7 +97,7 @@ export function axTreeToSnapshot(
       ...(name ? { name } : {}),
       ...(kids.length || !name ? { children: kids } : {})
     }
-    const wantRef = interactive || (mode === 'full' && n.backendDOMNodeId != null)
+    const wantRef = interactive || (mode === 'full' && n.backendDOMNodeId != null && !SKIPPED_ROLES.has(role) && role !== 'rootwebarea')
     if (wantRef && n.backendDOMNodeId != null) {
       refTargets.set(node, n.backendDOMNodeId)
     }

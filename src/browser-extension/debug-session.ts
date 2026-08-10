@@ -24,7 +24,7 @@ export function createDebugSession(dbg: ChromeDebuggerLike, idleMs = 60_000): De
     idleTimer = setTimeout(() => { void close() }, idleMs)
   }
 
-  const close = async (): Promise<void> => {
+  const closeRaw = async (): Promise<void> => {
     if (idleTimer) {
       clearTimeout(idleTimer)
       idleTimer = null
@@ -35,13 +35,19 @@ export function createDebugSession(dbg: ChromeDebuggerLike, idleMs = 60_000): De
     }
   }
 
+  const close = async (): Promise<void> => {
+    const run = inFlight.then(closeRaw)
+    inFlight = run.catch(() => {})
+    await run
+  }
+
   const ensure = async (tabId: number): Promise<void> => {
     const run = inFlight.then(async () => {
       if (debugTabId === tabId) {
         resetIdle()
         return
       }
-      await close()
+      await closeRaw()
       await dbg.attach({ tabId }, '1.3')
       try {
         await Promise.all([

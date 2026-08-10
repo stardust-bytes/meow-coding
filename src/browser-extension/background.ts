@@ -27,7 +27,7 @@ let groupLock: Promise<unknown> = Promise.resolve()
 
 const debugSession = createDebugSession(chrome.debugger)
 
-let snapshotRefs = new Map<string, number>()
+let snapshot: { tabId: number; refs: Map<string, number> } | null = null
 
 function persistWorkingTab(id: number | null): void {
   workingTabId = id
@@ -114,7 +114,7 @@ function connect(): void {
           reconnectDelay = 1000
         } else {
           saveState({ connected: false })
-          snapshotRefs = new Map()
+          snapshot = null
           void debugSession.close()
         }
         broadcastStatus()
@@ -131,7 +131,7 @@ function connect(): void {
       saveState({ connected: false })
       broadcastStatus()
       ws = null
-      snapshotRefs = new Map()
+      snapshot = null
       void debugSession.close()
       scheduleReconnect()
     }
@@ -229,7 +229,7 @@ async function callOnNode(tabId: number, backendNodeId: number, functionDeclarat
 
 async function refAction(tabId: number, name: string, params: Record<string, unknown>): Promise<{ ok: boolean; data?: unknown; error?: string }> {
   const ref = String(params.ref)
-  const backendNodeId = snapshotRefs.get(ref)
+  const backendNodeId = snapshot?.tabId === tabId ? snapshot.refs.get(ref) : undefined
   if (backendNodeId == null) {
     return { ok: false, error: `snapshot stale: re-read the page (ref ${ref} no longer valid)` }
   }
@@ -354,12 +354,17 @@ async function handleCommand(msg: Extract<BridgeToExtension, { type: 'cmd' }>): 
         if (tabId == null) { send({ ok: false, error: 'no target tab' }); return }
         try {
           await debugSession.ensure(tabId)
+        } catch (err) {
+          send({ ok: false, error: `browser_read: page not CDP-accessible (${String(err)})` })
+          return
+        }
+        try {
           const mode = params.mode === 'full' ? 'full' : 'interactive'
           const raw = Number(params.maxElements)
           const maxNodes = Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : (mode === 'full' ? 500 : 200)
           const { nodes } = await chrome.debugger.sendCommand({ tabId }, 'Accessibility.getFullAXTree') as { nodes: unknown[] }
           const { tree, refs } = axTreeToSnapshot(nodes as AxNodeLike[], { mode, maxNodes })
-          snapshotRefs = new Map(refs.map(r => [r.ref, r.backendDOMNodeId]))
+          snapshot = { tabId, refs: new Map(refs.map(r => [r.ref, r.backendDOMNodeId])) }
           const [text, tab] = await Promise.all([
             pageInnerText(tabId).catch(() => ''),
             chrome.tabs.get(tabId)
@@ -442,7 +447,14 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   if (debugSession.attachedTabId() === tabId) {
-    snapshotRefs = new Map()
+    snapshot = null
+    void debugSession.close()
+  }
+})
+
+chrome.debugger.onDetach.addListener((source) => {
+  if (source.tabId != null && debugSession.attachedTabId() === source.tabId) {
+    snapshot = null
     void debugSession.close()
   }
 })

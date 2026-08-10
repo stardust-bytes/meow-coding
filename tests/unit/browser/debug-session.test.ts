@@ -42,6 +42,15 @@ describe('createDebugSession', () => {
     expect(dbg.attach).toHaveBeenCalledTimes(1)
   })
 
+  it('serializes close with ensure', async () => {
+    const dbg = fakeDbg()
+    const session = createDebugSession(dbg)
+    await session.ensure(10)
+    await Promise.all([session.close(), session.ensure(20)])
+    expect(dbg.attach).toHaveBeenLastCalledWith({ tabId: 20 }, '1.3')
+    expect(session.attachedTabId()).toBe(20)
+  })
+
   it('closes the previous tab before attaching a new one', async () => {
     const dbg = fakeDbg()
     const session = createDebugSession(dbg)

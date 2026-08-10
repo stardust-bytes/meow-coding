@@ -132,4 +132,13 @@ describe('axTreeToSnapshot', () => {
     const full = axTreeToSnapshot(nodes, { mode: 'full' })
     expect(full.refs).toEqual([{ ref: 'r1', backendDOMNodeId: 4 }])
   })
+
+  it('full mode does not give refs to root or generic containers', () => {
+    const nodes: AxNodeLike[] = [
+      axn('1', { role: role('rootwebarea'), backendDOMNodeId: 1, childIds: ['2'] }),
+      axn('2', { role: role('generic'), name: name(''), backendDOMNodeId: 2 })
+    ]
+    const full = axTreeToSnapshot(nodes, { mode: 'full' })
+    expect(full.refs).toHaveLength(0)
+  })
 })
