@@ -151,6 +151,15 @@ function scheduleReconnect(): void {
 }
 
 async function activeTabId(): Promise<number | undefined> {
+  try {
+    const win = await chrome.windows.getLastFocused()
+    if (win?.id != null) {
+      const [tab] = await chrome.tabs.query({ active: true, windowId: win.id })
+      if (tab?.id != null) return tab.id
+    }
+  } catch {
+    /* fall through to currentWindow query */
+  }
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   return tab?.id
 }
@@ -185,6 +194,10 @@ function addToMeowGroup(tabId: number): Promise<{ groupId?: number; groupTitle?:
 }
 
 async function defaultTabId(): Promise<number | undefined> {
+  // Prefer the tab the user is looking at; a stale "working" background tab can be
+  // discarded/blank and makes read/wait/scroll return empty results.
+  const active = await activeTabId()
+  if (active != null) return active
   if (workingTabId != null) {
     try {
       const t = await chrome.tabs.get(workingTabId)
@@ -193,15 +206,22 @@ async function defaultTabId(): Promise<number | undefined> {
       workingTabId = null
     }
   }
-  return activeTabId()
+  return undefined
 }
 
 async function sendToTab(tabId: number, name: string, params: Record<string, unknown>): Promise<{ ok: boolean; data?: unknown; error?: string }> {
   try {
     const res = await chrome.tabs.sendMessage(tabId, { kind: 'cmd', name, params })
     return res as { ok: boolean; data?: unknown; error?: string }
-  } catch (err) {
-    return { ok: false, error: `content script unavailable: ${String(err)}` }
+  } catch {
+    // Tabs opened before the extension reloaded have no content script; inject then retry.
+    try {
+      await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] })
+      const res = await chrome.tabs.sendMessage(tabId, { kind: 'cmd', name, params })
+      return res as { ok: boolean; data?: unknown; error?: string }
+    } catch (err) {
+      return { ok: false, error: `content script unavailable: ${String(err)}` }
+    }
   }
 }
 

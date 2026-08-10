@@ -217,3 +217,10 @@ chrome.runtime.onMessage.addListener((msg: CmdRequest, _sender, sendResponse) =>
   void execute(msg.name, msg.params ?? {}).then(sendResponse)
   return true
 })
+
+// Keep the MV3 service worker alive while a page is open so its WebSocket to the app
+// survives Chrome's idle suspension (otherwise the bridge drops to "not connected").
+const keepalivePort = chrome.runtime.connect({ name: 'meow-keepalive' })
+keepalivePort.onDisconnect.addListener(() => {
+  if (!chrome.runtime.lastError) void chrome.runtime.connect({ name: 'meow-keepalive' })
+})

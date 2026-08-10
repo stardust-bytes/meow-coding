@@ -36,6 +36,7 @@ export class BrowserBridge {
   private port = 0
   private code = ''
   private codeExpiresAt = 0
+  private sessionPaired = false
   private pending = new Map<string, PendingCommand>()
   private consoleLogs: unknown[] = []
   private networkLogs: unknown[] = []
@@ -56,6 +57,7 @@ export class BrowserBridge {
   pair(): PairingInfo {
     this.code = randomInt(0, 1_000_000).toString().padStart(6, '0')
     this.codeExpiresAt = Date.now() + (this.deps.codeTtlMs ?? DEFAULT_CODE_TTL_MS)
+    this.sessionPaired = false
     this.setStatus(this.socket ? 'listening' : 'idle')
     return { code: this.code, expiresAt: this.codeExpiresAt }
   }
@@ -64,6 +66,7 @@ export class BrowserBridge {
     if (this.server) return this.port
     this.code = randomInt(0, 1_000_000).toString().padStart(6, '0')
     this.codeExpiresAt = Date.now() + (this.deps.codeTtlMs ?? DEFAULT_CODE_TTL_MS)
+    this.sessionPaired = false
     const host = this.deps.host ?? DEFAULT_HOST
     const preferred = this.deps.preferredPort ?? DEFAULT_PORT
 
@@ -171,6 +174,7 @@ export class BrowserBridge {
       this.server.close(() => resolve())
     })
     this.server = null
+    this.sessionPaired = false
     this.setStatus('idle')
   }
 
@@ -203,12 +207,16 @@ export class BrowserBridge {
   }
 
   private handlePair(ws: WebSocket, code: string): void {
-    const valid = code === this.code && Date.now() < this.codeExpiresAt
+    // Code-entry TTL only bounds the initial pairing; once paired the extension stays
+    // trusted for the app session so a reconnect can silently re-pair (MV3 SW suspension
+    // can drop the WS while idle).
+    const valid = code === this.code && (Date.now() < this.codeExpiresAt || this.sessionPaired)
     if (ws !== this.socket) return
     if (!valid) {
       ws.send(JSON.stringify({ type: 'pair_result', ok: false, error: 'invalid pairing code' }))
       return
     }
+    this.sessionPaired = true
     this.setStatus('paired')
     ws.send(JSON.stringify({ type: 'pair_result', ok: true }))
   }

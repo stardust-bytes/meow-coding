@@ -44,7 +44,7 @@ export function createBrowserTools(
     },
     {
       name: 'browser_navigate',
-      description: 'Navigate the working tab (the tab the agent is currently operating on) to a URL (http/https).',
+      description: 'Navigate the active/visible tab (or the working tab) to a URL (http/https).',
       schema: z.object({
         url: z.string().describe('The http(s) URL to open.')
       }),
@@ -59,7 +59,7 @@ export function createBrowserTools(
       description:
         'Open a URL in a new background tab of an existing Chrome window, grouped under "Meow". ' +
         'Never opens a new Chrome window unless none are open, and does not focus Chrome. ' +
-        'Returns a tabId you can pass to browser_switch_tab / browser_close_tab.',
+        'Returns a tabId you can pass as the tabId argument of other browser_* tools to act on that tab.',
       schema: z.object({
         url: z.string().describe('The http(s) URL to open.')
       }),
@@ -76,12 +76,15 @@ export function createBrowserTools(
         ref: z.string().optional().describe('Snapshot ref from browser_read, e.g. r4.'),
         selector: z.string().optional().describe('CSS selector of the element to click.'),
         x: z.number().optional().describe('Viewport x coordinate (requires y).'),
-        y: z.number().optional().describe('Viewport y coordinate (requires x).')
+        y: z.number().optional().describe('Viewport y coordinate (requires x).'),
+        tabId: z.number().int().optional().describe('Optional tab id to act on; defaults to the active/visible tab.')
       }),
       async run(input): Promise<ToolRunResult> {
-        const { ref, selector, x, y } = input as unknown as { ref?: string; selector?: string; x?: number; y?: number }
-        if (ref != null) return fmt(await bridge.execute('click', { ref }))
-        return fmt(await bridge.execute('click', selector ? { selector } : { x, y }))
+        const { ref, selector, x, y, tabId } = input as unknown as { ref?: string; selector?: string; x?: number; y?: number; tabId?: number }
+        const base: Record<string, unknown> = {}
+        if (tabId != null) base.tabId = tabId
+        if (ref != null) return fmt(await bridge.execute('click', { ...base, ref }))
+        return fmt(await bridge.execute('click', selector ? { ...base, selector } : { ...base, x, y }))
       }
     },
     {
@@ -90,11 +93,14 @@ export function createBrowserTools(
       schema: z.object({
         ref: z.string().optional().describe('Snapshot ref from browser_read (preferred).'),
         selector: z.string().optional().describe('CSS selector of the input element.'),
-        text: z.string().describe('Text to type.')
+        text: z.string().describe('Text to type.'),
+        tabId: z.number().int().optional().describe('Optional tab id to act on; defaults to the active/visible tab.')
       }),
       async run(input): Promise<ToolRunResult> {
-        const { ref, selector, text } = input as unknown as { ref?: string; selector?: string; text: string }
-        return fmt(await bridge.execute('type', ref != null ? { ref, text } : { selector, text }))
+        const { ref, selector, text, tabId } = input as unknown as { ref?: string; selector?: string; text: string; tabId?: number }
+        const base: Record<string, unknown> = {}
+        if (tabId != null) base.tabId = tabId
+        return fmt(await bridge.execute('type', { ...base, ...(ref != null ? { ref, text } : { selector, text }) }))
       }
     },
     {
@@ -103,11 +109,14 @@ export function createBrowserTools(
       schema: z.object({
         ref: z.string().optional().describe('Snapshot ref from browser_read (preferred).'),
         selector: z.string().optional().describe('CSS selector of the select element.'),
-        value: z.string().describe('Option value to select.')
+        value: z.string().describe('Option value to select.'),
+        tabId: z.number().int().optional().describe('Optional tab id to act on; defaults to the active/visible tab.')
       }),
       async run(input): Promise<ToolRunResult> {
-        const { ref, selector, value } = input as unknown as { ref?: string; selector?: string; value: string }
-        return fmt(await bridge.execute('select', ref != null ? { ref, value } : { selector, value }))
+        const { ref, selector, value, tabId } = input as unknown as { ref?: string; selector?: string; value: string; tabId?: number }
+        const base: Record<string, unknown> = {}
+        if (tabId != null) base.tabId = tabId
+        return fmt(await bridge.execute('select', { ...base, ...(ref != null ? { ref, value } : { selector, value }) }))
       }
     },
     {
@@ -115,11 +124,14 @@ export function createBrowserTools(
       description: 'Scroll the page (direction: up/down/top/bottom) or bring a selector into view.',
       schema: z.object({
         direction: z.enum(['up', 'down', 'top', 'bottom']).optional(),
-        selector: z.string().optional().describe('CSS selector to scroll into view.')
+        selector: z.string().optional().describe('CSS selector to scroll into view.'),
+        tabId: z.number().int().optional().describe('Optional tab id to act on; defaults to the active/visible tab.')
       }),
       async run(input): Promise<ToolRunResult> {
-        const { direction, selector } = input as unknown as { direction?: 'up' | 'down' | 'top' | 'bottom'; selector?: string }
-        return fmt(await bridge.execute('scroll', selector ? { selector } : { direction: direction ?? 'down' }))
+        const { direction, selector, tabId } = input as unknown as { direction?: 'up' | 'down' | 'top' | 'bottom'; selector?: string; tabId?: number }
+        const base: Record<string, unknown> = {}
+        if (tabId != null) base.tabId = tabId
+        return fmt(await bridge.execute('scroll', selector ? { ...base, selector } : { ...base, direction: direction ?? 'down' }))
       }
     },
     {
@@ -132,23 +144,28 @@ export function createBrowserTools(
       schema: z.object({
         selector: z.string().optional().describe('Optional CSS selector; ignored when snapshotting via CDP.'),
         mode: z.enum(['interactive', 'full']).optional().describe('interactive (default) or full snapshot.'),
-        maxElements: z.number().int().min(0).max(2000).optional().describe('Max tree nodes; 0 means no limit (default 200 interactive / 500 full).')
+        maxElements: z.number().int().min(0).max(2000).optional().describe('Max tree nodes; 0 means no limit (default 200 interactive / 500 full).'),
+        tabId: z.number().int().optional().describe('Optional tab id to snapshot; defaults to the active/visible tab.')
       }),
       async run(input): Promise<ToolRunResult> {
-        const { selector, mode, maxElements } = input as unknown as { selector?: string; mode?: 'interactive' | 'full'; maxElements?: number }
+        const { selector, mode, maxElements, tabId } = input as unknown as { selector?: string; mode?: 'interactive' | 'full'; maxElements?: number; tabId?: number }
         const params: Record<string, unknown> = {}
         if (selector != null) params.selector = selector
         if (mode != null) params.mode = mode
         if (maxElements != null) params.maxElements = maxElements
+        if (tabId != null) params.tabId = tabId
         return fmt(await bridge.execute('read', params))
       }
     },
     {
       name: 'browser_screenshot',
-      description: 'Capture a full-page PNG of the working tab (background tabs supported) without switching tabs or focusing Chrome.',
-      schema: z.object({}),
-      async run(): Promise<ToolRunResult> {
-        return fmt(await bridge.execute('screenshot'))
+      description: 'Capture a full-page PNG of the active/visible tab (or a tabId you specify) without switching tabs or focusing Chrome.',
+      schema: z.object({
+        tabId: z.number().int().optional().describe('Optional tab id to capture; defaults to the active/visible tab.')
+      }),
+      async run(input): Promise<ToolRunResult> {
+        const { tabId } = input as unknown as { tabId?: number }
+        return fmt(await bridge.execute('screenshot', tabId != null ? { tabId } : {}))
       }
     },
     {
@@ -208,11 +225,14 @@ export function createBrowserTools(
       description: 'Wait until a CSS selector exists on the page (polling), up to timeoutMs.',
       schema: z.object({
         selector: z.string().describe('CSS selector to wait for.'),
-        timeoutMs: z.number().int().positive().max(60_000).optional()
+        timeoutMs: z.number().int().positive().max(60_000).optional(),
+        tabId: z.number().int().optional().describe('Optional tab id to act on; defaults to the active/visible tab.')
       }),
       async run(input): Promise<ToolRunResult> {
-        const { selector, timeoutMs } = input as unknown as { selector: string; timeoutMs?: number }
-        return fmt(await bridge.execute('waitFor', { selector, timeoutMs: timeoutMs ?? 10_000 }, (timeoutMs ?? 10_000) + 5000))
+        const { selector, timeoutMs, tabId } = input as unknown as { selector: string; timeoutMs?: number; tabId?: number }
+        const params: Record<string, unknown> = { selector, timeoutMs: timeoutMs ?? 10_000 }
+        if (tabId != null) params.tabId = tabId
+        return fmt(await bridge.execute('waitFor', params, (timeoutMs ?? 10_000) + 5000))
       }
     }
   ]

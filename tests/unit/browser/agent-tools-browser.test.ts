@@ -101,6 +101,25 @@ describe('browser tools', () => {
     expect(bridge.calls[2]).toEqual({ name: 'click', params: { x: 10, y: 20 } })
   })
 
+  it('browser_* tools forward an explicit tabId', async () => {
+    const bridge = fakeBridge()
+    const tools = createBrowserTools(bridge, fakeLauncher())
+    const read = tools.find(t => t.name === 'browser_read')!
+    const click = tools.find(t => t.name === 'browser_click')!
+    const waitFor = tools.find(t => t.name === 'browser_wait_for')!
+    const scroll = tools.find(t => t.name === 'browser_scroll')!
+    await read.run({ tabId: 7, mode: 'full' }, ctx)
+    await click.run({ tabId: 7, ref: 'r1' }, ctx)
+    await waitFor.run({ tabId: 7, selector: '#a' }, ctx)
+    await scroll.run({ tabId: 7, direction: 'down' }, ctx)
+    expect(bridge.calls).toEqual([
+      { name: 'read', params: { mode: 'full', tabId: 7 } },
+      { name: 'click', params: { tabId: 7, ref: 'r1' } },
+      { name: 'waitFor', params: { selector: '#a', timeoutMs: 10_000, tabId: 7 } },
+      { name: 'scroll', params: { tabId: 7, direction: 'down' } }
+    ])
+  })
+
   it('browser_start when paired returns immediately without launching', async () => {
     const launcher = fakeLauncher()
     const openChrome = vi.spyOn(launcher, 'openChrome')

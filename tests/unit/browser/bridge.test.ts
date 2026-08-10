@@ -162,6 +162,34 @@ describe('BrowserBridge', () => {
     expect(await b2.waitForPaired(100)).toBe(false)
   })
 
+  it('re-accepts a previously-paired extension after the code TTL has passed', async () => {
+    const b = newBridge({ codeTtlMs: 50 })
+    const port = await b.start()
+    const { code } = b.pair()
+    const ws1 = await connect(port)
+    ws1.send(JSON.stringify({ type: 'pair', code }))
+    expect(await nextMsg(ws1)).toMatchObject({ type: 'pair_result', ok: true })
+    ws1.close()
+    await new Promise(r => setTimeout(r, 80))
+    const ws2 = await connect(port)
+    ws2.send(JSON.stringify({ type: 'pair', code }))
+    expect(await nextMsg(ws2)).toMatchObject({ type: 'pair_result', ok: true })
+    expect(b.getStatus().paired).toBe(true)
+  })
+
+  it('requires the pairing code again after a new code is issued', async () => {
+    const b = newBridge({ codeTtlMs: 50 })
+    const port = await b.start()
+    const { code } = b.pair()
+    const ws1 = await connect(port)
+    ws1.send(JSON.stringify({ type: 'pair', code }))
+    expect(await nextMsg(ws1)).toMatchObject({ type: 'pair_result', ok: true })
+    const { code: newCode } = b.pair()
+    expect(newCode).not.toBe(code)
+    ws1.send(JSON.stringify({ type: 'pair', code }))
+    expect(await nextMsg(ws1)).toMatchObject({ type: 'pair_result', ok: false })
+  })
+
   it('notifies status listeners on pair', async () => {
     const b = newBridge()
     const port = await b.start()

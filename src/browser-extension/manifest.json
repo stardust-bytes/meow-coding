@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Meow Browser Bridge",
-  "version": "0.3.0",
+  "version": "0.3.2",
   "description": "Bridge giữa Meow Coding và Chrome: cho phép agent đọc/thao tác trang trên profile Chrome thật.",
   "permissions": ["tabs", "scripting", "storage", "debugger", "tabGroups"],
   "host_permissions": ["<all_urls>"],
