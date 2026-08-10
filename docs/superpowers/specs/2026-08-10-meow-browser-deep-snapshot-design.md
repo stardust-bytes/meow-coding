@@ -178,6 +178,7 @@ Xóa file `src/browser-extension/snapshot.ts` + `tests/unit/browser/snapshot.tes
   ```
   run truyền `mode` qua params. Description cập nhật: snapshot dùng Chrome accessibility tree, đọc được
   shadow DOM + iframe.
+  Lưu ý: `selector` giữ vì tương thích schema — snapshot thực hiện qua CDP toàn trang (selector bị bỏ qua).
 - `browser_click/type/select`: giữ `ref` (giờ resolve qua CDP) + `selector`/`x,y`. Không đổi schema.
 - `browser_screenshot`: không đổi API (chỉ đổi cơ chế session).
 
