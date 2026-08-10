@@ -108,6 +108,24 @@ describe('buildAriaTree', () => {
     const { tree: unlimited } = buildAriaTree(body as unknown as Element, { maxNodes: 0 })
     expect(unlimited[0].children!.length).toBe(300)
   })
+
+  it('keeps the root and emits no orphan refs when the node cap is reached', () => {
+    const buttons = Array.from({ length: 300 }, (_, i) => makeEl('button', { 'aria-label': `b${i}` }))
+    const body = makeEl('body', {}, buttons)
+    const { tree, refs } = buildAriaTree(body as unknown as Element, { maxNodes: 200 })
+    expect(tree).toHaveLength(1)
+    expect(refs.length).toBeGreaterThan(0)
+    expect(refs.length).toBeLessThanOrEqual(200)
+    expect(refs.length).toBe(tree[0].children!.length)
+  })
+
+  it('counts text nodes toward the node cap', () => {
+    const paragraphs = Array.from({ length: 250 }, (_, i) => makeText(`para ${i}`))
+    const body = makeEl('body', {}, paragraphs)
+    const { tree } = buildAriaTree(body as unknown as Element, { maxNodes: 200 })
+    expect(tree[0].children!.length).toBeLessThanOrEqual(200)
+    expect(tree[0].children!.length).toBeGreaterThan(0)
+  })
 })
 
 describe('fallbackRole', () => {

@@ -77,9 +77,9 @@ export function buildAriaTree(
   let refCounter = 0
 
   const visit = (el: Element): SnapshotNode | null => {
-    if (count >= maxNodes) return null
+    if (maxNodes > 0 && count >= maxNodes) return null
     if (SKIPPED_TAGS.has(el.tagName)) return null
-    if (el.getAttribute('aria-hidden') === 'true') return null
+    if (el.getAttribute('aria-hidden') !== null && el.getAttribute('aria-hidden') !== 'false') return null
     const style = (el as HTMLElement).style
     if ((el as HTMLElement).hidden || style?.display === 'none' || style?.visibility === 'hidden') return null
 
@@ -93,12 +93,17 @@ export function buildAriaTree(
       el.tagName === 'TEXTAREA'
     const useTextName = interactive || role === 'heading' || role === 'link'
 
+    count++
+
     const children: SnapshotNode[] = []
     for (const child of Array.from(el.childNodes)) {
-      if (count >= maxNodes) break
+      if (maxNodes > 0 && count >= maxNodes) break
       if (child.nodeType === TEXT_NODE) {
         const t = (child.textContent ?? '').trim().replace(/\s+/g, ' ')
-        if (t) children.push({ role: 'text', name: t.slice(0, textMaxChars) })
+        if (t) {
+          count++
+          children.push({ role: 'text', name: t.slice(0, textMaxChars) })
+        }
       } else if (child.nodeType === ELEMENT_NODE) {
         const n = visit(child as Element)
         if (n) children.push(n)
@@ -108,9 +113,11 @@ export function buildAriaTree(
     const rawName = a11y.getComputedName?.()
     const name = (rawName ?? fallbackName(el, useTextName)).trim().replace(/\s+/g, ' ').slice(0, textMaxChars)
 
-    if (isGeneric && !interactive && children.length === 0 && !name) return null
-    if (count >= maxNodes) return null
-    count++
+    if (isGeneric && !interactive && children.length === 0 && !name) {
+      count--
+      return null
+    }
+
     let ref: string | undefined
     if (interactive) {
       refCounter++
