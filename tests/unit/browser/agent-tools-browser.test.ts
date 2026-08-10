@@ -72,6 +72,23 @@ describe('browser tools', () => {
     expect(bad.error).toContain('invalid url')
   })
 
+  it('browser_type and browser_select forward ref or selector', async () => {
+    const bridge = fakeBridge()
+    const tools = createBrowserTools(bridge, fakeLauncher())
+    const typeTool = tools.find(t => t.name === 'browser_type')!
+    const selectTool = tools.find(t => t.name === 'browser_select')!
+    await typeTool.run({ ref: 'r2', text: 'hi' }, ctx)
+    await typeTool.run({ selector: '#q', text: 'bye' }, ctx)
+    await selectTool.run({ ref: 'r3', value: 'b' }, ctx)
+    await selectTool.run({ selector: '#s', value: 'a' }, ctx)
+    expect(bridge.calls).toEqual([
+      { name: 'type', params: { ref: 'r2', text: 'hi' } },
+      { name: 'type', params: { selector: '#q', text: 'bye' } },
+      { name: 'select', params: { ref: 'r3', value: 'b' } },
+      { name: 'select', params: { selector: '#s', value: 'a' } }
+    ])
+  })
+
   it('browser_click uses ref, selector or coordinates', async () => {
     const bridge = fakeBridge()
     const tools = createBrowserTools(bridge, fakeLauncher())

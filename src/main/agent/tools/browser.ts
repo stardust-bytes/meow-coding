@@ -85,7 +85,7 @@ export function createBrowserTools(
     },
     {
       name: 'browser_type',
-      description: 'Type text into an input/textarea/select matched by CSS selector.',
+      description: 'Type text into an input/textarea/select by snapshot ref (preferred) or CSS selector.',
       schema: z.object({
         ref: z.string().optional().describe('Snapshot ref from browser_read (preferred).'),
         selector: z.string().optional().describe('CSS selector of the input element.'),
@@ -98,7 +98,7 @@ export function createBrowserTools(
     },
     {
       name: 'browser_select',
-      description: 'Select an option value in a <select> matched by CSS selector.',
+      description: 'Select an option value in a <select> by snapshot ref (preferred) or CSS selector.',
       schema: z.object({
         ref: z.string().optional().describe('Snapshot ref from browser_read (preferred).'),
         selector: z.string().optional().describe('CSS selector of the select element.'),
