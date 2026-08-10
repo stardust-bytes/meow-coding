@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    body { font-family: system-ui, sans-serif; width: 280px; margin: 0; padding: 12px; color: #1e1e1e; background: #fff; }
+    h1 { font-size: 14px; margin: 0 0 8px; }
+    .row { margin: 6px 0; font-size: 12px; }
+    label { display: block; font-size: 11px; color: #666; margin-bottom: 2px; }
+    input { width: 100%; box-sizing: border-box; padding: 4px 6px; font-size: 12px; border: 1px solid #ccc; border-radius: 4px; }
+    .status { font-size: 12px; margin-bottom: 8px; }
+    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    .dot.green { background: #2e7d32; }
+    .dot.red { background: #c62828; }
+    .dot.amber { background: #f9a825; }
+    button { margin-top: 8px; padding: 5px 10px; font-size: 12px; border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5; cursor: pointer; }
+    button.primary { background: #1565c0; border-color: #1565c0; color: #fff; }
+    .hint { font-size: 11px; color: #888; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Meow Browser Bridge</h1>
+  <div class="status"><span id="dot" class="dot amber"></span><span id="statusText">Connecting...</span></div>
+  <div class="row">
+    <label>Bridge port</label>
+    <div style="display:flex; gap:4px;">
+      <input id="port" type="number" value="3927" />
+      <button id="detectBtn" title="Tự tìm port Meow">Detect</button>
+    </div>
+  </div>
+  <div class="row">
+    <label>Pairing code</label>
+    <input id="code" placeholder="000000" />
+  </div>
+  <button id="saveBtn" class="primary">Save &amp; connect</button>
+  <div class="hint" id="hint">Nhập mã ghép nối hiển thị trong Meow.</div>
+  <script src="popup.js"></script>
+</body>
+</html>
