@@ -17,6 +17,7 @@ export interface DebugSession {
 export function createDebugSession(dbg: ChromeDebuggerLike, idleMs = 60_000): DebugSession {
   let debugTabId: number | null = null
   let idleTimer: ReturnType<typeof setTimeout> | null = null
+  let inFlight: Promise<void> = Promise.resolve()
 
   const resetIdle = (): void => {
     if (idleTimer) clearTimeout(idleTimer)
@@ -35,25 +36,29 @@ export function createDebugSession(dbg: ChromeDebuggerLike, idleMs = 60_000): De
   }
 
   const ensure = async (tabId: number): Promise<void> => {
-    if (debugTabId === tabId) {
+    const run = inFlight.then(async () => {
+      if (debugTabId === tabId) {
+        resetIdle()
+        return
+      }
+      await close()
+      await dbg.attach({ tabId }, '1.3')
+      try {
+        await Promise.all([
+          dbg.sendCommand({ tabId }, 'DOM.enable'),
+          dbg.sendCommand({ tabId }, 'Page.enable'),
+          dbg.sendCommand({ tabId }, 'Runtime.enable'),
+          dbg.sendCommand({ tabId }, 'Accessibility.enable')
+        ])
+      } catch (err) {
+        await dbg.detach({ tabId }).catch(() => {})
+        throw err
+      }
+      debugTabId = tabId
       resetIdle()
-      return
-    }
-    await close()
-    await dbg.attach({ tabId }, '1.3')
-    try {
-      await Promise.all([
-        dbg.sendCommand({ tabId }, 'DOM.enable'),
-        dbg.sendCommand({ tabId }, 'Page.enable'),
-        dbg.sendCommand({ tabId }, 'Runtime.enable'),
-        dbg.sendCommand({ tabId }, 'Accessibility.enable')
-      ])
-    } catch (err) {
-      await dbg.detach({ tabId }).catch(() => {})
-      throw err
-    }
-    debugTabId = tabId
-    resetIdle()
+    })
+    inFlight = run.catch(() => {})
+    await run
   }
 
   return {

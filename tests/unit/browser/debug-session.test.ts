@@ -35,6 +35,13 @@ describe('createDebugSession', () => {
     expect(dbg.attach).toHaveBeenCalledTimes(1)
   })
 
+  it('serializes concurrent ensure calls', async () => {
+    const dbg = fakeDbg()
+    const session = createDebugSession(dbg)
+    await Promise.all([session.ensure(10), session.ensure(10)])
+    expect(dbg.attach).toHaveBeenCalledTimes(1)
+  })
+
   it('closes the previous tab before attaching a new one', async () => {
     const dbg = fakeDbg()
     const session = createDebugSession(dbg)
