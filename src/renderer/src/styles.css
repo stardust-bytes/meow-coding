@@ -1,5 +1,5 @@
 :root {
-  font-size: 14px;
+  font-size: 16px;
 
   /* typography — Studio Dark: display + UI sans + mono (terminal/data) */
   --font-display: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', var(--font-mono);
