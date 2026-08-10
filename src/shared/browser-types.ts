@@ -8,6 +8,23 @@ export interface BrowserStatusInfo {
   pairingExpiresAt?: number
 }
 
+export interface SnapshotNode {
+  role: string
+  name?: string
+  ref?: string
+  children?: SnapshotNode[]
+}
+
+export interface BrowserTabInfo {
+  id?: number
+  title?: string
+  url?: string
+  active: boolean
+  windowId?: number
+  groupId?: number
+  groupTitle?: string
+}
+
 export type BrowserCommandName =
   | 'navigate' | 'openTab' | 'switchTab' | 'closeTab' | 'reload' | 'listTabs'
   | 'click' | 'type' | 'select' | 'scroll' | 'read' | 'screenshot'
