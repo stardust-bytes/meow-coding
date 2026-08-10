@@ -104,7 +104,8 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
     skill: 'allow',
     bash: 'ask',
     office: 'ask',
-    question: 'allow'
+    question: 'allow',
+    'browser_*': 'allow'
   },
   mcp: {},
   maxContextTokens: DEFAULT_MAX_CONTEXT_TOKENS,

@@ -29,6 +29,11 @@ describe('decidePermission (build mode)', () => {
   it('allows the question tool without a separate permission prompt', () => {
     expect(decidePermission('build', DEFAULT_MEOW_CONFIG.permission, noSaved, 'question')).toBe('allow')
   })
+
+  it('allows browser tools by default in build mode', () => {
+    expect(decidePermission('build', DEFAULT_MEOW_CONFIG.permission, noSaved, 'browser_click')).toBe('allow')
+    expect(decidePermission('build', DEFAULT_MEOW_CONFIG.permission, noSaved, 'browser_navigate')).toBe('allow')
+  })
 })
 
 describe('decidePermission (plan mode)', () => {
@@ -57,6 +62,11 @@ describe('decidePermission (plan mode)', () => {
     expect(decidePermission('plan', {}, () => true, 'write')).toBe('deny')
     expect(decidePermission('plan', {}, () => true, 'edit')).toBe('deny')
   })
+
+  it('asks for browser tools in plan mode even if config allows them', () => {
+    expect(decidePermission('plan', { 'browser_*': 'allow' }, noSaved, 'browser_click')).toBe('ask')
+    expect(decidePermission('plan', { 'browser_*': 'allow' }, () => true, 'browser_click')).toBe('ask')
+  })
 })
 
 describe('PLAN_RULES', () => {
@@ -64,5 +74,6 @@ describe('PLAN_RULES', () => {
     expect(PLAN_RULES.write).toBe('deny')
     expect(PLAN_RULES.bash).toBe('ask')
     expect(PLAN_RULES.read).toBe('allow')
+    expect(PLAN_RULES['browser_*']).toBe('ask')
   })
 })

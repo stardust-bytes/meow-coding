@@ -12,6 +12,7 @@ import { webfetchTool } from './webfetch'
 import { websearchTool } from './websearch'
 import { createSkillTool } from './skill'
 import { gitTool } from './git'
+import { createBrowserTools, type BrowserBridgeLike, type BrowserLauncherLike } from './browser'
 import { OfficeCliBinary } from '../../officecli/binary-manager'
 import { createOfficeTool } from './office'
 
@@ -19,6 +20,7 @@ export interface DefaultToolsOptions {
   getUserSkillsDir?: () => string | undefined
   getBuiltinSkillsDir?: () => string | undefined
   getUserDataDir?: () => string | undefined
+  browser?: { bridge: BrowserBridgeLike; launcher: BrowserLauncherLike }
 }
 
 export function createDefaultTools(opts: DefaultToolsOptions = {}): Map<string, ToolDefinition> {
@@ -35,7 +37,8 @@ export function createDefaultTools(opts: DefaultToolsOptions = {}): Map<string, 
     webfetchTool,
     websearchTool,
     createSkillTool(opts.getUserSkillsDir ?? (() => undefined), opts.getBuiltinSkillsDir),
-    gitTool
+    gitTool,
+    ...(opts.browser ? createBrowserTools(opts.browser.bridge, opts.browser.launcher) : [])
   ]
   const userDataDir = opts.getUserDataDir?.()
   if (userDataDir) {

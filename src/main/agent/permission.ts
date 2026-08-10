@@ -19,7 +19,8 @@ export const PLAN_RULES: Record<string, PermissionRule> = {
   revert: 'deny',
   git: 'deny',
   todowrite: 'deny',
-  task: 'deny'
+  task: 'deny',
+  'browser_*': 'ask'
 }
 
 export function rulesForMode(mode: AgentMode): Record<string, PermissionRule> {
