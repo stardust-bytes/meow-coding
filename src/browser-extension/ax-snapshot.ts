@@ -20,6 +20,52 @@ export interface AxToTreeOptions {
   textMaxChars?: number
 }
 
+export interface AxFrameBundle {
+  frameId: string
+  ownerBackendNodeId?: number
+  nodes: AxNodeLike[]
+}
+
+// Merge per-frame AX node lists (CDP getFullAXTree is per document) into one flat
+// list: namespace nodeIds per frame (they collide across frames), then graft each
+// child frame's root under the parent's "Iframe" AX node (matched by the iframe
+// element's backendDOMNodeId reported by DOM.getFrameOwner).
+export function mergeFrameAxTrees(frames: AxFrameBundle[]): AxNodeLike[] {
+  if (frames.length === 0) return []
+
+  const ns = (frameId: string, nodeId: string): string => `${frameId}::${nodeId}`
+  const merged: AxNodeLike[] = []
+  const byBackend = new Map<number, AxNodeLike>()
+  const frameRoot = new Map<string, string>()
+
+  for (const f of frames) {
+    const isChild = new Set<string>()
+    for (const n of f.nodes) for (const c of n.childIds ?? []) isChild.add(c)
+    const root = f.nodes.find(n => !isChild.has(n.nodeId))
+    if (root) frameRoot.set(f.frameId, ns(f.frameId, root.nodeId))
+    for (const n of f.nodes) {
+      const node: AxNodeLike = {
+        ...n,
+        nodeId: ns(f.frameId, n.nodeId),
+        childIds: (n.childIds ?? []).map(c => ns(f.frameId, c))
+      }
+      merged.push(node)
+      if (node.backendDOMNodeId != null) byBackend.set(node.backendDOMNodeId, node)
+    }
+  }
+
+  for (const f of frames) {
+    if (f.ownerBackendNodeId == null) continue
+    const childRoot = frameRoot.get(f.frameId)
+    if (!childRoot) continue
+    const owner = byBackend.get(f.ownerBackendNodeId)
+    if (!owner) continue
+    owner.childIds = [childRoot]
+  }
+
+  return merged
+}
+
 const INTERACTIVE_ROLES = new Set([
   'button', 'link', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'checkbox', 'radio',
   'switch', 'combobox', 'listbox', 'option', 'tab', 'textbox', 'searchbox', 'spinbutton',

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ChallengeEvent } from '@shared/ipc'
+import type { BrowserInstallGuideEvent, ChallengeEvent } from '@shared/ipc'
 import type { BrowserStatusInfo } from '@shared/browser-types'
 import { ChallengeToast } from './components/ChallengeToast'
 import { Terminal } from '@xterm/xterm'
@@ -14,6 +14,7 @@ import StatusBar from './components/StatusBar'
 import TitleBar from './components/TitleBar'
 import SettingsDialog from './components/settings/SettingsDialog'
 import BrowserDialog from './components/BrowserDialog'
+import InstallGuideDialog from './components/InstallGuideDialog'
 
 export interface PaneModel {
   agent: AgentConfig
@@ -30,6 +31,7 @@ export default function App() {
   const [challenge, setChallenge] = useState<ChallengeEvent | null>(null)
   const [browser, setBrowser] = useState<BrowserStatusInfo | null>(null)
   const [browserDialogOpen, setBrowserDialogOpen] = useState(false)
+  const [installGuide, setInstallGuide] = useState<BrowserInstallGuideEvent | null>(null)
   const termsRef = useRef<Map<string, Terminal>>(new Map())
   const buffersRef = useRef<Map<string, string>>(new Map())
 
@@ -70,6 +72,9 @@ export default function App() {
     const offBrowser = window.api.onBrowserStatus((info) => {
       setBrowser(info)
     })
+    const offInstallGuide = window.api.onBrowserOpenInstallGuide((e) => {
+      setInstallGuide(e)
+    })
     void window.api.getBrowserStatus().then(setBrowser)
     return () => {
       offData()
@@ -78,6 +83,7 @@ export default function App() {
       offBg()
       offChallenge()
       offBrowser()
+      offInstallGuide()
     }
   }, [])
 
@@ -194,6 +200,9 @@ export default function App() {
       />
       {browserDialogOpen && (
         <BrowserDialog status={browser} onClose={() => setBrowserDialogOpen(false)} />
+      )}
+      {installGuide && (
+        <InstallGuideDialog guide={installGuide} onClose={() => setInstallGuide(null)} />
       )}
       {showSettings && (
         <SettingsDialog

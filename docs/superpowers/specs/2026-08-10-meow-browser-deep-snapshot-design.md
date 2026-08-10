@@ -129,6 +129,15 @@ node, unit-test được):
 - Text: vẫn trả `text` của trang — lấy bằng `Runtime.evaluate` `document.body.innerText` (1 layout),
   truncate `MAX_READ_CHARS`. `url`/`title` từ `chrome.tabs.get(tabId)`.
 
+**iframe:** CDP `Accessibility.getFullAXTree` là **per-document** — không truyền `frameId` thì chỉ trả cây
+của root frame, iframe chỉ hiện thành node `Iframe` rỗng (đã xác nhận bằng thực nghiệm). Vì vậy `read` phải:
+`Page.getFrameTree` → đệ quy từng frame gọi `getFullAXTree({ frameId })`, lấy backendNodeId của element
+`<iframe>` cha bằng `DOM.getFrameOwner({ frameId })`, rồi `mergeFrameAxTrees` (thuần, trong
+`ax-snapshot.ts`) namespaces nodeId theo frame (`frameId::nodeId`, tránh trùng) và ghép root của frame con
+vào node `Iframe` của frame cha. Tương tác theo ref giữ nguyên: `backendDOMNodeId` là global nên
+`DOM.resolveNode` + `Runtime.callFunctionOn` click được cả element trong iframe cross-origin (đã xác nhận
+bằng thực nghiệm).
+
 Ghi chú: AX tree của Chrome đã tự bỏ presentation thuần — không cần heuristic lọc của content-script cũ.
 Element `display:none` không xuất hiện trong AX tree (không tương tác được) — chấp nhận. Canvas/SVG không
 có name thường → cần screenshot + LLM vision (ngoài phạm vi, ghi ở Rủi ro).

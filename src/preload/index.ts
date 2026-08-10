@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
 import type { ChatEvent, ChatGptWebStatus, Command, ContextChangedEvent, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template } from '../shared/types'
-import type { AgentApi, AgentStateEvent, ChallengeEvent, GitStatusEvent, PtyDataEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
+import type { AgentApi, AgentStateEvent, BrowserInstallGuideEvent, ChallengeEvent, GitStatusEvent, PtyDataEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
 import type { BrowserStatusInfo } from '../shared/browser-types'
 
 function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
@@ -110,9 +110,11 @@ const api: AgentApi = {
   pairBrowser: () => ipcRenderer.invoke(Channels.BrowserPair),
   openBrowserInstallGuide: () => ipcRenderer.invoke(Channels.BrowserOpenInstallGuide),
   openBrowserExtensionFolder: () => ipcRenderer.invoke(Channels.BrowserOpenExtensionFolder),
+  openBrowserChromeExtensions: () => ipcRenderer.invoke(Channels.BrowserOpenChromeExtensions),
   getBrowserConsoleLogs: (limit?: number) => ipcRenderer.invoke(Channels.BrowserGetConsoleLogs, limit),
   getBrowserNetworkLogs: (limit?: number) => ipcRenderer.invoke(Channels.BrowserGetNetworkLogs, limit),
   onBrowserStatus: (cb: (info: BrowserStatusInfo) => void) => subscribe(Channels.EventBrowserStatus, cb),
+  onBrowserOpenInstallGuide: (cb: (e: BrowserInstallGuideEvent) => void) => subscribe(Channels.EventBrowserOpenInstallGuide, cb),
   suggestFiles: (agentId: string, prefix: string) =>
     ipcRenderer.invoke(Channels.FilesSuggest, agentId, prefix),
   setAgentBackground: (agentId: string, background: boolean) =>

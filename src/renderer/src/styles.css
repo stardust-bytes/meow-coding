@@ -423,7 +423,8 @@ select.input { width: 100%; }
   cursor: pointer; padding: 1px 8px; color: var(--text-dim); font-size: var(--fs-md);
 }
 .status-bar .sb-browser:hover { background: var(--bg-hover); color: var(--text-strong); }
-.status-bar .sb-browser-on { color: var(--accent); border-color: var(--accent-dim); }
+.status-bar .sb-browser-off { color: var(--accent); border-color: var(--accent-dim); }
+.status-bar .sb-browser-on { color: var(--green); border-color: rgba(76, 227, 161, 0.35); }
 
 .browser-status { margin: 0 0 8px; font-size: var(--fs-md); }
 .browser-row { display: flex; flex-direction: column; gap: 8px; }
@@ -432,6 +433,14 @@ select.input { width: 100%; }
 .browser-code {
   font-family: var(--font-mono); font-size: 22px; letter-spacing: 4px; color: var(--accent);
   user-select: all; padding: 4px 8px; border: 1px dashed var(--accent-dim); border-radius: 4px;
+}
+.browser-guide { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: var(--fs-md); color: var(--text); line-height: 1.5; }
+.browser-guide li { margin: 0; }
+.browser-guide-dir {
+  display: block; margin-top: 4px; padding: 4px 8px; font-family: var(--font-mono);
+  font-size: var(--fs-md); color: var(--text-strong); background: var(--bg-panel);
+  border: 1px solid var(--hairline); border-radius: var(--radius-sm);
+  user-select: all; word-break: break-all;
 }
 
 /* Chat panel (native agent) */

@@ -529,6 +529,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.BrowserPair, () => mainApp.browserBridge.pair())
   ipcMain.handle(Channels.BrowserOpenInstallGuide, () => mainApp.browserLauncher.showInstallGuide())
   ipcMain.handle(Channels.BrowserOpenExtensionFolder, () => mainApp.browserLauncher.openExtensionFolder())
+  ipcMain.handle(Channels.BrowserOpenChromeExtensions, () => mainApp.browserLauncher.openChrome())
   ipcMain.handle(Channels.BrowserGetConsoleLogs, (_e, limit?: number) => mainApp.browserBridge.getConsoleLogs(limit))
   ipcMain.handle(Channels.BrowserGetNetworkLogs, (_e, limit?: number) => mainApp.browserBridge.getNetworkLogs(limit))
 }

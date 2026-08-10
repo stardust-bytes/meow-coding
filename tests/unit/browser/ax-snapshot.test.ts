@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { axTreeToSnapshot } from '../../../src/browser-extension/ax-snapshot'
+import { axTreeToSnapshot, mergeFrameAxTrees } from '../../../src/browser-extension/ax-snapshot'
 import type { AxNodeLike } from '../../../src/browser-extension/ax-snapshot'
 
 function axn(
@@ -140,5 +140,80 @@ describe('axTreeToSnapshot', () => {
     ]
     const full = axTreeToSnapshot(nodes, { mode: 'full' })
     expect(full.refs).toHaveLength(0)
+  })
+})
+
+describe('mergeFrameAxTrees', () => {
+  it('returns an empty list for no frames', () => {
+    expect(mergeFrameAxTrees([])).toEqual([])
+  })
+
+  it('returns the frame nodes unchanged (single frame, no owner)', () => {
+    const frames = [{ frameId: 'root', nodes: [axn('1', { role: role('rootwebarea'), backendDOMNodeId: 1, childIds: ['2'] })] }]
+    const merged = mergeFrameAxTrees(frames)
+    expect(merged).toHaveLength(1)
+    expect(merged[0].nodeId).toBe('root::1')
+    expect(merged[0].childIds).toEqual(['root::2'])
+  })
+
+  it('grafts a child frame root under the parent Iframe node', () => {
+    const frames = [
+      {
+        frameId: 'root',
+        nodes: [
+          axn('1', { role: role('rootwebarea'), backendDOMNodeId: 1, childIds: ['2'] }),
+          axn('2', { role: role('Iframe'), backendDOMNodeId: 50, childIds: [] })
+        ]
+      },
+      {
+        frameId: 'child',
+        ownerBackendNodeId: 50,
+        nodes: [
+          axn('1', { role: role('rootwebarea'), backendDOMNodeId: 2, childIds: ['2'] }),
+          axn('2', { role: role('button'), name: name('Inside'), backendDOMNodeId: 51 })
+        ]
+      }
+    ]
+    const merged = mergeFrameAxTrees(frames)
+    const owner = merged.find(n => n.nodeId === 'root::2')!
+    expect(owner.childIds).toEqual(['child::1'])
+    const { tree, refs } = axTreeToSnapshot(merged, {})
+    const iframe = tree[0].children!.find(c => c.role === 'iframe')!
+    expect(iframe.children).toBeDefined()
+    expect(iframe.children![0]).toMatchObject({ role: 'rootwebarea' })
+    expect(iframe.children![0].children![0]).toMatchObject({ role: 'button', name: 'Inside', ref: 'r1' })
+    expect(refs).toEqual([{ ref: 'r1', backendDOMNodeId: 51 }])
+  })
+
+  it('keeps sibling frames distinct and namespaced', () => {
+    const frames = [
+      {
+        frameId: 'root',
+        nodes: [
+          axn('1', { role: role('rootwebarea'), childIds: ['2', '3'] }),
+          axn('2', { role: role('generic') }),
+          axn('3', { role: role('generic') })
+        ]
+      },
+      { frameId: 'child', ownerBackendNodeId: 50, nodes: [axn('1', { role: role('rootwebarea'), backendDOMNodeId: 2 })] }
+    ]
+    const merged = mergeFrameAxTrees(frames)
+    expect(merged.map(n => n.nodeId).sort()).toEqual(['child::1', 'root::1', 'root::2', 'root::3'])
+  })
+
+  it('leaves the Iframe node alone when the owner backend node is not found', () => {
+    const frames = [
+      {
+        frameId: 'root',
+        nodes: [axn('1', { role: role('rootwebarea'), childIds: ['2'] }), axn('2', { role: role('Iframe'), backendDOMNodeId: 50 })]
+      },
+      {
+        frameId: 'child',
+        ownerBackendNodeId: 999,
+        nodes: [axn('1', { role: role('rootwebarea'), backendDOMNodeId: 2 })]
+      }
+    ]
+    const merged = mergeFrameAxTrees(frames)
+    expect(merged.find(n => n.nodeId === 'root::2')!.childIds).toEqual([])
   })
 })

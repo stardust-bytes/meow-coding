@@ -1,7 +1,8 @@
-import { dialog, shell, type BrowserWindow } from 'electron'
+import { shell, type BrowserWindow } from 'electron'
 import { existsSync, mkdirSync, cpSync, readFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
+import { Channels } from '../../shared/ipc'
 import { resolveChromeExecutablePath } from '../chatgpt-web/browser-login'
 
 export interface BrowserLauncherDeps {
@@ -37,29 +38,9 @@ export function createChromeLauncher(deps: BrowserLauncherDeps): BrowserLauncher
       await shell.openPath(deps.extensionDir)
     },
     async showInstallGuide() {
-      const buttons = ['Mở chrome://extensions', 'Mở thư mục extension', 'Đóng']
-      const message =
-        '[meow] Cài extension "Meow Browser Bridge" để agent điều khiển Chrome.\n\n' +
-        '1. Nhấn "Mở chrome://extensions" (Chrome sẽ mở trang extension).\n' +
-        '2. Bật Developer mode (góc phải trên).\n' +
-        '3. Nhấn "Load unpacked" và chọn thư mục:\n' +
-        `   ${deps.extensionDir}\n` +
-        '4. Quay lại Meow, mở dialog Browser và nhấn "Ghép nối" để lấy mã,\n' +
-        '   rồi nhập mã vào popup extension.\n\n' +
-        'Extension chỉ kết nối tới Meow trên máy này (127.0.0.1) và yêu cầu mã ghép nối.'
-      const opts = {
-        type: 'info' as const,
-        title: 'Meow Browser Bridge',
-        message,
-        buttons,
-        defaultId: 0,
-        cancelId: 2
-      }
-      const { response } = win()
-        ? await dialog.showMessageBox(win()!, opts)
-        : await dialog.showMessageBox(opts)
-      if (response === 0) await shell.openExternal('chrome://extensions')
-      else if (response === 1) await shell.openPath(deps.extensionDir)
+      // In-app guide popup: push an event so the renderer opens its own dialog
+      // instead of a native OS message box.
+      win()?.webContents.send(Channels.EventBrowserOpenInstallGuide)
     }
   }
 }

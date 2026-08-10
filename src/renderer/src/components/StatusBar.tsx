@@ -39,7 +39,7 @@ export default function StatusBar({ workspaceName, git, agents, browser, onBrows
         {running} agent(s) running
       </span>
       <button
-        className={`sb-item sb-mono sb-browser ${browser?.paired ? 'sb-browser-on' : ''}`}
+        className={`sb-item sb-mono sb-browser ${browser?.paired ? 'sb-browser-on' : 'sb-browser-off'}`}
         onClick={onBrowserClick}
         title="Open browser bridge settings"
       >

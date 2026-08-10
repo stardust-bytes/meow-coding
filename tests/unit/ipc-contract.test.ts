@@ -21,8 +21,8 @@ describe('IPC contract', () => {
       'getChatTodos',
       'isChatRunning',
       'minimizeWindow', 'toggleMaximizeWindow', 'closeWindow', 'isWindowMaximized', 'onWindowMaximizedChange',
-      'getBrowserStatus', 'pairBrowser', 'openBrowserInstallGuide', 'openBrowserExtensionFolder',
-      'getBrowserConsoleLogs', 'getBrowserNetworkLogs', 'onBrowserStatus'
+      'getBrowserStatus', 'pairBrowser', 'openBrowserInstallGuide', 'openBrowserExtensionFolder', 'openBrowserChromeExtensions',
+      'getBrowserConsoleLogs', 'getBrowserNetworkLogs', 'onBrowserStatus', 'onBrowserOpenInstallGuide'
     ]
     const api: AgentApi = {
       listWorkspaces: async () => [],
@@ -85,9 +85,11 @@ describe('IPC contract', () => {
       pairBrowser: async () => ({ code: '000000', expiresAt: 0 }),
       openBrowserInstallGuide: async () => {},
       openBrowserExtensionFolder: async () => {},
+      openBrowserChromeExtensions: async () => {},
       getBrowserConsoleLogs: async () => [],
       getBrowserNetworkLogs: async () => [],
       onBrowserStatus: () => () => {},
+      onBrowserOpenInstallGuide: () => () => {},
       platform: 'win32',
       minimizeWindow: async () => {},
       toggleMaximizeWindow: async () => {},
@@ -171,9 +173,11 @@ describe('IPC contract', () => {
     expect(Channels.BrowserPair).toBe('browser:pair')
     expect(Channels.BrowserOpenInstallGuide).toBe('browser:open-install-guide')
     expect(Channels.BrowserOpenExtensionFolder).toBe('browser:open-extension-folder')
+    expect(Channels.BrowserOpenChromeExtensions).toBe('browser:open-chrome-extensions')
     expect(Channels.BrowserGetConsoleLogs).toBe('browser:get-console-logs')
     expect(Channels.BrowserGetNetworkLogs).toBe('browser:get-network-logs')
     expect(Channels.EventBrowserStatus).toBe('browser:status')
+    expect(Channels.EventBrowserOpenInstallGuide).toBe('browser:install-guide')
   })
 
   it('types event payloads without runtime error', () => {

@@ -86,9 +86,11 @@ export const Channels = {
   BrowserPair: 'browser:pair',
   BrowserOpenInstallGuide: 'browser:open-install-guide',
   BrowserOpenExtensionFolder: 'browser:open-extension-folder',
+  BrowserOpenChromeExtensions: 'browser:open-chrome-extensions',
   BrowserGetConsoleLogs: 'browser:get-console-logs',
   BrowserGetNetworkLogs: 'browser:get-network-logs',
-  EventBrowserStatus: 'browser:status'
+  EventBrowserStatus: 'browser:status',
+  EventBrowserOpenInstallGuide: 'browser:install-guide'
 } as const
 
 export interface PtyDataEvent { agentId: string; data: string }
@@ -102,6 +104,10 @@ export type ChallengeReason = 'cloudflare' | 'session-expired'
 export interface ChallengeEvent {
   reason: ChallengeReason
   timestamp: string
+}
+
+export interface BrowserInstallGuideEvent {
+  extensionDir: string
 }
 
 export interface AgentApi {
@@ -185,7 +191,9 @@ export interface AgentApi {
   pairBrowser(): Promise<PairingInfo>
   openBrowserInstallGuide(): Promise<void>
   openBrowserExtensionFolder(): Promise<void>
+  openBrowserChromeExtensions(): Promise<void>
   getBrowserConsoleLogs(limit?: number): Promise<unknown[]>
   getBrowserNetworkLogs(limit?: number): Promise<unknown[]>
   onBrowserStatus(cb: (info: BrowserStatusInfo) => void): () => void
+  onBrowserOpenInstallGuide(cb: (e: BrowserInstallGuideEvent) => void): () => void
 }
