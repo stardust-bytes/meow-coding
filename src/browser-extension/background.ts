@@ -13,12 +13,13 @@ let ws: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let reconnectDelay = 1000
 let paired = false
+let pendingCode: string | null = null
 
 function saveState(patch: Partial<StoredState>): void {
   void chrome.storage.local.get(STORAGE_KEY).then((res: Record<string, StoredState | undefined>) => {
     const cur = res[STORAGE_KEY] ?? {}
-    void chrome.storage.local.set({ [STORAGE_KEY]: { ...cur, ...patch } })
-  })
+    void chrome.storage.local.set({ [STORAGE_KEY]: { ...cur, ...patch } }).catch(() => {})
+  }).catch(() => {})
 }
 
 async function loadState(): Promise<StoredState> {
@@ -54,24 +55,38 @@ function connect(): void {
   void (async () => {
     const port = await detectPort()
     const state = await loadState()
+    let socket: WebSocket
     try {
-      ws = new WebSocket(`ws://127.0.0.1:${port}`)
+      socket = new WebSocket(`ws://127.0.0.1:${port}`)
     } catch {
       scheduleReconnect()
       return
     }
-    ws.onopen = () => {
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      socket.close()
+      return
+    }
+    ws = socket
+    const code = pendingCode ?? state.code ?? null
+    socket.onopen = () => {
+      if (ws !== socket) return
       paired = false
       broadcastStatus()
-      if (state.code) ws?.send(JSON.stringify({ type: 'pair', code: state.code } satisfies ExtensionToBridge))
+      if (code) socket.send(JSON.stringify({ type: 'pair', code } satisfies ExtensionToBridge))
     }
-    ws.onmessage = (ev) => {
+    socket.onmessage = (ev) => {
       const msg = JSON.parse(String(ev.data)) as BridgeToExtension
       if (msg.type === 'pair_result') {
+        if (ws !== socket) return
         paired = msg.ok
-        saveState({ connected: msg.ok })
+        if (msg.ok) {
+          pendingCode = null
+          saveState({ connected: true })
+          reconnectDelay = 1000
+        } else {
+          saveState({ connected: false })
+        }
         broadcastStatus()
-        if (msg.ok) reconnectDelay = 1000
         return
       }
       if (msg.type === 'cmd') {
@@ -79,15 +94,16 @@ function connect(): void {
         return
       }
     }
-    ws.onclose = () => {
+    socket.onclose = () => {
+      if (ws !== socket) return
       paired = false
       saveState({ connected: false })
       broadcastStatus()
       ws = null
       scheduleReconnect()
     }
-    ws.onerror = () => {
-      ws?.close()
+    socket.onerror = () => {
+      socket.close()
     }
   })()
 }
@@ -183,8 +199,13 @@ async function handleCommand(msg: Extract<BridgeToExtension, { type: 'cmd' }>): 
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.kind === 'pair') {
-    saveState({ code: msg.code })
-    connect()
+    pendingCode = String(msg.code)
+    saveState({ code: pendingCode })
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'pair', code: pendingCode } satisfies ExtensionToBridge))
+    } else {
+      connect()
+    }
     sendResponse({ ok: true })
     return false
   }
