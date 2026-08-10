@@ -15,6 +15,11 @@ let reconnectDelay = 1000
 let paired = false
 let pendingCode: string | null = null
 
+const GROUP_TITLE = 'Meow'
+const GROUP_COLOR = 'blue' as chrome.tabGroups.ColorEnum
+
+let workingTabId: number | null = null
+
 function saveState(patch: Partial<StoredState>): void {
   void chrome.storage.local.get(STORAGE_KEY).then((res: Record<string, StoredState | undefined>) => {
     const cur = res[STORAGE_KEY] ?? {}
@@ -122,6 +127,41 @@ async function activeTabId(): Promise<number | undefined> {
   return tab?.id
 }
 
+async function lastFocusedWindowId(): Promise<number | undefined> {
+  const wins = await chrome.windows.getAll({})
+  if (wins.length === 0) return undefined
+  const focused = wins.find(w => w.focused)
+  if (focused?.id != null) return focused.id
+  const byFocus = [...wins].sort(
+    (a, b) => ((b as { lastFocused?: number }).lastFocused ?? 0) - ((a as { lastFocused?: number }).lastFocused ?? 0)
+  )
+  return byFocus[0]?.id
+}
+
+async function meowGroupId(): Promise<number | undefined> {
+  const groups = await chrome.tabGroups.query({})
+  return groups.find(g => g.title === GROUP_TITLE)?.id
+}
+
+async function addToMeowGroup(tabId: number): Promise<{ groupId?: number; groupTitle?: string }> {
+  const existing = await meowGroupId()
+  const groupId = await chrome.tabs.group({ tabIds: [tabId], ...(existing != null ? { groupId: existing } : {}) })
+  await chrome.tabGroups.update(groupId, { title: GROUP_TITLE, color: GROUP_COLOR })
+  return { groupId, groupTitle: GROUP_TITLE }
+}
+
+async function defaultTabId(): Promise<number | undefined> {
+  if (workingTabId != null) {
+    try {
+      const t = await chrome.tabs.get(workingTabId)
+      return t.id
+    } catch {
+      workingTabId = null
+    }
+  }
+  return activeTabId()
+}
+
 async function sendToTab(tabId: number, name: string, params: Record<string, unknown>): Promise<{ ok: boolean; data?: unknown; error?: string }> {
   try {
     const res = await chrome.tabs.sendMessage(tabId, { kind: 'cmd', name, params })
@@ -145,16 +185,41 @@ async function handleCommand(msg: Extract<BridgeToExtension, { type: 'cmd' }>): 
     switch (name) {
       case 'listTabs': {
         const tabs = await chrome.tabs.query({})
-        send({ ok: true, data: tabs.map(t => ({ id: t.id, title: t.title, url: t.url, active: t.active })) })
+        const groupIds = [...new Set(tabs.map(t => t.groupId).filter((id): id is number => id != null))]
+        const groupTitles = new Map<number, string>()
+        for (const id of groupIds) {
+          try {
+            const g = await chrome.tabGroups.get(id)
+            groupTitles.set(id, g.title ?? '')
+          } catch {
+            /* group closed between query and get */
+          }
+        }
+        send({
+          ok: true,
+          data: tabs.map(t => ({
+            id: t.id, title: t.title, url: t.url, active: t.active, windowId: t.windowId,
+            groupId: t.groupId,
+            groupTitle: t.groupId != null ? groupTitles.get(t.groupId) : undefined
+          }))
+        })
         return
       }
       case 'openTab': {
-        const tab = await chrome.tabs.create({ url: String(params.url ?? '') })
-        send({ ok: true, data: { id: tab?.id, url: tab?.url } })
+        const url = String(params.url ?? '')
+        const windowId = await lastFocusedWindowId()
+        const tab = windowId != null
+          ? await chrome.tabs.create({ url, windowId, active: false })
+          : await chrome.tabs.create({ url })
+        workingTabId = tab.id ?? null
+        const group = tab.id != null ? await addToMeowGroup(tab.id) : {}
+        send({ ok: true, data: { id: tab.id, url: tab.url, ...group } })
         return
       }
       case 'switchTab': {
-        const tab = await chrome.tabs.update(Number(params.tabId), { active: true })
+        const tabId = Number(params.tabId)
+        const tab = await chrome.tabs.update(tabId, { active: true })
+        workingTabId = tab?.id ?? null
         send({ ok: true, data: { id: tab?.id, url: tab?.url } })
         return
       }
@@ -178,17 +243,27 @@ async function handleCommand(msg: Extract<BridgeToExtension, { type: 'cmd' }>): 
         return
       }
       case 'screenshot': {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-        const winId = tab?.windowId
-        if (winId == null) { send({ ok: false, error: 'no active window' }); return }
-        const dataUrl = await chrome.tabs.captureVisibleTab(winId, { format: 'png' })
-        send({ ok: true, data: { base64: dataUrl.split(',')[1] ?? '' } })
+        const tabId = params.tabId != null ? Number(params.tabId) : (await defaultTabId())
+        if (tabId == null) { send({ ok: false, error: 'no target tab' }); return }
+        try {
+          await chrome.debugger.attach({ tabId }, '1.3')
+          await chrome.debugger.sendCommand({ tabId }, 'Page.enable')
+          const res = await chrome.debugger.sendCommand({ tabId }, 'Page.captureScreenshot', {
+            format: 'png', captureBeyondViewport: true, fromSurface: true
+          })
+          await chrome.debugger.detach({ tabId })
+          send({ ok: true, data: { base64: (res as { data: string }).data } })
+        } catch (err) {
+          await chrome.debugger.detach({ tabId }).catch(() => {})
+          send({ ok: false, error: `screenshot failed (tab not capturable?): ${String(err)}` })
+        }
         return
       }
       default: {
-        const tabId = params.tabId != null ? Number(params.tabId) : (await activeTabId())
-        if (tabId == null) { send({ ok: false, error: 'no active tab' }); return }
+        const tabId = params.tabId != null ? Number(params.tabId) : (await defaultTabId())
+        if (tabId == null) { send({ ok: false, error: 'no target tab' }); return }
         const res = await sendToTab(tabId, name, params)
+        if (res.ok) workingTabId = tabId
         send(res)
       }
     }
