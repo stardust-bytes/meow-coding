@@ -31,11 +31,11 @@ function fakeLauncher(overrides: Partial<BrowserLauncherLike> = {}): BrowserLaun
 }
 
 describe('browser tools', () => {
-  it('registers all 14 tools with names', () => {
+  it('registers all 15 tools with names', () => {
     const tools = createBrowserTools(fakeBridge(), fakeLauncher())
     expect(tools.map(t => t.name)).toEqual([
-      'browser_start', 'browser_navigate', 'browser_click', 'browser_type', 'browser_select',
-      'browser_scroll', 'browser_read', 'browser_screenshot', 'browser_list_tabs',
+      'browser_start', 'browser_navigate', 'browser_open_tab', 'browser_click', 'browser_type',
+      'browser_select', 'browser_scroll', 'browser_read', 'browser_screenshot', 'browser_list_tabs',
       'browser_switch_tab', 'browser_close_tab', 'browser_console', 'browser_network', 'browser_wait_for'
     ])
   })
@@ -56,14 +56,32 @@ describe('browser tools', () => {
     expect(bridge.calls).toEqual([{ name: 'navigate', params: { url: 'https://example.com' } }])
   })
 
-  it('browser_click uses selector or coordinates', async () => {
+  it('browser_open_tab forwards the url to the bridge', async () => {
+    const bridge = fakeBridge()
+    const tools = createBrowserTools(bridge, fakeLauncher())
+    const openTab = tools.find(t => t.name === 'browser_open_tab')!
+    const r = await openTab.run({ url: 'https://example.com' }, ctx)
+    expect(r.output).toContain('openTab')
+    expect(bridge.calls).toEqual([{ name: 'openTab', params: { url: 'https://example.com' } }])
+  })
+
+  it('browser_open_tab validates the url scheme', async () => {
+    const tools = createBrowserTools(fakeBridge(), fakeLauncher())
+    const openTab = tools.find(t => t.name === 'browser_open_tab')!
+    const bad = await openTab.run({ url: 'ftp://x' }, ctx)
+    expect(bad.error).toContain('invalid url')
+  })
+
+  it('browser_click uses ref, selector or coordinates', async () => {
     const bridge = fakeBridge()
     const tools = createBrowserTools(bridge, fakeLauncher())
     const click = tools.find(t => t.name === 'browser_click')!
+    await click.run({ ref: 'r4' }, ctx)
+    expect(bridge.calls[0]).toEqual({ name: 'click', params: { ref: 'r4' } })
     await click.run({ selector: '#btn' }, ctx)
-    expect(bridge.calls[0]).toEqual({ name: 'click', params: { selector: '#btn' } })
+    expect(bridge.calls[1]).toEqual({ name: 'click', params: { selector: '#btn' } })
     await click.run({ x: 10, y: 20 }, ctx)
-    expect(bridge.calls[1]).toEqual({ name: 'click', params: { x: 10, y: 20 } })
+    expect(bridge.calls[2]).toEqual({ name: 'click', params: { x: 10, y: 20 } })
   })
 
   it('browser_start when paired returns immediately without launching', async () => {

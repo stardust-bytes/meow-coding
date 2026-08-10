@@ -55,15 +55,31 @@ export function createBrowserTools(
       }
     },
     {
-      name: 'browser_click',
-      description: 'Click an element by CSS selector or at viewport coordinates (x, y).',
+      name: 'browser_open_tab',
+      description:
+        'Open a URL in a new background tab of an existing Chrome window, grouped under "Meow". ' +
+        'Never opens a new Chrome window unless none are open, and does not focus Chrome.',
       schema: z.object({
+        url: z.string().describe('The http(s) URL to open.')
+      }),
+      async run(input): Promise<ToolRunResult> {
+        const { url } = input as unknown as { url: string }
+        if (!/^https?:\/\//i.test(url)) return { error: `browser_open_tab: invalid url: ${url}` }
+        return fmt(await bridge.execute('openTab', { url }))
+      }
+    },
+    {
+      name: 'browser_click',
+      description: 'Click an element by snapshot ref (preferred), CSS selector, or viewport coordinates (x, y).',
+      schema: z.object({
+        ref: z.string().optional().describe('Snapshot ref from browser_read, e.g. r4.'),
         selector: z.string().optional().describe('CSS selector of the element to click.'),
         x: z.number().optional().describe('Viewport x coordinate (requires y).'),
         y: z.number().optional().describe('Viewport y coordinate (requires x).')
       }),
       async run(input): Promise<ToolRunResult> {
-        const { selector, x, y } = input as unknown as { selector?: string; x?: number; y?: number }
+        const { ref, selector, x, y } = input as unknown as { ref?: string; selector?: string; x?: number; y?: number }
+        if (ref != null) return fmt(await bridge.execute('click', { ref }))
         return fmt(await bridge.execute('click', selector ? { selector } : { x, y }))
       }
     },
@@ -71,24 +87,26 @@ export function createBrowserTools(
       name: 'browser_type',
       description: 'Type text into an input/textarea/select matched by CSS selector.',
       schema: z.object({
-        selector: z.string().describe('CSS selector of the input element.'),
+        ref: z.string().optional().describe('Snapshot ref from browser_read (preferred).'),
+        selector: z.string().optional().describe('CSS selector of the input element.'),
         text: z.string().describe('Text to type.')
       }),
       async run(input): Promise<ToolRunResult> {
-        const { selector, text } = input as unknown as { selector: string; text: string }
-        return fmt(await bridge.execute('type', { selector, text }))
+        const { ref, selector, text } = input as unknown as { ref?: string; selector?: string; text: string }
+        return fmt(await bridge.execute('type', ref != null ? { ref, text } : { selector, text }))
       }
     },
     {
       name: 'browser_select',
       description: 'Select an option value in a <select> matched by CSS selector.',
       schema: z.object({
-        selector: z.string().describe('CSS selector of the select element.'),
+        ref: z.string().optional().describe('Snapshot ref from browser_read (preferred).'),
+        selector: z.string().optional().describe('CSS selector of the select element.'),
         value: z.string().describe('Option value to select.')
       }),
       async run(input): Promise<ToolRunResult> {
-        const { selector, value } = input as unknown as { selector: string; value: string }
-        return fmt(await bridge.execute('select', { selector, value }))
+        const { ref, selector, value } = input as unknown as { ref?: string; selector?: string; value: string }
+        return fmt(await bridge.execute('select', ref != null ? { ref, value } : { selector, value }))
       }
     },
     {
@@ -106,11 +124,12 @@ export function createBrowserTools(
     {
       name: 'browser_read',
       description:
-        'Read the visible text and interactive elements (with CSS selectors) of the page or a selector. ' +
-        'Pass maxElements to raise the number of interactive elements returned (default 20, use 0 for no limit).',
+        'Return the page as a nested accessibility tree (role + accessible name per node) with refs ' +
+        'on interactive elements, plus the visible text. Use a ref with browser_click/type/select. ' +
+        'Pass maxElements to raise the tree node cap (default 200, use 0 for no limit).',
       schema: z.object({
         selector: z.string().optional().describe('Optional CSS selector; defaults to the whole page.'),
-        maxElements: z.number().int().min(0).max(500).optional().describe('Max interactive elements to list; 0 means no limit (default 20).')
+        maxElements: z.number().int().min(0).max(500).optional().describe('Max tree nodes; 0 means no limit (default 200).')
       }),
       async run(input): Promise<ToolRunResult> {
         const { selector, maxElements } = input as unknown as { selector?: string; maxElements?: number }
@@ -119,7 +138,7 @@ export function createBrowserTools(
     },
     {
       name: 'browser_screenshot',
-      description: 'Capture a PNG screenshot of the active tab and return the saved file path.',
+      description: 'Capture a full-page PNG of the working tab (background tabs supported) without switching tabs or focusing Chrome.',
       schema: z.object({}),
       async run(): Promise<ToolRunResult> {
         return fmt(await bridge.execute('screenshot'))
@@ -127,7 +146,7 @@ export function createBrowserTools(
     },
     {
       name: 'browser_list_tabs',
-      description: 'List open tabs with id, title, url and active flag.',
+      description: 'List open tabs with id, title, url, active, window and tab-group info.',
       schema: z.object({}),
       async run(): Promise<ToolRunResult> {
         return fmt(await bridge.execute('listTabs'))
@@ -135,7 +154,7 @@ export function createBrowserTools(
     },
     {
       name: 'browser_switch_tab',
-      description: 'Activate a tab by its id (from browser_list_tabs).',
+      description: 'Activate a tab by its id (from browser_list_tabs) without focusing the Chrome window.',
       schema: z.object({
         tabId: z.number().describe('Tab id to activate.')
       }),
