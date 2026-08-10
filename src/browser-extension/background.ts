@@ -1,4 +1,7 @@
 import type { BridgeToExtension, ExtensionToBridge } from '../../src/shared/browser-types'
+import { createDebugSession } from './debug-session'
+import { axTreeToSnapshot } from './ax-snapshot'
+import type { AxNodeLike } from './ax-snapshot'
 
 const DEFAULT_PORT = 3927
 const STORAGE_KEY = 'meowBridge'
@@ -20,6 +23,10 @@ const GROUP_COLOR = 'blue' as chrome.tabGroups.ColorEnum
 
 let workingTabId: number | null = null
 let groupLock: Promise<unknown> = Promise.resolve()
+
+const debugSession = createDebugSession(chrome.debugger)
+
+let snapshotRefs = new Map<string, number>()
 
 function persistWorkingTab(id: number | null): void {
   workingTabId = id
@@ -106,6 +113,7 @@ function connect(): void {
           reconnectDelay = 1000
         } else {
           saveState({ connected: false })
+          void debugSession.close()
         }
         broadcastStatus()
         return
@@ -121,6 +129,7 @@ function connect(): void {
       saveState({ connected: false })
       broadcastStatus()
       ws = null
+      void debugSession.close()
       scheduleReconnect()
     }
     socket.onerror = () => {
@@ -191,6 +200,48 @@ async function sendToTab(tabId: number, name: string, params: Record<string, unk
   } catch (err) {
     return { ok: false, error: `content script unavailable: ${String(err)}` }
   }
+}
+
+async function pageInnerText(tabId: number): Promise<string> {
+  const res = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
+    expression: 'document.body ? document.body.innerText : ""',
+    returnByValue: true
+  }) as { result?: { value?: string } }
+  return String(res.result?.value ?? '')
+}
+
+async function callOnNode(backendNodeId: number, functionDeclaration: string, args: unknown[] = []): Promise<void> {
+  const tabId = debugSession.attachedTabId()
+  if (tabId == null) throw new Error('no debug session')
+  const { object } = await chrome.debugger.sendCommand({ tabId }, 'DOM.resolveNode', { backendNodeId }) as { object: { objectId: string } }
+  await chrome.debugger.sendCommand({ tabId }, 'Runtime.callFunctionOn', {
+    objectId: object.objectId,
+    functionDeclaration,
+    arguments: args.map(a => ({ value: a })),
+    returnByValue: true
+  })
+}
+
+async function refAction(name: string, params: Record<string, unknown>): Promise<{ ok: boolean; data?: unknown; error?: string }> {
+  const ref = String(params.ref)
+  const backendNodeId = snapshotRefs.get(ref)
+  if (backendNodeId == null) {
+    return { ok: false, error: `snapshot stale: re-read the page (ref ${ref} no longer valid)` }
+  }
+  if (name === 'click') {
+    await callOnNode(backendNodeId, `function(){ const el = this; el.scrollIntoView({block:'center',inline:'center'}); el.click(); return true; }`)
+    return { ok: true, data: { ref } }
+  }
+  if (name === 'type') {
+    await callOnNode(backendNodeId,
+      `function(text){ const el = this; el.focus(); const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype; const setter = Object.getOwnPropertyDescriptor(proto, 'value').set; if (setter) setter.call(el, text); else el.value = text; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); return true; }`,
+      [String(params.text ?? '')])
+    return { ok: true, data: { ref } }
+  }
+  await callOnNode(backendNodeId,
+    `function(value){ const el = this; el.value = value; el.dispatchEvent(new Event('change', { bubbles: true })); return true; }`,
+    [String(params.value ?? '')])
+  return { ok: true, data: { ref } }
 }
 
 async function handleCommand(msg: Extract<BridgeToExtension, { type: 'cmd' }>): Promise<void> {
@@ -277,24 +328,67 @@ async function handleCommand(msg: Extract<BridgeToExtension, { type: 'cmd' }>): 
         const tabId = params.tabId != null ? Number(params.tabId) : (await defaultTabId())
         if (tabId == null) { send({ ok: false, error: 'no target tab' }); return }
         try {
-          await chrome.debugger.attach({ tabId }, '1.3')
-          await chrome.debugger.sendCommand({ tabId }, 'Page.enable')
+          await debugSession.ensure(tabId)
           const res = await chrome.debugger.sendCommand({ tabId }, 'Page.captureScreenshot', {
             format: 'png', captureBeyondViewport: true, fromSurface: true
           })
           const data = (res as { data: string }).data
           if (!data) {
-            await chrome.debugger.detach({ tabId }).catch(() => {})
             send({ ok: false, error: 'screenshot failed: page produced no image (is the tab fully occluded?)' })
             return
           }
-          await chrome.debugger.detach({ tabId }).catch(() => {})
           persistWorkingTab(tabId)
           send({ ok: true, data: { base64: data } })
         } catch (err) {
-          await chrome.debugger.detach({ tabId }).catch(() => {})
           send({ ok: false, error: `screenshot failed (tab not capturable?): ${String(err)}` })
         }
+        return
+      }
+      case 'read': {
+        const tabId = params.tabId != null ? Number(params.tabId) : (await defaultTabId())
+        if (tabId == null) { send({ ok: false, error: 'no target tab' }); return }
+        try {
+          await debugSession.ensure(tabId)
+        } catch (err) {
+          send({ ok: false, error: `browser_read: page not CDP-accessible (${String(err)})` })
+          return
+        }
+        const mode = params.mode === 'full' ? 'full' : 'interactive'
+        const raw = Number(params.maxElements)
+        const maxNodes = Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : (mode === 'full' ? 500 : 200)
+        const { nodes } = await chrome.debugger.sendCommand({ tabId }, 'Accessibility.getFullAXTree') as { nodes: unknown[] }
+        const { tree, refs } = axTreeToSnapshot(nodes as AxNodeLike[], { mode, maxNodes })
+        snapshotRefs = new Map(refs.map(r => [r.ref, r.backendDOMNodeId]))
+        const [text, tab] = await Promise.all([
+          pageInnerText(tabId).catch(() => ''),
+          chrome.tabs.get(tabId)
+        ])
+        persistWorkingTab(tabId)
+        send({ ok: true, data: { url: tab.url, title: tab.title, text, tree } })
+        return
+      }
+      case 'click':
+      case 'type':
+      case 'select': {
+        if (params.ref != null) {
+          const tabId = params.tabId != null ? Number(params.tabId) : (await defaultTabId())
+          if (tabId == null) { send({ ok: false, error: 'no target tab' }); return }
+          try {
+            await debugSession.ensure(tabId)
+            const res = await refAction(name, params)
+            if (res.ok) persistWorkingTab(tabId)
+            send(res)
+          } catch (err) {
+            const ref = String(params.ref)
+            send({ ok: false, error: `snapshot stale or page not CDP-accessible (ref ${ref}): ${String(err)}` })
+          }
+          return
+        }
+        const tabId = params.tabId != null ? Number(params.tabId) : (await defaultTabId())
+        if (tabId == null) { send({ ok: false, error: 'no target tab' }); return }
+        const res = await sendToTab(tabId, name, params)
+        if (res.ok) persistWorkingTab(tabId)
+        send(res)
         return
       }
       default: {
@@ -340,6 +434,10 @@ chrome.runtime.onInstalled.addListener(() => {
   void loadState().then(s => {
     if (s.code) connect()
   })
+})
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (debugSession.attachedTabId() === tabId) void debugSession.close()
 })
 
 connect()
