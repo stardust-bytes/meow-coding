@@ -8,6 +8,8 @@ export interface BrowserStatusInfo {
   pairingExpiresAt?: number
 }
 
+export type BrowserReadMode = 'interactive' | 'full'
+
 export interface SnapshotNode {
   role: string
   name?: string
