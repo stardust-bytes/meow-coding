@@ -23,7 +23,7 @@ export default function InstallGuideDialog({ guide, onClose }: Props) {
 
   return (
     <div className="dialog-backdrop">
-      <div className="dialog">
+      <div className="dialog browser-dialog">
         <h3>Install Meow Browser Bridge</h3>
         <ol className="browser-guide">
           <li>Click <strong>Open chrome://extensions</strong> — Chrome opens the extensions page.</li>
@@ -37,9 +37,9 @@ export default function InstallGuideDialog({ guide, onClose }: Props) {
           The extension only connects to Meow on this machine (127.0.0.1) and requires a pairing code.
         </p>
         <div className="dialog-actions">
-          <button className="btn" onClick={() => void window.api.openBrowserChromeExtensions()}>open chrome://extensions</button>
-          <button className="btn" onClick={() => void window.api.openBrowserExtensionFolder()}>extension folder</button>
-          <button className="btn primary" onClick={onClose}>close</button>
+          <button className="btn" onClick={() => void window.api.openBrowserChromeExtensions()}>Open chrome://extensions</button>
+          <button className="btn" onClick={() => void window.api.openBrowserExtensionFolder()}>Extension Folder</button>
+          <button className="btn primary" onClick={onClose}>Close</button>
         </div>
       </div>
     </div>
