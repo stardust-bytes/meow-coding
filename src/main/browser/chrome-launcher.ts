@@ -25,7 +25,7 @@ export function createChromeLauncher(deps: BrowserLauncherDeps): BrowserLauncher
         exists: existsSync
       })
       if (executablePath) {
-        spawn(executablePath, ['--new-window', 'chrome://extensions'], {
+        spawn(executablePath, ['chrome://extensions'], {
           detached: true,
           stdio: 'ignore'
         }).unref()
