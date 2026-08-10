@@ -4,12 +4,21 @@
   "private": true,
   "main": "./out/main/index.js",
   "scripts": {
+    "build:extension": "node scripts/build-extension.mjs",
+    "predev": "npm run build:extension",
+    "prebuild": "npm run build:extension",
+    "predist": "npm run build:extension",
+    "predist:dir": "npm run build:extension",
+    "predist:linux": "npm run build:extension",
+    "predist:linux:dir": "npm run build:extension",
+    "predist:mac": "npm run build:extension",
+    "predist:mac:dir": "npm run build:extension",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.extension.json",
     "regen:models": "node scripts/regen-models-snapshot.mjs",
     "e2e": "playwright test",
     "dist": "electron-vite build && electron-builder --win",
@@ -22,14 +31,17 @@
   "devDependencies": {
     "@electron/rebuild": "^3.7.2",
     "@playwright/test": "^1.62.1",
+    "@types/chrome": "^0.0.313",
     "@types/node": "^26.1.2",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@types/turndown": "^5.0.6",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "^41.7.1",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
+    "esbuild": "^0.25.12",
     "typescript": "^7.0.2",
     "vite": "^7.3.6",
     "vitest": "^4.1.10"
@@ -53,6 +65,7 @@
     "react-dom": "^19.2.8",
     "tree-kill": "^1.2.2",
     "turndown": "^7.2.4",
+    "ws": "^8.21.3",
     "zod": "^4.4.3"
   },
   "build": {
@@ -70,6 +83,10 @@
       {
         "from": "resources/skills",
         "to": "skills"
+      },
+      {
+        "from": "out/browser-extension",
+        "to": "browser-extension"
       }
     ],
     "asar": true,
