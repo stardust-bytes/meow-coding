@@ -19,6 +19,7 @@ const GROUP_TITLE = 'Meow'
 const GROUP_COLOR = 'blue' as chrome.tabGroups.ColorEnum
 
 let workingTabId: number | null = null
+let groupLock: Promise<unknown> = Promise.resolve()
 
 function saveState(patch: Partial<StoredState>): void {
   void chrome.storage.local.get(STORAGE_KEY).then((res: Record<string, StoredState | undefined>) => {
@@ -132,10 +133,12 @@ async function lastFocusedWindowId(): Promise<number | undefined> {
   if (wins.length === 0) return undefined
   const focused = wins.find(w => w.focused)
   if (focused?.id != null) return focused.id
-  const byFocus = [...wins].sort(
-    (a, b) => ((b as { lastFocused?: number }).lastFocused ?? 0) - ((a as { lastFocused?: number }).lastFocused ?? 0)
-  )
-  return byFocus[0]?.id
+  try {
+    const last = await chrome.windows.getLastFocused()
+    return last?.id
+  } catch {
+    return wins[0]?.id
+  }
 }
 
 async function meowGroupId(): Promise<number | undefined> {
@@ -143,11 +146,15 @@ async function meowGroupId(): Promise<number | undefined> {
   return groups.find(g => g.title === GROUP_TITLE)?.id
 }
 
-async function addToMeowGroup(tabId: number): Promise<{ groupId?: number; groupTitle?: string }> {
-  const existing = await meowGroupId()
-  const groupId = await chrome.tabs.group({ tabIds: [tabId], ...(existing != null ? { groupId: existing } : {}) })
-  await chrome.tabGroups.update(groupId, { title: GROUP_TITLE, color: GROUP_COLOR })
-  return { groupId, groupTitle: GROUP_TITLE }
+function addToMeowGroup(tabId: number): Promise<{ groupId?: number; groupTitle?: string }> {
+  const run = groupLock.then(async () => {
+    const existing = await meowGroupId()
+    const groupId = await chrome.tabs.group({ tabIds: [tabId], ...(existing != null ? { groupId: existing } : {}) })
+    await chrome.tabGroups.update(groupId, { title: GROUP_TITLE, color: GROUP_COLOR })
+    return { groupId, groupTitle: GROUP_TITLE }
+  })
+  groupLock = run.catch(() => {})
+  return run
 }
 
 async function defaultTabId(): Promise<number | undefined> {
@@ -185,7 +192,7 @@ async function handleCommand(msg: Extract<BridgeToExtension, { type: 'cmd' }>): 
     switch (name) {
       case 'listTabs': {
         const tabs = await chrome.tabs.query({})
-        const groupIds = [...new Set(tabs.map(t => t.groupId).filter((id): id is number => id != null))]
+        const groupIds = [...new Set(tabs.map(t => t.groupId).filter((id): id is number => id != null && id >= 0))]
         const groupTitles = new Map<number, string>()
         for (const id of groupIds) {
           try {
@@ -200,7 +207,7 @@ async function handleCommand(msg: Extract<BridgeToExtension, { type: 'cmd' }>): 
           data: tabs.map(t => ({
             id: t.id, title: t.title, url: t.url, active: t.active, windowId: t.windowId,
             groupId: t.groupId,
-            groupTitle: t.groupId != null ? groupTitles.get(t.groupId) : undefined
+            groupTitle: t.groupId != null && t.groupId >= 0 ? groupTitles.get(t.groupId) : undefined
           }))
         })
         return
@@ -229,15 +236,15 @@ async function handleCommand(msg: Extract<BridgeToExtension, { type: 'cmd' }>): 
         return
       }
       case 'reload': {
-        const tabId = params.tabId != null ? Number(params.tabId) : (await activeTabId())
-        if (tabId == null) { send({ ok: false, error: 'no active tab' }); return }
+        const tabId = params.tabId != null ? Number(params.tabId) : (await defaultTabId())
+        if (tabId == null) { send({ ok: false, error: 'no target tab' }); return }
         await chrome.tabs.reload(tabId)
         send({ ok: true })
         return
       }
       case 'navigate': {
-        const tabId = params.tabId != null ? Number(params.tabId) : (await activeTabId())
-        if (tabId == null) { send({ ok: false, error: 'no active tab' }); return }
+        const tabId = params.tabId != null ? Number(params.tabId) : (await defaultTabId())
+        if (tabId == null) { send({ ok: false, error: 'no target tab' }); return }
         await chrome.tabs.update(tabId, { url: String(params.url) })
         send({ ok: true, data: { url: params.url } })
         return
@@ -251,7 +258,7 @@ async function handleCommand(msg: Extract<BridgeToExtension, { type: 'cmd' }>): 
           const res = await chrome.debugger.sendCommand({ tabId }, 'Page.captureScreenshot', {
             format: 'png', captureBeyondViewport: true, fromSurface: true
           })
-          await chrome.debugger.detach({ tabId })
+          await chrome.debugger.detach({ tabId }).catch(() => {})
           send({ ok: true, data: { base64: (res as { data: string }).data } })
         } catch (err) {
           await chrome.debugger.detach({ tabId }).catch(() => {})
