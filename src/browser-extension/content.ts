@@ -24,30 +24,6 @@ function query(selector: string): Element | null {
   return document.querySelector(selector)
 }
 
-function uniqueSelector(el: Element): string {
-  if (el.id) return `#${CSS.escape(el.id)}`
-  const testId = el.getAttribute('data-testid')
-  if (testId) return `[data-testid="${CSS.escape(testId)}"]`
-  const parts: string[] = []
-  let cur: Element | null = el
-  while (cur && cur !== document.body && parts.length < 5) {
-    let part = cur.tagName.toLowerCase()
-    if (cur.id) {
-      part = `#${CSS.escape(cur.id)}`
-      parts.unshift(part)
-      break
-    }
-    const parent: Element | null = cur.parentElement
-    if (parent) {
-      const siblings = Array.from(parent.children).filter((c): c is Element => c.tagName === cur!.tagName)
-      if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(cur) + 1})`
-    }
-    parts.unshift(part)
-    cur = parent
-  }
-  return parts.join(' > ')
-}
-
 function setNativeValue(el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement, value: string): void {
   const proto = el instanceof HTMLTextAreaElement
     ? HTMLTextAreaElement.prototype
@@ -112,7 +88,7 @@ async function execute(name: BrowserCommandName, params: Record<string, unknown>
     case 'type': {
       if (params.ref == null && params.selector == null) return { ok: false, error: 'type requires ref or selector' }
       const el = params.ref != null ? resolveRef(String(params.ref), refMap) : query(String(params.selector))
-      if (!el) return { ok: false, error: params.ref != null ? `snapshot stale: re-read the page (ref ${params.ref})` : `selector not found: ${params.selector}` }
+      if (!el) return { ok: false, error: params.ref != null ? `snapshot stale: re-read the page (ref ${params.ref} no longer valid)` : `selector not found: ${params.selector}` }
       const text = String(params.text ?? '')
       if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
         el.focus()
@@ -126,7 +102,7 @@ async function execute(name: BrowserCommandName, params: Record<string, unknown>
     case 'select': {
       if (params.ref == null && params.selector == null) return { ok: false, error: 'select requires ref or selector' }
       const el = params.ref != null ? resolveRef(String(params.ref), refMap) : query(String(params.selector))
-      if (!el) return { ok: false, error: params.ref != null ? `snapshot stale: re-read the page (ref ${params.ref})` : `selector not found: ${params.selector}` }
+      if (!el) return { ok: false, error: params.ref != null ? `snapshot stale: re-read the page (ref ${params.ref} no longer valid)` : `selector not found: ${params.selector}` }
       const select = el as HTMLSelectElement
       select.value = String(params.value)
       select.dispatchEvent(new Event('change', { bubbles: true }))
