@@ -17,15 +17,19 @@ aider, ...) chạy song song trong các pane terminal trên một cửa sổ.
 - `src/preload` — contextBridge, expose `window.api` (implement `AgentApi`).
 - `src/renderer` — React UI: sidebar, pane grid, xterm.
 - `src/shared` — types + IPC contract chung. **KHÔNG** import Node/Electron ở đây.
+- `src/browser-extension` — Chrome MV3 extension (build riêng bằng esbuild → `out/browser-extension`,
+  copy sang `userData/browser-extension/` để Load unpacked trên profile Chrome thật).
+- `src/main/browser` — BrowserBridge (WS server local + pairing code) + Chrome launcher/hướng dẫn cài.
 
 Alias `@shared` → `src/shared` (đã cấu hình trong electron.vite.config.ts, vitest.config.ts, tsconfig).
 
 ## Lệnh
 
-- `npm run dev` — chạy dev (electron-vite).
-- `npm run build` / `npm run start` — build / preview.
+- `npm run dev` — chạy dev (electron-vite; pre-hook tự build extension).
+- `npm run build` / `npm run start` — build / preview (pre-hook tự build extension).
 - `npm test` — unit + integration (Vitest).
-- `npm run typecheck` — tsc node + web.
+- `npm run typecheck` — tsc node + web + extension.
+- `npm run build:extension` — build Chrome extension (esbuild → `out/browser-extension`).
 - `npm run e2e` — Playwright smoke (cần `npm run build` trước).
 
 ## Cài đặt trên Windows
@@ -48,6 +52,8 @@ Alias `@shared` → `src/shared` (đã cấu hình trong electron.vite.config.ts
   `[meow]`.
 - Không thêm comment thừa; chỉ comment khi giải thích quyết định phức tạp (VD: Windows shim, tree-kill).
 - Agent thoát phải được xử lý: kill cả process tree (`tree-kill`), không để process mồ côi.
+- Browser bridge: chỉ bind `127.0.0.1` (không expose mạng), pairing code bắt buộc trước khi nhận lệnh;
+  chạy trên profile Chrome **thật** của user — không tách profile riêng theo project.
 
 ## Kiểm thử bắt buộc trước khi hoàn thành
 
