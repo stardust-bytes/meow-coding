@@ -1,5 +1,5 @@
 :root {
-  font-size: 14px;
+  font-size: 16px;
 
   /* typography — Studio Dark: display + UI sans + mono (terminal/data) */
   --font-display: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', var(--font-mono);
@@ -372,6 +372,7 @@ select.input { width: 100%; }
 .dialog h3 { margin: 0; font-size: var(--fs-lg); font-family: var(--font-display); font-weight: var(--fw-semibold); }
 .label { font-size: var(--fs-base); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-strong); font-family: var(--font-display); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.dialog.browser-dialog { width: 540px; }
 
 /* Templates panel */
 .template-form { display: flex; flex-direction: column; gap: 6px; }
@@ -426,10 +427,24 @@ select.input { width: 100%; }
 .status-bar .sb-browser-off { color: var(--accent); border-color: var(--accent-dim); }
 .status-bar .sb-browser-on { color: var(--green); border-color: rgba(76, 227, 161, 0.35); }
 
-.browser-status { margin: 0 0 8px; font-size: var(--fs-md); }
-.browser-row { display: flex; flex-direction: column; gap: 8px; }
+.browser-hd { display: flex; align-items: center; justify-content: space-between; }
+.browser-hd h3 { margin: 0; }
+.browser-pill {
+  font-family: var(--font-mono); font-size: var(--fs-sm); padding: 2px 8px;
+  border-radius: 999px; border: 1px solid var(--hairline); color: var(--text-dim);
+}
+.browser-pill-off { color: var(--accent); border-color: var(--accent-dim); }
+.browser-pill-on { color: var(--green); border-color: rgba(76, 227, 161, 0.35); }
+.browser-section { padding-top: 12px; border-top: 1px solid var(--hairline); }
+.browser-section:first-of-type { padding-top: 0; border-top: none; }
+.browser-section-label {
+  font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-strong); font-weight: var(--fw-semibold); margin: 0 0 8px;
+  font-family: var(--font-display);
+}
 .browser-hint { margin: 0; font-size: var(--fs-md); color: var(--text-dim); line-height: 1.5; }
-.browser-pairing { display: flex; align-items: center; gap: 10px; }
+.browser-pairing-cta { display: flex; justify-content: center; }
+.browser-pairing { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .browser-code {
   font-family: var(--font-mono); font-size: 22px; letter-spacing: 4px; color: var(--accent);
   user-select: all; padding: 4px 8px; border: 1px dashed var(--accent-dim); border-radius: 4px;
