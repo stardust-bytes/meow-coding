@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Channels } from '../../src/shared/ipc'
-import type { AgentApi, PtyDataEvent, AgentStateEvent, GitStatusEvent, ChatEvent } from '../../src/shared/ipc'
+import type { AgentApi, BrowserStatusEvent, PtyDataEvent, AgentStateEvent, GitStatusEvent, ChatEvent } from '../../src/shared/ipc'
+import type { BrowserStatusInfo } from '../../src/shared/browser-types'
 import type { AgentConfig, ChatMessage, MeowSettings } from '../../src/shared/types'
 
 describe('IPC contract', () => {
@@ -184,6 +185,14 @@ describe('IPC contract', () => {
     expect(s.agentId).toBe('a1')
     expect(g.git.branch).toBe('main')
     expect(gNull.git).toBeNull()
+  })
+
+  it('onBrowserStatus delivers the raw BrowserStatusInfo, not a wrapper', () => {
+    const info: BrowserStatusInfo = { status: 'paired', port: 3927, paired: true }
+    const evt: BrowserStatusEvent = info
+    expect(evt).toEqual(info)
+    const cb: Parameters<AgentApi['onBrowserStatus']>[0] = (i) => i
+    expect(cb(evt)).toEqual({ status: 'paired', port: 3927, paired: true })
   })
 
   it('types chat payloads without runtime error', () => {

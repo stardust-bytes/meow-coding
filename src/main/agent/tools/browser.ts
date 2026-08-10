@@ -105,13 +105,16 @@ export function createBrowserTools(
     },
     {
       name: 'browser_read',
-      description: 'Read the visible text and interactive elements (with CSS selectors) of the page or a selector.',
+      description:
+        'Read the visible text and interactive elements (with CSS selectors) of the page or a selector. ' +
+        'Pass maxElements to raise the number of interactive elements returned (default 20, use 0 for no limit).',
       schema: z.object({
-        selector: z.string().optional().describe('Optional CSS selector; defaults to the whole page.')
+        selector: z.string().optional().describe('Optional CSS selector; defaults to the whole page.'),
+        maxElements: z.number().int().min(0).max(500).optional().describe('Max interactive elements to list; 0 means no limit (default 20).')
       }),
       async run(input): Promise<ToolRunResult> {
-        const { selector } = input as unknown as { selector?: string }
-        return fmt(await bridge.execute('read', selector ? { selector } : {}))
+        const { selector, maxElements } = input as unknown as { selector?: string; maxElements?: number }
+        return fmt(await bridge.execute('read', selector ? { selector, maxElements } : { maxElements }))
       }
     },
     {

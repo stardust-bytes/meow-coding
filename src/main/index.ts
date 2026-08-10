@@ -538,7 +538,7 @@ app.whenReady().then(async () => {
     console.error('[meow] browser bridge start failed:', err)
   })
   mainApp.browserBridge.onStatusChange(info => {
-    win?.webContents.send(Channels.EventBrowserStatus, { info })
+    win?.webContents.send(Channels.EventBrowserStatus, info)
   })
   const extSource = app.isPackaged
     ? path.join(process.resourcesPath, 'browser-extension')

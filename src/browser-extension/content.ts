@@ -59,13 +59,13 @@ function setNativeValue(el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectE
   el.dispatchEvent(new Event('change', { bubbles: true }))
 }
 
-function collectInteractive(): Array<{ tag: string; text: string; selector: string }> {
+function collectInteractive(maxElements = MAX_ELEMENTS): Array<{ tag: string; text: string; selector: string }> {
   const out: Array<{ tag: string; text: string; selector: string }> = []
   const els = document.querySelectorAll<HTMLElement>(
     'a, button, input, select, textarea, [role="button"], [role="link"], [role="checkbox"], [role="radio"]'
   )
   for (const el of els) {
-    if (out.length >= MAX_ELEMENTS) break
+    if (maxElements > 0 && out.length >= maxElements) break
     const text = (el.innerText || (el as HTMLInputElement).value || el.getAttribute('aria-label') || '').trim()
       .replace(/\s+/g, ' ').slice(0, 80)
     if (!text) continue
@@ -156,9 +156,11 @@ async function execute(name: BrowserCommandName, params: Record<string, unknown>
       const rootText = 'innerText' in root ? String(root.innerText) : root.textContent ?? ''
       const text = (rootText || '').replace(/\n{3,}/g, '\n\n').trim()
       const truncated = text.length > MAX_READ_CHARS ? text.slice(0, MAX_READ_CHARS) + '\n...(truncated)' : text
+      const raw = Number(params.maxElements)
+      const maxElements = Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : MAX_ELEMENTS
       return {
         ok: true,
-        data: { url: location.href, title: document.title, text: truncated, elements: collectInteractive() }
+        data: { url: location.href, title: document.title, text: truncated, elements: collectInteractive(maxElements) }
       }
     }
     case 'waitFor': {

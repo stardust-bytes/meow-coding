@@ -95,7 +95,7 @@ export interface PtyDataEvent { agentId: string; data: string }
 export interface AgentStateEvent { agentId: string; state: AgentState }
 export interface GitStatusEvent { projectPath: string; git: GitStatus | null }
 export interface WindowMaximizedChangeEvent { maximized: boolean }
-export interface BrowserStatusEvent { info: BrowserStatusInfo }
+export type BrowserStatusEvent = BrowserStatusInfo
 
 export type ChallengeReason = 'cloudflare' | 'session-expired'
 
