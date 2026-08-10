@@ -436,7 +436,7 @@ select.input { width: 100%; }
 .browser-pill-off { color: var(--accent); border-color: var(--accent-dim); }
 .browser-pill-on { color: var(--green); border-color: rgba(76, 227, 161, 0.35); }
 .browser-section { padding-top: 12px; border-top: 1px solid var(--hairline); }
-.browser-section:first-of-type { padding-top: 0; border-top: none; }
+.browser-hd + .browser-section { padding-top: 0; border-top: none; }
 .browser-section-label {
   font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--text-strong); font-weight: var(--fw-semibold); margin: 0 0 8px;

@@ -31,7 +31,7 @@ export default function InstallGuideDialog({ guide, onClose }: Props) {
           <li>Click <strong>Load unpacked</strong> and select the folder:
             <code className="browser-guide-dir">{extensionDir}</code>
           </li>
-          <li>Back in Meow, open the Browser dialog and click <strong>pair with code</strong>, then enter the code in the extension popup.</li>
+          <li>Back in Meow, open the Browser dialog and click <strong>Pair With Code</strong>, then enter the code in the extension popup.</li>
         </ol>
         <p className="browser-hint">
           The extension only connects to Meow on this machine (127.0.0.1) and requires a pairing code.
