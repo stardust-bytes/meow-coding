@@ -282,9 +282,15 @@ async function handleCommand(msg: Extract<BridgeToExtension, { type: 'cmd' }>): 
           const res = await chrome.debugger.sendCommand({ tabId }, 'Page.captureScreenshot', {
             format: 'png', captureBeyondViewport: true, fromSurface: true
           })
+          const data = (res as { data: string }).data
+          if (!data) {
+            await chrome.debugger.detach({ tabId }).catch(() => {})
+            send({ ok: false, error: 'screenshot failed: page produced no image (is the tab fully occluded?)' })
+            return
+          }
           await chrome.debugger.detach({ tabId }).catch(() => {})
           persistWorkingTab(tabId)
-          send({ ok: true, data: { base64: (res as { data: string }).data } })
+          send({ ok: true, data: { base64: data } })
         } catch (err) {
           await chrome.debugger.detach({ tabId }).catch(() => {})
           send({ ok: false, error: `screenshot failed (tab not capturable?): ${String(err)}` })
