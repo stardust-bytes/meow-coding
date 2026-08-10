@@ -40,7 +40,7 @@ export function createChromeLauncher(deps: BrowserLauncherDeps): BrowserLauncher
     async showInstallGuide() {
       // In-app guide popup: push an event so the renderer opens its own dialog
       // instead of a native OS message box.
-      win()?.webContents.send(Channels.EventBrowserOpenInstallGuide)
+      win()?.webContents.send(Channels.EventBrowserOpenInstallGuide, { extensionDir: deps.extensionDir })
     }
   }
 }
