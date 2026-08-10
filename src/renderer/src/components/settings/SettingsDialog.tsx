@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { CatalogProviderSummary, McpServerStatus, MeowSettings } from '@shared/types'
+import type { CatalogProviderSummary, McpServerStatus, MeowSettings, Template } from '@shared/types'
 import ProvidersTab from './ProvidersTab'
 import AgentsTab from './AgentsTab'
 import PermissionsTab from './PermissionsTab'
 import McpTab from './McpTab'
 import ContextTab from './ContextTab'
 import CommandsTab from './CommandsTab'
+import ChatGptWebTab from './ChatGptWebTab'
+import TemplatesTab from './TemplatesTab'
 
-type TabId = 'providers' | 'agents' | 'permissions' | 'mcp' | 'context' | 'commands'
+type TabId = 'providers' | 'agents' | 'permissions' | 'mcp' | 'context' | 'commands' | 'chatgpt-web' | 'templates'
 
 const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'providers', label: 'Providers' },
@@ -15,15 +17,19 @@ const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'permissions', label: 'Permissions' },
   { id: 'mcp', label: 'MCP' },
   { id: 'context', label: 'Context' },
-  { id: 'commands', label: 'Commands' }
+  { id: 'commands', label: 'Commands' },
+  { id: 'chatgpt-web', label: 'ChatGPT Web (Experimental)' },
+  { id: 'templates', label: 'Templates' }
 ]
 
 interface Props {
   onClose: () => void
   projectPath?: string
+  templates: Template[]
+  onTemplatesChange: (templates: Template[]) => void
 }
 
-export default function SettingsDialog({ onClose, projectPath }: Props) {
+export default function SettingsDialog({ onClose, projectPath, templates, onTemplatesChange }: Props) {
   const [tab, setTab] = useState<TabId>('providers')
   const [draft, setDraft] = useState<MeowSettings | null>(null)
   const [catalog, setCatalog] = useState<CatalogProviderSummary[]>([])
@@ -125,6 +131,8 @@ export default function SettingsDialog({ onClose, projectPath }: Props) {
               />
             )}
             {tab === 'commands' && <CommandsTab projectPath={projectPath} />}
+            {tab === 'chatgpt-web' && <ChatGptWebTab />}
+            {tab === 'templates' && <TemplatesTab templates={templates} onChange={onTemplatesChange} />}
           </div>
         </div>
         {status && <div className="settings-status">{status}</div>}

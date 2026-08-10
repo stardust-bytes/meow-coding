@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ChallengeEvent } from '@shared/ipc'
+import { ChallengeToast } from './components/ChallengeToast'
 import { Terminal } from '@xterm/xterm'
 import type {
   AgentConfig, AgentState, GitStatus, Template, WorkspaceRuntime, WorkspaceSummary
 } from '@shared/types'
 import Sidebar from './components/Sidebar'
 import PaneGrid from './components/PaneGrid'
+import BackgroundPanel from './components/BackgroundPanel'
 import EmptyState from './components/EmptyState'
 import StatusBar from './components/StatusBar'
 import TitleBar from './components/TitleBar'
+import SettingsDialog from './components/settings/SettingsDialog'
 
 export interface PaneModel {
   agent: AgentConfig
@@ -18,8 +22,10 @@ export interface PaneModel {
 export default function App() {
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
   const [templates, setTemplates] = useState<Template[]>([])
+  const [showSettings, setShowSettings] = useState(false)
   const [runtime, setRuntime] = useState<WorkspaceRuntime | null>(null)
   const [backgrounds, setBackgrounds] = useState<Record<string, boolean>>({})
+  const [challenge, setChallenge] = useState<ChallengeEvent | null>(null)
   const termsRef = useRef<Map<string, Terminal>>(new Map())
   const buffersRef = useRef<Map<string, string>>(new Map())
 
@@ -54,17 +60,22 @@ export default function App() {
     const offBg = window.api.onAgentBackground(({ agentId, background }) => {
       setBackgrounds(prev => ({ ...prev, [agentId]: background }))
     })
+    const offChallenge = window.api.onChatGptWebChallenge((e) => {
+      setChallenge(e)
+    })
     return () => {
       offData()
       offState()
       offGit()
       offBg()
+      offChallenge()
     }
   }, [])
 
   const openWorkspace = useCallback(async (path: string) => {
     const rt = await window.api.openWorkspace(path)
     setRuntime(rt)
+    setBackgrounds(Object.fromEntries(rt.workspace.agents.map(a => [a.id, a.background ?? false])))
     for (const id of buffersRef.current.keys()) {
       if (!rt.workspace.agents.some(a => a.id === id)) buffersRef.current.delete(id)
     }
@@ -128,7 +139,8 @@ export default function App() {
 
   return (
     <div className="app">
-      <TitleBar />
+      <ChallengeToast challenge={challenge} onDismiss={() => setChallenge(null)} />
+      <TitleBar onOpenSettings={() => setShowSettings(true)} />
       <div className="app-body">
         <Sidebar
           workspaces={workspaces}
@@ -137,17 +149,28 @@ export default function App() {
           onOpen={openWorkspace}
           onRemove={removeWorkspace}
           onRefresh={refreshWorkspaces}
-          onTemplatesChange={setTemplates}
         />
         <main className="main">
           {panes.length > 0 ? (
-            <PaneGrid
-              panes={panes}
-              backgrounds={backgrounds}
-              onRemove={removeAgent}
-              onRegisterTerminal={registerTerminal}
-              onUnregisterTerminal={unregisterTerminal}
-            />
+            <>
+              <PaneGrid
+                panes={panes}
+                backgrounds={backgrounds}
+                onRemove={removeAgent}
+                onRegisterTerminal={registerTerminal}
+                onUnregisterTerminal={unregisterTerminal}
+              />
+              <BackgroundPanel
+                panes={panes}
+                backgrounds={backgrounds}
+                onOpen={agentId => void window.api.setAgentBackground(agentId, false)}
+                onStop={agentId => {
+                  const pane = panes.find(p => p.agent.id === agentId)
+                  if (pane?.agent.kind === 'native') void window.api.stopChat(agentId)
+                  else void window.api.stopAgent(agentId)
+                }}
+              />
+            </>
           ) : (
             <EmptyState hasWorkspace={runtime !== null} />
           )}
@@ -158,6 +181,14 @@ export default function App() {
         git={runtime?.git ?? null}
         agents={runtime?.agents ?? []}
       />
+      {showSettings && (
+        <SettingsDialog
+          onClose={() => setShowSettings(false)}
+          projectPath={runtime?.workspace.projectPath ?? undefined}
+          templates={templates}
+          onTemplatesChange={setTemplates}
+        />
+      )}
     </div>
   )
 }

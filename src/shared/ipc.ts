@@ -1,7 +1,8 @@
 import type {
-  AgentState, CatalogProviderSummary, ChatEvent, ChatMessage, ChatTranscriptItem, Command, ContextChangedEvent,
-  ContextInfo, FileSuggestion, GitStatus, ImageAttachment, McpServerStatus, MeowSettings, ModelRef, NewAgentInput,
-  PromptResponse, SessionSummary, StatsSummary, Template, TodoItem, WorkspaceRuntime, WorkspaceSummary
+  AgentState, CatalogProviderSummary, ChatEvent, ChatGptWebStatus, ChatMessage, ChatTranscriptItem, Command,
+  ContextChangedEvent, ContextInfo, FileSuggestion, GitStatus, ImageAttachment, McpServerStatus, MeowSettings,
+  ModelRef, NewAgentInput, PromptResponse, SessionSummary, StatsSummary, Template, TodoItem, WorkspaceRuntime,
+  WorkspaceSummary
 } from './types'
 
 export const Channels = {
@@ -46,6 +47,7 @@ export const Channels = {
   ChatListMessages: 'chat:list-messages',
   ChatListTranscript: 'chat:list-transcript',
   ChatGetTodos: 'chat:get-todos',
+  ChatIsRunning: 'chat:is-running',
   ChatRespondPrompt: 'chat:respond-prompt',
   ChatQueueRemove: 'chat:queue-remove',
   ChatQueueEdit: 'chat:queue-edit',
@@ -61,6 +63,10 @@ export const Channels = {
   CommandRemove: 'commands:remove',
   StatsGet: 'stats:get',
   McpStatus: 'mcp:status',
+  ChatGptWebGetStatus: 'chatgpt-web:get-status',
+  ChatGptWebSetEnabled: 'chatgpt-web:set-enabled',
+  ChatGptWebLogin: 'chatgpt-web:login',
+  ChatGptWebLogout: 'chatgpt-web:logout',
   WindowMinimize: 'window:minimize',
   WindowToggleMaximize: 'window:toggle-maximize',
   WindowClose: 'window:close',
@@ -73,13 +79,21 @@ export const Channels = {
   EventChat: 'chat:event',
   FilesSuggest: 'files:suggest',
   AgentSetBackground: 'agent:set-background',
-  EventAgentBackground: 'agent:background'
+  EventAgentBackground: 'agent:background',
+  EventChatGptWebChallenge: 'chatgpt-web:challenge'
 } as const
 
 export interface PtyDataEvent { agentId: string; data: string }
 export interface AgentStateEvent { agentId: string; state: AgentState }
 export interface GitStatusEvent { projectPath: string; git: GitStatus | null }
 export interface WindowMaximizedChangeEvent { maximized: boolean }
+
+export type ChallengeReason = 'cloudflare' | 'session-expired'
+
+export interface ChallengeEvent {
+  reason: ChallengeReason
+  timestamp: string
+}
 
 export interface AgentApi {
   listWorkspaces(): Promise<WorkspaceSummary[]>
@@ -119,13 +133,14 @@ export interface AgentApi {
   suggestFiles(agentId: string, prefix: string): Promise<FileSuggestion[]>
   setAgentBackground(agentId: string, background: boolean): Promise<void>
   onAgentBackground(cb: (e: { agentId: string; background: boolean }) => void): () => void
-  runCommand(agentId: string, name: string, args: string[]): Promise<void>
+  runCommand(agentId: string, name: string, args: string): Promise<void>
   undoChat(agentId: string): Promise<boolean>
   redoChat(agentId: string): Promise<boolean>
   newChatSession(agentId: string): Promise<SessionSummary>
   listChatMessages(agentId: string): Promise<ChatMessage[]>
   listChatTranscript(agentId: string): Promise<ChatTranscriptItem[]>
   getChatTodos(agentId: string): Promise<TodoItem[]>
+  isChatRunning(agentId: string): Promise<boolean>
   respondPrompt(agentId: string, promptId: string, resp: PromptResponse): Promise<void>
   removeQueued(agentId: string, id: string): Promise<void>
   editQueued(agentId: string, id: string, text: string): Promise<void>
@@ -141,6 +156,10 @@ export interface AgentApi {
   removeCommand(name: string): Promise<void>
   getStats(): Promise<StatsSummary>
   getMcpStatus(): Promise<McpServerStatus[]>
+  getChatGptWebStatus(): Promise<ChatGptWebStatus>
+  setChatGptWebEnabled(enabled: boolean): Promise<ChatGptWebStatus>
+  loginChatGptWeb(): Promise<ChatGptWebStatus>
+  logoutChatGptWeb(): Promise<ChatGptWebStatus>
   platform: string
   minimizeWindow(): Promise<void>
   toggleMaximizeWindow(): Promise<void>
@@ -152,4 +171,5 @@ export interface AgentApi {
   onGitStatus(cb: (e: GitStatusEvent) => void): () => void
   onContextChanged(cb: (e: ContextChangedEvent) => void): () => void
   onChatEvent(cb: (e: ChatEvent) => void): () => void
+  onChatGptWebChallenge(cb: (e: ChallengeEvent) => void): () => void
 }

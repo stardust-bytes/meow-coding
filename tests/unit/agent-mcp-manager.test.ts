@@ -1,4 +1,7 @@
 import { describe, expect, it, afterEach } from 'vitest'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
@@ -62,6 +65,28 @@ describe('McpManager', () => {
     expect(status[0].tools).toEqual(['echo'])
   })
 
+  it('declares roots capability and serves the project dir as workspace root', async () => {
+    const server = makeEchoServer()
+    servers.push(server)
+    const [serverSide, clientSide] = InMemoryTransport.createLinkedPair()
+    await server.connect(serverSide)
+
+    const projectDir = mkdtempSync(path.join(tmpdir(), 'meow-mcp-root-'))
+    try {
+      const mcp = new McpManager({ createTransport: () => clientSide })
+      managers.push(mcp)
+      await mcp.connect({ mock: { command: 'node' } }, projectDir)
+
+      // The client advertises roots, so the server can ask for the workspace.
+      const roots = await server.listRoots()
+      expect(roots.roots).toHaveLength(1)
+      expect(roots.roots[0].name).toBe(projectDir)
+      expect(roots.roots[0].uri.startsWith('file://')).toBe(true)
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true })
+    }
+  })
+
   it('skips servers that fail to connect without throwing', async () => {
     const mcp = new McpManager({ createTransport: () => {
       throw new Error('no transport')
@@ -94,5 +119,34 @@ describe('McpManager', () => {
     await mcp.connect({ mock: { command: 'node' } })
     const r = await mcp.getTools().get('mcp__mock__fail')!.run({}, ctx)
     expect(r.error).toBe('boom')
+  })
+
+  it('routes calls through the current connection, so stale tool snapshots survive a reconnect', async () => {
+    const mcp = new McpManager({
+      // Fresh echo server + transport per connect (a real reconnect spawns a
+      // new server process; the closed transport cannot be reused).
+      createTransport: () => {
+        const server = makeEchoServer()
+        servers.push(server)
+        const [serverSide, clientSide] = InMemoryTransport.createLinkedPair()
+        void server.connect(serverSide)
+        return clientSide
+      }
+    })
+    managers.push(mcp)
+
+    // First sync: snapshot the tools like an agent runner would.
+    await mcp.connect({ mock: { command: 'node' } })
+    const staleTools = mcp.getTools()
+    const echo = staleTools.get('mcp__mock__echo')!
+    expect(await echo.run({ text: 'hi' }, ctx)).toEqual({ output: 'echo:hi' })
+
+    // Second sync (new workspace / config reload) closes all previous clients.
+    await mcp.connect({ mock: { command: 'node' } })
+
+    // The old snapshot must not blow up with "Not connected": calls resolve
+    // against the live connection by server name at call time.
+    const r = await echo.run({ text: 'again' }, ctx)
+    expect(r.output).toBe('echo:again')
   })
 })

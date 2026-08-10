@@ -2,7 +2,10 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
 
-const MAX_FILE = 32 * 1024
+// Instruction files are attached in full (like opencode); other referenced
+// files are capped at 50KB with a hint to page the rest via the read tool.
+const MAX_FILE = 50 * 1024
+const INSTRUCTION_BASENAMES = new Set(['AGENTS.md', 'CLAUDE.md'])
 
 // Group 1 = whole token (quoted or not), group 2 = quoted content, group 3 =
 // bare token. Quoted form supports paths with spaces: @"my file.txt".
@@ -45,7 +48,12 @@ export function expandReferences(cwd: string, text: string): string {
     } catch {
       continue
     }
-    if (content.length > MAX_FILE) content = content.slice(0, MAX_FILE) + '\n...(truncated)'
+    // Instruction files attach in full; other files cap at MAX_FILE with a
+    // hint to read the rest via the read tool (opencode-style paging).
+    if (!INSTRUCTION_BASENAMES.has(path.basename(abs)) && content.length > MAX_FILE) {
+      content = content.slice(0, MAX_FILE) +
+        '\n...(truncated at 50KB — use the read tool with offset to read the rest)'
+    }
     blocks.push(`@${token} (${abs}):\n${content}`)
   }
   if (blocks.length === 0) return text

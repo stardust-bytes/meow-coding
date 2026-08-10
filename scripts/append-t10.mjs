@@ -1,0 +1,10 @@
+import { readFileSync, writeFileSync } from 'node:fs'
+const CRLF = '\r\n'
+const path = 'tests/unit/chatgpt-web-manager.test.ts'
+let content = readFileSync(path, 'utf8')
+const oldEnd = `    const status = manager.logout()${CRLF}    expect(status.loggedIn).toBe(false)${CRLF}    expect(manager.getModelRefsIfActive()).toEqual([])${CRLF}  })${CRLF}})`
+const newBlock = `    const status = manager.logout()${CRLF}    expect(status.loggedIn).toBe(false)${CRLF}    expect(manager.getModelRefsIfActive()).toEqual([])${CRLF}  })${CRLF}${CRLF}  it('login() passes userDataDir to the login function', async () => {${CRLF}    const loginFn = vi.fn(async () => ({ authenticated: true, verifiedAt: '2026-08-07T00:00:00.000Z' }))${CRLF}    const manager = new ChatGptWebManager(dir, { login: loginFn })${CRLF}    await manager.login()${CRLF}    expect(loginFn).toHaveBeenCalledTimes(1)${CRLF}    const callArgs = loginFn.mock.calls[0]${CRLF}    expect(callArgs[1]).toBe(dir)${CRLF}  })${CRLF}${CRLF}  it('logout() removes storage-state.verified.json and browser-profile/', async () => {${CRLF}    const fs = await import('node:fs')${CRLF}    const profileDir = path.join(dir, 'browser-profile')${CRLF}    fs.mkdirSync(profileDir, { recursive: true })${CRLF}    fs.writeFileSync(path.join(dir, 'storage-state.json'), '{}')${CRLF}    fs.writeFileSync(path.join(dir, 'storage-state.verified.json'), '{}')${CRLF}${CRLF}    const manager = new ChatGptWebManager(dir)${CRLF}    manager.logout()${CRLF}${CRLF}    expect(fs.existsSync(path.join(dir, 'storage-state.json'))).toBe(false)${CRLF}    expect(fs.existsSync(path.join(dir, 'storage-state.verified.json'))).toBe(false)${CRLF}    expect(fs.existsSync(profileDir)).toBe(false)${CRLF}  })${CRLF}})`
+if (!content.includes(oldEnd)) { console.error('END NOT FOUND'); process.exit(1) }
+content = content.replace(oldEnd, newBlock)
+writeFileSync(path, content)
+console.log('OK')

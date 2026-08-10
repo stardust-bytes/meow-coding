@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { NewAgentInput, Template } from '@shared/types'
 
 interface Props {
@@ -22,7 +23,7 @@ export default function AddAgentDialog({ projectPath, templates, onAdd, onClose 
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  return (
+  return createPortal(
     <div className="dialog-backdrop">
       <div className="dialog">
         <h3>Add agent</h3>
@@ -47,6 +48,7 @@ export default function AddAgentDialog({ projectPath, templates, onAdd, onClose 
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

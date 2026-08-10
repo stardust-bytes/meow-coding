@@ -4,14 +4,6 @@ import path from 'node:path'
 
 const INSTRUCTION_FILES = ['AGENTS.md', 'CLAUDE.md']
 
-// System-prompt pointer: project rules are attached automatically when the
-// model reads/edits a file (see loop.ts), so we don't inline every AGENTS.md
-// into every turn.
-export const INSTRUCTION_POINTER =
-  'Project rules live in AGENTS.md files. When you read or edit a file, relevant AGENTS.md ' +
-  'files (walking up from that file to the repo root) are attached automatically. Read @AGENTS.md ' +
-  'at the project root if you need the top-level rules before working.'
-
 export interface InstructionFile {
   path: string
   content: string

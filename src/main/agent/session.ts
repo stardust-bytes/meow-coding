@@ -53,6 +53,10 @@ function normalize(raw: RawSession): StoredSession {
 }
 
 export class SessionStore {
+  // Guarantees strictly-increasing updatedAt so ordering by it is always
+  // deterministic even when mutations happen within the same millisecond.
+  private lastUpdatedAt = 0
+
   constructor(private store: JsonStore<StoredSession>) {}
 
   private loadSessions(): StoredSession[] {
@@ -61,6 +65,13 @@ export class SessionStore {
 
   private saveSessions(sessions: StoredSession[]): void {
     this.store.save(sessions)
+  }
+
+  private nextUpdatedAt(): number {
+    const now = Date.now()
+    if (now > this.lastUpdatedAt) this.lastUpdatedAt = now
+    else this.lastUpdatedAt += 1
+    return this.lastUpdatedAt
   }
 
   list(agentId: string): SessionSummary[] {
@@ -102,7 +113,7 @@ export class SessionStore {
       todos: [],
       usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 },
       createdAt: Date.now(),
-      updatedAt: Date.now()
+      updatedAt: this.nextUpdatedAt()
     }
     this.saveSessions([...this.loadSessions(), session])
     return session
@@ -121,7 +132,7 @@ export class SessionStore {
     const idx = all.findIndex(s => s.id === id)
     if (idx < 0) return
     all[idx].todos = todos
-    all[idx].updatedAt = Date.now()
+    all[idx].updatedAt = this.nextUpdatedAt()
     this.saveSessions(all)
   }
 
@@ -130,7 +141,7 @@ export class SessionStore {
     const idx = all.findIndex(s => s.id === id)
     if (idx < 0) return
     all[idx].items = items
-    all[idx].updatedAt = Date.now()
+    all[idx].updatedAt = this.nextUpdatedAt()
     this.saveSessions(all)
   }
 
@@ -151,7 +162,7 @@ export class SessionStore {
     }
     if (cut < 0) return []
     const removed = items.splice(cut)
-    all[idx].updatedAt = Date.now()
+    all[idx].updatedAt = this.nextUpdatedAt()
     this.saveSessions(all)
     return removed
   }
@@ -165,7 +176,7 @@ export class SessionStore {
     if (session.title === DEFAULT_SESSION_TITLE && message.role === 'user' && message.text.trim()) {
       session.title = titleFrom(message.text)
     }
-    session.updatedAt = Date.now()
+    session.updatedAt = this.nextUpdatedAt()
     this.saveSessions(all)
   }
 
@@ -175,7 +186,7 @@ export class SessionStore {
     if (idx < 0) return
     const session = all[idx]
     session.items.push({ kind: 'tool', tool })
-    session.updatedAt = Date.now()
+    session.updatedAt = this.nextUpdatedAt()
     this.saveSessions(all)
   }
 
@@ -191,7 +202,7 @@ export class SessionStore {
     const all = this.loadSessions()
     const idx = all.findIndex(s => s.id === id)
     if (idx < 0) return
-    all[idx].updatedAt = Date.now()
+    all[idx].updatedAt = this.nextUpdatedAt()
     this.saveSessions(all)
   }
 
@@ -211,7 +222,7 @@ export class SessionStore {
       cacheWrite: s.cacheWrite + usage.cacheWrite,
       cost: s.cost + usage.cost
     }
-    all[idx].updatedAt = Date.now()
+    all[idx].updatedAt = this.nextUpdatedAt()
     this.saveSessions(all)
   }
 

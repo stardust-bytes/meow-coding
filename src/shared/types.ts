@@ -23,6 +23,7 @@ export interface AgentConfig {
   mode?: AgentMode
   variant?: ModelVariant
   model?: string
+  background?: boolean
 }
 
 export interface Workspace {
@@ -128,6 +129,7 @@ export type ChatEvent =
   | { type: 'prompt-request'; agentId: string; promptId: string
       kind: 'permission' | 'question'; call?: ToolCallData; question?: string
       options?: QuestionOption[]; multiple?: boolean; custom?: boolean }
+  | { type: 'turn-started'; agentId: string }
   | { type: 'done'; agentId: string; reason: string; tokens?: TokenUsage; cost?: number }
   | { type: 'error'; agentId: string; message: string }
   | { type: 'compacted'; agentId: string; summary: string }
@@ -139,6 +141,7 @@ export type ChatEvent =
       subagentType?: string; text?: string; tool?: string
       reasoning?: string; background?: boolean; result?: string
       state?: 'running' | 'completed' | 'cancelled' | 'error' }
+  | { type: 'session-created'; agentId: string }
 
 export interface QueuedMessage {
   id: string
@@ -241,6 +244,12 @@ export interface ModelRef {
   model: string
 }
 
+export interface ChatGptWebStatus {
+  enabled: boolean
+  loggedIn: boolean
+  verifiedAt: string | null
+}
+
 export interface CatalogProviderSummary {
   id: string
   name: string
@@ -259,6 +268,7 @@ export interface Command {
   name: string
   description: string
   template: string
+  type?: 'prompt' | 'system'
   agent?: string
   model?: string
 }

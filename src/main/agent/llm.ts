@@ -4,7 +4,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { ModelMessage } from 'ai'
 import type { MessageTokens } from '../../shared/types'
-import { toToolDefinition } from './message'
+import { normalizeToolInput, toToolDefinition } from './message'
 import type { ToolDefinition } from './tools/types'
 
 export interface LlmStreamPart {
@@ -107,7 +107,7 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string): L
               kind: 'tool-call',
               toolName: part.toolName,
               toolCallId: part.toolCallId,
-              toolInput: part.input as Record<string, unknown>
+              toolInput: normalizeToolInput(part.input)
             }
             break
           case 'finish':

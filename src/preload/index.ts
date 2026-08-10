@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
-import type { ChatEvent, Command, ContextChangedEvent, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template } from '../shared/types'
-import type { AgentApi, AgentStateEvent, GitStatusEvent, PtyDataEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
+import type { ChatEvent, ChatGptWebStatus, Command, ContextChangedEvent, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template } from '../shared/types'
+import type { AgentApi, AgentStateEvent, ChallengeEvent, GitStatusEvent, PtyDataEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
 
 function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
   const listener = (_event: unknown, payload: T) => cb(payload)
@@ -59,7 +59,7 @@ const api: AgentApi = {
   sendChat: (agentId: string, text: string, images?: ImageAttachment[]) =>
     ipcRenderer.invoke(Channels.ChatSend, agentId, text, images),
   stopChat: (agentId: string) => ipcRenderer.invoke(Channels.ChatStop, agentId),
-  runCommand: (agentId: string, name: string, args: string[]) =>
+  runCommand: (agentId: string, name: string, args: string) =>
     ipcRenderer.invoke(Channels.ChatRunCommand, agentId, name, args),
   undoChat: (agentId: string) => ipcRenderer.invoke(Channels.ChatUndo, agentId),
   redoChat: (agentId: string) => ipcRenderer.invoke(Channels.ChatRedo, agentId),
@@ -67,6 +67,7 @@ const api: AgentApi = {
   listChatMessages: (agentId: string) => ipcRenderer.invoke(Channels.ChatListMessages, agentId),
   listChatTranscript: (agentId: string) => ipcRenderer.invoke(Channels.ChatListTranscript, agentId),
   getChatTodos: (agentId: string) => ipcRenderer.invoke(Channels.ChatGetTodos, agentId),
+  isChatRunning: (agentId: string) => ipcRenderer.invoke(Channels.ChatIsRunning, agentId),
   respondPrompt: (agentId: string, promptId: string, resp: PromptResponse) =>
     ipcRenderer.invoke(Channels.ChatRespondPrompt, agentId, promptId, resp),
   removeQueued: (agentId: string, id: string) =>
@@ -88,6 +89,10 @@ const api: AgentApi = {
   removeCommand: (name: string) => ipcRenderer.invoke(Channels.CommandRemove, name),
   getStats: () => ipcRenderer.invoke(Channels.StatsGet),
   getMcpStatus: () => ipcRenderer.invoke(Channels.McpStatus),
+  getChatGptWebStatus: () => ipcRenderer.invoke(Channels.ChatGptWebGetStatus),
+  setChatGptWebEnabled: (enabled: boolean) => ipcRenderer.invoke(Channels.ChatGptWebSetEnabled, enabled),
+  loginChatGptWeb: () => ipcRenderer.invoke(Channels.ChatGptWebLogin),
+  logoutChatGptWeb: () => ipcRenderer.invoke(Channels.ChatGptWebLogout),
   platform: process.platform,
   minimizeWindow: () => ipcRenderer.invoke(Channels.WindowMinimize),
   toggleMaximizeWindow: () => ipcRenderer.invoke(Channels.WindowToggleMaximize),
@@ -105,7 +110,9 @@ const api: AgentApi = {
   setAgentBackground: (agentId: string, background: boolean) =>
     ipcRenderer.invoke(Channels.AgentSetBackground, agentId, background),
   onAgentBackground: (cb: (e: { agentId: string; background: boolean }) => void) =>
-    subscribe(Channels.EventAgentBackground, cb)
+    subscribe(Channels.EventAgentBackground, cb),
+  onChatGptWebChallenge: (cb: (e: ChallengeEvent) => void) =>
+    subscribe(Channels.EventChatGptWebChallenge, cb)
 }
 
 contextBridge.exposeInMainWorld('api', api)

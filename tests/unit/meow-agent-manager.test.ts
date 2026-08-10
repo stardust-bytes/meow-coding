@@ -3,6 +3,9 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { MeowAgentManager } from '../../src/main/meow-agent-manager'
+import type { MeowAgentManagerDeps } from '../../src/main/meow-agent-manager'
+import { CHATGPT_WEB_PROVIDER_ID } from '../../src/main/chatgpt-web/model-catalog'
+import { ChatGptWebManager } from '../../src/main/chatgpt-web/manager'
 import { SessionStore } from '../../src/main/agent/session'
 import type { StoredSession } from '../../src/main/agent/session'
 import type { JsonStore } from '../../src/main/json-store'
@@ -29,7 +32,12 @@ interface StubLlmOptions {
   partsQueue?: LlmStreamPart[][]
 }
 
-async function makeManager(opts: StubLlmOptions & { configPath?: string; catalog?: ModelsCatalog } = {}) {
+async function makeManager(opts: StubLlmOptions & {
+  configPath?: string
+  catalog?: ModelsCatalog
+  chatGptWeb?: MeowAgentManagerDeps['chatGptWeb']
+  createChatGptWebLlmClient?: MeowAgentManagerDeps['createChatGptWebLlmClient']
+} = {}) {
   const cfgDir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-cfg-'))
   const defaultCfg = path.join(cfgDir, 'meow.json')
   if (!opts.configPath) {
@@ -91,7 +99,9 @@ async function makeManager(opts: StubLlmOptions & { configPath?: string; catalog
     truncation: new TruncationStore(path.join(cfgDir, 'truncation')),
     commands: new CommandStore(path.join(cfgDir, 'commands.json')),
     prices: { 'test/test-model': { input: 1, output: 2 } },
-    env: { ANTHROPIC_API_KEY: 'sk-test' } as NodeJS.ProcessEnv
+    env: { ANTHROPIC_API_KEY: 'sk-test' } as NodeJS.ProcessEnv,
+    chatGptWeb: opts.chatGptWeb,
+    createChatGptWebLlmClient: opts.createChatGptWebLlmClient
   })
   manager.setOnEvent(e => events.push(e))
   await manager.init([{ ...MEOW_AGENT }, { ...PTY_AGENT }])
@@ -105,6 +115,21 @@ describe('MeowAgentManager', () => {
     expect(manager.isNative('a2')).toBe(false)
   })
 
+  it('tracks and restores background state per agent', async () => {
+    const { manager } = await makeManager()
+    expect(manager.isBackground('a1')).toBe(false)
+    manager.setBackground('a1', true)
+    expect(manager.isBackground('a1')).toBe(true)
+    manager.setBackground('a1', false)
+    expect(manager.isBackground('a1')).toBe(false)
+  })
+
+  it('seeds background state from the stored agent config on register', async () => {
+    const { manager } = await makeManager()
+    manager.addAgent({ ...MEOW_AGENT, id: 'a9', background: true })
+    expect(manager.isBackground('a9')).toBe(true)
+  })
+
   it('send appends the user message and emits events', async () => {
     const { manager, store, events } = await makeManager()
     await manager.send('a1', 'hello')
@@ -114,6 +139,23 @@ describe('MeowAgentManager', () => {
     expect(events.some(e => e.type === 'text-delta')).toBe(true)
     expect(events.some(e => e.type === 'done' && e.reason === 'complete')).toBe(true)
     expect(manager.isRunning('a1')).toBe(false)
+  })
+
+  it('emits turn-started when a turn begins, including queued drains', async () => {
+    const { manager, events } = await makeManager({ hangUntilAbort: true })
+    const first = manager.send('a1', 'first')
+    await new Promise(r => setTimeout(r, 20))
+    expect(events.some(e => e.type === 'turn-started' && e.agentId === 'a1')).toBe(true)
+    // Queue a second message; when the first is stopped the queue drains into a
+    // new turn that also signals turn-started so the UI can restore Stop.
+    void manager.send('a1', 'second')
+    manager.stop('a1')
+    await new Promise(r => setTimeout(r, 30))
+    const started = events.filter(e => e.type === 'turn-started')
+    expect(started.length).toBeGreaterThanOrEqual(2)
+    expect(manager.isRunning('a1')).toBe(true)
+    manager.stop('a1')
+    await first
   })
 
   it('send() stores images on the user message', async () => {
@@ -597,12 +639,26 @@ describe('MeowAgentManager', () => {
     const { manager, events } = await makeManager()
     const list = manager.listCommands('/proj')
     expect(list.map(c => c.name)).toContain('init')
-    const p = manager.runCommand('a1', 'init', [])
+    const p = manager.runCommand('a1', 'init', '')
     await new Promise(r => setTimeout(r, 20))
     // command sends a message to the agent → running then done
     expect(manager.isRunning('a1')).toBe(false)
     await p
     expect(events.some(e => e.type === 'done')).toBe(true)
+  })
+
+  it('runs /new as a system command that creates a new session without calling the LLM', async () => {
+    const { manager, events, createLlm } = await makeManager()
+    expect(manager.listCommands('/proj').map(c => c.name)).toContain('new')
+    const before = manager.listSessions('a1')[0]?.id
+    createLlm.mockClear()
+    await manager.runCommand('a1', 'new', '')
+    const after = manager.listSessions('a1')[0]?.id
+    expect(after).toBeDefined()
+    expect(after).not.toBe(before)
+    expect(events.some(e => e.type === 'session-created')).toBe(true)
+    expect(createLlm).not.toHaveBeenCalled()
+    expect(events.some(e => e.type === 'done')).toBe(false)
   })
 
   it('reports cost in the done event and accumulates session usage', async () => {
@@ -663,5 +719,39 @@ describe('MeowAgentManager', () => {
     expect(stats.totalCost).toBeGreaterThan(0)
     expect(stats.perModel['test-model']).toBeDefined()
     expect(stats.perSession).toHaveLength(2)
+  })
+
+  it('constructs a ChatGptWebLlmClient instead of createLlm when provider is chatgpt-web', async () => {
+    const fakeClient: LlmClient = { async *stream() { yield { kind: 'finish' } } }
+    const createChatGptWebLlmClient = vi.fn(() => fakeClient)
+    const chatGptWeb = new ChatGptWebManager('/tmp/chatgpt-web-test-does-not-need-to-exist-for-this-fake')
+    const { manager, createLlm } = await makeManager({ chatGptWeb, createChatGptWebLlmClient })
+    createLlm.mockClear()
+    manager.addAgent({
+      id: 'a3', name: 'chatgpt', templateId: 'meow', cwd: '/proj', kind: 'native',
+      model: `${CHATGPT_WEB_PROVIDER_ID}/high`
+    })
+    expect(createChatGptWebLlmClient).toHaveBeenCalledTimes(1)
+    expect(createLlm).not.toHaveBeenCalled()
+  })
+
+  it('includes chatgpt-web models in getProviderModels when the provider is enabled and logged in', async () => {
+    const chatGptWeb = new ChatGptWebManager('/tmp/chatgpt-web-test-does-not-need-to-exist-for-this-fake')
+    vi.spyOn(chatGptWeb, 'getModelRefsIfActive').mockReturnValue([{ provider: CHATGPT_WEB_PROVIDER_ID, model: 'high' }])
+    const { manager } = await makeManager({ chatGptWeb })
+    const refs = manager.getProviderModels()
+    expect(refs).toContainEqual({ provider: CHATGPT_WEB_PROVIDER_ID, model: 'high' })
+  })
+
+  it('getAgentModel resolves a chatgpt-web agent instead of returning null', async () => {
+    const fakeClient: LlmClient = { async *stream() { yield { kind: 'finish' } } }
+    const createChatGptWebLlmClient = vi.fn(() => fakeClient)
+    const chatGptWeb = new ChatGptWebManager('/tmp/chatgpt-web-test-does-not-need-to-exist-for-this-fake')
+    const { manager } = await makeManager({ chatGptWeb, createChatGptWebLlmClient })
+    manager.addAgent({
+      id: 'a4', name: 'chatgpt', templateId: 'meow', cwd: '/proj', kind: 'native',
+      model: `${CHATGPT_WEB_PROVIDER_ID}/high`
+    })
+    expect(manager.getAgentModel('a4')).toEqual({ provider: CHATGPT_WEB_PROVIDER_ID, model: 'high' })
   })
 })

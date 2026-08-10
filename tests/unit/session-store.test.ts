@@ -87,6 +87,22 @@ describe('SessionStore', () => {
     expect(store.latest('agent1')?.id).toBe(b.id)
   })
 
+  it('touch guarantees the touched session is strictly latest within the same millisecond', () => {
+    const realNow = Date.now
+    Date.now = () => 1000
+    try {
+      const store = makeStore(file)
+      const a = store.create('agent1', '/p')
+      const b = store.create('agent1', '/p')
+      store.touch(a.id)
+      expect(store.latest('agent1')?.id).toBe(a.id)
+      store.touch(b.id)
+      expect(store.latest('agent1')?.id).toBe(b.id)
+    } finally {
+      Date.now = realNow
+    }
+  })
+
   it('deletes a session and keeps others', () => {
     const store = makeStore(file)
     const a = store.create('agent1', '/p')

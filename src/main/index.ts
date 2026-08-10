@@ -24,6 +24,7 @@ import { FileWatcher } from './file-watcher'
 import { LspManager } from './agent/lsp/manager'
 import { ModelsCatalog } from './models-catalog'
 import { getWindowChromeOptions } from './window-chrome'
+import { ChatGptWebManager } from './chatgpt-web/manager'
 import { Channels } from '../shared/ipc'
 import type { AgentState, Command, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, Workspace, WorkspaceRuntime } from '../shared/types'
 
@@ -58,12 +59,20 @@ class MainApp {
   builtinSkillsDir = app.isPackaged
     ? path.join(process.resourcesPath, 'skills')
     : path.join(app.getAppPath(), 'resources', 'skills')
+    chatGptWeb = new ChatGptWebManager(path.join(app.getPath('userData'), 'chatgpt-web'), {
+    notifyChallenge: (event) => {
+      const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+      win?.webContents.send(Channels.EventChatGptWebChallenge, event)
+    }
+  })
   meowAgent = new MeowAgentManager({
     configPath: path.join(app.getPath('userData'), 'meow.json'),
     store: new SessionStore(createJsonStore<StoredSession>(path.join(app.getPath('userData'), 'sessions.json'))),
+    chatGptWeb: this.chatGptWeb,
     tools: createDefaultTools({
       getUserSkillsDir: () => path.join(app.getPath('userData'), 'skills'),
-      getBuiltinSkillsDir: () => this.builtinSkillsDir
+      getBuiltinSkillsDir: () => this.builtinSkillsDir,
+      getUserDataDir: () => app.getPath('userData')
     }),
     userSkillsDir: path.join(app.getPath('userData'), 'skills'),
     userToolsDir: path.join(app.getPath('userData'), 'tools'),
@@ -123,6 +132,13 @@ class MainApp {
       this.setState(agentId, patch)
     })
     this.meowAgent.setOnEvent(event => {
+      // Native agents have no PTY, so their AgentState comes from chat events.
+      // Keeps the pane header/badge/background panel status truthful.
+      if (event.type === 'turn-started') {
+        this.setState(event.agentId, { status: 'running', lastOutputAt: Date.now(), alert: 'normal' })
+      } else if (event.type === 'done' || event.type === 'error') {
+        this.setState(event.agentId, { status: 'idle', alert: 'normal' })
+      }
       win?.webContents.send(Channels.EventChat, event)
     })
   }
@@ -155,7 +171,11 @@ class MainApp {
     return {
       workspace,
       agents: workspace.agents.map(a => this.states.get(a.id) ?? {
-        agentId: a.id, status: 'spawning', exitCode: null, lastOutputAt: null, alert: 'normal'
+        agentId: a.id,
+        status: a.kind === 'native' ? 'idle' : 'spawning',
+        exitCode: null,
+        lastOutputAt: null,
+        alert: 'normal'
       }),
       git: null
     }
@@ -202,13 +222,24 @@ class MainApp {
     if (!ws) throw new Error(`Workspace not found: ${projectPath}`)
     this.activeProject = projectPath
     this.meowAgent.setProjectPath(projectPath)
-    await this.meowAgent.init(ws.agents)
+    // Register native agents synchronously (cheap) so the chat panel mounts
+    // with its real transcript immediately; full tools/MCP come from init below.
     for (const agent of ws.agents) {
-      await this.startAgent(agent.id)
+      if (agent.kind === 'native') this.meowAgent.addAgent(agent)
     }
+    const rt = this.runtimeFor(ws)
     this.startGitPoll(projectPath)
     this.startFileWatcher(projectPath)
-    return this.runtimeFor(ws)
+    // Tools/MCP sync, model catalog refresh and PTY startup run off the
+    // critical path so the pane shell paints instantly instead of waiting for
+    // all of them (measured ~0.5s+ on first open).
+    void this.prepareWorkspace(ws).catch(err => console.error('[meow] prepareWorkspace:', err))
+    return rt
+  }
+
+  private async prepareWorkspace(ws: Workspace): Promise<void> {
+    await this.meowAgent.init(ws.agents)
+    await Promise.all(ws.agents.map(a => this.startAgent(a.id)))
   }
 
   private startFileWatcher(projectPath: string): void {
@@ -245,6 +276,14 @@ class MainApp {
     const ws = this.findWorkspaceByAgent(agentId)
     if (ws) {
       this.workspaces.updateAgent(ws.projectPath, agentId, { mode })
+    }
+  }
+
+  setAgentBackground(agentId: string, background: boolean): void {
+    this.meowAgent.setBackground(agentId, background)
+    const ws = this.findWorkspaceByAgent(agentId)
+    if (ws) {
+      this.workspaces.updateAgent(ws.projectPath, agentId, { background })
     }
   }
 
@@ -389,7 +428,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.AgentGetModel, (_e, agentId: string) => mainApp.meowAgent.getAgentModel(agentId))
   ipcMain.handle(Channels.AgentGetContext, (_e, agentId: string) => mainApp.meowAgent.getContextInfo(agentId))
   ipcMain.handle(Channels.AgentSetBackground, (_e, agentId: string, background: boolean) =>
-    mainApp.meowAgent.setBackground(agentId, background))
+    mainApp.setAgentBackground(agentId, background))
   ipcMain.handle(Channels.FilesSuggest, (_e, agentId: string, prefix: string) =>
     mainApp.meowAgent.suggestFiles(agentId, prefix))
   ipcMain.handle(Channels.ProviderModels, () => mainApp.meowAgent.getProviderModels())
@@ -430,7 +469,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.ChatSend, (_e, agentId: string, text: string, images?: ImageAttachment[]) =>
     mainApp.meowAgent.send(agentId, text, images))
   ipcMain.handle(Channels.ChatStop, (_e, agentId: string) => mainApp.meowAgent.stopAndDrain(agentId))
-  ipcMain.handle(Channels.ChatRunCommand, (_e, agentId: string, name: string, args: string[]) =>
+  ipcMain.handle(Channels.ChatRunCommand, (_e, agentId: string, name: string, args: string) =>
     mainApp.meowAgent.runCommand(agentId, name, args))
   ipcMain.handle(Channels.ChatUndo, (_e, agentId: string) => mainApp.meowAgent.undo(agentId))
   ipcMain.handle(Channels.ChatRedo, (_e, agentId: string) => mainApp.meowAgent.redo(agentId))
@@ -438,6 +477,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.ChatListMessages, (_e, agentId: string) => mainApp.meowAgent.listMessages(agentId))
   ipcMain.handle(Channels.ChatListTranscript, (_e, agentId: string) => mainApp.meowAgent.listTranscript(agentId))
   ipcMain.handle(Channels.ChatGetTodos, (_e, agentId: string) => mainApp.meowAgent.getTodos(agentId))
+  ipcMain.handle(Channels.ChatIsRunning, (_e, agentId: string) => mainApp.meowAgent.isRunning(agentId))
   ipcMain.handle(Channels.ChatRespondPrompt, (_e, agentId: string, promptId: string, resp: PromptResponse) =>
     mainApp.meowAgent.respondPrompt(agentId, promptId, resp))
   ipcMain.handle(Channels.ChatQueueRemove, (_e, agentId: string, id: string) =>
@@ -456,6 +496,10 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.SettingsSave, (_e, settings: MeowSettings) =>
     mainApp.meowAgent.saveSettings(settings))
   ipcMain.handle(Channels.McpStatus, () => mainApp.meowAgent.getMcpStatus())
+  ipcMain.handle(Channels.ChatGptWebGetStatus, () => mainApp.chatGptWeb.getStatus())
+  ipcMain.handle(Channels.ChatGptWebSetEnabled, (_e, enabled: boolean) => mainApp.chatGptWeb.setEnabled(enabled))
+  ipcMain.handle(Channels.ChatGptWebLogin, () => mainApp.chatGptWeb.login())
+  ipcMain.handle(Channels.ChatGptWebLogout, () => mainApp.chatGptWeb.logout())
   ipcMain.handle(Channels.CommandList, (_e, projectPath: string) => mainApp.meowAgent.listCommands(projectPath))
   ipcMain.handle(Channels.CommandSave, (_e, command: Command) => mainApp.meowAgent.saveCommand(command))
   ipcMain.handle(Channels.CommandRemove, (_e, name: string) => mainApp.meowAgent.removeCommand(name))

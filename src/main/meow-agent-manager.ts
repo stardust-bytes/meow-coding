@@ -4,18 +4,20 @@ import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSugge
 import type { AgentConfig, AgentMode, CatalogProviderSummary, Command, ModelRef } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, settingsToConfig, writeMeowConfig,
-  type ResolvedAgentConfig
+  type MeowConfig, type ResolvedAgentConfig
 } from './agent/config'
 import { SessionRunner } from './agent/loop'
 import { createLlm } from './agent/llm'
 import type { LlmClient } from './agent/llm'
+import { CHATGPT_WEB_PROVIDER_ID, getChatGptWebModelRefs } from './chatgpt-web/model-catalog'
+import type { ChatGptWebManager } from './chatgpt-web/manager'
 import { decidePermission } from './agent/permission'
 import { SessionStore } from './agent/session'
 import type { SessionSummary, StoredSession } from './agent/session'
 import { McpManager } from './agent/mcp/manager'
 import { collectSkills, skillListText } from './agent/skill'
 import { loadUserTools } from './agent/plugin'
-import { INSTRUCTION_POINTER } from './agent/instructions'
+import { instructionsText, loadInstructions } from './agent/instructions'
 import { expandReferences } from './agent/references'
 import { suggestFiles } from './file-suggest'
 import { SnapshotStore } from './agent/snapshot'
@@ -34,11 +36,17 @@ import { createTaskTool } from './agent/tools/task'
 import type { ToolDefinition } from './agent/tools/types'
 import type { NotificationService } from './notification-service'
 
+function defaultCreateChatGptWebLlmClient(manager: ChatGptWebManager): LlmClient {
+  return manager.createLlmClient()
+}
+
 export interface MeowAgentManagerDeps {
   configPath: string
   store: SessionStore
   tools: Map<string, ToolDefinition>
   createLlm?: (provider: string, apiKey: string, baseUrl?: string) => LlmClient
+  chatGptWeb?: ChatGptWebManager
+  createChatGptWebLlmClient?: (manager: ChatGptWebManager) => LlmClient
   env?: NodeJS.ProcessEnv
   userSkillsDir?: string
   userToolsDir?: string
@@ -135,7 +143,7 @@ export class MeowAgentManager {
     await this.syncTools()
     await this.refreshModelLimits()
     for (const agent of agents) {
-      if (agent.kind === 'native') this.register(agent)
+      if (agent.kind === 'native') this.register(agent, true)
     }
   }
 
@@ -293,6 +301,7 @@ export class MeowAgentManager {
     const controller = new AbortController()
     this.controllers.set(agentId, controller)
     this.running.add(agentId)
+    this.emit({ type: 'turn-started', agentId })
     this.redoStacks.delete(agentId)
     this.deps.snapshots.beginTurn(agentId)
     try {
@@ -447,7 +456,7 @@ export class MeowAgentManager {
   getAgentModel(agentId: string): ModelRef | null {
     const agent = this.agents.get(agentId)
     if (!agent) return null
-    const cfg = loadMeowConfig(this.deps.configPath)
+    const cfg = this.loadConfigWithChatGptWebSeed()
     const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env, agent.model)
     if (!resolved.provider || !resolved.model) return null
     return { provider: resolved.provider, model: resolved.model }
@@ -456,7 +465,7 @@ export class MeowAgentManager {
   getContextInfo(agentId: string): ContextInfo {
     const agent = this.agents.get(agentId)
     if (!agent) return { limit: null, compactThreshold: null, sessionCost: 0 }
-    const cfg = loadMeowConfig(this.deps.configPath)
+    const cfg = this.loadConfigWithChatGptWebSeed()
     const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env, agent.model)
     const modelLimit = resolved.provider && resolved.model
       ? this.modelLimits.get(`${resolved.provider}/${resolved.model}`)
@@ -476,6 +485,7 @@ export class MeowAgentManager {
     for (const [provider, p] of Object.entries(cfg.provider)) {
       for (const model of p.models) refs.push({ provider, model })
     }
+    refs.push(...(this.deps.chatGptWeb?.getModelRefsIfActive() ?? []))
     return refs
   }
 
@@ -491,7 +501,7 @@ export class MeowAgentManager {
 
   private allowedVariantsFor(agent: AgentConfig): string[] {
     if (!this.deps.catalog) return []
-    const cfg = loadMeowConfig(this.deps.configPath)
+    const cfg = this.loadConfigWithChatGptWebSeed()
     const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env, agent.model)
     if (!resolved.provider || !resolved.model) return []
     return Object.keys(this.modelVariants.get(`${resolved.provider}/${resolved.model}`) ?? {})
@@ -559,13 +569,22 @@ export class MeowAgentManager {
     this.deps.commands.remove(name)
   }
 
-  async runCommand(agentId: string, name: string, args: string[]): Promise<void> {
+  async runCommand(agentId: string, name: string, args: string): Promise<void> {
     const agent = this.agents.get(agentId)
     if (!agent) return
     const all = this.listCommands(agent.cwd)
     const command = all.find(c => c.name === name || `/${c.name}` === name)
     if (!command) {
       this.emit({ type: 'error', agentId, message: `[meow] Không tìm thấy command "${name}".` })
+      return
+    }
+    // System commands act on state (e.g. creating a session) instead of
+    // dispatching a prompt to the LLM.
+    if (command.type === 'system') {
+      if (command.name === 'new') {
+        this.newSession(agentId)
+        this.emit({ type: 'session-created', agentId })
+      }
       return
     }
     const text = await resolveCommand(command, args, { cwd: agent.cwd, commands: all })
@@ -645,7 +664,7 @@ export class MeowAgentManager {
 
   private async syncTools(): Promise<void> {
     const cfg = loadMeowConfig(this.deps.configPath)
-    await this.mcp.connect(cfg.mcp ?? {})
+    await this.mcp.connect(cfg.mcp ?? {}, this.deps.projectPath)
     const userTools = await loadUserTools(
       [this.deps.userToolsDir].filter((d): d is string => Boolean(d))
     )
@@ -656,10 +675,16 @@ export class MeowAgentManager {
     ])
   }
 
-  private register(agent: AgentConfig): void {
+  private register(agent: AgentConfig, force = false): void {
     this.agents.set(agent.id, agent)
-    if (this.runners.has(agent.id)) return
-    const cfg = loadMeowConfig(this.deps.configPath)
+    if (agent.background !== undefined) this.backgrounds.set(agent.id, agent.background)
+    if (this.runners.has(agent.id)) {
+      // Rebuild with freshly synced tools (MCP/user) unless a turn is running.
+      if (!force || this.running.has(agent.id)) return
+      this.runners.delete(agent.id)
+      this.resolved.delete(agent.id)
+    }
+    const cfg = this.loadConfigWithChatGptWebSeed()
     const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env, agent.model)
     this.resolved.set(agent.id, resolved)
     const modelLimit = resolved.provider && resolved.model
@@ -667,10 +692,12 @@ export class MeowAgentManager {
       : undefined
     const contextTokens = modelLimit?.context ?? cfg.maxContextTokens
     const skills = collectSkills(agent.cwd, this.deps.userSkillsDir, this.deps.builtinSkillsDir)
-    // AGENTS.md contents are attached per-file on read (loop.ts); the system
-    // prompt only points the model at them instead of inlining everything.
-    const instructions = INSTRUCTION_POINTER
-    const llmClient = (this.deps.createLlm ?? createLlm)(resolved.provider, resolved.apiKey ?? '', resolved.baseUrl)
+    // AGENTS.md/CLAUDE.md walking up from cwd are inlined into the system
+    // prompt (opencode-style); module-level ones attach on read via loop.ts.
+    const instructions = instructionsText(loadInstructions(agent.cwd, this.deps.userInstructionsDir))
+    const llmClient = resolved.provider === CHATGPT_WEB_PROVIDER_ID
+      ? (this.deps.createChatGptWebLlmClient ?? defaultCreateChatGptWebLlmClient)(this.deps.chatGptWeb as ChatGptWebManager)
+      : (this.deps.createLlm ?? createLlm)(resolved.provider, resolved.apiKey ?? '', resolved.baseUrl)
     const taskTool = createTaskTool({
       llm: llmClient,
       model: resolved.model,
@@ -771,6 +798,22 @@ export class MeowAgentManager {
       }
     })
     this.runners.set(agent.id, runner)
+  }
+
+  // The chatgpt-web "provider" is a browser-driven session, not an API-key
+  // entry a user configures in meow.json. Seed a synthetic provider entry so
+  // resolveAgentConfig's generic provider/model lookup resolves it like any
+  // other provider, without requiring changes to agent/config.ts. Use this
+  // wherever loadMeowConfig feeds into resolveAgentConfig.
+  private loadConfigWithChatGptWebSeed(): MeowConfig {
+    const cfg = loadMeowConfig(this.deps.configPath)
+    if (this.deps.chatGptWeb && !cfg.provider[CHATGPT_WEB_PROVIDER_ID]) {
+      cfg.provider[CHATGPT_WEB_PROVIDER_ID] = {
+        apiKey: CHATGPT_WEB_PROVIDER_ID,
+        models: getChatGptWebModelRefs().map(r => r.model)
+      }
+    }
+    return cfg
   }
 
   private priceFor(provider: string, model: string): ModelPrice | undefined {

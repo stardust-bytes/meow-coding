@@ -231,6 +231,9 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     loadTranscript()
     loadTodos()
     void window.api.listCommands(cwd).then(setCommands)
+    // The agent may already be mid-turn from before a project switch/remount;
+    // restore the running state so the Stop button and indicator come back.
+    void window.api.isChatRunning(agentId).then(setRunning)
     const off = window.api.onChatEvent(e => applyEvent(e))
     return off
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -387,6 +390,15 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
       }
       return
     }
+    if (e.type === 'session-created') {
+      resetView()
+      reloadSessions()
+      return
+    }
+    if (e.type === 'turn-started') {
+      setRunning(true)
+      return
+    }
     if (e.type === 'prompt-request') {
       setPendingPrompt({
         promptId: e.promptId,
@@ -426,7 +438,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
       }
       return next
     })
-  }, [agentId, flushDeltas])
+  }, [agentId, flushDeltas, resetView, reloadSessions])
 
   const send = useCallback((text: string, images?: ImageAttachment[]) => {
     const trimmed = text.trim()
@@ -441,7 +453,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     }
     const m = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(trimmed)
     if (m && commands.some(c => c.name === m[1])) {
-      void window.api.runCommand(agentId, m[1], m[2] ? m[2].trim().split(/\s+/) : [])
+      void window.api.runCommand(agentId, m[1], m[2] ?? '')
     } else {
       void window.api.sendChat(agentId, trimmed, images)
     }

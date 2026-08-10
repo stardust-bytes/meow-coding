@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 interface Props {
   onAdd: (projectPath: string, name: string) => void
@@ -26,7 +27,7 @@ export default function AddProjectDialog({ onAdd, onClose }: Props) {
     }
   }
 
-  return (
+  return createPortal(
     <div className="dialog-backdrop">
       <div className="dialog">
         <h3>Add project</h3>
@@ -44,6 +45,7 @@ export default function AddProjectDialog({ onAdd, onClose }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

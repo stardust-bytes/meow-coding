@@ -12,10 +12,13 @@ import { webfetchTool } from './webfetch'
 import { websearchTool } from './websearch'
 import { createSkillTool } from './skill'
 import { gitTool } from './git'
+import { OfficeCliBinary } from '../../officecli/binary-manager'
+import { createOfficeTool } from './office'
 
 export interface DefaultToolsOptions {
   getUserSkillsDir?: () => string | undefined
   getBuiltinSkillsDir?: () => string | undefined
+  getUserDataDir?: () => string | undefined
 }
 
 export function createDefaultTools(opts: DefaultToolsOptions = {}): Map<string, ToolDefinition> {
@@ -34,5 +37,10 @@ export function createDefaultTools(opts: DefaultToolsOptions = {}): Map<string, 
     createSkillTool(opts.getUserSkillsDir ?? (() => undefined), opts.getBuiltinSkillsDir),
     gitTool
   ]
+  const userDataDir = opts.getUserDataDir?.()
+  if (userDataDir) {
+    const binary = new OfficeCliBinary({ userDataDir })
+    tools.push(createOfficeTool({ resolveBinary: signal => binary.resolveBinaryPath(signal) }))
+  }
   return new Map(tools.map(t => [t.name, t]))
 }

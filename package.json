@@ -1,6 +1,6 @@
 {
   "name": "meow-coding",
-  "version": "0.9.0",
+  "version": "0.17.0",
   "private": true,
   "main": "./out/main/index.js",
   "scripts": {
@@ -15,7 +15,9 @@
     "dist": "electron-vite build && electron-builder --win",
     "dist:dir": "electron-vite build && electron-builder --dir",
     "dist:linux": "electron-vite build && electron-builder --linux",
-    "dist:linux:dir": "electron-vite build && electron-builder --linux dir"
+    "dist:linux:dir": "electron-vite build && electron-builder --linux dir",
+    "dist:mac": "electron-vite build && electron-builder --mac",
+    "dist:mac:dir": "electron-vite build && electron-builder --mac dir"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.7.2",
@@ -36,6 +38,8 @@
     "@ai-sdk/anthropic": "^3.0.105",
     "@ai-sdk/google": "^3.0.103",
     "@ai-sdk/openai-compatible": "^2.0.63",
+    "@fontsource-variable/bricolage-grotesque": "^5.3.0",
+    "@fontsource-variable/instrument-sans": "^5.3.0",
     "@lydell/node-pty": "^1.2.0-beta.14",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@xterm/addon-fit": "^0.11.0",
@@ -44,6 +48,7 @@
     "dompurify": "^3.4.13",
     "glob": "^13.0.6",
     "marked": "^18.0.9",
+    "playwright-core": "^1.62.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "tree-kill": "^1.2.2",
@@ -88,16 +93,40 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "deb",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build/icons",
       "category": "Development",
       "maintainer": "Meow Coding"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.developer-tools",
+      "icon": "moew-coding-logo.png"
     },
     "nsis": {
       "oneClick": false,

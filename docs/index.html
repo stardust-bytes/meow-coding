@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meow Coding — Run multiple coding agents, side by side</title>
+  <meta name="description" content="Meow Coding is a desktop app for running multiple CLI coding agents — opencode, Claude Code, aider, and more — side by side in parallel terminal panes inside a single window." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+          },
+          colors: {
+            ink: '#0a0c12',
+            'ink-soft': '#10131c',
+            accent: '#a78bfa',
+            meow: '#f59e0b',
+            term: '#4ade80',
+          },
+          boxShadow: {
+            glow: '0 0 60px -12px rgba(167, 139, 250, 0.45)',
+            'glow-amber': '0 0 60px -12px rgba(245, 158, 11, 0.35)',
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    /* ---- base ---- */
+    html { scroll-behavior: smooth; }
+    body {
+      background-color: #0a0c12;
+      color: #e2e8f0;
+      font-family: 'Inter', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    ::selection { background: rgba(167, 139, 250, 0.35); color: #fff; }
+
+    /* ---- glassmorphism ---- */
+    .glass {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+    .glass-strong {
+      background: rgba(16, 19, 28, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+
+    /* ---- ambient background glows ---- */
+    .glow-orbs { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+    .glow-orb {
+      position: absolute;
+      border-radius: 9999px;
+      filter: blur(90px);
+      opacity: 0.5;
+      will-change: transform;
+    }
+    @keyframes drift-a {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50%      { transform: translate(40px, 30px) scale(1.08); }
+    }
+    @keyframes drift-b {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50%      { transform: translate(-30px, -20px) scale(1.05); }
+    }
+    .orb-violet { background: #7c3aed; width: 420px; height: 420px; top: -120px; left: -80px; animation: drift-a 16s ease-in-out infinite; }
+    .orb-amber  { background: #f59e0b; width: 340px; height: 340px; top: 40%; right: -120px; animation: drift-b 20s ease-in-out infinite; }
+    .orb-indigo { background: #4338ca; width: 380px; height: 380px; bottom: -160px; left: 30%; animation: drift-a 24s ease-in-out infinite; }
+
+    /* ---- hero terminal line ---- */
+    @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+    .cursor-blink { animation: blink 1.1s step-end infinite; }
+
+    /* ---- reveal on scroll ---- */
+    .reveal {
+      opacity: 0;
+      transform: translateY(22px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .reveal.is-visible { opacity: 1; transform: none; }
+
+    /* ---- gradient text ---- */
+    .text-gradient {
+      background: linear-gradient(100deg, #c4b5fd 0%, #a78bfa 45%, #f59e0b 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    /* ---- focus ring for keyboard users ---- */
+    a:focus-visible, button:focus-visible {
+      outline: 2px solid #a78bfa;
+      outline-offset: 3px;
+      border-radius: 6px;
+    }
+
+    /* ---- reduced motion ---- */
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .glow-orb, .cursor-blink { animation: none; }
+      .reveal { opacity: 1; transform: none; transition: none; }
+    }
+  </style>
+</head>
+
+<body class="bg-ink antialiased">
+  <div class="relative min-h-screen overflow-x-clip">
+
+    <!-- ambient glows -->
+    <div class="glow-orbs" aria-hidden="true">
+      <div class="glow-orb orb-violet"></div>
+      <div class="glow-orb orb-amber"></div>
+      <div class="glow-orb orb-indigo"></div>
+    </div>
+
+    <!-- ================= NAV ================= -->
+    <header class="glass-strong sticky top-0 z-50 border-x-0 border-t-0">
+      <nav class="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8" aria-label="Main">
+        <a href="#" class="flex items-center gap-2.5 text-[15px] font-bold tracking-tight text-white">
+          <span class="text-xl" aria-hidden="true">🐱</span>
+          Meow&nbsp;Coding
+        </a>
+        <div class="hidden items-center gap-7 text-sm text-slate-300 sm:flex">
+          <a href="#features" class="transition-colors hover:text-white">Features</a>
+          <a href="#screenshot" class="transition-colors hover:text-white">Screenshot</a>
+          <a href="#sources" class="transition-colors hover:text-white">Sources</a>
+        </div>
+        <a href="https://github.com/stardust-bytes/meow-coding"
+           class="rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-accent/60 hover:bg-white/10">
+          View on GitHub
+        </a>
+      </nav>
+    </header>
+
+    <!-- ================= HERO ================= -->
+    <section class="relative mx-auto max-w-6xl px-5 pt-20 pb-10 text-center sm:px-8 sm:pt-28">
+      <div class="mx-auto inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 font-mono text-xs text-slate-300 backdrop-blur">
+        <span class="h-2 w-2 rounded-full bg-term" aria-hidden="true"></span>
+        v0.16.0 · open source · Electron
+      </div>
+
+      <h1 class="mx-auto mt-7 max-w-4xl text-4xl font-extrabold leading-[1.08] tracking-tight text-white sm:text-6xl">
+        Run multiple coding agents,<br />
+        <span class="text-gradient">side by side.</span>
+      </h1>
+
+      <p class="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
+        Meow Coding is a desktop app for running opencode, Claude Code, aider — or any CLI agent on
+        your <span class="font-mono text-sm text-slate-300">PATH</span> — in parallel terminal panes
+        inside a single window. It also ships a built-in native Meow agent with chat UI, tools,
+        sessions, and skills.
+      </p>
+
+      <!-- terminal line: the signature element -->
+      <div class="glass mx-auto mt-9 inline-flex max-w-full items-center gap-2 overflow-hidden rounded-lg px-4 py-2.5 font-mono text-[13px] text-slate-300 shadow-glow sm:text-sm">
+        <span class="select-none text-term">$</span>
+        <span class="whitespace-nowrap text-slate-300">meow --agent opencode --agent claude --agent aider</span>
+        <span class="h-4 w-2 bg-accent cursor-blink" aria-hidden="true"></span>
+      </div>
+
+      <div class="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
+        <a href="https://github.com/stardust-bytes/meow-coding"
+           class="w-full rounded-lg bg-gradient-to-r from-violet-500 to-violet-600 px-7 py-3 text-sm font-semibold text-white shadow-glow transition hover:from-violet-400 hover:to-violet-500 sm:w-auto">
+          Get started on GitHub
+        </a>
+        <a href="https://github.com/stardust-bytes/meow-coding/releases"
+           class="w-full rounded-lg border border-white/15 bg-white/5 px-7 py-3 text-sm font-semibold text-slate-200 transition hover:border-white/30 hover:bg-white/10 sm:w-auto">
+          Download releases
+        </a>
+      </div>
+
+      <div class="mt-9 flex flex-wrap items-center justify-center gap-2 font-mono text-xs text-slate-500">
+        <span class="rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1">Electron</span>
+        <span class="rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1">React 19</span>
+        <span class="rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1">TypeScript</span>
+        <span class="rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1">node-pty</span>
+        <span class="rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1">xterm.js</span>
+      </div>
+    </section>
+
+    <!-- ================= SCREENSHOT ================= -->
+    <section id="screenshot" class="relative mx-auto max-w-6xl px-5 py-14 sm:px-8">
+      <div class="reveal glass relative overflow-hidden rounded-2xl p-2 shadow-glow-amber">
+        <img
+          src="./meow-app-screen.png"
+          alt="Meow Coding — multiple CLI coding agents running side by side in terminal panes"
+          class="w-full rounded-xl border border-white/5"
+          loading="lazy"
+          width="1408"
+          height="855"
+        />
+        <div class="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-ink/60 to-transparent" aria-hidden="true"></div>
+      </div>
+      <p class="mt-4 text-center text-sm text-slate-500">
+        Multi-agent panes · native Meow chat · skills · cost tracking — all in one window.
+      </p>
+    </section>
+
+    <!-- ================= FEATURES ================= -->
+    <section id="features" class="relative mx-auto max-w-6xl px-5 py-16 sm:px-8">
+      <div class="mb-12 text-center">
+        <p class="font-mono text-xs tracking-widest text-term uppercase">// features</p>
+        <h2 class="mt-3 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+          Everything a multi-agent workflow needs
+        </h2>
+      </div>
+
+      <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <!-- card -->
+        <div class="reveal glass group rounded-xl p-6 transition hover:border-accent/40 hover:bg-white/[0.06]">
+          <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500/25 to-amber-500/15 text-lg" aria-hidden="true">🧩</div>
+          <h3 class="mt-4 text-lg font-semibold text-white">Multi-agent panes</h3>
+          <p class="mt-2 text-sm leading-relaxed text-slate-400">
+            Spawn several CLI agents in one window, each in its own terminal pane. Stop, restart,
+            inject, and zoom per pane — process trees are killed on exit, no orphans.
+          </p>
+        </div>
+
+        <div class="reveal glass group rounded-xl p-6 transition hover:border-accent/40 hover:bg-white/[0.06]">
+          <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500/25 to-amber-500/15 text-lg" aria-hidden="true">🐈</div>
+          <h3 class="mt-4 text-lg font-semibold text-white">Native Meow agent</h3>
+          <p class="mt-2 text-sm leading-relaxed text-slate-400">
+            A first-party agent with chat UI, streaming output, markdown rendering, tool-call cards,
+            image attachments, and undo/redo.
+          </p>
+        </div>
+
+        <div class="reveal glass group rounded-xl p-6 transition hover:border-accent/40 hover:bg-white/[0.06]">
+          <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500/25 to-amber-500/15 text-lg" aria-hidden="true">⚡</div>
+          <h3 class="mt-4 text-lg font-semibold text-white">Slash commands &amp; skills</h3>
+          <p class="mt-2 text-sm leading-relaxed text-slate-400">
+            <span class="font-mono text-xs text-slate-300">/init</span>, <span class="font-mono text-xs text-slate-300">/review</span>, <span class="font-mono text-xs text-slate-300">/new</span>, and Superpowers workflows — plus custom commands with
+            <span class="font-mono text-xs text-slate-300">$1..$N</span>, <span class="font-mono text-xs text-slate-300">@path</span>, and <span class="font-mono text-xs text-slate-300">!cmd</span> interpolation. 19 skills bundled.
+          </p>
+        </div>
+
+        <div class="reveal glass group rounded-xl p-6 transition hover:border-accent/40 hover:bg-white/[0.06]">
+          <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500/25 to-amber-500/15 text-lg" aria-hidden="true">💬</div>
+          <h3 class="mt-4 text-lg font-semibold text-white">Sessions</h3>
+          <p class="mt-2 text-sm leading-relaxed text-slate-400">
+            Create, switch, rename, and delete conversations per agent, with auto-title and
+            per-session undo/redo through file snapshots.
+          </p>
+        </div>
+
+        <div class="reveal glass group rounded-xl p-6 transition hover:border-accent/40 hover:bg-white/[0.06]">
+          <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500/25 to-amber-500/15 text-lg" aria-hidden="true">🔌</div>
+          <h3 class="mt-4 text-lg font-semibold text-white">MCP &amp; LSP</h3>
+          <p class="mt-2 text-sm leading-relaxed text-slate-400">
+            stdio and HTTP MCP servers, plus language-server diagnostics surfaced directly in the
+            agent's edit tools.
+          </p>
+        </div>
+
+        <div class="reveal glass group rounded-xl p-6 transition hover:border-accent/40 hover:bg-white/[0.06]">
+          <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500/25 to-amber-500/15 text-lg" aria-hidden="true">📊</div>
+          <h3 class="mt-4 text-lg font-semibold text-white">Cost tracking</h3>
+          <p class="mt-2 text-sm leading-relaxed text-slate-400">
+            Token and dollar usage per session and per model, via the models.dev catalog — know what
+            every run costs.
+          </p>
+        </div>
+      </div>
+
+      <div class="reveal glass mt-6 rounded-xl p-5 text-center text-sm text-slate-300">
+        Also includes: <span class="text-white">Office documents</span> (<span class="font-mono text-xs">.docx / .xlsx / .pptx</span>) ·
+        <span class="text-white">ChatGPT Web provider</span> <span class="text-slate-500">(experimental)</span>
+      </div>
+    </section>
+
+    <!-- ================= SOURCES ================= -->
+    <section id="sources" class="relative mx-auto max-w-6xl px-5 py-16 sm:px-8">
+      <div class="mb-10 text-center">
+        <p class="font-mono text-xs tracking-widest text-term uppercase">// credits</p>
+        <h2 class="mt-3 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+          Built on great open source
+        </h2>
+      </div>
+
+      <ul class="mx-auto grid max-w-3xl gap-3">
+        <li class="reveal glass flex items-center justify-between gap-4 rounded-xl px-5 py-4 transition hover:border-accent/40">
+          <span class="text-sm text-slate-300">Superpowers workflow skills</span>
+          <a href="https://github.com/obra/superpowers" class="font-mono text-xs text-accent transition hover:text-white">obra/superpowers ↗</a>
+        </li>
+        <li class="reveal glass flex items-center justify-between gap-4 rounded-xl px-5 py-4 transition hover:border-accent/40">
+          <span class="text-sm text-slate-300">Front-end &amp; design skills (Apache-2.0)</span>
+          <a href="https://github.com/anthropics/skills" class="font-mono text-xs text-accent transition hover:text-white">anthropics/skills ↗</a>
+        </li>
+        <li class="reveal glass flex items-center justify-between gap-4 rounded-xl px-5 py-4 transition hover:border-accent/40">
+          <span class="text-sm text-slate-300">Office document tool (Apache-2.0)</span>
+          <a href="https://github.com/iOfficeAI/OfficeCLI" class="font-mono text-xs text-accent transition hover:text-white">iOfficeAI/OfficeCLI ↗</a>
+        </li>
+        <li class="reveal glass flex items-center justify-between gap-4 rounded-xl px-5 py-4 transition hover:border-accent/40">
+          <span class="text-sm text-slate-300">PTY &amp; terminal rendering</span>
+          <a href="https://github.com/microsoft/node-pty" class="font-mono text-xs text-accent transition hover:text-white">node-pty · xterm.js ↗</a>
+        </li>
+        <li class="reveal glass flex items-center justify-between gap-4 rounded-xl px-5 py-4 transition hover:border-accent/40">
+          <span class="text-sm text-slate-300">Application shell &amp; UI</span>
+          <a href="https://www.electronjs.org/" class="font-mono text-xs text-accent transition hover:text-white">Electron · React · TypeScript ↗</a>
+        </li>
+      </ul>
+    </section>
+
+    <!-- ================= FOOTER ================= -->
+    <footer class="relative mt-8 border-t border-white/10">
+      <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-5 py-8 text-sm text-slate-500 sm:flex-row sm:px-8">
+        <p class="flex items-center gap-2">
+          <span aria-hidden="true">🐱</span> Meow Coding · open source
+        </p>
+        <p>
+          <a href="https://github.com/stardust-bytes/meow-coding" class="transition-colors hover:text-white">GitHub</a>
+          <span class="mx-2 text-slate-700">·</span>
+          <a href="https://github.com/stardust-bytes/meow-coding/releases" class="transition-colors hover:text-white">Releases</a>
+        </p>
+        <p>Built with <span class="text-meow" aria-hidden="true">♥</span><span class="sr-only">love</span> · <span id="year"></span></p>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    // Reveal-on-scroll
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible');
+            observer.unobserve(entry.target);
+          }
+        }
+      },
+      { threshold: 0.12 }
+    );
+    document.querySelectorAll('.reveal').forEach((el) => observer.observe(el));
+
+    // Footer year
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>
