@@ -4,6 +4,7 @@ import type {
   ModelRef, NewAgentInput, PromptResponse, SessionSummary, StatsSummary, Template, TodoItem, WorkspaceRuntime,
   WorkspaceSummary
 } from './types'
+import type { BrowserStatusInfo, PairingInfo } from './browser-types'
 
 export const Channels = {
   WorkspaceList: 'workspace:list',
@@ -80,13 +81,21 @@ export const Channels = {
   FilesSuggest: 'files:suggest',
   AgentSetBackground: 'agent:set-background',
   EventAgentBackground: 'agent:background',
-  EventChatGptWebChallenge: 'chatgpt-web:challenge'
+  EventChatGptWebChallenge: 'chatgpt-web:challenge',
+  BrowserGetStatus: 'browser:get-status',
+  BrowserPair: 'browser:pair',
+  BrowserOpenInstallGuide: 'browser:open-install-guide',
+  BrowserOpenExtensionFolder: 'browser:open-extension-folder',
+  BrowserGetConsoleLogs: 'browser:get-console-logs',
+  BrowserGetNetworkLogs: 'browser:get-network-logs',
+  EventBrowserStatus: 'browser:status'
 } as const
 
 export interface PtyDataEvent { agentId: string; data: string }
 export interface AgentStateEvent { agentId: string; state: AgentState }
 export interface GitStatusEvent { projectPath: string; git: GitStatus | null }
 export interface WindowMaximizedChangeEvent { maximized: boolean }
+export interface BrowserStatusEvent { info: BrowserStatusInfo }
 
 export type ChallengeReason = 'cloudflare' | 'session-expired'
 
@@ -172,4 +181,11 @@ export interface AgentApi {
   onContextChanged(cb: (e: ContextChangedEvent) => void): () => void
   onChatEvent(cb: (e: ChatEvent) => void): () => void
   onChatGptWebChallenge(cb: (e: ChallengeEvent) => void): () => void
+  getBrowserStatus(): Promise<BrowserStatusInfo>
+  pairBrowser(): Promise<PairingInfo>
+  openBrowserInstallGuide(): Promise<void>
+  openBrowserExtensionFolder(): Promise<void>
+  getBrowserConsoleLogs(limit?: number): Promise<unknown[]>
+  getBrowserNetworkLogs(limit?: number): Promise<unknown[]>
+  onBrowserStatus(cb: (info: BrowserStatusInfo) => void): () => void
 }

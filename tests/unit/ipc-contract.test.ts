@@ -19,7 +19,9 @@ describe('IPC contract', () => {
       'listSessions', 'createSession', 'switchSession', 'deleteSession', 'renameSession',
       'getChatTodos',
       'isChatRunning',
-      'minimizeWindow', 'toggleMaximizeWindow', 'closeWindow', 'isWindowMaximized', 'onWindowMaximizedChange'
+      'minimizeWindow', 'toggleMaximizeWindow', 'closeWindow', 'isWindowMaximized', 'onWindowMaximizedChange',
+      'getBrowserStatus', 'pairBrowser', 'openBrowserInstallGuide', 'openBrowserExtensionFolder',
+      'getBrowserConsoleLogs', 'getBrowserNetworkLogs', 'onBrowserStatus'
     ]
     const api: AgentApi = {
       listWorkspaces: async () => [],
@@ -78,6 +80,13 @@ describe('IPC contract', () => {
       setChatGptWebEnabled: async () => ({ enabled: false, loggedIn: false, verifiedAt: null }),
       loginChatGptWeb: async () => ({ enabled: false, loggedIn: false, verifiedAt: null }),
       logoutChatGptWeb: async () => ({ enabled: false, loggedIn: false, verifiedAt: null }),
+      getBrowserStatus: async () => ({ status: 'idle', port: 0, paired: false }),
+      pairBrowser: async () => ({ code: '000000', expiresAt: 0 }),
+      openBrowserInstallGuide: async () => {},
+      openBrowserExtensionFolder: async () => {},
+      getBrowserConsoleLogs: async () => [],
+      getBrowserNetworkLogs: async () => [],
+      onBrowserStatus: () => () => {},
       platform: 'win32',
       minimizeWindow: async () => {},
       toggleMaximizeWindow: async () => {},
@@ -157,6 +166,13 @@ describe('IPC contract', () => {
     expect(Channels.WindowClose).toBe('window:close')
     expect(Channels.WindowIsMaximized).toBe('window:is-maximized')
     expect(Channels.EventWindowMaximizedChange).toBe('window:maximized-change')
+    expect(Channels.BrowserGetStatus).toBe('browser:get-status')
+    expect(Channels.BrowserPair).toBe('browser:pair')
+    expect(Channels.BrowserOpenInstallGuide).toBe('browser:open-install-guide')
+    expect(Channels.BrowserOpenExtensionFolder).toBe('browser:open-extension-folder')
+    expect(Channels.BrowserGetConsoleLogs).toBe('browser:get-console-logs')
+    expect(Channels.BrowserGetNetworkLogs).toBe('browser:get-network-logs')
+    expect(Channels.EventBrowserStatus).toBe('browser:status')
   })
 
   it('types event payloads without runtime error', () => {

@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
 import type { ChatEvent, ChatGptWebStatus, Command, ContextChangedEvent, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template } from '../shared/types'
 import type { AgentApi, AgentStateEvent, ChallengeEvent, GitStatusEvent, PtyDataEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
+import type { BrowserStatusInfo } from '../shared/browser-types'
 
 function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
   const listener = (_event: unknown, payload: T) => cb(payload)
@@ -105,6 +106,13 @@ const api: AgentApi = {
   onGitStatus: (cb: (e: GitStatusEvent) => void) => subscribe(Channels.EventGitStatus, cb),
   onContextChanged: (cb: (e: ContextChangedEvent) => void) => subscribe(Channels.EventContextChanged, cb),
   onChatEvent: (cb: (e: ChatEvent) => void) => subscribe(Channels.EventChat, cb),
+  getBrowserStatus: () => ipcRenderer.invoke(Channels.BrowserGetStatus),
+  pairBrowser: () => ipcRenderer.invoke(Channels.BrowserPair),
+  openBrowserInstallGuide: () => ipcRenderer.invoke(Channels.BrowserOpenInstallGuide),
+  openBrowserExtensionFolder: () => ipcRenderer.invoke(Channels.BrowserOpenExtensionFolder),
+  getBrowserConsoleLogs: (limit?: number) => ipcRenderer.invoke(Channels.BrowserGetConsoleLogs, limit),
+  getBrowserNetworkLogs: (limit?: number) => ipcRenderer.invoke(Channels.BrowserGetNetworkLogs, limit),
+  onBrowserStatus: (cb: (info: BrowserStatusInfo) => void) => subscribe(Channels.EventBrowserStatus, cb),
   suggestFiles: (agentId: string, prefix: string) =>
     ipcRenderer.invoke(Channels.FilesSuggest, agentId, prefix),
   setAgentBackground: (agentId: string, background: boolean) =>
