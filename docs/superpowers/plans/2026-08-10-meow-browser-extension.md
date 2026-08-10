@@ -1,6 +1,22 @@
 # Meow Coding — Browser Control via Chrome Extension: Implementation Plan
 
-Ngày: 2026-08-10 · Spec: `docs/superpowers/specs/2026-08-10-meow-browser-extension-design.md` · Trạng thái: chờ thực thi
+Ngày: 2026-08-10 · Spec: `docs/superpowers/specs/2026-08-10-meow-browser-extension-design.md` · Trạng thái: chờ thực thi (cập nhật 2026-08-10 sau pull codebase 0.17.0)
+
+## 0. Cập nhật sau pull (2026-08-10) — delta so với bản plan gốc
+
+Codebase đã nâng lên **0.17.0**; các commit code từ bản triển khai cũ (Task 1-7) **không còn trên branch**
+(chỉ trong stash/reflog) → thực thi lại từ đầu trên codebase mới. Khác biệt ảnh hưởng:
+
+| Thay đổi trong codebase 0.17.0 | Ảnh hưởng tới plan |
+|---|---|
+| Đã có `playwright-core@^1.62.0` + `src/main/chatgpt-web/` (automation chatgpt.com, **persistent context riêng**) | Feature này **không dùng** playwright-core (vẫn dùng extension MV3 + WS). Nhưng **tái sử dụng** `resolveChromeExecutablePath()` từ `src/main/chatgpt-web/browser-login.ts` cho Chrome launcher (thay vì chỉ `shell.openExternal`) |
+| `src/main/agent/tools/registry.ts` có `office` tool + option `getUserDataDir` | Task 6: thêm option `browser` cạnh `getUserDataDir`, không phá `office` |
+| `src/main/agent/config.ts` permission đã có `office: 'ask'` | Task 6: thêm `browser_*: 'allow'` cạnh đó |
+| `src/shared/ipc.ts` đã có `ChatGptWeb*` channels + `ChallengeEvent`; `AgentApi` có `getChatGptWebStatus`... | Task 2: thêm browser channels cạnh, không trùng tên; cập nhật `tests/unit/ipc-contract.test.ts` (đã có chatgpt stubs) |
+| `package.json` scripts có `dist:mac`/`dist:mac:dir` | Task 1: thêm `predist:mac` + `predist:mac:dir`; extraResources hiện chỉ có `skills` |
+| `tsconfig.json` references chỉ node + web | Task 1: thêm reference extension (như cũ) |
+| `app.whenReady().then(() => {...})` sync | Task 7: dùng `.then(async () => ...)` để start bridge + copy extension |
+| `src/main/index.ts` MainApp có field `chatGptWeb` | Task 7: wire bridge/launcher cạnh `chatGptWeb`, không đụng tới nó |
 
 ## 1. Tổng quan
 
@@ -92,6 +108,7 @@ docs/AGENTS.md                       # SỬA — ghi chú browser feature (main 
    - `"predev": "npm run build:extension"`, `"prebuild": "npm run build:extension"`,
      `"predist": "npm run build:extension"`, `"predist:dir": "npm run build:extension"`,
      `"predist:linux": "npm run build:extension"`, `"predist:linux:dir": "npm run build:extension"`
+   - **0.17.0 có thêm** `dist:mac`/`dist:mac:dir` → thêm `"predist:mac"` và `"predist:mac:dir"`
    - `"typecheck"` thêm: `&& tsc --noEmit -p tsconfig.extension.json`
 3. `tsconfig.extension.json` (mới):
    ```json
@@ -313,11 +330,15 @@ export interface BrowserLauncherDeps {
 }
 export function createChromeLauncher(deps: BrowserLauncherDeps): BrowserLauncher
 export interface BrowserLauncher {
-  openChrome(): Promise<void>            // shell.openExternal('chrome://extensions') → mở Chrome đúng trang
+  openChrome(): Promise<void>            // mở Chrome thật (executable path) tới chrome://extensions
   openExtensionFolder(): Promise<void>   // shell.openPath(extensionDir)
   showInstallGuide(): Promise<void>      // dialog.showMessageBox tiếng Việt [meow]
 }
 ```
+
+**0.17.0**: tái sử dụng `resolveChromeExecutablePath()` (export từ `src/main/chatgpt-web/browser-login.ts`)
+để tìm đường dẫn Chrome thật. `openChrome()` spawn `chrome.exe --new-window chrome://extensions` thay vì
+`shell.openExternal` (tránh phụ thuộc default browser). Import: `import { resolveChromeExecutablePath } from '../chatgpt-web/browser-login'`.
 
 Nội dung guide (tiếng Việt, prefix `[meow]`):
 ```
@@ -368,6 +389,7 @@ Buttons: `['Mở chrome://extensions', 'Mở thư mục extension', 'Đóng']`; 
    - `browser_wait_for {selector, timeoutMs?}` → `execute('waitFor', ..., timeoutMs+5000)`
    Mỗi tool map kết quả: `ok` → `{output: JSON.stringify(data, null, 2)}`; `!ok` → `{error}`.
 2. `registry.ts`: `DefaultToolsOptions` thêm `browser?: { bridge: BrowserBridgeLike; launcher: BrowserLauncherLike }`; trong `createDefaultTools`, nếu có → `...createBrowserTools(opts.browser.bridge, opts.browser.launcher)`.
+   **0.17.0**: registry đã có `getUserDataDir?: () => string` + `office` tool (tạo sau khi có `userDataDir`) — thêm `browser` cạnh đó, **không phá logic office**.
 3. `permission.ts` `PLAN_RULES`: thêm `'browser_*': 'ask'`.
 4. `config.ts` `DEFAULT_MEOW_CONFIG.permission`: thêm `'browser_*': 'allow'`.
 5. Test:
@@ -394,7 +416,9 @@ Buttons: `['Mở chrome://extensions', 'Mở thư mục extension', 'Đóng']`; 
      ```
      (copy extension build → `extensionDir` ở `whenReady` — helper `copyExtensionToUserData()` trong chrome-launcher.ts hoặc inline: dev: `path.join(app.getAppPath(), 'out', 'browser-extension')`; packaged: `path.join(process.resourcesPath, 'browser-extension')`; copy nếu manifest version khác)
    - `createDefaultTools({ ..., browser: { bridge: browserBridge, launcher: browserLauncher } })`.
-   - `app.whenReady()`: `const port = await browserBridge.start()`; `browserBridge.onStatusChange(info => win?.webContents.send(Channels.EventBrowserStatus, info))`; copy extension.
+   - `app.whenReady()`: **0.17.0 đang sync** (`app.whenReady().then(() => {...})`) → đổi thành
+     `app.whenReady().then(async () => {...})` để `await browserBridge.start()`;
+     `browserBridge.onStatusChange(info => win?.webContents.send(Channels.EventBrowserStatus, info))`; copy extension.
    - `registerIpcHandlers` thêm:
      - `BrowserGetStatus` → `browserBridge.getStatus()`
      - `BrowserPair` → `browserBridge.pair()`

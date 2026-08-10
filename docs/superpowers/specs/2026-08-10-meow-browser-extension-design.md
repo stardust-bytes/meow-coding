@@ -1,6 +1,25 @@
 # Meow Coding — Browser Control qua Chrome Extension (debug web / auto thao tác): Design Spec
 
-Ngày: 2026-08-10 · Trạng thái: chờ duyệt
+Ngày: 2026-08-10 · Trạng thái: chờ duyệt (cập nhật 2026-08-10 sau pull codebase 0.17.0)
+
+## 0. Ghi chú cập nhật sau pull (2026-08-10)
+
+Codebase hiện tại đã nâng lên **0.17.0** với các thay đổi ảnh hưởng tới triển khai:
+
+- Đã có sẵn `playwright-core@^1.62.0` và thư mục `src/main/chatgpt-web/` (automation chatgpt.com bằng
+  **persistent context riêng** — profile tách biệt). Feature browser control này **độc lập và khác hẳn**:
+  chạy trên **profile Chrome thật** qua extension MV3, không dùng playwright-core.
+- Có sẵn `resolveChromeExecutablePath()` trong `src/main/chatgpt-web/browser-login.ts` — **tái sử dụng**
+  cho Chrome launcher (mở Chrome thật bằng executable path thay vì chỉ `shell.openExternal`).
+- `src/main/agent/tools/registry.ts` đã có thêm `office` tool + option `getUserDataDir`.
+- `src/main/agent/config.ts` permission đã có `office: 'ask'`.
+- `src/shared/ipc.ts` đã có channels `ChatGptWeb*` + `EventChatGptWebChallenge`; `AgentApi` đã có
+  `getChatGptWebStatus`... — thêm browser channels cạnh tranh không trùng tên.
+- `package.json` scripts đã có `dist:mac`/`dist:mac:dir`; `extraResources` chỉ có `skills`.
+- `tsconfig.json` references chỉ có node + web (chưa có extension).
+- `app.whenReady()` hiện là sync (`.then(() => ...)`).
+
+Các quyết định thiết kế (Phần 2-12) **không đổi**.
 
 ## 1. Mục tiêu
 
