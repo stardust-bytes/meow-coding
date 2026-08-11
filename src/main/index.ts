@@ -87,7 +87,6 @@ class MainApp {
     }),
     userSkillsDir: path.join(app.getPath('userData'), 'skills'),
     userToolsDir: path.join(app.getPath('userData'), 'tools'),
-    userInstructionsDir: app.getPath('userData'),
     builtinSkillsDir: this.builtinSkillsDir,
     snapshots: new SnapshotStore(createJsonStore<SnapshotTurn>(path.join(app.getPath('userData'), 'snapshots.json'))),
     savedPermissions: new SavedPermissions(createJsonStore<SavedPermission>(path.join(app.getPath('userData'), 'permissions.json'))),

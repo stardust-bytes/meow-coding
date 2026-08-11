@@ -50,7 +50,6 @@ export interface MeowAgentManagerDeps {
   env?: NodeJS.ProcessEnv
   userSkillsDir?: string
   userToolsDir?: string
-  userInstructionsDir?: string
   builtinSkillsDir?: string
   snapshots: SnapshotStore
   savedPermissions: SavedPermissions
@@ -694,7 +693,7 @@ export class MeowAgentManager {
     const skills = collectSkills(agent.cwd, this.deps.userSkillsDir, this.deps.builtinSkillsDir)
     // AGENTS.md/CLAUDE.md walking up from cwd are inlined into the system
     // prompt (opencode-style); module-level ones attach on read via loop.ts.
-    const instructions = instructionsText(loadInstructions(agent.cwd, this.deps.userInstructionsDir))
+    const instructions = instructionsText(loadInstructions(agent.cwd))
     const llmClient = resolved.provider === CHATGPT_WEB_PROVIDER_ID
       ? (this.deps.createChatGptWebLlmClient ?? defaultCreateChatGptWebLlmClient)(this.deps.chatGptWeb as ChatGptWebManager)
       : (this.deps.createLlm ?? createLlm)(resolved.provider, resolved.apiKey ?? '', resolved.baseUrl)
