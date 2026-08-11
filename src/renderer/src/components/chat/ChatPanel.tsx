@@ -3,6 +3,7 @@ import type { AgentMode, ChatEvent, ChatMessage, Command, ImageAttachment, Quest
 import { appendStreamDelta } from '@shared/text'
 import { contextTokens } from '@shared/usage'
 import ChatInput from './ChatInput'
+import { buildQuestionAnswer } from './questionAnswer'
 import ToolCallCard from './ToolCallCard'
 import MarkdownText from './MarkdownText'
 import SessionBar from './SessionBar'
@@ -526,12 +527,15 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
 
   const submitQuestion = useCallback(() => {
     if (!pendingPrompt || pendingPrompt.promptType !== 'question') return
-    const parts = [...selectedOptions]
-    if (customInput && questionText.trim()) parts.push(questionText.trim())
-    const text = parts.join(', ')
+    const text = buildQuestionAnswer({
+      options: pendingPrompt.options,
+      customInput,
+      questionText,
+      selectedOptions
+    })
     if (!text.trim()) return
     respond(pendingPrompt.promptId, true, text)
-  }, [pendingPrompt, selectedOptions, customInput, questionText, respond])
+  }, [pendingPrompt, customInput, questionText, selectedOptions, respond])
 
   const startCustomInput = useCallback(() => {
     setCustomInput(v => !v)

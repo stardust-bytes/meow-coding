@@ -46,6 +46,39 @@ test('keyboard 1 triggers allow when panel focused', async () => {
   }
 })
 
+async function launchQuestion() {
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  writeFileSync(path.join(userData, 'workspaces.json'), JSON.stringify([{
+    projectPath: project,
+    name: 'E2E',
+    agents: [{ id: 'a1', name: 'meow', templateId: 'meow', cwd: project, kind: 'native' }]
+  }]))
+  const app = await electron.launch({ args: ['.'], env: { ...process.env as Record<string, string>, MEOW_USER_DATA: userData } })
+  const window = await app.firstWindow()
+  await window.locator('.project-row').click()
+  await expect(window.locator('.chat-panel')).toBeVisible()
+  await app.evaluate(async ({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0].webContents.send('chat:event', {
+      type: 'prompt-request', agentId: 'a1', promptId: 'p1', kind: 'question',
+      question: 'Please enter your username:', custom: true
+    })
+  })
+  await expect(window.locator('.chat-prompt')).toBeVisible()
+  return { app, window }
+}
+
+test('text-only question submits the typed answer', async () => {
+  const { app, window } = await launchQuestion()
+  try {
+    await window.locator('.chat-prompt-input').fill('nguyen.vana')
+    await window.locator('.chat-prompt-actions button', { hasText: 'Send' }).click()
+    await expect(window.locator('.chat-prompt')).toHaveCount(0)
+  } finally {
+    await app.close()
+  }
+})
+
 test('prompt spans the pane width', async () => {
   const { app, window } = await launchPrompt()
   try {
