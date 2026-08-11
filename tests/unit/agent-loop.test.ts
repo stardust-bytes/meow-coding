@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { execFileSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -538,17 +539,18 @@ describe('SessionRunner', () => {
     expect(texts).toContain('latest prompt')
   })
 
-  it('attaches AGENTS.md files after the model reads a file in a subdir', async () => {
+  it('returns nearby AGENTS.md via onFileRead and does not inject a user message', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'meow-loop-agents-'))
+    execFileSync('git', ['init', '-q'], { cwd: dir })
     const sub = path.join(dir, 'src')
     mkdirSync(sub)
     writeFileSync(path.join(dir, 'AGENTS.md'), '# Root rules')
     writeFileSync(path.join(sub, 'AGENTS.md'), '# Sub rules')
     writeFileSync(path.join(sub, 'a.ts'), 'x')
     try {
-      const readSpy = vi.fn(async (_input: Record<string, unknown>, ctx: { onFileRead?: (p: string) => void }) => {
-        ctx.onFileRead?.(path.join(sub, 'a.ts'))
-        return { output: 'x' }
+      const readSpy = vi.fn(async (_input: Record<string, unknown>, ctx: { onFileRead?: (p: string) => string }) => {
+        const reminder = ctx.onFileRead?.(path.join(sub, 'a.ts')) ?? ''
+        return { output: 'x' + (reminder ? `\n\n${reminder}` : '') }
       })
       const h = makeHarness({
         cwd: dir,
@@ -564,10 +566,57 @@ describe('SessionRunner', () => {
       ]
       h.runner.run()
       await new Promise(r => setTimeout(r, 20))
-      const attached = h.llm.calls[1]?.messages ?? []
-      const content = attached.map(m => (m.role === 'user' && typeof m.content === 'string' ? m.content : ''))
-      expect(content.join('\n')).toContain('# Root rules')
-      expect(content.join('\n')).toContain('# Sub rules')
+      const outputs = h.items
+        .filter((i): i is { kind: 'tool'; tool: ToolCallData } => i.kind === 'tool')
+        .map(i => i.tool.output ?? '')
+      expect(outputs.join('\n')).toContain('# Root rules')
+      expect(outputs.join('\n')).toContain('# Sub rules')
+      const userTexts = h.items
+        .filter((i): i is { kind: 'message'; message: ChatMessage } => i.kind === 'message' && i.message.role === 'user')
+        .map(i => i.message.text)
+      expect(userTexts.join('\n')).not.toContain('Relevant project instructions')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not re-attach AGENTS.md already attached (cross-message dedupe)', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-loop-agents-'))
+    execFileSync('git', ['init', '-q'], { cwd: dir })
+    const sub = path.join(dir, 'src')
+    mkdirSync(sub)
+    writeFileSync(path.join(dir, 'AGENTS.md'), '# Root rules')
+    writeFileSync(path.join(sub, 'AGENTS.md'), '# Sub rules')
+    writeFileSync(path.join(sub, 'a.ts'), 'x')
+    writeFileSync(path.join(sub, 'b.ts'), 'y')
+    try {
+      const readSpy = vi.fn(async (_input: Record<string, unknown>, ctx: { onFileRead?: (p: string) => string }) => {
+        const f = (_input as { file_path: string }).file_path
+        const full = path.join(sub, f)
+        const reminder = ctx.onFileRead?.(full) ?? ''
+        return { output: f + (reminder ? `\n\n${reminder}` : '') }
+      })
+      const h = makeHarness({
+        cwd: dir,
+        tools: new Map([['read', stubTool('read', readSpy)]])
+      })
+      h.items.push({ kind: 'message', message: { id: 'u1', role: 'user', text: 'read both', createdAt: 1 } })
+      h.llm.queue = [
+        [
+          { kind: 'tool-call', toolCallId: 'tc1', toolName: 'read', toolInput: { file_path: 'src/a.ts' } },
+          { kind: 'tool-call', toolCallId: 'tc2', toolName: 'read', toolInput: { file_path: 'src/b.ts' } },
+          { kind: 'finish' }
+        ],
+        textParts('ok')
+      ]
+      h.runner.run()
+      await new Promise(r => setTimeout(r, 20))
+      const outputs = h.items
+        .filter((i): i is { kind: 'tool'; tool: ToolCallData } => i.kind === 'tool')
+        .map(i => i.tool.output ?? '')
+      const reminders = outputs.filter(o => o.includes('<system-reminder>'))
+      expect(reminders).toHaveLength(1)
+      expect(reminders[0]).toContain('# Sub rules')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -579,10 +628,10 @@ describe('SessionRunner', () => {
     h.llm.queue = [textParts('hello')]
     h.runner.run()
     await new Promise(r => setTimeout(r, 20))
-    const firstMessages = h.llm.calls[0]?.messages ?? []
-    const texts = firstMessages
-      .filter((m): m is { role: 'user'; content: string } => m.role === 'user' && typeof m.content === 'string')
-      .map(m => m.content)
-    expect(texts.join('\n')).not.toContain('Relevant project instructions')
+    const toolOutputs = h.items
+      .filter((i): i is { kind: 'tool'; tool: ToolCallData } => i.kind === 'tool')
+      .map(i => i.tool.output ?? '')
+    expect(toolOutputs.join('\n')).not.toContain('<system-reminder>')
   })
+
 })
