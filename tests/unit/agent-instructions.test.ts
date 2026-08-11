@@ -117,4 +117,13 @@ describe('instructionFilesForFile', () => {
     const files = instructionFilesForFile(path.join(cwd, 'a.ts'))
     expect(files.map(f => path.basename(f.path))).toEqual(['CLAUDE.md', 'AGENTS.md'])
   })
+
+  it('does not attach the instruction file being read itself', () => {
+    execFileSync('git', ['init', '-q'], { cwd: path.join(root, 'repo') })
+    writeFileSync(path.join(root, 'repo', 'AGENTS.md'), '# Repo rules')
+    writeFileSync(path.join(cwd, 'AGENTS.md'), '# Src rules')
+    const files = instructionFilesForFile(path.join(cwd, 'AGENTS.md'))
+    expect(files.map(f => path.basename(f.path))).toEqual(['AGENTS.md'])
+    expect(files[0].path).toBe(path.join(root, 'repo', 'AGENTS.md'))
+  })
 })

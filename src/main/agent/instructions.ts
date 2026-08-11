@@ -64,7 +64,7 @@ export function instructionFilesForFile(filePath: string, skip: ReadonlySet<stri
   const out: InstructionFile[] = []
   const seen = new Set<string>()
   const add = (p: string) => {
-    if (seen.has(p) || skip.has(p)) return
+    if (seen.has(p) || skip.has(p) || p === filePath) return
     seen.add(p)
     if (existsSync(p)) out.push({ path: p, content: readFileSync(p, 'utf-8') })
   }
