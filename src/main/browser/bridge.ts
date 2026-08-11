@@ -198,6 +198,7 @@ export class BrowserBridge {
       if (msg.type === 'pair') this.handlePair(ws, msg.code)
       else if (msg.type === 'result') this.handleResult(msg.id, msg)
       else if (msg.type === 'event') this.handleEvent(msg.name, msg.data)
+      else if (msg.type === 'ping') ws.send(JSON.stringify({ type: 'pong' }))
     })
 
     ws.on('close', () => {

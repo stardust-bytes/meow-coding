@@ -56,9 +56,11 @@ export interface PairingInfo {
 
 export interface PairMessage { type: 'pair'; code: string }
 export interface PairResultMessage { type: 'pair_result'; ok: boolean; error?: string }
+export interface PingMessage { type: 'ping' }
+export interface PongMessage { type: 'pong' }
 export interface CmdMessage extends BrowserCommand { type: 'cmd' }
 export type ResultMessage = { type: 'result'; id: string } & BrowserCommandResult
 export interface EventMessage extends BrowserEvent { type: 'event' }
 
-export type ExtensionToBridge = PairMessage | ResultMessage | EventMessage
-export type BridgeToExtension = PairResultMessage | CmdMessage | { type: 'pong' }
+export type ExtensionToBridge = PairMessage | ResultMessage | EventMessage | PingMessage
+export type BridgeToExtension = PairResultMessage | CmdMessage | PongMessage

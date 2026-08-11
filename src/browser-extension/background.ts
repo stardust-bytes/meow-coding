@@ -5,6 +5,8 @@ import type { AxFrameBundle, AxNodeLike } from './ax-snapshot'
 
 const DEFAULT_PORT = 3927
 const STORAGE_KEY = 'meowBridge'
+const HEARTBEAT_MS = 20_000
+const ALARM_NAME = 'meow-bridge-keepalive'
 
 interface StoredState {
   port?: number
@@ -47,6 +49,11 @@ async function loadState(): Promise<StoredState> {
 
 function broadcastStatus(): void {
   void chrome.runtime.sendMessage({ kind: 'status', paired, connected: ws?.readyState === WebSocket.OPEN }).catch(() => {})
+}
+
+function sendHeartbeat(): void {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return
+  ws.send(JSON.stringify({ type: 'ping' } satisfies ExtensionToBridge))
 }
 
 async function detectPort(): Promise<number> {
@@ -525,6 +532,16 @@ chrome.debugger.onDetach.addListener((source) => {
     snapshot = null
     void debugSession.close()
   }
+})
+
+// Chrome terminates an idle MV3 service worker after ~30s, which also drops the WS.
+// The heartbeat resets the idle timer (Chrome 116+ resets it on WS message traffic);
+// the alarm is a guaranteed wake-up that auto-reconnects even after SW termination.
+setInterval(sendHeartbeat, HEARTBEAT_MS)
+void chrome.alarms.create(ALARM_NAME, { periodInMinutes: 0.5 }).catch(() => {})
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name !== ALARM_NAME) return
+  if (ws?.readyState !== WebSocket.OPEN) connect()
 })
 
 connect()

@@ -190,6 +190,15 @@ describe('BrowserBridge', () => {
     expect(await nextMsg(ws1)).toMatchObject({ type: 'pair_result', ok: false })
   })
 
+  it('replies pong to a heartbeat ping from the extension', async () => {
+    const b = newBridge()
+    const port = await b.start()
+    const ws = await connect(port)
+
+    ws.send(JSON.stringify({ type: 'ping' }))
+    expect(await nextMsg(ws)).toMatchObject({ type: 'pong' })
+  })
+
   it('notifies status listeners on pair', async () => {
     const b = newBridge()
     const port = await b.start()
