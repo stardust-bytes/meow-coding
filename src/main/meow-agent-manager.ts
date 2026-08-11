@@ -693,7 +693,8 @@ export class MeowAgentManager {
     const skills = collectSkills(agent.cwd, this.deps.userSkillsDir, this.deps.builtinSkillsDir)
     // AGENTS.md/CLAUDE.md walking up from cwd are inlined into the system
     // prompt (opencode-style); module-level ones attach on read via loop.ts.
-    const instructions = instructionsText(loadInstructions(agent.cwd))
+    const instructionFiles = loadInstructions(agent.cwd)
+    const instructions = instructionsText(instructionFiles)
     const llmClient = resolved.provider === CHATGPT_WEB_PROVIDER_ID
       ? (this.deps.createChatGptWebLlmClient ?? defaultCreateChatGptWebLlmClient)(this.deps.chatGptWeb as ChatGptWebManager)
       : (this.deps.createLlm ?? createLlm)(resolved.provider, resolved.apiKey ?? '', resolved.baseUrl)
@@ -745,6 +746,7 @@ export class MeowAgentManager {
       agentId: agent.id,
       model: resolved.model,
       system: resolved.systemPrompt + modeNote + instructions + skillListText(skills),
+      systemInstructionPaths: new Set(instructionFiles.map(f => f.path)),
       cwd: agent.cwd,
       llm: llmClient,
       tools: runnerTools,
