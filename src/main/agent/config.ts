@@ -88,7 +88,9 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
         'bash, read, write, edit, glob, grep, apply-patch and todowrite. Read files before ' +
         'editing them, run tests after changes, and keep answers concise. Whenever you need ' +
         'input or a decision from the user, use the question tool to show an interactive form ' +
-        'instead of writing questions as plain text.'
+        'instead of writing questions as plain text. ' +
+        'Use the available search tools to understand the codebase and the user\'s query. ' +
+        'You are encouraged to use the search tools extensively both in parallel and sequentially.'
     }
   },
   permission: {
