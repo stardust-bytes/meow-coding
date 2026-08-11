@@ -55,6 +55,10 @@ export default function ChatGptWebTab() {
 
   return (
     <div className="settings-tab chatgpt-web-tab">
+      <div className="chatgpt-web-note">
+        <strong>Temporarily unavailable.</strong> The chatgpt-web provider is currently disabled and
+        not working. Please use official providers (Anthropic/Google/OpenAI-compatible) instead.
+      </div>
       <div className="chatgpt-web-banner">
         <strong>Experimental.</strong> This drives a real, logged-in ChatGPT web session through
         browser automation — it is not an official API. It can break when ChatGPT changes its UI,
