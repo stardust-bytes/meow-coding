@@ -21,7 +21,6 @@ export const editTool: ToolDefinition = {
     }
     const full = resolveCwd(ctx.cwd, file_path)
     if (!existsSync(full)) return { error: `edit: file not found: ${file_path}` }
-    ctx.onFileRead?.(full)
     const content = readFileSync(full, 'utf-8')
     const matches = content.split(old_string).length - 1
     if (matches === 0) return { error: 'edit: old_string not found in file' }

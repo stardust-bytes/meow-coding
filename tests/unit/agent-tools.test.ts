@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -62,6 +62,25 @@ describe('read', () => {
     expect(r.output).toContain('truncated')
     expect(r.output!.length).toBeLessThan(25000)
   })
+
+  it('appends the instruction reminder returned by onFileRead', async () => {
+    writeFileSync(path.join(dir, 'f.txt'), 'x\n')
+    const rctx: ToolContext = {
+      ...ctx,
+      onFileRead: () => '<system-reminder>\nInstructions from: /x/AGENTS.md\nrules\n</system-reminder>'
+    }
+    const r = await readTool.run({ file_path: 'f.txt' }, rctx)
+    expect(r.output).toContain('<system-reminder>')
+    expect(r.output).toContain('Instructions from: /x/AGENTS.md')
+    expect(r.output).toContain('rules')
+  })
+
+  it('does not append a reminder when onFileRead returns empty', async () => {
+    writeFileSync(path.join(dir, 'f.txt'), 'x\n')
+    const rctx: ToolContext = { ...ctx, onFileRead: () => '' }
+    const r = await readTool.run({ file_path: 'f.txt' }, rctx)
+    expect(r.output).toBe('x\n')
+  })
 })
 
 describe('edit', () => {
@@ -79,6 +98,15 @@ describe('edit', () => {
     writeFileSync(path.join(dir, 'f.txt'), 'dup\ndup\n')
     const r = await editTool.run({ file_path: 'f.txt', old_string: 'dup', new_string: 'y' }, ctx)
     expect(r.error).toMatch(/matched 2 times/)
+  })
+
+  it('does not call onFileRead', async () => {
+    writeFileSync(path.join(dir, 'f.txt'), 'a\nb\n')
+    const onFileRead = vi.fn()
+    const rctx: ToolContext = { ...ctx, onFileRead }
+    const r = await editTool.run({ file_path: 'f.txt', old_string: 'b', new_string: 'B' }, rctx)
+    expect(r.output).toContain('edited')
+    expect(onFileRead).not.toHaveBeenCalled()
   })
 })
 

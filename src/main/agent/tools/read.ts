@@ -25,7 +25,7 @@ export const readTool: ToolDefinition = {
     const full = resolveCwd(ctx.cwd, file_path)
     if (!existsSync(full)) return { error: `read: file not found: ${file_path}` }
     if (!statSync(full).isFile()) return { error: `read: not a file: ${file_path}` }
-    ctx.onFileRead?.(full)
+    const reminder = ctx.onFileRead?.(full) ?? ''
     const lines = readFileSync(full, 'utf-8').split('\n')
     const slice = lines.slice(offset, offset + limit)
     let out = slice.join('\n')
@@ -37,6 +37,7 @@ export const readTool: ToolDefinition = {
     if (out.length > MAX_CHARS) {
       out = out.slice(0, MAX_CHARS) + '\n[output truncated — use offset/limit to page]\n'
     }
+    if (reminder) out += `\n\n${reminder}`
     return { output: out }
   }
 }
