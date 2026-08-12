@@ -400,11 +400,21 @@ async function handleCommand(msg: Extract<BridgeToExtension, { type: 'cmd' }>): 
         return
       }
       case 'navigate': {
-        const tabId = params.tabId != null ? Number(params.tabId) : (await defaultTabId())
-        if (tabId == null) { send({ ok: false, error: 'no target tab' }); return }
-        await chrome.tabs.update(tabId, { url: String(params.url) })
-        persistWorkingTab(tabId)
-        send({ ok: true, data: { url: params.url } })
+        const url = String(params.url ?? '')
+        const windowId = await lastFocusedWindowId()
+        const tab = windowId != null
+          ? await chrome.tabs.create({ url, windowId, active: false })
+          : await chrome.tabs.create({ url })
+        persistWorkingTab(tab.id ?? null)
+        let group: { groupId?: number; groupTitle?: string } = {}
+        if (tab.id != null) {
+          try {
+            group = await addToMeowGroup(tab.id)
+          } catch {
+            /* group creation failed; the tab itself is still open */
+          }
+        }
+        send({ ok: true, data: { id: tab.id, tabId: tab.id, url: tab.url, ...group } })
         return
       }
       case 'screenshot': {
