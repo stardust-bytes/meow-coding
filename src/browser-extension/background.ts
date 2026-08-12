@@ -200,10 +200,8 @@ function addToMeowGroup(tabId: number): Promise<{ groupId?: number; groupTitle?:
 }
 
 async function defaultTabId(): Promise<number | undefined> {
-  // Prefer the tab the user is looking at; a stale "working" background tab can be
-  // discarded/blank and makes read/wait/scroll return empty results.
-  const active = await activeTabId()
-  if (active != null) return active
+  // Prefer the agent's working tab so default actions never hijack the tab the
+  // user is looking at; fall back to the active tab only when no working tab.
   if (workingTabId != null) {
     try {
       const t = await chrome.tabs.get(workingTabId)
@@ -212,7 +210,7 @@ async function defaultTabId(): Promise<number | undefined> {
       workingTabId = null
     }
   }
-  return undefined
+  return activeTabId()
 }
 
 async function sendToTab(tabId: number, name: string, params: Record<string, unknown>): Promise<{ ok: boolean; data?: unknown; error?: string }> {
