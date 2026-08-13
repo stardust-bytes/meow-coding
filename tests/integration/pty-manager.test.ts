@@ -111,7 +111,7 @@ describe('PtyManager', () => {
   it('emits exit when stopped and removes the session', async () => {
     const pty = new PtyManager()
     managers.push(pty)
-    const exited: { agentId: string; exitCode: number }[] = []
+    const exited: { agentId: string; exitCode: number; kind?: 'agent' | 'terminal' }[] = []
     pty.on('exit', e => exited.push(e))
 
     pty.start('a1', 'echo', process.execPath, [FIXTURE], process.cwd())
@@ -129,6 +129,7 @@ describe('PtyManager', () => {
       check()
     })
     expect(exited[0].agentId).toBe('a1')
+    expect(exited[0].kind).toBe('agent')
     expect(pty.isRunning('a1')).toBe(false)
   })
 
@@ -170,6 +171,35 @@ describe('PtyManager', () => {
     await pty.stop(id)
     expect(pty.isRunning(id)).toBe(false)
     expect(pty.isTerminal(id)).toBe(false)
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('terminal exit events carry kind: terminal', async () => {
+    const pty = new PtyManager()
+    managers.push(pty)
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-term-exit-'))
+    const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh'
+    const id = 'term-exit-1'
+    const exited: { agentId: string; exitCode: number; kind?: 'agent' | 'terminal' }[] = []
+    pty.on('exit', e => exited.push(e))
+
+    pty.startTerminal(id, shell, dir)
+    await pty.stop(id)
+    await new Promise<void>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('timeout waiting exit')), 10000)
+      const check = () => {
+        if (exited.length > 0) {
+          clearTimeout(t)
+          resolve()
+        } else {
+          setTimeout(check, 50)
+        }
+      }
+      check()
+    })
+    expect(exited[0].agentId).toBe(id)
+    expect(exited[0].kind).toBe('terminal')
+    expect(pty.isRunning(id)).toBe(false)
     rmSync(dir, { recursive: true, force: true })
   })
 

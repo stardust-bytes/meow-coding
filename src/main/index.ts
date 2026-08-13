@@ -125,8 +125,8 @@ class MainApp {
       this.setState(agentId, { status: 'running', lastOutputAt: Date.now() })
       win?.webContents.send(Channels.EventPtyData, { agentId, data })
     })
-    this.pty.on('exit', ({ agentId, exitCode }) => {
-      if (this.pty.isTerminal(agentId)) {
+    this.pty.on('exit', ({ agentId, exitCode, kind }) => {
+      if (kind === 'terminal') {
         win?.webContents.send(Channels.EventTerminalExit, { id: agentId, exitCode })
         return
       }

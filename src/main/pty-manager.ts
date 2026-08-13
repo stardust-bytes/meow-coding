@@ -82,7 +82,7 @@ export class PtyManager extends EventEmitter {
     proc.onExit(({ exitCode }) => {
       if (this.sessions.get(id) !== session) return
       this.sessions.delete(id)
-      this.emit('exit', { agentId: id, exitCode })
+      this.emit('exit', { agentId: id, exitCode, kind: session.kind })
     })
     return session
   }
@@ -112,7 +112,7 @@ export class PtyManager extends EventEmitter {
     return new Promise<void>(resolve => {
       let settled = false
       let timer: NodeJS.Timeout | null = null
-      const onExit = (e: { agentId: string }) => {
+      const onExit = (e: { agentId: string; kind?: 'agent' | 'terminal' }) => {
         if (e.agentId === agentId) done()
       }
       const done = () => {
