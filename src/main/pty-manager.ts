@@ -130,8 +130,13 @@ export class PtyManager extends EventEmitter {
         } catch {
           /* already dead */
         }
+        // Force-kill fallback: the process ignored SIGTERM (interactive shells
+        // on POSIX) so the pty has not exited yet. Remove the session and emit
+        // a synthetic exit now; the real onExit will no-op via the session
+        // guard. Without this, callers waiting on the exit event would hang.
         this.sessions.delete(agentId)
         done()
+        this.emit('exit', { agentId, exitCode: 0, kind: s.kind })
       }, 3000)
       this.killProcess(s)
     })
