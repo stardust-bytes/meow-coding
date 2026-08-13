@@ -8,6 +8,7 @@ interface Props {
   zoomed: boolean
   background?: boolean
   native?: boolean
+  isTerminal?: boolean
   active?: boolean
   onZoom: () => void
   onStop: () => void
@@ -34,7 +35,7 @@ function MoreIcon() {
 }
 
 export default function PaneHeader({
-  name, state, git, zoomed, background = false, native = false, active = false,
+  name, state, git, zoomed, background = false, native = false, isTerminal = false, active = false,
   onZoom, onStop, onRestart, onInject, onOpenLog, onToggleBackground, onRemove
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -102,25 +103,36 @@ export default function PaneHeader({
           </button>
           {menuOpen && (
             <div className="sidebar-menu-dropdown pane-menu-dropdown">
-              {!native && (
+              {isTerminal ? (
                 <>
-                  <button className="menu-item" onClick={() => { close(); setInjecting(v => !v) }}>Inject</button>
-                  <button className="menu-item" onClick={() => { close(); onOpenLog() }}>Log</button>
-                  <button className="menu-item" onClick={() => { close(); onStop() }}>Stop</button>
                   <button className="menu-item" onClick={() => { close(); onZoom() }}>
                     {zoomed ? 'Exit zoom' : 'Zoom'}
                   </button>
+                  <button className="menu-item danger" onClick={() => { close(); onRemove() }}>Close terminal</button>
+                </>
+              ) : (
+                <>
+                  {!native && (
+                    <>
+                      <button className="menu-item" onClick={() => { close(); setInjecting(v => !v) }}>Inject</button>
+                      <button className="menu-item" onClick={() => { close(); onOpenLog() }}>Log</button>
+                      <button className="menu-item" onClick={() => { close(); onStop() }}>Stop</button>
+                      <button className="menu-item" onClick={() => { close(); onZoom() }}>
+                        {zoomed ? 'Exit zoom' : 'Zoom'}
+                      </button>
+                    </>
+                  )}
+                  <button className="menu-item" onClick={() => { close(); onRestart() }}>
+                    {native ? 'New session' : 'Restart'}
+                  </button>
+                  {onToggleBackground && (
+                    <button className="menu-item" onClick={() => { close(); onToggleBackground() }}>
+                      {background ? 'Open pane' : 'Run in background'}
+                    </button>
+                  )}
+                  <button className="menu-item danger" onClick={() => { close(); onRemove() }}>Delete agent</button>
                 </>
               )}
-              <button className="menu-item" onClick={() => { close(); onRestart() }}>
-                {native ? 'New session' : 'Restart'}
-              </button>
-              {onToggleBackground && (
-                <button className="menu-item" onClick={() => { close(); onToggleBackground() }}>
-                  {background ? 'Open pane' : 'Run in background'}
-                </button>
-              )}
-              <button className="menu-item danger" onClick={() => { close(); onRemove() }}>Delete agent</button>
             </div>
           )}
         </div>

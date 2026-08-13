@@ -208,6 +208,7 @@ export default function App() {
               <PaneGrid
                 panes={panes}
                 backgrounds={backgrounds}
+                isTerminal={id => terminals.some(t => t.id === id)}
                 onRemove={handleRemovePane}
                 onRegisterTerminal={registerTerminal}
                 onUnregisterTerminal={unregisterTerminal}

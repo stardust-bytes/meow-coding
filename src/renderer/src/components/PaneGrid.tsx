@@ -6,12 +6,13 @@ import Pane from './Pane'
 interface Props {
   panes: PaneModel[]
   backgrounds: Record<string, boolean>
+  isTerminal: (id: string) => boolean
   onRemove: (agentId: string) => void
   onRegisterTerminal: (agentId: string, term: Terminal) => void
   onUnregisterTerminal: (agentId: string) => void
 }
 
-export default function PaneGrid({ panes, backgrounds, onRemove, onRegisterTerminal, onUnregisterTerminal }: Props) {
+export default function PaneGrid({ panes, backgrounds, isTerminal, onRemove, onRegisterTerminal, onUnregisterTerminal }: Props) {
   const [zoomedId, setZoomedId] = useState<string | null>(null)
   const [focusedId, setFocusedId] = useState<string | null>(null)
 
@@ -36,6 +37,7 @@ export default function PaneGrid({ panes, backgrounds, onRemove, onRegisterTermi
           key={pane.agent.id}
           pane={pane}
           background={Boolean(backgrounds[pane.agent.id])}
+          isTerminal={isTerminal(pane.agent.id)}
           zoomed={pane.agent.id === zoomedId}
           active={pane.agent.id === activeId}
           onFocus={() => setFocusedId(pane.agent.id)}
