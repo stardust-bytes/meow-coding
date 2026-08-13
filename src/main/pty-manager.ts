@@ -8,6 +8,7 @@ export interface PtySession {
   cwd: string
   process: pty.IPty
   pid: number
+  kind?: 'agent' | 'terminal' // default 'agent'
 }
 
 export interface SpawnCommand {
@@ -39,24 +40,49 @@ export class PtyManager extends EventEmitter {
     if (this.sessions.has(agentId)) throw new Error(`Agent already running: ${agentId}`)
     if (this.stopping.has(agentId)) throw new Error(`Agent is stopping: ${agentId}`)
     const resolved = buildSpawnCommand(command, args)
-    const proc = pty.spawn(resolved.command, resolved.args, {
+    return this.spawnSession(agentId, name, resolved.command, resolved.args, cwd, 'agent')
+  }
+
+  startTerminal(id: string, shell: string, cwd: string): PtySession {
+    if (this.sessions.has(id)) throw new Error(`Terminal already running: ${id}`)
+    if (this.stopping.has(id)) throw new Error(`Terminal is stopping: ${id}`)
+    return this.spawnSession(id, 'terminal', shell, [], cwd, 'terminal')
+  }
+
+  isTerminal(id: string): boolean {
+    return this.sessions.get(id)?.kind === 'terminal'
+  }
+
+  terminalIds(): string[] {
+    return [...this.sessions.values()].filter(s => s.kind === 'terminal').map(s => s.agentId)
+  }
+
+  private spawnSession(
+    id: string,
+    name: string,
+    command: string,
+    args: string[],
+    cwd: string,
+    kind: 'agent' | 'terminal'
+  ): PtySession {
+    const proc = pty.spawn(command, args, {
       name: 'xterm-256color',
       cols: 100,
       rows: 30,
       cwd,
       env: { ...process.env } as Record<string, string>
     })
-    const session: PtySession = { agentId, name, cwd, process: proc, pid: proc.pid }
-    this.sessions.set(agentId, session)
+    const session: PtySession = { agentId: id, name, cwd, process: proc, pid: proc.pid, kind }
+    this.sessions.set(id, session)
 
     proc.onData(data => {
       if (!session.pid) session.pid = proc.pid
-      this.emit('data', { agentId, data })
+      this.emit('data', { agentId: id, data })
     })
     proc.onExit(({ exitCode }) => {
-      if (this.sessions.get(agentId) !== session) return
-      this.sessions.delete(agentId)
-      this.emit('exit', { agentId, exitCode })
+      if (this.sessions.get(id) !== session) return
+      this.sessions.delete(id)
+      this.emit('exit', { agentId: id, exitCode })
     })
     return session
   }
