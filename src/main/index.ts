@@ -1,11 +1,13 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { createJsonStore } from './json-store'
 import { TemplateManager } from './template-manager'
 import { DEFAULT_TEMPLATES } from './default-templates'
 import { WorkspaceStore } from './workspace-store'
 import { PtyManager } from './pty-manager'
+import { resolveShell } from './terminal-shell'
 import { LogManager } from './log-manager'
 import { GitStatusService } from './git-status-service'
 import { AlertService } from './alert-service'
@@ -28,7 +30,7 @@ import { ChatGptWebManager } from './chatgpt-web/manager'
 import { BrowserBridge } from './browser/bridge'
 import { createChromeLauncher, ensureExtensionInstalled } from './browser/chrome-launcher'
 import { Channels } from '../shared/ipc'
-import type { AgentState, Command, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, Workspace, WorkspaceRuntime } from '../shared/types'
+import type { AgentState, Command, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, TerminalInfo, Workspace, WorkspaceRuntime } from '../shared/types'
 
 let win: BrowserWindow | null = null
 
@@ -114,12 +116,20 @@ class MainApp {
 
   constructor() {
     this.pty.on('data', ({ agentId, data }) => {
+      if (this.pty.isTerminal(agentId)) {
+        win?.webContents.send(Channels.EventPtyData, { agentId, data })
+        return
+      }
       this.logs.append(agentId, data)
       this.alerts.onOutput(agentId)
       this.setState(agentId, { status: 'running', lastOutputAt: Date.now() })
       win?.webContents.send(Channels.EventPtyData, { agentId, data })
     })
     this.pty.on('exit', ({ agentId, exitCode }) => {
+      if (this.pty.isTerminal(agentId)) {
+        win?.webContents.send(Channels.EventTerminalExit, { id: agentId, exitCode })
+        return
+      }
       const code = exitCode ?? -1
       if (code !== 0 && !this.logs.exists(agentId)) {
         const ws = this.findWorkspaceByAgent(agentId)
@@ -227,7 +237,23 @@ class MainApp {
     await this.startAgent(agentId)
   }
 
+  async openTerminal(cwd: string): Promise<TerminalInfo> {
+    const id = `term-${randomUUID()}`
+    const name = path.basename(cwd) || cwd
+    this.pty.startTerminal(id, resolveShell(), cwd)
+    return { id, cwd, name, status: 'running' }
+  }
+
+  async closeTerminal(id: string): Promise<void> {
+    await this.pty.stop(id)
+  }
+
+  closeAllTerminals(): void {
+    for (const id of this.pty.terminalIds()) void this.pty.stop(id)
+  }
+
   async openWorkspace(projectPath: string): Promise<WorkspaceRuntime> {
+    this.closeAllTerminals()
     const ws = this.workspaces.get(projectPath)
     if (!ws) throw new Error(`Workspace not found: ${projectPath}`)
     this.activeProject = projectPath
@@ -320,6 +346,7 @@ class MainApp {
     this.watcher = null
     this.meowAgent.stopAll()
     this.activeProject = null
+    this.closeAllTerminals()
     this.states.clear()
     this.alerts.clearAll()
   }
@@ -407,6 +434,13 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(Channels.ProjectOpenInEditor, (_e, projectPath: string) =>
     openInEditor(projectPath))
+
+  ipcMain.handle(Channels.ProjectOpenFolder, async (_e, projectPath: string) => {
+    const err = await shell.openPath(projectPath)
+    if (err) console.error('[meow] open folder failed:', err)
+  })
+  ipcMain.handle(Channels.TerminalOpen, (_e, cwd: string) => mainApp.openTerminal(cwd))
+  ipcMain.handle(Channels.TerminalClose, (_e, id: string) => mainApp.closeTerminal(id))
 
   ipcMain.handle(Channels.AgentAdd, async (_e, projectPath: string, input: NewAgentInput) => {
     const tmpl = mainApp.templates.list().find(t => t.id === input.templateId)
