@@ -200,7 +200,7 @@ export default function App() {
           onOpen={openWorkspace}
           onRemove={removeWorkspace}
           onRefresh={refreshWorkspaces}
-          // TODO(task-7): pass onOpenTerminal={addTerminal} once Sidebar declares the prop
+          onOpenTerminal={addTerminal}
         />
         <main className="main">
           {panes.length > 0 ? (
