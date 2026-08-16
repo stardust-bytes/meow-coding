@@ -17,8 +17,14 @@ const MAX_OUTPUT = 1024 * 1024
 // command, so the real process tree is bash.exe -> bash.exe -> command,
 // not bash.exe -> command. tree-kill's single taskkill /t snapshot can
 // miss the innermost command if it fires before that re-exec settles.
-// Waiting this long (from spawn time) before killing ensures the full
-// tree has formed. Empirically the re-exec settles within ~500ms.
+// Waiting this long (from spawn time) before killing gives the tree time
+// to form. This is a heuristic, not a guarantee: bash -lc is a login
+// shell that sources the user's profile (~/.bash_profile, /etc/profile),
+// so a heavy profile (nvm/conda/pyenv init, etc.) can push formation
+// past this window on some machines, leaving a residual — smaller than
+// before this fix, but non-zero — orphan risk. 600ms covers normal
+// profile load comfortably without adding perceptible Stop latency,
+// since it's measured from spawn time, not from when Stop was pressed.
 const WINDOWS_KILL_GRACE_MS = 600
 
 export const bashTool: ToolDefinition = {
@@ -68,13 +74,13 @@ export const bashTool: ToolDefinition = {
           ? WINDOWS_KILL_GRACE_MS - (Date.now() - spawnedAt)
           : 0
         const doKill = () => {
-          if (child.pid) {
-            try {
-              kill(child.pid, onDone)
-            } catch {
-              onDone()
-            }
-          } else {
+          if (!child.pid || child.exitCode !== null || child.signalCode !== null) {
+            onDone()
+            return
+          }
+          try {
+            kill(child.pid, onDone)
+          } catch {
             onDone()
           }
         }
