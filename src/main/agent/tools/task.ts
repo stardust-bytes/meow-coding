@@ -58,7 +58,6 @@ export function createTaskTool(opts: {
   llm: LlmClient
   model: string
   tools: Map<string, ToolDefinition>
-  parentTaskId?: string
   // Called when a background subagent finishes so the manager can append the
   // result into the main transcript.
   onBackgroundResult?: (id: string, text: string, error?: string) => void
@@ -81,6 +80,7 @@ export function createTaskTool(opts: {
     }
     const runner = new SessionRunner({
       agentId: `sub-${input.subagent_type}-${id}`,
+      taskId: id,
       model: opts.model,
       system: cfg.system,
       cwd: ctx.cwd,
@@ -92,19 +92,19 @@ export function createTaskTool(opts: {
       maxSteps: 20,
       onEvent: (e) => {
         if (e.type === 'text-delta') {
-          ctx.emitSubagent?.(id, { sub: 'delta', text: e.delta, parentTaskId: opts.parentTaskId })
+          ctx.emitSubagent?.(id, { sub: 'delta', text: e.delta, parentTaskId: ctx.taskId })
         } else if (e.type === 'reasoning-delta') {
-          ctx.emitSubagent?.(id, { sub: 'delta', reasoning: e.delta, parentTaskId: opts.parentTaskId })
+          ctx.emitSubagent?.(id, { sub: 'delta', reasoning: e.delta, parentTaskId: ctx.taskId })
         } else if (e.type === 'tool-start' || e.type === 'tool-result') {
-          ctx.emitSubagent?.(id, { sub: 'tool', tool: e.call.tool, parentTaskId: opts.parentTaskId })
+          ctx.emitSubagent?.(id, { sub: 'tool', tool: e.call.tool, parentTaskId: ctx.taskId })
         } else if (e.type === 'done') {
           ctx.emitSubagent?.(id, {
             sub: 'done',
             state: e.reason === 'stopped' ? 'cancelled' : 'completed',
-            parentTaskId: opts.parentTaskId
+            parentTaskId: ctx.taskId
           })
         } else if (e.type === 'error') {
-          ctx.emitSubagent?.(id, { sub: 'done', state: 'error', parentTaskId: opts.parentTaskId })
+          ctx.emitSubagent?.(id, { sub: 'done', state: 'error', parentTaskId: ctx.taskId })
         }
       },
       getItems: () => items,

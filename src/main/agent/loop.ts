@@ -16,6 +16,7 @@ import type { SnapshotStore } from './snapshot'
 
 export interface LoopDeps {
   agentId: string
+  taskId?: string
   turn?: number
   model: string
   system: string
@@ -218,6 +219,7 @@ export class SessionRunner {
           cwd: this.deps.cwd,
           signal,
           agentId: this.deps.agentId,
+          taskId: this.deps.taskId,
           turn: this.deps.turn,
           snapshots: this.deps.snapshots,
           diagnostics: this.deps.diagnostics,

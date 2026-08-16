@@ -125,17 +125,16 @@ describe('task subagent configs', () => {
     expect(subagentRunners[0].turn).toBe(7)
   })
 
-  it('emits subagent events with parentTaskId when the tool was given one', async () => {
+  it('emits subagent events with parentTaskId from the parent task context', async () => {
     const events: Array<{ taskId: string } & SubagentToolEvent> = []
     const tool = createTaskTool({
       llm: stubLlm([[{ kind: 'text', text: 'ok' }, { kind: 'finish' }]]),
       model: 'm',
-      tools: createDefaultTools(),
-      parentTaskId: 'parent-1'
+      tools: createDefaultTools()
     })
     await tool.run(
       { description: 'explore', prompt: 'go', subagent_type: 'general' },
-      { ...ctx, emitSubagent: (taskId, e) => events.push({ taskId, ...e }) }
+      { ...ctx, taskId: 'parent-1', emitSubagent: (taskId, e) => events.push({ taskId, ...e }) }
     )
     expect(events.length).toBeGreaterThan(0)
     const delta = events.find(e => e.sub === 'delta')
