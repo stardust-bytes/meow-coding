@@ -36,10 +36,21 @@ implementation, and `.github/workflows/build.yml` for how CI invokes it.
 3. **Create an Azure AD App Registration** for GitHub OIDC login (no
    client secret needed):
    - Azure Portal → "App registrations" → New registration.
+   - `.github/workflows/build.yml` only runs on `v*` tag pushes (see its
+     `on: push: tags: ['v*']` trigger), never on branch pushes. On a tag
+     push, GitHub's OIDC token subject is
+     `repo:stardust-bytes/meow-coding:ref:refs/tags/v1.2.3`, so the
+     federated credential you create here **must be tag-scoped**, not
+     branch-scoped — a "Branch" entity type will never match and every
+     release will fail at the `azure/login` step with an opaque
+     `AADSTS700213` error.
    - Under "Certificates & secrets" → "Federated credentials", add one
-     for GitHub Actions: entity type "Branch", org `stardust-bytes`,
-     repo `meow-coding`, branch matching your release trigger (e.g. the
-     branch tags are cut from).
+     for GitHub Actions: entity type "Tag", org `stardust-bytes`, repo
+     `meow-coding`, tag pattern `v*`. If the Azure Portal UI you see
+     doesn't offer a simple "Tag" entity type with wildcard support, use
+     the "Other issuer" / custom option and set the subject identifier
+     expression directly instead:
+     `claims['sub'] matches 'repo:stardust-bytes/meow-coding:ref:refs/tags/v*'`.
    - Grant this app "Trusted Signing Certificate Profile Signer" role on
      the certificate profile from step 2.
 4. **Add these repo secrets** (Settings → Secrets and variables →
