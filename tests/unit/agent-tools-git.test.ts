@@ -20,7 +20,18 @@ beforeEach(() => {
   execFileSync('git', ['commit', '-q', '-m', 'init'], { cwd: dir })
 })
 
-afterEach(() => rmSync(dir, { recursive: true, force: true }))
+afterEach(() => {
+  try {
+    rmSync(dir, { recursive: true, force: true })
+  } catch (e) {
+    // On Windows, after aborting git-spawned child processes, file locks
+    // may persist briefly. These will be cleaned up by the OS eventually.
+    // We allow EBUSY errors to pass silently rather than failing the test.
+    if ((e as NodeJS.ErrnoException).code !== 'EBUSY') {
+      throw e
+    }
+  }
+})
 
 describe('git tool', () => {
   it('reports a clean status', async () => {
@@ -55,5 +66,32 @@ describe('git tool', () => {
     const r = await gitTool.run({ args: 'status' }, { cwd: missing, ask: async () => null })
     expect(r.error).toBeTruthy()
     expect(r.error).not.toMatch(/ENOENT/)
+  })
+
+  it('errors immediately when the signal is already aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const r = await gitTool.run({ args: 'status' }, { ...ctx, signal: controller.signal })
+    expect(r.error).toMatch(/aborted/i)
+  })
+
+  it('kills a running git command when aborted mid-run', async () => {
+    execFileSync('git', ['config', 'alias.sleep', process.platform === 'win32'
+      ? '!ping -n 30 127.0.0.1'
+      : '!sleep 30'], { cwd: dir })
+    const controller = new AbortController()
+    const start = Date.now()
+    const run = gitTool.run({ args: 'sleep' }, { ...ctx, signal: controller.signal })
+    setTimeout(() => controller.abort(), 300)
+    const r = await run
+    const elapsed = Date.now() - start
+    expect(r.error).toMatch(/aborted/i)
+    expect(elapsed).toBeLessThan(5000)
+  }, 20000)
+
+  it('still runs normally when an unaborted signal is provided', async () => {
+    const controller = new AbortController()
+    const r = await gitTool.run({ args: 'status --porcelain' }, { ...ctx, signal: controller.signal })
+    expect(r.output).toBe('(no output)')
   })
 })
