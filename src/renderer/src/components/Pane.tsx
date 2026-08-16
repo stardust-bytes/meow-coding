@@ -1,9 +1,10 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import type { PaneModel } from '../App'
 import XtermHost from './XtermHost'
 import PaneHeader from './PaneHeader'
 import ChatPanel from './chat/ChatPanel'
+import TracePanel from './trace/TracePanel'
 
 interface Props {
   pane: PaneModel
@@ -24,6 +25,8 @@ export default function Pane({
   const id = pane.agent.id
   const write = (data: string) => void window.api.writeInput(id, data)
   const native = pane.agent.kind === 'native'
+  const [tab, setTab] = useState<'chat' | 'trace'>('chat')
+  useEffect(() => setTab('chat'), [id])
   // Stable callbacks so App-level re-renders (git poll, agent state) don't
   // cascade past the memoized ChatPanel into the chat feed.
   const handleStop = useCallback(() => {
@@ -52,6 +55,8 @@ export default function Pane({
         zoomed={zoomed}
         background={background}
         native={native}
+        activeTab={tab}
+        onTabChange={setTab}
         isTerminal={isTerminal}
         active={active}
         onZoom={onZoom}
@@ -71,14 +76,18 @@ export default function Pane({
       ) : null}
       <div className="pane-body">
         {native ? (
-          <ChatPanel
-            agentId={id}
-            cwd={pane.agent.cwd}
-            mode={pane.agent.mode ?? 'build'}
-            variant={pane.agent.variant}
-            onModeChange={handleModeChange}
-            onVariantChange={handleVariantChange}
-          />
+          tab === 'trace' ? (
+            <TracePanel agentId={id} />
+          ) : (
+            <ChatPanel
+              agentId={id}
+              cwd={pane.agent.cwd}
+              mode={pane.agent.mode ?? 'build'}
+              variant={pane.agent.variant}
+              onModeChange={handleModeChange}
+              onVariantChange={handleVariantChange}
+            />
+          )
         ) : (
           <XtermHost
             agentId={id}
