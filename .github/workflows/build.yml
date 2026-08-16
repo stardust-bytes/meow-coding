@@ -20,6 +20,9 @@ jobs:
 
   build:
     needs: test
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -31,6 +34,13 @@ jobs:
           - os: ubuntu-latest
             target: linux
     runs-on: ${{ matrix.os }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+      AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
+      AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -40,8 +50,28 @@ jobs:
       - run: npm ci
       - run: npx @electron/rebuild -f -w @lydell/node-pty
       - run: npm run build
+      - name: Azure login for Windows code signing
+        if: matrix.target == 'win' && env.AZURE_CLIENT_ID != ''
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
       - name: Package
         run: npx electron-builder --${{ matrix.target }} --publish never
+      - name: Verify Windows code signature
+        if: matrix.target == 'win' && env.AZURE_CLIENT_ID != ''
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path release -Filter *.exe
+          if ($files.Count -eq 0) { throw "No .exe artifacts found to verify" }
+          foreach ($file in $files) {
+            $sig = Get-AuthenticodeSignature $file.FullName
+            if ($sig.Status -ne "Valid") {
+              throw "Invalid signature for $($file.FullName): $($sig.Status)"
+            }
+            Write-Host "Signature OK: $($file.Name)"
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: meow-${{ matrix.os }}
