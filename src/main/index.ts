@@ -17,6 +17,7 @@ import type { StoredSession } from './agent/session'
 import { SnapshotStore } from './agent/snapshot'
 import type { SnapshotTurn } from './agent/snapshot'
 import { TruncationStore } from './agent/truncation'
+import { TraceStore } from './agent/trace-store'
 import { SavedPermissions } from './agent/saved-permissions'
 import type { SavedPermission } from './agent/saved-permissions'
 import { createDefaultTools } from './agent/tools/registry'
@@ -77,9 +78,12 @@ class MainApp {
       win?.webContents.send(Channels.EventChatGptWebChallenge, event)
     }
   })
+  traces = new TraceStore(path.join(app.getPath('userData'), 'traces'))
   meowAgent = new MeowAgentManager({
     configPath: path.join(app.getPath('userData'), 'meow.json'),
     store: new SessionStore(createJsonStore<StoredSession>(path.join(app.getPath('userData'), 'sessions.json'))),
+    trace: this.traces,
+    onTrace: (e) => win?.webContents.send(Channels.EventTrace, e),
     chatGptWeb: this.chatGptWeb,
     tools: createDefaultTools({
       getUserSkillsDir: () => path.join(app.getPath('userData'), 'skills'),
@@ -113,6 +117,7 @@ class MainApp {
   private activeProject: string | null = null
   private watcher: FileWatcher | null = null
   private prices = new Map<string, { input?: number; output?: number; cacheRead?: number; cacheWrite?: number }>()
+  private ptyStartTs = new Map<string, number>()
 
   constructor() {
     this.pty.on('data', ({ agentId, data }) => {
@@ -141,6 +146,15 @@ class MainApp {
         win?.webContents.send(Channels.EventPtyData, { agentId, data: hint })
       }
       this.alerts.onExit(agentId, code)
+      const startTs = this.ptyStartTs.get(agentId)
+      if (startTs !== undefined) {
+        this.ptyStartTs.delete(agentId)
+        this.traces.append(agentId, {
+          type: 'pty-run', agentId, sessionId: agentId, startTs,
+          endTs: Date.now(), exitCode: code, durationMs: Date.now() - startTs,
+          logPath: this.logs.pathFor(agentId)
+        })
+      }
     })
     this.alerts.on('idle', ({ agentId }) => {
       this.setState(agentId, { status: 'idle', alert: 'attention' })
@@ -218,6 +232,11 @@ class MainApp {
     this.setState(agentId, { status: 'spawning', exitCode: null, alert: 'normal' })
     try {
       this.pty.start(agentId, agent.name, tmpl.command, tmpl.args, agent.cwd)
+      this.ptyStartTs.set(agentId, Date.now())
+      this.traces.append(agentId, {
+        type: 'pty-run', agentId, sessionId: agentId, startTs: this.ptyStartTs.get(agentId) ?? Date.now(),
+        logPath: this.logs.pathFor(agentId)
+      })
       this.alerts.track(agentId)
     } catch (err) {
       const message = `[meow] Không thể khởi động agent "${agent.name}" (${tmpl.command} ${tmpl.args.join(' ')}): ${String(err)}\n`
@@ -536,6 +555,9 @@ function registerIpcHandlers(): void {
     mainApp.meowAgent.deleteSession(agentId, sessionId))
   ipcMain.handle(Channels.SessionRename, (_e, agentId: string, sessionId: string, title: string) =>
     mainApp.meowAgent.renameSession(agentId, sessionId, title))
+  ipcMain.handle(Channels.TraceList, (_e, agentId: string) => mainApp.traces.listForAgent(agentId))
+  ipcMain.handle(Channels.TraceRead, (_e, sessionId: string) => mainApp.traces.read(sessionId))
+  ipcMain.handle(Channels.TraceDelete, (_e, sessionId: string) => mainApp.traces.delete(sessionId))
   ipcMain.handle(Channels.SettingsGet, () => mainApp.meowAgent.getSettings())
   ipcMain.handle(Channels.SettingsSave, (_e, settings: MeowSettings) =>
     mainApp.meowAgent.saveSettings(settings))

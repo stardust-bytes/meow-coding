@@ -32,9 +32,10 @@ export class TraceStore {
     return seq
   }
 
-  append(sessionId: string, event: TraceEventInput): void {
-    const full = { ...event, seq: this.nextSeq(sessionId), ts: Date.now() }
+  append(sessionId: string, event: TraceEventInput): TraceEvent {
+    const full = { ...event, seq: this.nextSeq(sessionId), ts: Date.now() } as TraceEvent
     appendFileSync(this.filePath(sessionId), JSON.stringify(full) + '\n')
+    return full
   }
 
   read(sessionId: string): TraceEvent[] {

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
-import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, ModelUsage, NotificationsSettings, PromptResponse, QueuedMessage, StatsSummary, TodoItem, UsageSummary } from '../shared/types'
+import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, ModelUsage, NotificationsSettings, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TraceEvent, UsageSummary } from '../shared/types'
 import type { AgentConfig, AgentMode, CatalogProviderSummary, Command, ModelRef } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, settingsToConfig, writeMeowConfig,
@@ -36,6 +36,7 @@ import { createTaskTool } from './agent/tools/task'
 import type { ToolDefinition } from './agent/tools/types'
 import type { NotificationService } from './notification-service'
 import { TraceStore } from './agent/trace-store'
+import type { TraceEventInput } from './agent/trace-store'
 
 function defaultCreateChatGptWebLlmClient(manager: ChatGptWebManager): LlmClient {
   return manager.createLlmClient()
@@ -45,6 +46,7 @@ export interface MeowAgentManagerDeps {
   configPath: string
   store: SessionStore
   trace?: TraceStore
+  onTrace?: (e: TraceEvent) => void
   tools: Map<string, ToolDefinition>
   createLlm?: (provider: string, apiKey: string, baseUrl?: string) => LlmClient
   chatGptWeb?: ChatGptWebManager
@@ -870,33 +872,38 @@ export class MeowAgentManager {
   private writeTrace(e: ChatEvent): void {
     const trace = this.deps.trace
     if (!trace) return
+    const emitTrace = (ev: TraceEventInput) => {
+      const full = trace.append(sessionId, ev)
+      this.deps.onTrace?.(full)
+      return full
+    }
     const agentId = e.agentId
     const sessionId = this.activeSessionId(agentId)
     const turn = this.turnCounters.get(sessionId) ?? 0
     switch (e.type) {
       case 'turn-started':
         // counter already incremented before emit (see runTurn)
-        trace.append(sessionId, { type: 'turn-started', agentId, sessionId, turn: this.turnCounters.get(sessionId) ?? 1 })
+        emitTrace({ type: 'turn-started', agentId, sessionId, turn: this.turnCounters.get(sessionId) ?? 1 })
         break
       case 'text-delta':
-        trace.append(sessionId, { type: 'message', agentId, sessionId, turn, role: 'assistant', text: e.delta })
+        emitTrace({ type: 'message', agentId, sessionId, turn, role: 'assistant', text: e.delta })
         break
       case 'reasoning-delta':
-        trace.append(sessionId, { type: 'message', agentId, sessionId, turn, role: 'assistant', reasoning: e.delta })
+        emitTrace({ type: 'message', agentId, sessionId, turn, role: 'assistant', reasoning: e.delta })
         break
       case 'tool-start':
         this.toolStartTs.set(e.call.id, Date.now())
-        trace.append(sessionId, { type: 'tool-start', agentId, sessionId, turn, callId: e.call.id, tool: e.call.tool, input: e.call.input })
+        emitTrace({ type: 'tool-start', agentId, sessionId, turn, callId: e.call.id, tool: e.call.tool, input: e.call.input })
         break
       case 'tool-result': {
         const startTs = this.toolStartTs.get(e.call.id)
         const durationMs = startTs !== undefined ? Date.now() - startTs : 0
         this.toolStartTs.delete(e.call.id)
-        trace.append(sessionId, { type: 'tool-result', agentId, sessionId, turn, callId: e.call.id, tool: e.call.tool, output: e.call.output, error: e.call.error, durationMs, cost: undefined })
+        emitTrace({ type: 'tool-result', agentId, sessionId, turn, callId: e.call.id, tool: e.call.tool, output: e.call.output, error: e.call.error, durationMs, cost: undefined })
         break
       }
       case 'subagent-event':
-        trace.append(sessionId, {
+        emitTrace({
           type: 'subagent', agentId, sessionId, turn, taskId: e.taskId, parentTaskId: e.parentTaskId,
           subagentType: e.subagentType,
           state: e.sub === 'done' ? (e.state ?? 'completed') : 'running',
@@ -905,13 +912,13 @@ export class MeowAgentManager {
         })
         break
       case 'compacted':
-        trace.append(sessionId, { type: 'compaction', agentId, sessionId, turn, summary: e.summary })
+        emitTrace({ type: 'compaction', agentId, sessionId, turn, summary: e.summary })
         break
       case 'error':
-        trace.append(sessionId, { type: 'error', agentId, sessionId, message: e.message })
+        emitTrace({ type: 'error', agentId, sessionId, message: e.message })
         break
       case 'done':
-        trace.append(sessionId, { type: 'done', agentId, sessionId, reason: e.reason, tokens: e.tokens, cost: e.cost })
+        emitTrace({ type: 'done', agentId, sessionId, reason: e.reason, tokens: e.tokens, cost: e.cost })
         break
       default:
         break
