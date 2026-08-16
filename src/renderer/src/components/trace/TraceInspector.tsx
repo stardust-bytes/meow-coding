@@ -76,11 +76,7 @@ function TraceInspector({ event, onClose }: Props) {
         {output !== undefined && (
           <section className="trace-inspector-section">
             <h4>Output</h4>
-            <pre className="trace-inspector-pre">
-              {output.length > 500
-                ? `${output.slice(0, 500)}\n\n… truncated (${output.length} chars total)`
-                : output}
-            </pre>
+            <pre className="trace-inspector-pre">{output}</pre>
           </section>
         )}
 

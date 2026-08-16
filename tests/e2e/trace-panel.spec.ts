@@ -38,9 +38,10 @@ test('native agent Trace tab renders the trace ledger', async () => {
     mkdirSync(traceDir, { recursive: true })
     const traceLines = [
       { seq: 1, ts: 1700000000000, agentId, sessionId: 'sess-1', type: 'turn-started', turn: 1 },
-      { seq: 2, ts: 1700000001000, agentId, sessionId: 'sess-1', type: 'tool-start', turn: 1, callId: 'c1', tool: 'read', input: { file_path: 'x' } },
-      { seq: 3, ts: 1700000002000, agentId, sessionId: 'sess-1', type: 'tool-result', turn: 1, callId: 'c1', tool: 'read', output: 'content', durationMs: 1000 },
-      { seq: 4, ts: 1700000003000, agentId, sessionId: 'sess-1', type: 'done', reason: 'complete' }
+      { seq: 2, ts: 1700000000500, agentId, sessionId: 'sess-1', type: 'message', turn: 1, role: 'assistant', text: 'Let me read the config file to understand the setup.' },
+      { seq: 3, ts: 1700000001000, agentId, sessionId: 'sess-1', type: 'tool-start', turn: 1, callId: 'c1', tool: 'read', input: { file_path: 'x' } },
+      { seq: 4, ts: 1700000002000, agentId, sessionId: 'sess-1', type: 'tool-result', turn: 1, callId: 'c1', tool: 'read', output: 'content', durationMs: 1000 },
+      { seq: 5, ts: 1700000003000, agentId, sessionId: 'sess-1', type: 'done', reason: 'complete' }
     ]
     writeFileSync(path.join(traceDir, 'sess-1.jsonl'), traceLines.map(l => JSON.stringify(l)).join('\n') + '\n')
 
@@ -60,8 +61,17 @@ test('native agent Trace tab renders the trace ledger', async () => {
       const header = window.locator('.trace-turn-header')
       await expect(header.first()).toContainText('Turn 1')
 
+      // Assistant content is expanded by default (not just a truncated label).
+      await expect(window.locator('.trace-detail').filter({ hasText: 'Let me read the config file' }).first()).toBeVisible()
+
       const toolRow = window.locator('.trace-row').filter({ hasText: 'read' })
       await expect(toolRow.first()).toBeVisible()
+
+      // Tool rows start collapsed; expanding the tool-result row reveals the
+      // full output ("content"), not just the ✓ label.
+      const resultRow = window.locator('.trace-row').filter({ hasText: '✓ read' })
+      await resultRow.locator('.trace-row-toggle').click()
+      await expect(window.locator('.trace-detail').filter({ hasText: 'content' }).first()).toBeVisible()
 
       await toolRow.first().click()
       await expect(window.locator('.trace-inspector')).toBeVisible()

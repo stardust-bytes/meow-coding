@@ -118,6 +118,46 @@ describe('MeowAgentManager trace wiring', () => {
     expect(turns).toEqual([1, 2])
   })
 
+  it('coalesces text deltas into a single full assistant message before a tool call', async () => {
+    const { manager, trace } = await makeManager()
+    manager.addAgent(MEOW_AGENT)
+    manager.newSession('a1')
+    manager.setOnEvent(() => {})
+    const emit = (e: never) => (manager as unknown as { onEvent: (e: never) => void }).onEvent(e)
+
+    emit({ type: 'turn-started', agentId: 'a1' } as never)
+    emit({ type: 'text-delta', agentId: 'a1', delta: 'Let me ' } as never)
+    emit({ type: 'text-delta', agentId: 'a1', delta: 'check the file.' } as never)
+    emit({
+      type: 'tool-start', agentId: 'a1', call: { id: 'tc1', tool: 'read', input: { file_path: 'x' }, permission: 'pending' }
+    } as never)
+
+    const messages = trace.appends.filter(a => a.type === 'message')
+    expect(messages).toHaveLength(1)
+    expect(messages[0].text).toBe('Let me check the file.')
+    const idxStart = trace.appends.findIndex(a => a.type === 'tool-start')
+    const idxMsg = trace.appends.findIndex(a => a.type === 'message')
+    expect(idxMsg).toBeLessThan(idxStart)
+  })
+
+  it('coalesces reasoning and text deltas into one message with both', async () => {
+    const { manager, trace } = await makeManager()
+    manager.addAgent(MEOW_AGENT)
+    manager.newSession('a1')
+    manager.setOnEvent(() => {})
+    const emit = (e: never) => (manager as unknown as { onEvent: (e: never) => void }).onEvent(e)
+
+    emit({ type: 'turn-started', agentId: 'a1' } as never)
+    emit({ type: 'reasoning-delta', agentId: 'a1', delta: 'think...' } as never)
+    emit({ type: 'text-delta', agentId: 'a1', delta: 'Answer here.' } as never)
+    emit({ type: 'done', agentId: 'a1', reason: 'complete' } as never)
+
+    const messages = trace.appends.filter(a => a.type === 'message')
+    expect(messages).toHaveLength(1)
+    expect(messages[0].text).toBe('Answer here.')
+    expect(messages[0].reasoning).toBe('think...')
+  })
+
   it('deletes trace files when a session is deleted', async () => {
     const { manager, trace } = await makeManager()
     manager.addAgent(MEOW_AGENT)

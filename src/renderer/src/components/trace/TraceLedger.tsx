@@ -1,4 +1,5 @@
-import { memo } from 'react'
+import { memo, useState } from 'react'
+import type { ReactNode } from 'react'
 import type { TraceEvent } from '@shared/types'
 
 export interface TurnBlock {
@@ -24,6 +25,7 @@ function preview(text: string, max: number): string {
   return t.length > max ? `${t.slice(0, max)}…` : t
 }
 
+// One-line label for the row header.
 export function describeEvent(e: TraceEvent): string {
   switch (e.type) {
     case 'turn-started':
@@ -56,6 +58,70 @@ export function describeEvent(e: TraceEvent): string {
   }
 }
 
+// Full content used by search + the expandable detail area.
+function searchableText(e: TraceEvent): string {
+  switch (e.type) {
+    case 'message':
+      return `assistant ${e.text ?? ''} ${e.reasoning ?? ''}`
+    case 'tool-start':
+      return `tool ${e.tool} ${JSON.stringify(e.input ?? {})}`
+    case 'tool-result':
+      return `tool ${e.tool} ${e.output ?? ''} ${e.error ?? ''}`
+    case 'subagent':
+      return `subagent ${e.subagentType ?? ''} ${e.taskId} ${e.text ?? ''} ${e.result ?? ''}`
+    case 'error':
+      return `error ${e.message}`
+    case 'done':
+      return `done ${e.reason}`
+    case 'pty-run':
+      return `pty run`
+    default:
+      return describeEvent(e)
+  }
+}
+
+// Full content shown when a row is expanded.
+function detailContent(e: TraceEvent): ReactNode {
+  switch (e.type) {
+    case 'message': {
+      return (
+        <>
+          {e.reasoning ? <pre className="trace-detail trace-detail-reasoning">{e.reasoning}</pre> : null}
+          {e.text ? <pre className="trace-detail">{e.text}</pre> : null}
+        </>
+      )
+    }
+    case 'tool-start':
+      return <pre className="trace-detail">{JSON.stringify(e.input ?? {}, null, 2)}</pre>
+    case 'tool-result':
+      return e.error
+        ? <pre className="trace-detail trace-detail-error">{e.error}</pre>
+        : <pre className="trace-detail">{e.output ?? ''}</pre>
+    case 'subagent':
+      return (
+        <>
+          {e.text ? <pre className="trace-detail">{e.text}</pre> : null}
+          {e.result ? <pre className="trace-detail">{e.result}</pre> : null}
+        </>
+      )
+    case 'error':
+      return <pre className="trace-detail trace-detail-error">{e.message}</pre>
+    case 'compaction':
+      return <pre className="trace-detail">{e.summary}</pre>
+    default:
+      return null
+  }
+}
+
+function hasDetail(e: TraceEvent): boolean {
+  if (e.type === 'message') return Boolean(e.text || e.reasoning)
+  if (e.type === 'tool-start') return e.input !== undefined
+  if (e.type === 'tool-result') return e.output !== undefined || e.error !== undefined
+  if (e.type === 'subagent') return Boolean(e.text || e.result)
+  if (e.type === 'error' || e.type === 'compaction') return true
+  return false
+}
+
 function turnTokens(events: TraceEvent[]): number | undefined {
   let total = 0
   let found = false
@@ -78,11 +144,24 @@ function turnHeader(block: TurnBlock): string {
 
 function matches(e: TraceEvent, search: string): boolean {
   if (!search) return true
-  return describeEvent(e).toLowerCase().includes(search.toLowerCase())
+  return searchableText(e).toLowerCase().includes(search.toLowerCase())
 }
 
 function TraceLedger({ blocks, folded, selectedSeq, search, onToggleTurn, onSelect }: Props) {
+  const [expanded, setExpanded] = useState<Set<number>>(new Set())
   const searching = search.trim().length > 0
+  // Assistant content is the point of the panel: expanded by default. Tool
+  // payloads can be large, so they start collapsed until clicked.
+  const isExpanded = (e: TraceEvent) => e.type === 'message' || expanded.has(e.seq)
+  const toggle = (seq: number) => {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      if (next.has(seq)) next.delete(seq)
+      else next.add(seq)
+      return next
+    })
+  }
+
   const rows = blocks
     .map(block => ({
       block,
@@ -100,13 +179,24 @@ function TraceLedger({ blocks, folded, selectedSeq, search, onToggleTurn, onSele
             <span className="trace-label">{turnHeader(block)}</span>
           </div>
           {!isFolded && visible.map(e => (
-            <div
-              key={e.seq}
-              className={`trace-row${e.seq === selectedSeq ? ' selected' : ''}`}
-              onClick={() => onSelect(e)}
-            >
-              <span className="trace-row-time">{formatTime(e.ts)}</span>
-              <span className="trace-label">{describeEvent(e)}</span>
+            <div key={e.seq}>
+              <div
+                className={`trace-row${e.seq === selectedSeq ? ' selected' : ''}`}
+                onClick={() => onSelect(e)}
+              >
+                <span className="trace-row-time">{formatTime(e.ts)}</span>
+                <span className="trace-label">{describeEvent(e)}</span>
+                {hasDetail(e) && (
+                  <button
+                    className="trace-row-toggle"
+                    aria-label={isExpanded(e) ? 'collapse detail' : 'expand detail'}
+                    onClick={ev => { ev.stopPropagation(); toggle(e.seq) }}
+                  >
+                    {isExpanded(e) ? '▾' : '▸'}
+                  </button>
+                )}
+              </div>
+              {isExpanded(e) && hasDetail(e) && detailContent(e)}
             </div>
           ))}
         </div>

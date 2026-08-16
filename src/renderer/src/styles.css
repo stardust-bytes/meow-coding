@@ -1124,6 +1124,38 @@ select.input { width: 100%; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.trace-row-toggle {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-faint);
+  font-size: 10px;
+  line-height: 1;
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.trace-row-toggle:hover { background: var(--bg-hover); color: var(--text); }
+.trace-detail {
+  margin: 0 10px 6px 22px;
+  padding: 6px 8px;
+  background: var(--bg-code);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+  max-height: 420px;
+  overflow-y: auto;
+}
+.trace-detail-reasoning { color: var(--text-dim); opacity: 0.8; }
+.trace-detail-error { color: var(--red); }
+/* Cheap virtualization: browser skips painting offscreen turn blocks. */
+.trace-block { content-visibility: auto; contain-intrinsic-size: auto 32px; }
+
 .trace-between {
   margin: 2px 10px;
   border-top: 1px solid var(--hairline);

@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TraceEvent } from '@shared/types'
 import TraceLedger, { describeEvent, formatTime } from './TraceLedger'
 import type { TurnBlock } from './TraceLedger'
@@ -11,8 +11,28 @@ interface Props {
   sessionId?: string
 }
 
+// Merge adjacent message events of the same turn so traces written as
+// per-delta events (older format) still display as one assistant message.
+function mergeMessages(events: TraceEvent[]): TraceEvent[] {
+  const out: TraceEvent[] = []
+  for (const e of events) {
+    const last = out[out.length - 1]
+    if (e.type === 'message' && last?.type === 'message' && last.turn === e.turn) {
+      out[out.length - 1] = {
+        ...last,
+        text: ((last.text ?? '') + (e.text ?? '')) || undefined,
+        reasoning: ((last.reasoning ?? '') + (e.reasoning ?? '')) || undefined,
+        tokens: e.tokens ?? last.tokens
+      }
+    } else {
+      out.push(e)
+    }
+  }
+  return out
+}
+
 function buildBlocks(events: TraceEvent[]): { blocks: TurnBlock[]; compactions: TraceEvent[] } {
-  const sorted = [...events].sort((a, b) => a.seq - b.seq)
+  const sorted = mergeMessages([...events].sort((a, b) => a.seq - b.seq))
   const byTurn = new Map<number, TraceEvent[]>()
   const compactions: TraceEvent[] = []
   let current = 0
@@ -39,6 +59,27 @@ function TracePanel({ agentId, sessionId: sessionIdProp }: Props) {
   const [folded, setFolded] = useState<Set<number>>(new Set())
   const [search, setSearch] = useState('')
   const [subtreeOpen, setSubtreeOpen] = useState(true)
+  // Batch live trace events: text-delta floods arrive many per second; a
+  // single setState per event re-sorts and re-renders the whole ledger (jank).
+  // Collect into a ref and flush on a short timer instead.
+  const pendingRef = useRef<TraceEvent[]>([])
+  const flushTimerRef = useRef<number | null>(null)
+  const flushPending = useCallback(() => {
+    flushTimerRef.current = null
+    const batch = pendingRef.current
+    pendingRef.current = []
+    if (batch.length === 0) return
+    setEvents(prev => {
+      const bySeq = new Map<number, TraceEvent>()
+      for (const e of prev) bySeq.set(e.seq, e)
+      for (const e of batch) bySeq.set(e.seq, e)
+      return [...bySeq.values()].sort((a, b) => a.seq - b.seq)
+    })
+  }, [])
+  const scheduleFlush = useCallback(() => {
+    if (flushTimerRef.current !== null) return
+    flushTimerRef.current = window.setTimeout(flushPending, 100)
+  }, [flushPending])
 
   useEffect(() => {
     let cancelled = false
@@ -74,11 +115,21 @@ function TracePanel({ agentId, sessionId: sessionIdProp }: Props) {
     if (!sessionId) return
     return window.api.onTraceEvent(e => {
       if (e.sessionId !== sessionId) return
-      setEvents(prev => {
-        if (prev.some(p => p.seq === e.seq)) return prev
-        return [...prev, e]
-      })
+      if (pendingRef.current.some(p => p.seq === e.seq)) return
+      pendingRef.current.push(e)
+      scheduleFlush()
     })
+  }, [sessionId, scheduleFlush])
+
+  // Clear any scheduled flush on unmount / session switch.
+  useEffect(() => {
+    return () => {
+      if (flushTimerRef.current !== null) {
+        window.clearTimeout(flushTimerRef.current)
+        flushTimerRef.current = null
+      }
+      pendingRef.current = []
+    }
   }, [sessionId])
 
   useEffect(() => {

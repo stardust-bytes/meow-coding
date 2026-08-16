@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
-import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, ModelUsage, NotificationsSettings, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TraceEvent, UsageSummary } from '../shared/types'
+import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, NotificationsSettings, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TraceEvent, UsageSummary } from '../shared/types'
 import type { AgentConfig, AgentMode, CatalogProviderSummary, Command, ModelRef } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, settingsToConfig, writeMeowConfig,
@@ -88,6 +88,7 @@ export class MeowAgentManager {
   private onEvent: (e: ChatEvent) => void = () => {}
   private turnCounters = new Map<string, number>()
   private toolStartTs = new Map<string, number>()
+  private pendingMessages = new Map<string, { turn: number; text: string; reasoning: string; tokens?: MessageTokens }>()
 
   constructor(private deps: MeowAgentManagerDeps) {
     this.tools = new Map(deps.tools)
@@ -872,26 +873,55 @@ export class MeowAgentManager {
   private writeTrace(e: ChatEvent): void {
     const trace = this.deps.trace
     if (!trace) return
+    const agentId = e.agentId
+    const sessionId = this.activeSessionId(agentId)
+    const turn = this.turnCounters.get(sessionId) ?? 0
     const emitTrace = (ev: TraceEventInput) => {
       const full = trace.append(sessionId, ev)
       this.deps.onTrace?.(full)
       return full
     }
-    const agentId = e.agentId
-    const sessionId = this.activeSessionId(agentId)
-    const turn = this.turnCounters.get(sessionId) ?? 0
+    // text/reasoning deltas accumulate into one assistant message; flush it
+    // at the next event boundary so the trace shows full content, not one
+    // row per streamed delta (and far fewer writes -> less UI churn).
+    const flushMessage = () => {
+      const pending = this.pendingMessages.get(sessionId)
+      if (!pending || (!pending.text && !pending.reasoning)) return
+      emitTrace({
+        type: 'message', agentId, sessionId, turn: pending.turn, role: 'assistant',
+        text: pending.text || undefined,
+        reasoning: pending.reasoning || undefined,
+        tokens: pending.tokens
+      })
+      this.pendingMessages.delete(sessionId)
+    }
     switch (e.type) {
       case 'turn-started':
         // counter already incremented before emit (see runTurn)
+        this.pendingMessages.delete(sessionId)
         emitTrace({ type: 'turn-started', agentId, sessionId, turn: this.turnCounters.get(sessionId) ?? 1 })
         break
-      case 'text-delta':
-        emitTrace({ type: 'message', agentId, sessionId, turn, role: 'assistant', text: e.delta })
+      case 'text-delta': {
+        const pending = this.pendingMessages.get(sessionId) ?? { turn, text: '', reasoning: '' }
+        pending.text += e.delta
+        pending.turn = turn
+        this.pendingMessages.set(sessionId, pending)
         break
-      case 'reasoning-delta':
-        emitTrace({ type: 'message', agentId, sessionId, turn, role: 'assistant', reasoning: e.delta })
+      }
+      case 'reasoning-delta': {
+        const pending = this.pendingMessages.get(sessionId) ?? { turn, text: '', reasoning: '' }
+        pending.reasoning += e.delta
+        pending.turn = turn
+        this.pendingMessages.set(sessionId, pending)
         break
+      }
+      case 'usage': {
+        const pending = this.pendingMessages.get(sessionId)
+        if (pending) pending.tokens = e.tokens
+        break
+      }
       case 'tool-start':
+        flushMessage()
         this.toolStartTs.set(e.call.id, Date.now())
         emitTrace({ type: 'tool-start', agentId, sessionId, turn, callId: e.call.id, tool: e.call.tool, input: e.call.input })
         break
@@ -903,6 +933,7 @@ export class MeowAgentManager {
         break
       }
       case 'subagent-event':
+        flushMessage()
         emitTrace({
           type: 'subagent', agentId, sessionId, turn, taskId: e.taskId, parentTaskId: e.parentTaskId,
           subagentType: e.subagentType,
@@ -912,12 +943,15 @@ export class MeowAgentManager {
         })
         break
       case 'compacted':
+        flushMessage()
         emitTrace({ type: 'compaction', agentId, sessionId, turn, summary: e.summary })
         break
       case 'error':
+        flushMessage()
         emitTrace({ type: 'error', agentId, sessionId, message: e.message })
         break
       case 'done':
+        flushMessage()
         emitTrace({ type: 'done', agentId, sessionId, reason: e.reason, tokens: e.tokens, cost: e.cost })
         break
       default:
