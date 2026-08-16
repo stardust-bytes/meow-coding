@@ -4,7 +4,7 @@ import type { BrowserStatusInfo } from '@shared/browser-types'
 import { ChallengeToast } from './components/ChallengeToast'
 import { Terminal } from '@xterm/xterm'
 import type {
-  AgentConfig, AgentState, GitStatus, Template, WorkspaceRuntime, WorkspaceSummary
+  AgentConfig, AgentState, GitStatus, Template, TerminalInfo, WorkspaceRuntime, WorkspaceSummary
 } from '@shared/types'
 import Sidebar from './components/Sidebar'
 import PaneGrid from './components/PaneGrid'
@@ -32,6 +32,7 @@ export default function App() {
   const [browser, setBrowser] = useState<BrowserStatusInfo | null>(null)
   const [browserDialogOpen, setBrowserDialogOpen] = useState(false)
   const [installGuide, setInstallGuide] = useState<BrowserInstallGuideEvent | null>(null)
+  const [terminals, setTerminals] = useState<TerminalInfo[]>([])
   const termsRef = useRef<Map<string, Terminal>>(new Map())
   const buffersRef = useRef<Map<string, string>>(new Map())
 
@@ -75,6 +76,11 @@ export default function App() {
     const offInstallGuide = window.api.onBrowserOpenInstallGuide((e) => {
       setInstallGuide(e)
     })
+    const offTerminalExit = window.api.onTerminalExit(({ id }) => {
+      setTerminals(prev => prev.filter(t => t.id !== id))
+      termsRef.current.delete(id)
+      buffersRef.current.delete(id)
+    })
     void window.api.getBrowserStatus().then(setBrowser)
     return () => {
       offData()
@@ -84,17 +90,23 @@ export default function App() {
       offChallenge()
       offBrowser()
       offInstallGuide()
+      offTerminalExit()
     }
   }, [])
 
   const openWorkspace = useCallback(async (path: string) => {
+    for (const t of terminals) {
+      termsRef.current.delete(t.id)
+      buffersRef.current.delete(t.id)
+    }
     const rt = await window.api.openWorkspace(path)
     setRuntime(rt)
+    setTerminals([])
     setBackgrounds(Object.fromEntries(rt.workspace.agents.map(a => [a.id, a.background ?? false])))
     for (const id of buffersRef.current.keys()) {
       if (!rt.workspace.agents.some(a => a.id === id)) buffersRef.current.delete(id)
     }
-  }, [])
+  }, [terminals])
 
   const removeWorkspace = useCallback(async (path: string) => {
     if (runtime?.workspace.projectPath === path) {
@@ -127,6 +139,24 @@ export default function App() {
     setWorkspaces(await window.api.listWorkspaces())
   }, [runtime])
 
+  const addTerminal = useCallback(async (projectPath: string) => {
+    if (runtime?.workspace.projectPath !== projectPath) await openWorkspace(projectPath)
+    const t = await window.api.openTerminal(projectPath)
+    setTerminals(prev => [...prev, t])
+  }, [runtime, openWorkspace])
+
+  const removeTerminal = useCallback((id: string) => {
+    void window.api.closeTerminal(id)
+    setTerminals(prev => prev.filter(t => t.id !== id))
+    termsRef.current.delete(id)
+    buffersRef.current.delete(id)
+  }, [])
+
+  const handleRemovePane = useCallback((id: string) => {
+    if (terminals.some(t => t.id === id)) removeTerminal(id)
+    else void removeAgent(id)
+  }, [terminals, removeTerminal, removeAgent])
+
   const registerTerminal = useCallback((agentId: string, term: Terminal) => {
     termsRef.current.set(agentId, term)
     const buf = buffersRef.current.get(agentId)
@@ -143,14 +173,20 @@ export default function App() {
 
   const panes: PaneModel[] = useMemo(() => {
     if (!runtime) return []
-    return runtime.workspace.agents.map(agent => ({
+    const agentPanes = runtime.workspace.agents.map(agent => ({
       agent,
       state: runtime.agents.find(s => s.agentId === agent.id) ?? {
         agentId: agent.id, status: 'spawning', exitCode: null, lastOutputAt: null, alert: 'normal'
       },
       git: runtime.git
     }))
-  }, [runtime])
+    const terminalPanes: PaneModel[] = terminals.map(term => ({
+      agent: { id: term.id, name: term.name, templateId: '__terminal__', cwd: term.cwd, kind: 'pty' as const },
+      state: { agentId: term.id, status: 'running' as const, exitCode: null, lastOutputAt: null, alert: 'normal' as const },
+      git: runtime.git
+    }))
+    return [...agentPanes, ...terminalPanes]
+  }, [runtime, terminals])
 
   return (
     <div className="app">
@@ -164,6 +200,7 @@ export default function App() {
           onOpen={openWorkspace}
           onRemove={removeWorkspace}
           onRefresh={refreshWorkspaces}
+          onOpenTerminal={addTerminal}
         />
         <main className="main">
           {panes.length > 0 ? (
@@ -171,7 +208,8 @@ export default function App() {
               <PaneGrid
                 panes={panes}
                 backgrounds={backgrounds}
-                onRemove={removeAgent}
+                isTerminal={id => terminals.some(t => t.id === id)}
+                onRemove={handleRemovePane}
                 onRegisterTerminal={registerTerminal}
                 onUnregisterTerminal={unregisterTerminal}
               />

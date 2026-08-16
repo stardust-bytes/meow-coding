@@ -8,12 +8,13 @@ describe('IPC contract', () => {
   it('defines all channels used by the preload api', () => {
     const required: (keyof AgentApi)[] = [
       'listWorkspaces', 'addWorkspace', 'removeWorkspace', 'openWorkspace', 'openInEditor',
+      'openFolder', 'openTerminal', 'closeTerminal',
       'addAgent', 'removeAgent', 'setAgentMode', 'setAgentVariant', 'getAgentVariants', 'setAgentModel', 'getAgentModel', 'getContextInfo', 'getProviderModels', 'fetchProviderModels',
       'listProviderCatalog', 'connectProvider', 'disconnectProvider',
       'listTemplates', 'saveTemplate', 'removeTemplate',
       'pickFolder', 'startAgent', 'stopAgent', 'restartAgent',
       'writeInput', 'injectPrompt', 'resizePty', 'openLog', 'getLogPath', 'quit', 'getAppVersion',
-      'onPtyData', 'onAgentState', 'onGitStatus',
+      'onPtyData', 'onAgentState', 'onGitStatus', 'onTerminalExit',
       'sendChat', 'stopChat', 'runCommand', 'undoChat', 'redoChat', 'newChatSession', 'listChatMessages', 'listChatTranscript', 'respondPrompt', 'removeQueued', 'editQueued',
       'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus', 'getChatGptWebStatus', 'setChatGptWebEnabled', 'loginChatGptWeb', 'logoutChatGptWeb', 'listCommands', 'saveCommand', 'removeCommand', 'getStats', 'onContextChanged',
       'suggestFiles', 'setAgentBackground', 'onAgentBackground', 'onChatGptWebChallenge',
@@ -30,6 +31,9 @@ describe('IPC contract', () => {
       removeWorkspace: async () => {},
       openWorkspace: async () => ({ workspace: { projectPath: '', name: '', agents: [] }, agents: [], git: null }),
       openInEditor: async () => {},
+      openFolder: async () => {},
+      openTerminal: async () => ({ id: '', cwd: '', name: '', status: 'running' }),
+      closeTerminal: async () => {},
       addAgent: async () => ({ workspace: { projectPath: '', name: '', agents: [] }, agents: [], git: null }),
       removeAgent: async () => {},
       setAgentMode: async () => {},
@@ -60,6 +64,7 @@ describe('IPC contract', () => {
       onPtyData: () => () => {},
       onAgentState: () => () => {},
       onGitStatus: () => () => {},
+      onTerminalExit: () => () => {},
       sendChat: async () => {},
       stopChat: async () => {},
       runCommand: async () => {},
@@ -178,6 +183,10 @@ describe('IPC contract', () => {
     expect(Channels.BrowserGetNetworkLogs).toBe('browser:get-network-logs')
     expect(Channels.EventBrowserStatus).toBe('browser:status')
     expect(Channels.EventBrowserOpenInstallGuide).toBe('browser:install-guide')
+    expect(Channels.ProjectOpenFolder).toBe('project:open-folder')
+    expect(Channels.TerminalOpen).toBe('terminal:open')
+    expect(Channels.TerminalClose).toBe('terminal:close')
+    expect(Channels.EventTerminalExit).toBe('terminal:exit')
   })
 
   it('types event payloads without runtime error', () => {

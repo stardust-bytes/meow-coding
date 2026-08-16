@@ -44,7 +44,10 @@ export function createBrowserTools(
     },
     {
       name: 'browser_navigate',
-      description: 'Navigate the active/visible tab (or the working tab) to a URL (http/https).',
+      description:
+        'Open a URL in a new background tab of an existing Chrome window, grouped under "Meow". ' +
+        'Never navigates or hijacks an existing tab. Returns a tabId you can pass as the tabId ' +
+        'argument of other browser_* tools to act on that tab.',
       schema: z.object({
         url: z.string().describe('The http(s) URL to open.')
       }),

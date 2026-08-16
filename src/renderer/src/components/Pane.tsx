@@ -8,6 +8,7 @@ import ChatPanel from './chat/ChatPanel'
 interface Props {
   pane: PaneModel
   background: boolean
+  isTerminal: boolean
   zoomed: boolean
   active: boolean
   onFocus: () => void
@@ -18,7 +19,7 @@ interface Props {
 }
 
 export default function Pane({
-  pane, background, zoomed, active, onFocus, onZoom, onRemove, onRegisterTerminal, onUnregisterTerminal
+  pane, background, isTerminal, zoomed, active, onFocus, onZoom, onRemove, onRegisterTerminal, onUnregisterTerminal
 }: Props) {
   const id = pane.agent.id
   const write = (data: string) => void window.api.writeInput(id, data)
@@ -26,9 +27,10 @@ export default function Pane({
   // Stable callbacks so App-level re-renders (git poll, agent state) don't
   // cascade past the memoized ChatPanel into the chat feed.
   const handleStop = useCallback(() => {
-    if (native) void window.api.stopChat(id)
+    if (isTerminal) void window.api.closeTerminal(id)
+    else if (native) void window.api.stopChat(id)
     else void window.api.stopAgent(id)
-  }, [id, native])
+  }, [id, native, isTerminal])
   const handleRestart = useCallback(() => {
     if (native) void window.api.newChatSession(id)
     else void window.api.restartAgent(id)
@@ -50,6 +52,7 @@ export default function Pane({
         zoomed={zoomed}
         background={background}
         native={native}
+        isTerminal={isTerminal}
         active={active}
         onZoom={onZoom}
         onStop={handleStop}

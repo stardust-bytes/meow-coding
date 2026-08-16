@@ -21,10 +21,11 @@ interface Props {
   onOpen: (path: string) => void
   onRemove: (path: string) => void
   onRefresh: () => void
+  onOpenTerminal: (path: string) => void
 }
 
 export default function Sidebar({
-  workspaces, templates, activePath, onOpen, onRemove, onRefresh
+  workspaces, templates, activePath, onOpen, onRemove, onRefresh, onOpenTerminal
 }: Props) {
   const [showAddProject, setShowAddProject] = useState(false)
   const [addAgentPath, setAddAgentPath] = useState<string | null>(null)
@@ -144,6 +145,18 @@ export default function Sidebar({
                       onClick={() => { setOpenProjectMenu(null); void window.api.openInEditor(ws.projectPath) }}
                     >
                       Open in VS Code
+                    </button>
+                    <button
+                      className="menu-item"
+                      onClick={() => { setOpenProjectMenu(null); void window.api.openFolder(ws.projectPath) }}
+                    >
+                      Open Folder
+                    </button>
+                    <button
+                      className="menu-item"
+                      onClick={() => { setOpenProjectMenu(null); onOpenTerminal(ws.projectPath) }}
+                    >
+                      Open Terminal
                     </button>
                     <button
                       className="menu-item danger"

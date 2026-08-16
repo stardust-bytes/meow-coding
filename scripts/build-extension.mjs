@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const src = path.join(root, 'src', 'browser-extension')
 const out = path.join(root, 'out', 'browser-extension')
+const iconsDir = path.join(root, 'build', 'icons')
 
 mkdirSync(out, { recursive: true })
 
@@ -25,4 +26,5 @@ await build({
 
 cpSync(path.join(src, 'manifest.json'), path.join(out, 'manifest.json'))
 cpSync(path.join(src, 'popup.html'), path.join(out, 'popup.html'))
+cpSync(iconsDir, path.join(out, 'icons'), { recursive: true })
 console.log(`[build:extension] output: ${out}`)

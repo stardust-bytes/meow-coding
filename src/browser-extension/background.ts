@@ -200,10 +200,8 @@ function addToMeowGroup(tabId: number): Promise<{ groupId?: number; groupTitle?:
 }
 
 async function defaultTabId(): Promise<number | undefined> {
-  // Prefer the tab the user is looking at; a stale "working" background tab can be
-  // discarded/blank and makes read/wait/scroll return empty results.
-  const active = await activeTabId()
-  if (active != null) return active
+  // Prefer the agent's working tab so default actions never hijack the tab the
+  // user is looking at; fall back to the active tab only when no working tab.
   if (workingTabId != null) {
     try {
       const t = await chrome.tabs.get(workingTabId)
@@ -212,7 +210,7 @@ async function defaultTabId(): Promise<number | undefined> {
       workingTabId = null
     }
   }
-  return undefined
+  return activeTabId()
 }
 
 async function sendToTab(tabId: number, name: string, params: Record<string, unknown>): Promise<{ ok: boolean; data?: unknown; error?: string }> {
@@ -400,11 +398,21 @@ async function handleCommand(msg: Extract<BridgeToExtension, { type: 'cmd' }>): 
         return
       }
       case 'navigate': {
-        const tabId = params.tabId != null ? Number(params.tabId) : (await defaultTabId())
-        if (tabId == null) { send({ ok: false, error: 'no target tab' }); return }
-        await chrome.tabs.update(tabId, { url: String(params.url) })
-        persistWorkingTab(tabId)
-        send({ ok: true, data: { url: params.url } })
+        const url = String(params.url ?? '')
+        const windowId = await lastFocusedWindowId()
+        const tab = windowId != null
+          ? await chrome.tabs.create({ url, windowId, active: false })
+          : await chrome.tabs.create({ url })
+        persistWorkingTab(tab.id ?? null)
+        let group: { groupId?: number; groupTitle?: string } = {}
+        if (tab.id != null) {
+          try {
+            group = await addToMeowGroup(tab.id)
+          } catch {
+            /* group creation failed; the tab itself is still open */
+          }
+        }
+        send({ ok: true, data: { id: tab.id, tabId: tab.id, url: tab.url, ...group } })
         return
       }
       case 'screenshot': {

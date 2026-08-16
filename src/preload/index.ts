@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
 import type { ChatEvent, ChatGptWebStatus, Command, ContextChangedEvent, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template } from '../shared/types'
-import type { AgentApi, AgentStateEvent, BrowserInstallGuideEvent, ChallengeEvent, GitStatusEvent, PtyDataEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
+import type { AgentApi, AgentStateEvent, BrowserInstallGuideEvent, ChallengeEvent, GitStatusEvent, PtyDataEvent, TerminalExitEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
 import type { BrowserStatusInfo } from '../shared/browser-types'
 
 function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
@@ -20,6 +20,12 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.WorkspaceOpen, projectPath),
   openInEditor: (projectPath: string) =>
     ipcRenderer.invoke(Channels.ProjectOpenInEditor, projectPath),
+  openFolder: (projectPath: string) =>
+    ipcRenderer.invoke(Channels.ProjectOpenFolder, projectPath),
+  openTerminal: (cwd: string) =>
+    ipcRenderer.invoke(Channels.TerminalOpen, cwd),
+  closeTerminal: (id: string) =>
+    ipcRenderer.invoke(Channels.TerminalClose, id),
   addAgent: (projectPath: string, input: NewAgentInput) =>
     ipcRenderer.invoke(Channels.AgentAdd, projectPath, input),
   removeAgent: (projectPath: string, agentId: string) =>
@@ -102,6 +108,7 @@ const api: AgentApi = {
   onWindowMaximizedChange: (cb: (e: WindowMaximizedChangeEvent) => void) =>
     subscribe(Channels.EventWindowMaximizedChange, cb),
   onPtyData: (cb: (e: PtyDataEvent) => void) => subscribe(Channels.EventPtyData, cb),
+  onTerminalExit: (cb: (e: TerminalExitEvent) => void) => subscribe(Channels.EventTerminalExit, cb),
   onAgentState: (cb: (e: AgentStateEvent) => void) => subscribe(Channels.EventAgentState, cb),
   onGitStatus: (cb: (e: GitStatusEvent) => void) => subscribe(Channels.EventGitStatus, cb),
   onContextChanged: (cb: (e: ContextChangedEvent) => void) => subscribe(Channels.EventContextChanged, cb),

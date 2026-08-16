@@ -1,7 +1,7 @@
 import type {
   AgentState, CatalogProviderSummary, ChatEvent, ChatGptWebStatus, ChatMessage, ChatTranscriptItem, Command,
   ContextChangedEvent, ContextInfo, FileSuggestion, GitStatus, ImageAttachment, McpServerStatus, MeowSettings,
-  ModelRef, NewAgentInput, PromptResponse, SessionSummary, StatsSummary, Template, TodoItem, WorkspaceRuntime,
+  ModelRef, NewAgentInput, PromptResponse, SessionSummary, StatsSummary, Template, TerminalInfo, TodoItem, WorkspaceRuntime,
   WorkspaceSummary
 } from './types'
 import type { BrowserStatusInfo, PairingInfo } from './browser-types'
@@ -11,6 +11,7 @@ export const Channels = {
   WorkspaceAdd: 'workspace:add',
   WorkspaceRemove: 'workspace:remove',
   WorkspaceOpen: 'workspace:open',
+  ProjectOpenFolder: 'project:open-folder',
   ProjectOpenInEditor: 'project:open-in-editor',
   AgentAdd: 'agent:add',
   AgentRemove: 'agent:remove',
@@ -73,6 +74,9 @@ export const Channels = {
   WindowClose: 'window:close',
   WindowIsMaximized: 'window:is-maximized',
   EventWindowMaximizedChange: 'window:maximized-change',
+  TerminalOpen: 'terminal:open',
+  TerminalClose: 'terminal:close',
+  EventTerminalExit: 'terminal:exit',
   EventPtyData: 'pty:data',
   EventAgentState: 'agent:state',
   EventGitStatus: 'git:status',
@@ -94,6 +98,7 @@ export const Channels = {
 } as const
 
 export interface PtyDataEvent { agentId: string; data: string }
+export interface TerminalExitEvent { id: string; exitCode: number | null }
 export interface AgentStateEvent { agentId: string; state: AgentState }
 export interface GitStatusEvent { projectPath: string; git: GitStatus | null }
 export interface WindowMaximizedChangeEvent { maximized: boolean }
@@ -116,6 +121,9 @@ export interface AgentApi {
   removeWorkspace(projectPath: string): Promise<void>
   openWorkspace(projectPath: string): Promise<WorkspaceRuntime>
   openInEditor(projectPath: string): Promise<void>
+  openFolder(projectPath: string): Promise<void>
+  openTerminal(cwd: string): Promise<TerminalInfo>
+  closeTerminal(id: string): Promise<void>
   addAgent(projectPath: string, input: NewAgentInput): Promise<WorkspaceRuntime>
   removeAgent(projectPath: string, agentId: string): Promise<void>
   setAgentMode(agentId: string, mode: 'build' | 'plan'): Promise<void>
@@ -182,6 +190,7 @@ export interface AgentApi {
   isWindowMaximized(): Promise<boolean>
   onWindowMaximizedChange(cb: (e: WindowMaximizedChangeEvent) => void): () => void
   onPtyData(cb: (e: PtyDataEvent) => void): () => void
+  onTerminalExit(cb: (e: TerminalExitEvent) => void): () => void
   onAgentState(cb: (e: AgentStateEvent) => void): () => void
   onGitStatus(cb: (e: GitStatusEvent) => void): () => void
   onContextChanged(cb: (e: ContextChangedEvent) => void): () => void

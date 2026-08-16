@@ -111,7 +111,7 @@ describe('PtyManager', () => {
   it('emits exit when stopped and removes the session', async () => {
     const pty = new PtyManager()
     managers.push(pty)
-    const exited: { agentId: string; exitCode: number }[] = []
+    const exited: { agentId: string; exitCode: number; kind?: 'agent' | 'terminal' }[] = []
     pty.on('exit', e => exited.push(e))
 
     pty.start('a1', 'echo', process.execPath, [FIXTURE], process.cwd())
@@ -129,6 +129,7 @@ describe('PtyManager', () => {
       check()
     })
     expect(exited[0].agentId).toBe('a1')
+    expect(exited[0].kind).toBe('agent')
     expect(pty.isRunning('a1')).toBe(false)
   })
 
@@ -139,5 +140,74 @@ describe('PtyManager', () => {
     await pty.stop('a1')
     expect(() => pty.start('a1', 'echo', process.execPath, [FIXTURE], process.cwd())).not.toThrow()
     await pty.stop('a1')
+  })
+
+  it('startTerminal spawns a real shell and tracks it as terminal', async () => {
+    const pty = new PtyManager()
+    managers.push(pty)
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-term-'))
+    const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh'
+    const id = 'term1'
+    const data: string[] = []
+    pty.on('data', ({ data: d }) => data.push(d))
+
+    pty.startTerminal(id, shell, dir)
+
+    await new Promise<void>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('timeout waiting first data')), 10000)
+      const check = () => {
+        if (data.length > 0) {
+          clearTimeout(t)
+          resolve()
+        } else {
+          setTimeout(check, 50)
+        }
+      }
+      check()
+    })
+    expect(pty.isTerminal(id)).toBe(true)
+    expect(pty.terminalIds()).toContain(id)
+
+    await pty.stop(id)
+    expect(pty.isRunning(id)).toBe(false)
+    expect(pty.isTerminal(id)).toBe(false)
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('terminal exit events carry kind: terminal', async () => {
+    const pty = new PtyManager()
+    managers.push(pty)
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-term-exit-'))
+    const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh'
+    const id = 'term-exit-1'
+    const exited: { agentId: string; exitCode: number; kind?: 'agent' | 'terminal' }[] = []
+    pty.on('exit', e => exited.push(e))
+
+    pty.startTerminal(id, shell, dir)
+    await pty.stop(id)
+    await new Promise<void>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('timeout waiting exit')), 10000)
+      const check = () => {
+        if (exited.length > 0) {
+          clearTimeout(t)
+          resolve()
+        } else {
+          setTimeout(check, 50)
+        }
+      }
+      check()
+    })
+    expect(exited[0].agentId).toBe(id)
+    expect(exited[0].kind).toBe('terminal')
+    expect(pty.isRunning(id)).toBe(false)
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('start() sessions are not terminals', async () => {
+    const pty = new PtyManager()
+    managers.push(pty)
+    pty.start('a1', 'echo', process.execPath, [FIXTURE], process.cwd())
+    expect(pty.isTerminal('a1')).toBe(false)
+    expect(pty.terminalIds()).not.toContain('a1')
   })
 })
