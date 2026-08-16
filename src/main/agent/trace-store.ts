@@ -2,6 +2,12 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSyn
 import path from 'node:path'
 import type { TraceEvent, TraceSummary } from '../../shared/types'
 
+// Omit does not distribute over the TraceEvent union; a naked type parameter
+// does, so derive the input type per member to keep discriminated-union
+// narrowing in append() callers.
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
+export type TraceEventInput = DistributiveOmit<TraceEvent, 'seq' | 'ts'>
+
 export class TraceStore {
   // In-memory seq counters per session; seeded from the file's last seq on
   // first append so seq stays monotonic across process restarts.
@@ -26,7 +32,7 @@ export class TraceStore {
     return seq
   }
 
-  append(sessionId: string, event: Omit<TraceEvent, 'seq' | 'ts'>): void {
+  append(sessionId: string, event: TraceEventInput): void {
     const full = { ...event, seq: this.nextSeq(sessionId), ts: Date.now() }
     appendFileSync(this.filePath(sessionId), JSON.stringify(full) + '\n')
   }

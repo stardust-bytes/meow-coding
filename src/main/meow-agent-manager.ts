@@ -35,6 +35,7 @@ import { revertTool } from './agent/tools/revert'
 import { createTaskTool } from './agent/tools/task'
 import type { ToolDefinition } from './agent/tools/types'
 import type { NotificationService } from './notification-service'
+import { TraceStore } from './agent/trace-store'
 
 function defaultCreateChatGptWebLlmClient(manager: ChatGptWebManager): LlmClient {
   return manager.createLlmClient()
@@ -43,6 +44,7 @@ function defaultCreateChatGptWebLlmClient(manager: ChatGptWebManager): LlmClient
 export interface MeowAgentManagerDeps {
   configPath: string
   store: SessionStore
+  trace?: TraceStore
   tools: Map<string, ToolDefinition>
   createLlm?: (provider: string, apiKey: string, baseUrl?: string) => LlmClient
   chatGptWeb?: ChatGptWebManager
@@ -82,6 +84,8 @@ export class MeowAgentManager {
   private backgrounds = new Map<string, boolean>()
   private queues = new Map<string, QueuedMessage[]>()
   private onEvent: (e: ChatEvent) => void = () => {}
+  private turnCounters = new Map<string, number>()
+  private toolStartTs = new Map<string, number>()
 
   constructor(private deps: MeowAgentManagerDeps) {
     this.tools = new Map(deps.tools)
@@ -92,6 +96,7 @@ export class MeowAgentManager {
     this.onEvent = (e) => {
       if (e.type === 'done' || e.type === 'error') this.running.delete(e.agentId)
       cb(e)
+      this.writeTrace(e)
       if (e.type === 'done' && this.deps.notifications?.onDone !== false) {
         const cost = e.cost !== undefined ? ` · ${e.cost.toFixed(4)}` : ''
         this.deps.notify?.notify({
@@ -159,7 +164,10 @@ export class MeowAgentManager {
     this.backgrounds.delete(agentId)
     this.queues.delete(agentId)
     this.deps.snapshots.clear(agentId)
+    // Capture session ids before deleteForAgent purges them from the store.
+    const sessionIds = this.deps.store.list(agentId).map(s => s.id)
     this.deps.store.deleteForAgent(agentId)
+    for (const id of sessionIds) this.deps.trace?.delete(id)
   }
 
   private summary(session: StoredSession): SessionSummary {
@@ -205,6 +213,7 @@ export class MeowAgentManager {
   deleteSession(agentId: string, sessionId: string): SessionSummary {
     const wasActive = this.activeSessions.get(agentId) === sessionId
     this.deps.store.delete(sessionId)
+    this.deps.trace?.delete(sessionId)
     let next: StoredSession
     if (wasActive) {
       next = this.deps.store.latest(agentId) ?? this.deps.store.create(agentId, this.agents.get(agentId)?.cwd ?? '')
@@ -300,6 +309,7 @@ export class MeowAgentManager {
     const controller = new AbortController()
     this.controllers.set(agentId, controller)
     this.running.add(agentId)
+    this.nextTurn(agentId)
     this.emit({ type: 'turn-started', agentId })
     this.redoStacks.delete(agentId)
     this.deps.snapshots.beginTurn(agentId)
@@ -744,6 +754,7 @@ export class MeowAgentManager {
     const variantOptions = validVariant ? this.modelVariants.get(modelKey)?.[validVariant] : undefined
     const runner = new SessionRunner({
       agentId: agent.id,
+      turn: this.turnCounters.get(this.activeSessionId(agent.id)) ?? 1,
       model: resolved.model,
       system: resolved.systemPrompt + modeNote + instructions + skillListText(skills),
       systemInstructionPaths: new Set(instructionFiles.map(f => f.path)),
@@ -846,6 +857,64 @@ export class MeowAgentManager {
       if (entry.agentId !== agentId) continue
       entry.resolve(resp)
       this.pendingPrompts.delete(id)
+    }
+  }
+
+  private nextTurn(agentId: string): number {
+    const sessionId = this.activeSessionId(agentId)
+    const next = (this.turnCounters.get(sessionId) ?? 0) + 1
+    this.turnCounters.set(sessionId, next)
+    return next
+  }
+
+  private writeTrace(e: ChatEvent): void {
+    const trace = this.deps.trace
+    if (!trace) return
+    const agentId = e.agentId
+    const sessionId = this.activeSessionId(agentId)
+    const turn = this.turnCounters.get(sessionId) ?? 0
+    switch (e.type) {
+      case 'turn-started':
+        // counter already incremented before emit (see runTurn)
+        trace.append(sessionId, { type: 'turn-started', agentId, sessionId, turn: this.turnCounters.get(sessionId) ?? 1 })
+        break
+      case 'text-delta':
+        trace.append(sessionId, { type: 'message', agentId, sessionId, turn, role: 'assistant', text: e.delta })
+        break
+      case 'reasoning-delta':
+        trace.append(sessionId, { type: 'message', agentId, sessionId, turn, role: 'assistant', reasoning: e.delta })
+        break
+      case 'tool-start':
+        this.toolStartTs.set(e.call.id, Date.now())
+        trace.append(sessionId, { type: 'tool-start', agentId, sessionId, turn, callId: e.call.id, tool: e.call.tool, input: e.call.input })
+        break
+      case 'tool-result': {
+        const startTs = this.toolStartTs.get(e.call.id)
+        const durationMs = startTs !== undefined ? Date.now() - startTs : 0
+        this.toolStartTs.delete(e.call.id)
+        trace.append(sessionId, { type: 'tool-result', agentId, sessionId, turn, callId: e.call.id, tool: e.call.tool, output: e.call.output, error: e.call.error, durationMs, cost: undefined })
+        break
+      }
+      case 'subagent-event':
+        trace.append(sessionId, {
+          type: 'subagent', agentId, sessionId, turn, taskId: e.taskId, parentTaskId: e.parentTaskId,
+          subagentType: e.subagentType,
+          state: e.sub === 'done' ? (e.state ?? 'completed') : 'running',
+          text: e.sub === 'delta' ? e.text : undefined,
+          result: e.result, tools: []
+        })
+        break
+      case 'compacted':
+        trace.append(sessionId, { type: 'compaction', agentId, sessionId, turn, summary: e.summary })
+        break
+      case 'error':
+        trace.append(sessionId, { type: 'error', agentId, sessionId, message: e.message })
+        break
+      case 'done':
+        trace.append(sessionId, { type: 'done', agentId, sessionId, reason: e.reason, tokens: e.tokens, cost: e.cost })
+        break
+      default:
+        break
     }
   }
 
