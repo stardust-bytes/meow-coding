@@ -33,6 +33,36 @@ afterEach(() => {
   }
 })
 
+// Polls until no process still carries `marker` in its command line, instead
+// of a single point-in-time check, since OS process-list updates can lag a
+// few hundred ms behind the kill actually completing.
+async function assertProcessGoneByMarker(marker: string, attempts = 15, delayMs = 200): Promise<void> {
+  for (let i = 0; i < attempts; i++) {
+    let stillRunning: boolean
+    if (process.platform === 'win32') {
+      const out = execFileSync('powershell.exe', [
+        '-NoProfile', '-Command',
+        `(Get-CimInstance Win32_Process -Filter "Name='PING.EXE'" | Where-Object { $_.CommandLine -like '*${marker}*' }).CommandLine`
+      ]).toString()
+      stillRunning = out.includes(marker)
+    } else {
+      try {
+        execFileSync('pgrep', ['-f', marker], { stdio: 'pipe' })
+        stillRunning = true
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException & { status?: number }).status === 1) {
+          stillRunning = false
+        } else {
+          throw e
+        }
+      }
+    }
+    if (!stillRunning) return
+    await new Promise(resolve => setTimeout(resolve, delayMs))
+  }
+  throw new Error(`process matching "${marker}" is still running after ${attempts * delayMs}ms`)
+}
+
 describe('git tool', () => {
   it('reports a clean status', async () => {
     const r = await gitTool.run({ args: 'status --porcelain' }, ctx)
@@ -76,10 +106,16 @@ describe('git tool', () => {
   })
 
   it('kills a running git command when aborted mid-run', async () => {
-    const processName = process.platform === 'win32' ? 'PING.EXE' : 'sleep'
+    // Use a marker unique to this test (a distinguishing loopback IP / sleep
+    // duration) rather than a generic image name or command substring, so
+    // this assertion can't be satisfied or defeated by an unrelated
+    // ping/sleep process spawned by another test file running concurrently
+    // (e.g. agent-tools-bash.test.ts spawns its own "ping -n 30 127.0.0.1" /
+    // "sleep 30").
+    const marker = process.platform === 'win32' ? '127.0.0.42' : 'sleep 30.42'
     execFileSync('git', ['config', 'alias.sleep', process.platform === 'win32'
-      ? '!ping -n 30 127.0.0.1'
-      : '!sleep 30'], { cwd: dir })
+      ? '!ping -n 30 127.0.0.42'
+      : '!sleep 30.42'], { cwd: dir })
     const controller = new AbortController()
     const start = Date.now()
     const run = gitTool.run({ args: 'sleep' }, { ...ctx, signal: controller.signal })
@@ -89,24 +125,9 @@ describe('git tool', () => {
     expect(r.error).toMatch(/aborted/i)
     expect(elapsed).toBeLessThan(5000)
 
-    // Verify the spawned process is actually dead, not just the promise resolved quickly
-    if (process.platform === 'win32') {
-      // On Windows, check that ping.exe is no longer in the process list
-      const tasklistOutput = execFileSync('tasklist').toString()
-      expect(tasklistOutput).not.toContain(processName)
-    } else {
-      // On Unix, verify sleep process is gone by checking /proc or using pgrep
-      try {
-        execFileSync('pgrep', ['-f', 'sleep 30'], { stdio: 'pipe' })
-        throw new Error('sleep process should have been killed')
-      } catch (e) {
-        if ((e as any).status === 1) {
-          // pgrep exit code 1 means no matches found - process is dead as expected
-        } else {
-          throw e
-        }
-      }
-    }
+    // Verify the specific spawned process is actually dead, not just that
+    // the promise resolved quickly.
+    await assertProcessGoneByMarker(marker)
   }, 20000)
 
   it('still runs normally when an unaborted signal is provided', async () => {

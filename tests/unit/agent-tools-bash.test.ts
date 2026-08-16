@@ -17,6 +17,36 @@ function cleanup() {
   }
 }
 
+// Polls until no process still carries `marker` in its command line, instead
+// of a single point-in-time check, since OS process-list updates can lag a
+// few hundred ms behind the kill actually completing.
+async function assertProcessGoneByMarker(marker: string, attempts = 15, delayMs = 200): Promise<void> {
+  for (let i = 0; i < attempts; i++) {
+    let stillRunning: boolean
+    if (process.platform === 'win32') {
+      const out = execFileSync('powershell.exe', [
+        '-NoProfile', '-Command',
+        `(Get-CimInstance Win32_Process -Filter "Name='PING.EXE'" | Where-Object { $_.CommandLine -like '*${marker}*' }).CommandLine`
+      ]).toString()
+      stillRunning = out.includes(marker)
+    } else {
+      try {
+        execFileSync('pgrep', ['-f', marker], { stdio: 'pipe' })
+        stillRunning = true
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException & { status?: number }).status === 1) {
+          stillRunning = false
+        } else {
+          throw e
+        }
+      }
+    }
+    if (!stillRunning) return
+    await new Promise(resolve => setTimeout(resolve, delayMs))
+  }
+  throw new Error(`process matching "${marker}" is still running after ${attempts * delayMs}ms`)
+}
+
 describe('bash tool', () => {
   it('runs a command and captures output', async () => {
     const r = await bashTool.run({ command: process.platform === 'win32' ? 'echo MEOW_OK' : 'echo MEOW_OK' }, ctx)
@@ -42,9 +72,19 @@ describe('bash tool', () => {
 
   it('kills the process when aborted mid-run', async () => {
     const controller = new AbortController()
+    // Use a marker unique to this test (a distinguishing loopback IP / sleep
+    // duration, different from the one agent-tools-git.test.ts uses) so this
+    // test can independently verify OS-level process death without
+    // colliding with another concurrently running test file's own
+    // ping/sleep process that happens to share the same generic image name.
+    // This is the more important place to check real process death: on
+    // Windows the bash tool runs through Git Bash (bash.exe -> the actual
+    // command), and an orphaned grandchild here is exactly the kind of bug
+    // this abort-kill effort exists to catch.
+    const marker = process.platform === 'win32' ? '127.0.0.43' : 'sleep 30.43'
     const cmd = process.platform === 'win32'
-      ? 'ping -n 30 127.0.0.1'
-      : 'sleep 30'
+      ? 'ping -n 30 127.0.0.43'
+      : 'sleep 30.43'
     const start = Date.now()
     const run = bashTool.run({ command: cmd }, { cwd: dir, ask: async () => null, signal: controller.signal })
     setTimeout(() => controller.abort(), 300)
@@ -52,6 +92,10 @@ describe('bash tool', () => {
     const elapsed = Date.now() - start
     expect(r.error).toMatch(/aborted/i)
     expect(elapsed).toBeLessThan(5000)
+
+    // Verify the specific spawned process (and any shell grandchild it
+    // launched) is actually gone, not just that the promise resolved.
+    await assertProcessGoneByMarker(marker)
   }, 20000)
 
   it('returns an error for a missing command', async () => {
