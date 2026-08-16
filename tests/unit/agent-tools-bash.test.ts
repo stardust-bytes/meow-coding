@@ -40,6 +40,20 @@ describe('bash tool', () => {
     expect(r.error).toMatch(/timeout/)
   }, 20000)
 
+  it('kills the process when aborted mid-run', async () => {
+    const controller = new AbortController()
+    const cmd = process.platform === 'win32'
+      ? 'ping -n 30 127.0.0.1'
+      : 'sleep 30'
+    const start = Date.now()
+    const run = bashTool.run({ command: cmd }, { cwd: dir, ask: async () => null, signal: controller.signal })
+    setTimeout(() => controller.abort(), 300)
+    const r = await run
+    const elapsed = Date.now() - start
+    expect(r.error).toMatch(/aborted/i)
+    expect(elapsed).toBeLessThan(5000)
+  }, 20000)
+
   it('returns an error for a missing command', async () => {
     const r = await bashTool.run(
       { command: process.platform === 'win32' ? 'definitely-not-a-command-xyz' : 'definitely-not-a-command-xyz' },

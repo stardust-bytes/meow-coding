@@ -45,11 +45,13 @@ export const bashTool: ToolDefinition = {
       let stderr = ''
       let settled = false
       let timedOut = false
+      let aborted = false
 
       const done = (result: ToolRunResult) => {
         if (settled) return
         settled = true
         clearTimeout(timer)
+        ctx.signal?.removeEventListener('abort', onAbort)
         resolve(result)
       }
       const timer = setTimeout(() => {
@@ -64,6 +66,22 @@ export const bashTool: ToolDefinition = {
           done({ error: `bash: timeout after ${timeoutMs}ms` })
         }
       }, timeoutMs)
+      const onAbort = () => {
+        aborted = true
+        if (child.pid) {
+          try {
+            kill(child.pid, () => done({ error: 'bash: aborted by user' }))
+          } catch {
+            done({ error: 'bash: aborted by user' })
+          }
+        } else {
+          done({ error: 'bash: aborted by user' })
+        }
+      }
+      if (ctx.signal) {
+        if (ctx.signal.aborted) onAbort()
+        else ctx.signal.addEventListener('abort', onAbort, { once: true })
+      }
 
       child.stdout.on('data', (d) => {
         if (stdout.length < MAX_OUTPUT) stdout += d.toString()
@@ -73,7 +91,7 @@ export const bashTool: ToolDefinition = {
       })
       child.on('error', (err) => done({ error: `bash: ${err.message}` }))
       child.on('close', (code) => {
-        if (timedOut) return
+        if (timedOut || aborted) return
         const output = (stdout + (stderr ? '\n[stderr]\n' + stderr : '')).trim()
         const body = output || '(no output)'
         if (code === 0) return done({ output: note + body })
