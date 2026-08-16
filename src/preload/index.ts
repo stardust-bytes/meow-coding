@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
-import type { ChatEvent, ChatGptWebStatus, Command, ContextChangedEvent, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template } from '../shared/types'
+import type { ChatEvent, ChatGptWebStatus, Command, ContextChangedEvent, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, TraceEvent } from '../shared/types'
 import type { AgentApi, AgentStateEvent, BrowserInstallGuideEvent, ChallengeEvent, GitStatusEvent, PtyDataEvent, TerminalExitEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
 import type { BrowserStatusInfo } from '../shared/browser-types'
 
@@ -89,6 +89,10 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.SessionDelete, agentId, sessionId),
   renameSession: (agentId: string, sessionId: string, title: string) =>
     ipcRenderer.invoke(Channels.SessionRename, agentId, sessionId, title),
+  traceList: (agentId: string) => ipcRenderer.invoke(Channels.TraceList, agentId),
+  traceRead: (sessionId: string) => ipcRenderer.invoke(Channels.TraceRead, sessionId),
+  traceDelete: (sessionId: string) => ipcRenderer.invoke(Channels.TraceDelete, sessionId),
+  onTraceEvent: (cb: (e: TraceEvent) => void) => subscribe(Channels.EventTrace, cb),
   getSettings: () => ipcRenderer.invoke(Channels.SettingsGet),
   saveSettings: (settings: MeowSettings) => ipcRenderer.invoke(Channels.SettingsSave, settings),
   listCommands: (projectPath: string) => ipcRenderer.invoke(Channels.CommandList, projectPath),

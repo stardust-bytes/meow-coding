@@ -23,7 +23,8 @@ describe('IPC contract', () => {
       'isChatRunning',
       'minimizeWindow', 'toggleMaximizeWindow', 'closeWindow', 'isWindowMaximized', 'onWindowMaximizedChange',
       'getBrowserStatus', 'pairBrowser', 'openBrowserInstallGuide', 'openBrowserExtensionFolder', 'openBrowserChromeExtensions',
-      'getBrowserConsoleLogs', 'getBrowserNetworkLogs', 'onBrowserStatus', 'onBrowserOpenInstallGuide'
+      'getBrowserConsoleLogs', 'getBrowserNetworkLogs', 'onBrowserStatus', 'onBrowserOpenInstallGuide',
+      'traceList', 'traceRead', 'traceDelete', 'onTraceEvent'
     ]
     const api: AgentApi = {
       listWorkspaces: async () => [],
@@ -114,7 +115,11 @@ describe('IPC contract', () => {
       createSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),
       switchSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),
       deleteSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),
-      renameSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 })
+      renameSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),
+      traceList: async () => [],
+      traceRead: async () => [],
+      traceDelete: async () => {},
+      onTraceEvent: () => () => {}
     }
     for (const key of required) {
       expect(typeof api[key]).toBe('function')

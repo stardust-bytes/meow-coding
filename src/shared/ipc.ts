@@ -1,7 +1,7 @@
 import type {
   AgentState, CatalogProviderSummary, ChatEvent, ChatGptWebStatus, ChatMessage, ChatTranscriptItem, Command,
   ContextChangedEvent, ContextInfo, FileSuggestion, GitStatus, ImageAttachment, McpServerStatus, MeowSettings,
-  ModelRef, NewAgentInput, PromptResponse, SessionSummary, StatsSummary, Template, TerminalInfo, TodoItem, WorkspaceRuntime,
+  ModelRef, NewAgentInput, PromptResponse, SessionSummary, StatsSummary, Template, TerminalInfo, TodoItem, TraceEvent, TraceSummary, WorkspaceRuntime,
   WorkspaceSummary
 } from './types'
 import type { BrowserStatusInfo, PairingInfo } from './browser-types'
@@ -94,7 +94,11 @@ export const Channels = {
   BrowserGetConsoleLogs: 'browser:get-console-logs',
   BrowserGetNetworkLogs: 'browser:get-network-logs',
   EventBrowserStatus: 'browser:status',
-  EventBrowserOpenInstallGuide: 'browser:install-guide'
+  EventBrowserOpenInstallGuide: 'browser:install-guide',
+  TraceList: 'trace:list',
+  TraceRead: 'trace:read',
+  TraceDelete: 'trace:delete',
+  EventTrace: 'trace:event'
 } as const
 
 export interface PtyDataEvent { agentId: string; data: string }
@@ -172,6 +176,10 @@ export interface AgentApi {
   switchSession(agentId: string, sessionId: string): Promise<SessionSummary | null>
   deleteSession(agentId: string, sessionId: string): Promise<SessionSummary>
   renameSession(agentId: string, sessionId: string, title: string): Promise<SessionSummary | null>
+  traceList(agentId: string): Promise<TraceSummary[]>
+  traceRead(sessionId: string): Promise<TraceEvent[]>
+  traceDelete(sessionId: string): Promise<void>
+  onTraceEvent(cb: (e: TraceEvent) => void): () => void
   getSettings(): Promise<MeowSettings>
   saveSettings(settings: MeowSettings): Promise<MeowSettings>
   listCommands(projectPath: string): Promise<Command[]>
