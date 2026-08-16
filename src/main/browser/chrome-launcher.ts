@@ -1,7 +1,6 @@
 import { shell, type BrowserWindow } from 'electron'
-import { existsSync, mkdirSync, cpSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, cpSync } from 'node:fs'
 import { spawn } from 'node:child_process'
-import path from 'node:path'
 import { Channels } from '../../shared/ipc'
 import { resolveChromeExecutablePath } from '../chatgpt-web/browser-login'
 
@@ -45,18 +44,13 @@ export function createChromeLauncher(deps: BrowserLauncherDeps): BrowserLauncher
   }
 }
 
+// Always re-syncs rather than gating on manifest version: a version-string
+// comparison silently stops propagating any source change (e.g. new icon
+// assets) to an already-installed copy whenever a commit forgets to bump
+// the extension's manifest version. cpSync is cheap and local, so there is
+// no real cost to just doing this on every launch.
 export function ensureExtensionInstalled(sourceDir: string, targetDir: string): void {
   if (!existsSync(sourceDir)) return
-  if (existsSync(targetDir) && versionOf(targetDir) === versionOf(sourceDir)) return
   mkdirSync(targetDir, { recursive: true })
   cpSync(sourceDir, targetDir, { recursive: true })
-}
-
-function versionOf(dir: string): string {
-  try {
-    const m = JSON.parse(readFileSync(path.join(dir, 'manifest.json'), 'utf-8')) as { version?: string }
-    return m.version ?? ''
-  } catch {
-    return ''
-  }
 }
