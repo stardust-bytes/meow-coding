@@ -16,8 +16,10 @@ $vars = @{
   profile  = $env:AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE
 }
 
-if ($vars.Values | Where-Object { -not $_ }) {
-  Write-Host "Skipping Windows signing: Azure Trusted Signing is not configured"
+$missing = @($vars.GetEnumerator() | Where-Object { [string]::IsNullOrWhiteSpace($_.Value) } | ForEach-Object { $_.Key })
+
+if ($missing.Count -gt 0) {
+  Write-Host "Skipping Windows signing: Azure Trusted Signing is not configured (missing: $($missing -join ', '))"
   exit 0
 }
 

@@ -49,7 +49,8 @@ const config: Configuration = {
       { target: 'portable', arch: ['x64'] }
     ],
     signtoolOptions: {
-      sign: signWindows
+      sign: signWindows,
+      signingHashAlgorithms: ['sha256']
     }
   },
   linux: {
