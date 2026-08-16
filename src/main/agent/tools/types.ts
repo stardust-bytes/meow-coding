@@ -18,6 +18,7 @@ export interface ToolContext {
   emitSubagent?(taskId: string, e: SubagentToolEvent): void
   signal?: AbortSignal
   agentId?: string
+  turn?: number
   snapshots?: SnapshotStore
   diagnostics?: (filePath: string, text: string) => Promise<string>
   // Returns instruction-reminder text to append to the read tool output
@@ -27,6 +28,7 @@ export interface ToolContext {
 
 export interface SubagentToolEvent {
   sub: 'start' | 'delta' | 'tool' | 'done'
+  parentTaskId?: string
   subagentType?: string
   text?: string
   tool?: string

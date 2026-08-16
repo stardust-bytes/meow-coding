@@ -16,6 +16,7 @@ import type { SnapshotStore } from './snapshot'
 
 export interface LoopDeps {
   agentId: string
+  turn?: number
   model: string
   system: string
   systemInstructionPaths?: ReadonlySet<string>
@@ -217,6 +218,7 @@ export class SessionRunner {
           cwd: this.deps.cwd,
           signal,
           agentId: this.deps.agentId,
+          turn: this.deps.turn,
           snapshots: this.deps.snapshots,
           diagnostics: this.deps.diagnostics,
           setTodos: (todos) => this.deps.setTodos?.(todos),
@@ -224,6 +226,7 @@ export class SessionRunner {
             type: 'subagent-event',
             agentId: this.deps.agentId,
             taskId,
+            parentTaskId: e.parentTaskId,
             sub: e.sub,
             subagentType: e.subagentType,
             text: e.text,

@@ -137,6 +137,7 @@ export type ChatEvent =
   | { type: 'todo-updated'; agentId: string; todos: TodoItem[] }
   | { type: 'queue-updated'; agentId: string; queue: QueuedMessage[] }
   | { type: 'subagent-event'; agentId: string; taskId: string
+      parentTaskId?: string
       sub: 'start' | 'delta' | 'tool' | 'done'
       subagentType?: string; text?: string; tool?: string
       reasoning?: string; background?: boolean; result?: string

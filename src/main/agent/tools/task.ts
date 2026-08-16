@@ -58,6 +58,7 @@ export function createTaskTool(opts: {
   llm: LlmClient
   model: string
   tools: Map<string, ToolDefinition>
+  parentTaskId?: string
   // Called when a background subagent finishes so the manager can append the
   // result into the main transcript.
   onBackgroundResult?: (id: string, text: string, error?: string) => void
@@ -79,29 +80,31 @@ export function createTaskTool(opts: {
       if (def) safeTools.set(name, def)
     }
     const runner = new SessionRunner({
-      agentId: 'sub',
+      agentId: `sub-${input.subagent_type}-${id}`,
       model: opts.model,
       system: cfg.system,
       cwd: ctx.cwd,
       llm: opts.llm,
       tools: safeTools,
+      turn: ctx.turn,
       decidePermission: () => 'allow',
       ask: async () => null,
       maxSteps: 20,
       onEvent: (e) => {
         if (e.type === 'text-delta') {
-          ctx.emitSubagent?.(id, { sub: 'delta', text: e.delta })
+          ctx.emitSubagent?.(id, { sub: 'delta', text: e.delta, parentTaskId: opts.parentTaskId })
         } else if (e.type === 'reasoning-delta') {
-          ctx.emitSubagent?.(id, { sub: 'delta', reasoning: e.delta })
+          ctx.emitSubagent?.(id, { sub: 'delta', reasoning: e.delta, parentTaskId: opts.parentTaskId })
         } else if (e.type === 'tool-start' || e.type === 'tool-result') {
-          ctx.emitSubagent?.(id, { sub: 'tool', tool: e.call.tool })
+          ctx.emitSubagent?.(id, { sub: 'tool', tool: e.call.tool, parentTaskId: opts.parentTaskId })
         } else if (e.type === 'done') {
           ctx.emitSubagent?.(id, {
             sub: 'done',
-            state: e.reason === 'stopped' ? 'cancelled' : 'completed'
+            state: e.reason === 'stopped' ? 'cancelled' : 'completed',
+            parentTaskId: opts.parentTaskId
           })
         } else if (e.type === 'error') {
-          ctx.emitSubagent?.(id, { sub: 'done', state: 'error' })
+          ctx.emitSubagent?.(id, { sub: 'done', state: 'error', parentTaskId: opts.parentTaskId })
         }
       },
       getItems: () => items,

@@ -1,11 +1,28 @@
-import { describe, expect, it, afterEach } from 'vitest'
+import { describe, expect, it, afterEach, vi } from 'vitest'
 import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createTaskTool, SUBAGENT_CONFIGS } from '../../src/main/agent/tools/task'
 import { createDefaultTools } from '../../src/main/agent/tools/registry'
 import type { LlmClient, LlmStreamOptions, LlmStreamPart } from '../../src/main/agent/llm'
-import type { ToolContext } from '../../src/main/agent/tools/types'
+import type { ToolContext, SubagentToolEvent } from '../../src/main/agent/tools/types'
+
+const { subagentRunners } = vi.hoisted(() => ({
+  subagentRunners: [] as Array<{ agentId: string; turn?: number }>
+}))
+
+vi.mock('../../src/main/agent/loop', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/main/agent/loop')>()
+  return {
+    ...actual,
+    SessionRunner: class extends actual.SessionRunner {
+      constructor(deps: ConstructorParameters<typeof actual.SessionRunner>[0]) {
+        super(deps)
+        subagentRunners.push({ agentId: deps.agentId, turn: deps.turn })
+      }
+    }
+  }
+})
 
 const dirs: string[] = []
 
@@ -17,6 +34,7 @@ function tempDir(): string {
 
 afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true })
+  subagentRunners.length = 0
 })
 
 function stubLlm(partsQueue: LlmStreamPart[][], onRequest?: (req: LlmStreamOptions) => void): LlmClient {
@@ -89,5 +107,40 @@ describe('task subagent configs', () => {
     const resumed = requests[1] ?? []
     expect(resumed.some(c => c.includes('step one result'))).toBe(true)
     expect(resumed.some(c => c.includes('do two'))).toBe(true)
+  })
+
+  it('constructs the subagent SessionRunner with a real agentId and parent turn', async () => {
+    const tool = createTaskTool({
+      llm: stubLlm([[{ kind: 'text', text: 'ok' }, { kind: 'finish' }]]),
+      model: 'm',
+      tools: createDefaultTools()
+    })
+    await tool.run(
+      { description: 'explore', prompt: 'find it', subagent_type: 'research' },
+      { ...ctx, turn: 7 }
+    )
+    expect(subagentRunners).toHaveLength(1)
+    expect(subagentRunners[0].agentId).toMatch(/^sub-(research|general|reviewer)-/)
+    expect(subagentRunners[0].agentId).not.toBe('sub')
+    expect(subagentRunners[0].turn).toBe(7)
+  })
+
+  it('emits subagent events with parentTaskId when the tool was given one', async () => {
+    const events: Array<{ taskId: string } & SubagentToolEvent> = []
+    const tool = createTaskTool({
+      llm: stubLlm([[{ kind: 'text', text: 'ok' }, { kind: 'finish' }]]),
+      model: 'm',
+      tools: createDefaultTools(),
+      parentTaskId: 'parent-1'
+    })
+    await tool.run(
+      { description: 'explore', prompt: 'go', subagent_type: 'general' },
+      { ...ctx, emitSubagent: (taskId, e) => events.push({ taskId, ...e }) }
+    )
+    expect(events.length).toBeGreaterThan(0)
+    const delta = events.find(e => e.sub === 'delta')
+    expect(delta?.parentTaskId).toBe('parent-1')
+    const done = events.find(e => e.sub === 'done')
+    expect(done?.parentTaskId).toBe('parent-1')
   })
 })
