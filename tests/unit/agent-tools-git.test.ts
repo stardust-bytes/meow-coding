@@ -76,6 +76,7 @@ describe('git tool', () => {
   })
 
   it('kills a running git command when aborted mid-run', async () => {
+    const processName = process.platform === 'win32' ? 'PING.EXE' : 'sleep'
     execFileSync('git', ['config', 'alias.sleep', process.platform === 'win32'
       ? '!ping -n 30 127.0.0.1'
       : '!sleep 30'], { cwd: dir })
@@ -87,6 +88,25 @@ describe('git tool', () => {
     const elapsed = Date.now() - start
     expect(r.error).toMatch(/aborted/i)
     expect(elapsed).toBeLessThan(5000)
+
+    // Verify the spawned process is actually dead, not just the promise resolved quickly
+    if (process.platform === 'win32') {
+      // On Windows, check that ping.exe is no longer in the process list
+      const tasklistOutput = execFileSync('tasklist').toString()
+      expect(tasklistOutput).not.toContain(processName)
+    } else {
+      // On Unix, verify sleep process is gone by checking /proc or using pgrep
+      try {
+        execFileSync('pgrep', ['-f', 'sleep 30'], { stdio: 'pipe' })
+        throw new Error('sleep process should have been killed')
+      } catch (e) {
+        if ((e as any).status === 1) {
+          // pgrep exit code 1 means no matches found - process is dead as expected
+        } else {
+          throw e
+        }
+      }
+    }
   }, 20000)
 
   it('still runs normally when an unaborted signal is provided', async () => {

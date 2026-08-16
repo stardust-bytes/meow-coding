@@ -1,23 +1,58 @@
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
+import kill from 'tree-kill'
 import { z } from 'zod'
 import type { ToolDefinition, ToolRunResult } from './types'
 
 export function runGit(cwd: string, args: string[], signal?: AbortSignal): Promise<ToolRunResult> {
   const resolvedCwd = existsSync(cwd) ? cwd : homedir()
   return new Promise(resolve => {
-    execFile(
-      'git',
-      args,
-      { cwd: resolvedCwd, timeout: 60000, maxBuffer: 4 * 1024 * 1024, signal },
-      (err, stdout, stderr) => {
-        const out = (stdout + (stderr ? '\n[stderr]\n' + stderr : '')).trim()
-        if (!err) return resolve({ output: out || '(no output)' })
-        if (err.code === 'ABORT_ERR') return resolve({ error: 'git: aborted by user' })
-        resolve({ error: `git ${args.join(' ')} failed:\n${out || err.message}` })
+    let settled = false
+    let aborted = false
+
+    const child = execFile('git', args, {
+      cwd: resolvedCwd,
+      timeout: 60000,
+      maxBuffer: 4 * 1024 * 1024
+    }, (err, stdout, stderr) => {
+      if (settled) return
+      settled = true
+      signal?.removeEventListener('abort', onAbort)
+      const out = (stdout + (stderr ? '\n[stderr]\n' + stderr : '')).trim()
+      if (aborted) return resolve({ error: 'git: aborted by user' })
+      if (!err) return resolve({ output: out || '(no output)' })
+      resolve({ error: `git ${args.join(' ')} failed:\n${out || err.message}` })
+    })
+
+    const onAbort = () => {
+      aborted = true
+      if (child.pid) {
+        try {
+          kill(child.pid, () => {
+            if (!settled) {
+              settled = true
+              resolve({ error: 'git: aborted by user' })
+            }
+          })
+        } catch {
+          if (!settled) {
+            settled = true
+            resolve({ error: 'git: aborted by user' })
+          }
+        }
+      } else {
+        if (!settled) {
+          settled = true
+          resolve({ error: 'git: aborted by user' })
+        }
       }
-    )
+    }
+
+    if (signal) {
+      if (signal.aborted) onAbort()
+      else signal.addEventListener('abort', onAbort, { once: true })
+    }
   })
 }
 
