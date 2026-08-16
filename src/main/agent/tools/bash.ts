@@ -13,6 +13,14 @@ interface BashInput {
 
 const MAX_OUTPUT = 1024 * 1024
 
+// Git Bash's bash.exe re-execs itself once before running the user's
+// command, so the real process tree is bash.exe -> bash.exe -> command,
+// not bash.exe -> command. tree-kill's single taskkill /t snapshot can
+// miss the innermost command if it fires before that re-exec settles.
+// Waiting this long (from spawn time) before killing ensures the full
+// tree has formed. Empirically the re-exec settles within ~500ms.
+const WINDOWS_KILL_GRACE_MS = 600
+
 export const bashTool: ToolDefinition = {
   name: 'bash',
   description:
@@ -41,6 +49,7 @@ export const bashTool: ToolDefinition = {
         windowsHide: true,
         windowsVerbatimArguments: resolved.verbatim ?? false
       })
+      const spawnedAt = Date.now()
       let stdout = ''
       let stderr = ''
       let settled = false
@@ -54,29 +63,31 @@ export const bashTool: ToolDefinition = {
         ctx.signal?.removeEventListener('abort', onAbort)
         resolve(result)
       }
+      const killAfterGrace = (onDone: () => void) => {
+        const remaining = process.platform === 'win32'
+          ? WINDOWS_KILL_GRACE_MS - (Date.now() - spawnedAt)
+          : 0
+        const doKill = () => {
+          if (child.pid) {
+            try {
+              kill(child.pid, onDone)
+            } catch {
+              onDone()
+            }
+          } else {
+            onDone()
+          }
+        }
+        if (remaining > 0) setTimeout(doKill, remaining)
+        else doKill()
+      }
       const timer = setTimeout(() => {
         timedOut = true
-        if (child.pid) {
-          try {
-            kill(child.pid, () => done({ error: `bash: timeout after ${timeoutMs}ms` }))
-          } catch {
-            done({ error: `bash: timeout after ${timeoutMs}ms` })
-          }
-        } else {
-          done({ error: `bash: timeout after ${timeoutMs}ms` })
-        }
+        killAfterGrace(() => done({ error: `bash: timeout after ${timeoutMs}ms` }))
       }, timeoutMs)
       const onAbort = () => {
         aborted = true
-        if (child.pid) {
-          try {
-            kill(child.pid, () => done({ error: 'bash: aborted by user' }))
-          } catch {
-            done({ error: 'bash: aborted by user' })
-          }
-        } else {
-          done({ error: 'bash: aborted by user' })
-        }
+        killAfterGrace(() => done({ error: 'bash: aborted by user' }))
       }
       if (ctx.signal) {
         if (ctx.signal.aborted) onAbort()
