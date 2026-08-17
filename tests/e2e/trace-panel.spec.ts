@@ -45,6 +45,9 @@ test('native agent Trace tab renders the trace ledger', async () => {
     ]
     writeFileSync(path.join(traceDir, 'sess-1.jsonl'), traceLines.map(l => JSON.stringify(l)).join('\n') + '\n')
 
+    // Trace is app-disabled by default; enable it via config so the tab shows.
+    writeFileSync(path.join(userData, 'meow.json'), JSON.stringify({ trace: { enabled: true } }))
+
     const app = await electron.launch({
       args: ['.'],
       env: { ...process.env as Record<string, string>, MEOW_USER_DATA: userData }

@@ -11,6 +11,7 @@ interface Props {
   isTerminal?: boolean
   active?: boolean
   activeTab?: 'chat' | 'trace'
+  traceEnabled?: boolean
   onTabChange?: (tab: 'chat' | 'trace') => void
   onZoom: () => void
   onStop: () => void
@@ -38,7 +39,7 @@ function MoreIcon() {
 
 export default function PaneHeader({
   name, state, git, zoomed, background = false, native = false, isTerminal = false, active = false,
-  activeTab = 'chat', onTabChange,
+  activeTab = 'chat', traceEnabled = true, onTabChange,
   onZoom, onStop, onRestart, onInject, onOpenLog, onToggleBackground, onRemove
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -83,12 +84,14 @@ export default function PaneHeader({
           >
             Chat
           </button>
-          <button
-            className={`pane-tab${activeTab === 'trace' ? ' active' : ''}`}
-            onClick={() => onTabChange?.('trace')}
-          >
-            Trace
-          </button>
+          {traceEnabled && (
+            <button
+              className={`pane-tab${activeTab === 'trace' ? ' active' : ''}`}
+              onClick={() => onTabChange?.('trace')}
+            >
+              Trace
+            </button>
+          )}
         </span>
       )}
       <span className="pane-status">{STATUS_LABEL[state.status]}

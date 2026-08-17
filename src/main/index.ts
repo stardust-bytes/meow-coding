@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { spawn } from 'node:child_process'
+import { rmSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { createJsonStore } from './json-store'
@@ -146,7 +147,7 @@ class MainApp {
       }
       this.alerts.onExit(agentId, code)
       const startTs = this.ptyStartTs.get(agentId)
-      if (startTs !== undefined) {
+      if (startTs !== undefined && mainApp.meowAgent.isTraceEnabled()) {
         this.ptyStartTs.delete(agentId)
         this.traces.append(agentId, {
           type: 'pty-run', agentId, sessionId: agentId, startTs,
@@ -232,10 +233,12 @@ class MainApp {
     try {
       this.pty.start(agentId, agent.name, tmpl.command, tmpl.args, agent.cwd)
       this.ptyStartTs.set(agentId, Date.now())
-      this.traces.append(agentId, {
-        type: 'pty-run', agentId, sessionId: agentId, startTs: this.ptyStartTs.get(agentId) ?? Date.now(),
-        logPath: this.logs.pathFor(agentId)
-      })
+      if (mainApp.meowAgent.isTraceEnabled()) {
+        this.traces.append(agentId, {
+          type: 'pty-run', agentId, sessionId: agentId, startTs: this.ptyStartTs.get(agentId) ?? Date.now(),
+          logPath: this.logs.pathFor(agentId)
+        })
+      }
       this.alerts.track(agentId)
     } catch (err) {
       const message = `[meow] Không thể khởi động agent "${agent.name}" (${tmpl.command} ${tmpl.args.join(' ')}): ${String(err)}\n`
@@ -600,6 +603,10 @@ app.whenReady().then(async () => {
     ? path.join(process.resourcesPath, 'browser-extension')
     : path.join(app.getAppPath(), 'out', 'browser-extension')
   ensureExtensionInstalled(extSource, path.join(app.getPath('userData'), 'browser-extension'))
+  if (!mainApp.meowAgent.isTraceEnabled()) {
+    // Trace temporarily disabled: drop old trace data so nothing lingers.
+    rmSync(path.join(app.getPath('userData'), 'traces'), { recursive: true, force: true })
+  }
   registerIpcHandlers()
   createWindow()
   app.on('activate', () => {

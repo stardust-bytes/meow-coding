@@ -89,17 +89,20 @@ export class MeowAgentManager {
   private turnCounters = new Map<string, number>()
   private toolStartTs = new Map<string, number>()
   private pendingMessages = new Map<string, { turn: number; text: string; reasoning: string; tokens?: MessageTokens }>()
+  private traceEnabled = false
 
   constructor(private deps: MeowAgentManagerDeps) {
     this.tools = new Map(deps.tools)
-    this.deps = { ...deps, notifications: loadMeowConfig(deps.configPath).notifications }
+    const cfg = loadMeowConfig(deps.configPath)
+    this.deps = { ...deps, notifications: cfg.notifications }
+    this.traceEnabled = cfg.trace?.enabled ?? false
   }
 
   setOnEvent(cb: (e: ChatEvent) => void): void {
     this.onEvent = (e) => {
       if (e.type === 'done' || e.type === 'error') this.running.delete(e.agentId)
       cb(e)
-      this.writeTrace(e)
+      if (this.traceEnabled) this.writeTrace(e)
       if (e.type === 'done' && this.deps.notifications?.onDone !== false) {
         const cost = e.cost !== undefined ? ` · ${e.cost.toFixed(4)}` : ''
         this.deps.notify?.notify({
@@ -125,6 +128,10 @@ export class MeowAgentManager {
 
   isNative(agentId: string): boolean {
     return this.agents.has(agentId)
+  }
+
+  isTraceEnabled(): boolean {
+    return this.traceEnabled
   }
 
   isRunning(agentId: string): boolean {
@@ -642,6 +649,7 @@ export class MeowAgentManager {
     }
     await this.syncTools()
     await this.refreshModelLimits()
+    this.traceEnabled = loadMeowConfig(this.deps.configPath).trace?.enabled ?? false
     for (const agent of agents) this.register(agent)
   }
 

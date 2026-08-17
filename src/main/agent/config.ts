@@ -33,6 +33,10 @@ export interface LspConfig {
 
 export type NotificationsConfig = NotificationsSettings
 
+export interface TraceConfig {
+  enabled: boolean
+}
+
 export interface MeowConfig {
   provider: Record<string, MeowProviderConfig>
   model: string
@@ -45,6 +49,7 @@ export interface MeowConfig {
   toolOutput: ToolOutputConfig
   lsp: LspConfig
   notifications?: NotificationsConfig
+  trace?: TraceConfig
 }
 
 export interface ResolvedAgentConfig {
@@ -72,6 +77,9 @@ export const DEFAULT_TOOL_OUTPUT: ToolOutputConfig = {
 export const DEFAULT_LSP: LspConfig = {
   enabled: true,
   diagnosticsTimeoutMs: 3000
+}
+export const DEFAULT_TRACE: TraceConfig = {
+  enabled: false
 }
 export const DEFAULT_NOTIFICATIONS: NotificationsConfig = {
   needsInput: true,
@@ -115,7 +123,8 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
   compaction: DEFAULT_COMPACTION,
   toolOutput: DEFAULT_TOOL_OUTPUT,
   lsp: DEFAULT_LSP,
-  notifications: DEFAULT_NOTIFICATIONS
+  notifications: DEFAULT_NOTIFICATIONS,
+  trace: DEFAULT_TRACE
 }
 
 type RawProvider = Partial<MeowProviderConfig> & Record<string, unknown>
@@ -170,6 +179,12 @@ function normalizeToolOutput(raw: Partial<ToolOutputConfig> | undefined): ToolOu
   }
 }
 
+function normalizeTrace(raw: Partial<TraceConfig> | undefined): TraceConfig {
+  return {
+    enabled: raw?.enabled ?? DEFAULT_TRACE.enabled
+  }
+}
+
 function normalizeLsp(raw: Partial<LspConfig> | undefined): LspConfig {
   return {
     enabled: raw?.enabled ?? DEFAULT_LSP.enabled,
@@ -216,7 +231,8 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     compaction: normalizeCompaction(raw.compaction),
     toolOutput: normalizeToolOutput(raw.toolOutput),
     lsp: normalizeLsp(raw.lsp),
-    notifications: normalizeNotifications(raw.notifications)
+    notifications: normalizeNotifications(raw.notifications),
+    trace: normalizeTrace(raw.trace)
   }
 }
 
@@ -302,7 +318,8 @@ export function configToSettings(cfg: MeowConfig): MeowSettings {
     compaction: cfg.compaction,
     toolOutput: cfg.toolOutput,
     lsp: cfg.lsp,
-    notifications: cfg.notifications ? normalizeNotifications(cfg.notifications) : DEFAULT_NOTIFICATIONS
+    notifications: cfg.notifications ? normalizeNotifications(cfg.notifications) : DEFAULT_NOTIFICATIONS,
+    trace: normalizeTrace(cfg.trace)
   }
 }
 
@@ -343,7 +360,8 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
     lsp: settings.lsp ? normalizeLsp(settings.lsp) : normalizeLsp(base.lsp),
     notifications: settings.notifications
       ? normalizeNotifications(settings.notifications)
-      : normalizeNotifications(base.notifications)
+      : normalizeNotifications(base.notifications),
+    trace: normalizeTrace(settings.trace ?? base.trace)
   }
 }
 

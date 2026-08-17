@@ -26,6 +26,11 @@ export default function Pane({
   const write = (data: string) => void window.api.writeInput(id, data)
   const native = pane.agent.kind === 'native'
   const [tab, setTab] = useState<'chat' | 'trace'>('chat')
+  const [traceEnabled, setTraceEnabled] = useState(false)
+  useEffect(() => {
+    // Trace is temporarily disabled app-wide; hide the tab when off.
+    void window.api.getSettings().then(s => setTraceEnabled(s.trace?.enabled ?? false))
+  }, [])
   useEffect(() => setTab('chat'), [id])
   // Stable callbacks so App-level re-renders (git poll, agent state) don't
   // cascade past the memoized ChatPanel into the chat feed.
@@ -56,6 +61,7 @@ export default function Pane({
         background={background}
         native={native}
         activeTab={tab}
+        traceEnabled={traceEnabled}
         onTabChange={setTab}
         isTerminal={isTerminal}
         active={active}
@@ -76,7 +82,7 @@ export default function Pane({
       ) : null}
       <div className="pane-body">
         {native ? (
-          tab === 'trace' ? (
+          traceEnabled && tab === 'trace' ? (
             <TracePanel agentId={id} />
           ) : (
             <ChatPanel

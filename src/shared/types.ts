@@ -256,6 +256,7 @@ export interface MeowSettings {
   toolOutput: ToolOutputSettings
   lsp: LspSettings
   notifications?: NotificationsSettings
+  trace?: { enabled: boolean }
 }
 
 export interface ModelRef {

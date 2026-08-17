@@ -39,11 +39,12 @@ function makeTrace(): FakeTrace & Pick<TraceStore, 'append' | 'delete' | 'flush'
   }
 }
 
-async function makeManager() {
+async function makeManager(opts: { trace?: boolean } = {}) {
   const cfgDir = mkdtempSync(path.join(tmpdir(), 'meow-trace-mgr-'))
   writeFileSync(path.join(cfgDir, 'meow.json'), JSON.stringify({
     provider: { test: { apiKey: 'sk-test', models: ['test-model'] } },
-    model: 'test'
+    model: 'test',
+    ...(opts.trace === false ? {} : { trace: { enabled: true } })
   }))
   const sessions: StoredSession[] = []
   const json: JsonStore<StoredSession> = {
@@ -77,6 +78,19 @@ async function makeManager() {
 }
 
 describe('MeowAgentManager trace wiring', () => {
+  it('skips trace writes when trace is disabled (default)', async () => {
+    const { manager, trace } = await makeManager({ trace: false })
+    manager.addAgent(MEOW_AGENT)
+    manager.newSession('a1')
+    manager.setOnEvent(() => {})
+
+    ;(manager as unknown as { onEvent: (e: never) => void }).onEvent({ type: 'turn-started', agentId: 'a1' } as never)
+    ;(manager as unknown as { onEvent: (e: never) => void }).onEvent({ type: 'done', agentId: 'a1', reason: 'complete' } as never)
+
+    expect(trace.appends).toHaveLength(0)
+    expect(manager.isTraceEnabled()).toBe(false)
+  })
+
   it('writes trace events for chat events with turn attribution', async () => {
     const { manager, trace } = await makeManager()
     manager.addAgent(MEOW_AGENT)
