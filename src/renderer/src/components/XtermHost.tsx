@@ -20,7 +20,30 @@ export default function XtermHost({ agentId, onReady, onDispose, onInput, onResi
       fontSize: 14,
       scrollback: 5000,
       cursorStyle: 'bar',
-      cursorBlink: true
+      cursorBlink: true,
+      theme: {
+        background: '#0b0e13',
+        foreground: '#cdd3de',
+        cursor: '#ff8a66',
+        cursorAccent: '#0b0e13',
+        selectionBackground: 'rgba(255, 138, 102, 0.25)',
+        black: '#0b0e13',
+        red: '#ff5f56',
+        green: '#4ade9f',
+        yellow: '#ffb454',
+        blue: '#6cb6ff',
+        magenta: '#ff8a66',
+        cyan: '#56d4dd',
+        white: '#cdd3de',
+        brightBlack: '#565e6e',
+        brightRed: '#ff7b6b',
+        brightGreen: '#6fe8b6',
+        brightYellow: '#ffc98a',
+        brightBlue: '#8ab9ff',
+        brightMagenta: '#ffa88c',
+        brightCyan: '#7ee4ea',
+        brightWhite: '#eef1f6'
+      }
     })
     const fit = new FitAddon()
     term.loadAddon(fit)

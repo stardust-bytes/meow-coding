@@ -52,7 +52,7 @@ export default function Pane({
   }, [id, background])
 
   return (
-    <div className={`pane ${zoomed ? 'zoomed' : ''} ${background ? 'backgrounded' : ''}`} onClick={onFocus}>
+    <div className={`pane ${zoomed ? 'zoomed' : ''} ${background ? 'backgrounded' : ''} ${active ? 'active' : ''} status-${pane.state.status}`} onClick={onFocus}>
       <PaneHeader
         name={pane.agent.name}
         state={pane.state}
