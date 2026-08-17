@@ -24,7 +24,7 @@ export interface LoopDeps {
   cwd: string
   llm: LlmClient
   tools: Map<string, ToolDefinition>
-  decidePermission: (toolName: string) => PermissionDecision
+  decidePermission: (toolName: string, input?: Record<string, unknown>) => PermissionDecision
   ask: (promptId: string, tool?: string) => Promise<PromptResponse | null>
   maxSteps?: number
   maxContextTokens?: number
@@ -179,8 +179,8 @@ export class SessionRunner {
       // Parallel tool execution like opencode: run auto-approved calls
       // concurrently; permission-asking calls run serially afterwards to avoid
       // two prompts at once.
-      const askCalls = calls.filter(c => this.deps.decidePermission(c.tool) === 'ask')
-      const autoCalls = calls.filter(c => this.deps.decidePermission(c.tool) !== 'ask')
+      const askCalls = calls.filter(c => this.deps.decidePermission(c.tool, c.input) === 'ask')
+      const autoCalls = calls.filter(c => this.deps.decidePermission(c.tool, c.input) !== 'ask')
       await Promise.all(autoCalls.map(call => this.executeCall(call, signal)))
       for (const call of askCalls) await this.executeCall(call, signal)
 
@@ -197,7 +197,7 @@ export class SessionRunner {
 
   private async executeCall(call: ToolCallData, signal?: AbortSignal): Promise<void> {
     const { agentId } = this.deps
-    const decision = this.deps.decidePermission(call.tool)
+    const decision = this.deps.decidePermission(call.tool, call.input)
     let allowed: boolean
     if (decision === 'allow') {
       allowed = true
@@ -212,7 +212,7 @@ export class SessionRunner {
 
     if (!allowed) {
       call.permission = 'denied'
-      const deniedReason = this.deps.decidePermission(call.tool)
+      const deniedReason = this.deps.decidePermission(call.tool, call.input)
       call.error = deniedReason === 'deny'
         ? `tool "${call.tool}" is not permitted in the current mode`
         : 'permission denied by user'

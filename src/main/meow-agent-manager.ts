@@ -772,11 +772,12 @@ export class MeowAgentManager {
       cwd: agent.cwd,
       llm: llmClient,
       tools: runnerTools,
-      decidePermission: (tool) => decidePermission(
+      decidePermission: (tool, input) => decidePermission(
         this.modes.get(agent.id) ?? 'build',
         cfg.permission,
         (t) => this.deps.savedPermissions.isAllowed(agent.cwd, t),
-        tool
+        tool,
+        input
       ),
       ask: (promptId, tool) => this.awaitPrompt(agent.id, promptId, tool),
       maxSteps: cfg.maxSteps,

@@ -77,3 +77,43 @@ describe('PLAN_RULES', () => {
     expect(PLAN_RULES['browser_*']).toBe('ask')
   })
 })
+
+describe('plan mode bash write guard', () => {
+  it('denies write-style bash commands in plan mode', () => {
+    const writeCmds = [
+      "echo 'x' > file.txt",
+      "sed -i 's/a/b/' f.txt",
+      'tee out.log',
+      'mv a b',
+      'rm -rf build',
+      'cp a b',
+      'mkdir -p newdir',
+      'node -e "fs.writeFileSync(\'a\', \'b\')"',
+      'cat > f.txt << EOF\nhi\nEOF',
+      'chmod +x run.sh'
+    ]
+    for (const cmd of writeCmds) {
+      expect(decidePermission('plan', {}, noSaved, 'bash', { command: cmd })).toBe('deny')
+    }
+  })
+
+  it('still asks (not denies) read-only bash in plan mode', () => {
+    const readCmds = [
+      'ls -la',
+      'npm test',
+      'cat package.json',
+      'grep -rn "todo" src',
+      'git status', // git is denied by PLAN_RULES anyway; here via empty config
+      'echo hi 2>&1',
+      'ls > /dev/null',
+      'npm run build 2>&1 | tail -20'
+    ]
+    for (const cmd of readCmds) {
+      expect(decidePermission('plan', {}, noSaved, 'bash', { command: cmd })).toBe('ask')
+    }
+  })
+
+  it('is inert in build mode', () => {
+    expect(decidePermission('build', {}, noSaved, 'bash', { command: "echo 'x' > f.txt" })).toBe('ask')
+  })
+})
