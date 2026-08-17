@@ -24,15 +24,15 @@ export default function XtermHost({ agentId, onReady, onDispose, onInput, onResi
       theme: {
         background: '#0b0e13',
         foreground: '#cdd3de',
-        cursor: '#ff8a66',
+        cursor: '#4da3ff',
         cursorAccent: '#0b0e13',
-        selectionBackground: 'rgba(255, 138, 102, 0.25)',
+        selectionBackground: 'rgba(77, 163, 255, 0.25)',
         black: '#0b0e13',
         red: '#ff5f56',
         green: '#4ade9f',
         yellow: '#ffb454',
         blue: '#6cb6ff',
-        magenta: '#ff8a66',
+        magenta: '#c792ea',
         cyan: '#56d4dd',
         white: '#cdd3de',
         brightBlack: '#565e6e',
@@ -40,7 +40,7 @@ export default function XtermHost({ agentId, onReady, onDispose, onInput, onResi
         brightGreen: '#6fe8b6',
         brightYellow: '#ffc98a',
         brightBlue: '#8ab9ff',
-        brightMagenta: '#ffa88c',
+        brightMagenta: '#d7a9f5',
         brightCyan: '#7ee4ea',
         brightWhite: '#eef1f6'
       }
