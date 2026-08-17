@@ -768,6 +768,7 @@ select.input { width: 100%; }
 .settings-nav {
   display: flex; flex-direction: column; gap: 2px; flex: 0 0 150px;
   border-right: 1px solid var(--hairline); padding-right: 8px;
+  border-radius: 0; /* keep the right border a clean straight line, not rounded ends */
 }
 .settings-nav-item {
   text-align: left; padding: 7px 10px; border: none; background: transparent; color: var(--text);
