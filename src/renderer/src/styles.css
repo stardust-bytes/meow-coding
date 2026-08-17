@@ -160,6 +160,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   gap: 8px;
   padding: 10px;
   overflow-y: auto;
+  border-radius: 0; /* flush edges — no rounded right border against the pane grid */
 }
 .sidebar-toggle {
   flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
