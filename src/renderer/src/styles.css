@@ -210,13 +210,16 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   margin: 0 -10px -10px; padding: 6px 10px;
 }
 .sidebar-settings-btn {
-  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
-  width: 24px; height: 24px; padding: 0;
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px;
+  min-height: 24px; padding: 2px 6px;
   appearance: none; background: transparent; border: 1px solid transparent;
   color: var(--text-dim); border-radius: var(--radius-sm); cursor: pointer;
   transition: color 120ms ease, background 120ms ease;
 }
 .sidebar-settings-btn:hover { color: var(--text-strong); background: var(--bg-hover); }
+.sidebar-settings-label { font-size: var(--fs-md); font-weight: var(--fw-medium); }
+.sidebar.collapsed .sidebar-settings-btn { width: 24px; padding: 0; justify-content: center; }
+.sidebar.collapsed .sidebar-settings-label { display: none; }
 .sidebar.collapsed .sidebar-footer { justify-content: center; padding: 6px 0; margin: 0 -8px -8px; }
 
 .panel-head { display: flex; align-items: center; gap: 4px; }
