@@ -66,7 +66,7 @@ export default function SessionBar({ sessions, activeSessionId, onSelect, onCrea
     <div className="chat-sessions" ref={rootRef}>
       <span className="session-label">Sessions:</span>
       <div className="session-dropdown">
-        <button className="session-trigger" title="sessions" onClick={() => setOpen(v => !v)}>
+        <button className="session-trigger" title="Sessions" onClick={() => setOpen(v => !v)}>
           <span className="session-title">{active?.title ?? 'New session'}</span>
           <span className="session-caret">▾</span>
         </button>
@@ -108,7 +108,7 @@ export default function SessionBar({ sessions, activeSessionId, onSelect, onCrea
                   {renamingId !== s.id && (
                     <button
                       className="session-row-rename"
-                      title="rename session"
+                      title="Rename session"
                       aria-label={`rename session ${s.title}`}
                       onClick={e => { e.stopPropagation(); startRename(s) }}
                     >
@@ -117,7 +117,7 @@ export default function SessionBar({ sessions, activeSessionId, onSelect, onCrea
                   )}
                   <button
                     className="session-row-delete"
-                    title="delete session"
+                    title="Delete session"
                     aria-label={`delete session ${s.title}`}
                     onClick={e => { e.stopPropagation(); onDelete(s.id) }}
                   >

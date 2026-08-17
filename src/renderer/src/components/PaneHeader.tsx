@@ -117,7 +117,7 @@ export default function PaneHeader({
         <div className="pane-menu" ref={rootRef}>
           <button
             className="btn ghost small"
-            title="pane menu"
+            title="Pane menu"
             aria-label={`menu ${name}`}
             onClick={() => setMenuOpen(v => !v)}
           >

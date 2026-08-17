@@ -13,7 +13,7 @@ export default memo(function ContextFooter({ tokens, limit, compactThreshold, co
   if (tokens === null) {
     return (
       <div className="context-footer">
-        <span className="context-footer-label">context</span> —
+        <span className="context-footer-label">Context</span> —
       </div>
     )
   }
@@ -30,7 +30,7 @@ export default memo(function ContextFooter({ tokens, limit, compactThreshold, co
       </div>
       {sessionTokens && (
         <div className="context-footer-tokens">
-          <span className="context-footer-label">tokens</span>
+          <span className="context-footer-label">Tokens</span>
           <span>{(sessionTokens.input + sessionTokens.output).toLocaleString()}</span>
           <span className="context-footer-dim">
             ({sessionTokens.input.toLocaleString()} in / {sessionTokens.output.toLocaleString()} out)

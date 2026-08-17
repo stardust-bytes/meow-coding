@@ -34,14 +34,14 @@ export default function AddProjectDialog({ onAdd, onClose }: Props) {
         <label className="label">Folder</label>
         <div className="row">
           <input className="input grow" value={path} onChange={e => setPath(e.target.value)} />
-          <button className="btn" onClick={() => void pick()}>browse</button>
+          <button className="btn" onClick={() => void pick()}>Browse</button>
         </div>
         <label className="label">Name</label>
         <input className="input" value={name} onChange={e => setName(e.target.value)} />
         <div className="dialog-actions">
-          <button className="btn" onClick={onClose}>cancel</button>
+          <button className="btn" onClick={onClose}>Cancel</button>
           <button className="btn primary" disabled={!path || !name} onClick={() => onAdd(path, name)}>
-            add
+            Add
           </button>
         </div>
       </div>

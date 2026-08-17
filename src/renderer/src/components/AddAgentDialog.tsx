@@ -41,10 +41,10 @@ export default function AddAgentDialog({ projectPath, templates, onAdd, onClose 
         <label className="label">Working directory</label>
         <input className="input" value={cwd} onChange={e => setCwd(e.target.value)} />
         <div className="dialog-actions">
-          <button className="btn" onClick={onClose}>cancel</button>
+          <button className="btn" onClick={onClose}>Cancel</button>
           <button className="btn primary" disabled={!name || !templateId || !cwd}
             onClick={() => onAdd({ name, templateId, cwd })}>
-            add
+            Add
           </button>
         </div>
       </div>

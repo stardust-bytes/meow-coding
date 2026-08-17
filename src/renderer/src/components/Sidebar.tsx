@@ -109,7 +109,7 @@ export default function Sidebar({
               <div className="project-menu" onClick={e => e.stopPropagation()}>
                 <button
                   className="btn ghost small"
-                  title="project menu"
+                  title="Project menu"
                   aria-label={`menu ${ws.name}`}
                   onClick={e => {
                     // Anchor the portaled menu at the button, clamped to the viewport.

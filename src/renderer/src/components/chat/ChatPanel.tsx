@@ -672,8 +672,8 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
         onRename={handleRenameSession}
       />
       <div className="chat-history-actions">
-        <button className="btn small" title="undo last turn" onClick={handleUndo} disabled={running}>Undo</button>
-        <button className="btn small" title="redo undone turn" onClick={handleRedo} disabled={running}>Redo</button>
+        <button className="btn small" title="Undo last turn" onClick={handleUndo} disabled={running}>Undo</button>
+        <button className="btn small" title="Redo undone turn" onClick={handleRedo} disabled={running}>Redo</button>
       </div>
       {todos.length > 0 && (
         <div className="chat-todos">
@@ -715,7 +715,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
                 key={item.taskId}
                 className={`subagent ${item.state === 'running' ? 'running' : ''} ${item.background ? 'background' : ''}`}
                 onClick={() => setLiveTaskId(item.taskId)}
-                title="open live view"
+                title="Open live view"
               >
                 <div className="subagent-head">
                   <span className="subagent-name">sub-agent{item.subagentType ? ` (${item.subagentType})` : ''}</span>
@@ -740,7 +740,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
             {queue.map(q => (
               <div key={q.id} className="chat-queue-item">
                 <span className="chat-queue-badge">queued</span>
-                <span className="chat-queue-text" onClick={() => setEditTarget(q)} title="edit">{q.text}</span>
+                <span className="chat-queue-text" onClick={() => setEditTarget(q)} title="Edit">{q.text}</span>
                 <button
                   className="chat-queue-remove"
                   aria-label={`remove queued ${q.text}`}
@@ -881,7 +881,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
               <select
                 className="input chat-variant-select"
                 value={currentVariant}
-                aria-label="model effort"
+                aria-label="Model effort"
                 onChange={e => {
                   const v = e.target.value
                   setCurrentVariant(v)

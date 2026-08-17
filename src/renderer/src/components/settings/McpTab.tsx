@@ -68,7 +68,7 @@ export default function McpTab({ mcp, status, onChange }: Props) {
                 </span>
               )}
               {st?.error && <span className="mcp-error">{st.error}</span>}
-              <button className="btn small" onClick={() => removeServer(name)}>remove</button>
+              <button className="btn small" onClick={() => removeServer(name)}>Remove</button>
             </div>
             <div className="mcp-fields">
               <input

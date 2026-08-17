@@ -46,7 +46,7 @@ export default function AgentsTab({ agents, onChange }: Props) {
           <div className="agents-row-head">
             <span className="agent-name">{a.name}</span>
             <button className="btn small" disabled={a.name === 'meow'} onClick={() => removeAgent(i)}>
-              remove
+              Remove
             </button>
           </div>
           <textarea

@@ -52,7 +52,7 @@ export default function ModelPicker({ agentId }: Props) {
     <div className="model-picker" ref={rootRef}>
       <button
         className="model-trigger"
-        title="switch model"
+        title="Switch model"
         onClick={() => { refresh(); setSearch(''); setOpen(v => !v) }}
       >
         <span className="model-label">{label}</span>

@@ -74,8 +74,8 @@ export default function CommandsTab({ projectPath }: Props) {
         <div className="permission-row" key={c.name}>
           <span className="permission-tool">/{c.name}</span>
           <span className="command-tab-desc">{c.description}</span>
-          <button className="btn small" onClick={() => openEdit(c)}>edit</button>
-          <button className="btn small" onClick={() => void remove(c.name)}>remove</button>
+          <button className="btn small" onClick={() => openEdit(c)}>Edit</button>
+          <button className="btn small" onClick={() => void remove(c.name)}>Remove</button>
         </div>
       ))}
       <button className="btn" onClick={openAdd}>+ Add command</button>

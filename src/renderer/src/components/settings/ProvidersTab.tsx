@@ -111,10 +111,10 @@ export default function ProvidersTab({ settings, catalog, onChange }: Props) {
                 </span>
                 <span className="provider-catalog-meta">{c.modelCount} models</span>
                 {isConnected ? (
-                  <span className="provider-catalog-connected">connected</span>
+                  <span className="provider-catalog-connected">Connected</span>
                 ) : (
                   <button className="btn small" onClick={() => openCatalog(c.id, c.name)}>
-                    connect
+                    Connect
                   </button>
                 )}
               </div>
@@ -137,7 +137,7 @@ export default function ProvidersTab({ settings, catalog, onChange }: Props) {
               <button className="btn small" onClick={() => void setDefault(p.id)}>
                 {settings.defaultProvider === p.id ? 'default' : 'set default'}
               </button>
-              <button className="btn small" onClick={() => void disconnect(p.id)}>disconnect</button>
+              <button className="btn small" onClick={() => void disconnect(p.id)}>Disconnect</button>
             </div>
             {expandedId === p.id && (
               <div className="provider-models">
