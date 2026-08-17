@@ -263,7 +263,11 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .btn:disabled { opacity: 0.45; cursor: default; transform: none; }
 .btn.ghost { background: transparent; }
 .btn.ghost:hover { background: var(--bg-hover); }
-.btn-icon { display: inline-flex; align-items: center; justify-content: center; }
+.btn-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  line-height: 0; /* icon-only buttons: collapse text line box so the svg is vertically centered, not baseline-shifted */
+  vertical-align: middle;
+}
 .sidebar-action { display: block; width: 100%; text-align: left; margin-top: 2px; }
 .input {
   background: var(--bg-input);
