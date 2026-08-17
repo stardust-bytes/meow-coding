@@ -83,7 +83,6 @@ class MainApp {
     configPath: path.join(app.getPath('userData'), 'meow.json'),
     store: new SessionStore(createJsonStore<StoredSession>(path.join(app.getPath('userData'), 'sessions.json'))),
     trace: this.traces,
-    onTrace: (e) => win?.webContents.send(Channels.EventTrace, e),
     chatGptWeb: this.chatGptWeb,
     tools: createDefaultTools({
       getUserSkillsDir: () => path.join(app.getPath('userData'), 'skills'),
@@ -615,6 +614,8 @@ app.on('before-quit', (event) => {
   cleaningUp = true
   mainApp.stopGitPoll()
   void mainApp.meowAgent.dispose().then(() => {
+    return mainApp.traces.flushAll()
+  }).then(() => {
     return mainApp.browserBridge.close()
   }).then(() => {
     mainApp.pty

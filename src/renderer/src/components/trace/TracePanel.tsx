@@ -59,78 +59,51 @@ function TracePanel({ agentId, sessionId: sessionIdProp }: Props) {
   const [folded, setFolded] = useState<Set<number>>(new Set())
   const [search, setSearch] = useState('')
   const [subtreeOpen, setSubtreeOpen] = useState(true)
-  // Batch live trace events: text-delta floods arrive many per second; a
-  // single setState per event re-sorts and re-renders the whole ledger (jank).
-  // Collect into a ref and flush on a short timer instead.
-  const pendingRef = useRef<TraceEvent[]>([])
-  const flushTimerRef = useRef<number | null>(null)
-  const flushPending = useCallback(() => {
-    flushTimerRef.current = null
-    const batch = pendingRef.current
-    pendingRef.current = []
-    if (batch.length === 0) return
-    setEvents(prev => {
-      const bySeq = new Map<number, TraceEvent>()
-      for (const e of prev) bySeq.set(e.seq, e)
-      for (const e of batch) bySeq.set(e.seq, e)
-      return [...bySeq.values()].sort((a, b) => a.seq - b.seq)
-    })
-  }, [])
-  const scheduleFlush = useCallback(() => {
-    if (flushTimerRef.current !== null) return
-    flushTimerRef.current = window.setTimeout(flushPending, 100)
-  }, [flushPending])
-
-  useEffect(() => {
-    let cancelled = false
-    setEvents([])
-    setSelected(null)
-    const load = async () => {
+  const loadGenRef = useRef(0)
+  const reload = useCallback(() => {
+    const gen = ++loadGenRef.current
+    void (async () => {
       let sid: string | null = sessionIdProp ?? null
       if (!sid) {
         const sessions = await window.api.listSessions(agentId)
-        if (cancelled) return
+        if (gen !== loadGenRef.current) return
         const latest = sessions.length > 0
           ? sessions.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a))
           : null
         sid = latest?.id ?? null
       }
-      if (cancelled) return
+      if (gen !== loadGenRef.current) return
       setSessionId(sid)
       if (!sid) return
       const trace = await window.api.traceRead(sid)
-      if (cancelled) return
+      if (gen !== loadGenRef.current) return
       setEvents(prev => {
         const bySeq = new Map<number, TraceEvent>()
         for (const e of prev) bySeq.set(e.seq, e)
         for (const e of trace) bySeq.set(e.seq, e)
         return [...bySeq.values()].sort((a, b) => a.seq - b.seq)
       })
-    }
-    void load()
-    return () => { cancelled = true }
+    })()
   }, [agentId, sessionIdProp])
 
+  // Trace is not live anymore: load on mount and reload once the agent
+  // finishes a run (Stop button disappears), keeping the panel off the hot
+  // path of streaming deltas.
   useEffect(() => {
-    if (!sessionId) return
-    return window.api.onTraceEvent(e => {
-      if (e.sessionId !== sessionId) return
-      if (pendingRef.current.some(p => p.seq === e.seq)) return
-      pendingRef.current.push(e)
-      scheduleFlush()
-    })
-  }, [sessionId, scheduleFlush])
+    setEvents([])
+    setSelected(null)
+    reload()
+  }, [reload])
 
-  // Clear any scheduled flush on unmount / session switch.
+  useEffect(() => () => {
+    loadGenRef.current++
+  }, [])
+
   useEffect(() => {
-    return () => {
-      if (flushTimerRef.current !== null) {
-        window.clearTimeout(flushTimerRef.current)
-        flushTimerRef.current = null
-      }
-      pendingRef.current = []
-    }
-  }, [sessionId])
+    return window.api.onChatEvent(e => {
+      if ((e.type === 'done' || e.type === 'error') && e.agentId === agentId) reload()
+    })
+  }, [agentId, reload])
 
   useEffect(() => {
     if (!selected) return

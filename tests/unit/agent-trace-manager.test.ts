@@ -25,7 +25,7 @@ interface FakeTrace {
   deleted: string[]
 }
 
-function makeTrace(): FakeTrace & Pick<TraceStore, 'append' | 'delete'> {
+function makeTrace(): FakeTrace & Pick<TraceStore, 'append' | 'delete' | 'flush'> {
   const trace: FakeTrace = { appends: [], deleted: [] }
   return {
     ...trace,
@@ -34,7 +34,8 @@ function makeTrace(): FakeTrace & Pick<TraceStore, 'append' | 'delete'> {
     },
     delete(sessionId: string): void {
       trace.deleted.push(sessionId)
-    }
+    },
+    async flush(_sessionId: string): Promise<void> {}
   }
 }
 

@@ -953,6 +953,7 @@ export class MeowAgentManager {
       case 'done':
         flushMessage()
         emitTrace({ type: 'done', agentId, sessionId, reason: e.reason, tokens: e.tokens, cost: e.cost })
+        this.deps.trace?.flush(sessionId)
         break
       default:
         break
