@@ -223,7 +223,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .btn:hover { background: var(--bg-input-hover); border-color: var(--accent-border); }
 .btn:active { transform: translateY(1px); }
 .btn.small { padding: 2px 8px; font-size: var(--fs-base); }
-.btn.primary { background: var(--accent); color: #0b0e13; border-color: transparent; font-weight: var(--fw-semibold); }
+.btn.primary { background: var(--accent); color: #ffffff; border-color: transparent; font-weight: var(--fw-semibold); }
 .btn.primary:hover { background: var(--accent-strong); border-color: transparent; }
 .btn:disabled { opacity: 0.45; cursor: default; transform: none; }
 .btn.ghost { background: transparent; }
@@ -728,7 +728,7 @@ select.input { width: 100%; }
 .chat-input-attach {
   display: inline-flex; align-items: center; gap: 6px;
   appearance: none; background: var(--accent); border: none; padding: 4px 12px;
-  color: #0b0e13; font-size: var(--fs-md); font-weight: var(--fw-semibold); cursor: pointer;
+  color: #ffffff; font-size: var(--fs-md); font-weight: var(--fw-semibold); cursor: pointer;
   border-radius: var(--radius);
   transition: background 120ms ease, transform 60ms ease;
 }
@@ -929,7 +929,7 @@ select.input { width: 100%; }
 .chat-mode { display: flex; align-items: center; gap: 6px; }
 .chat-mode-label { font-size: var(--fs-base); font-weight: var(--fw-semibold); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-strong); font-family: var(--font-display); }
 .chat-mode .btn.active { background: var(--bg-active); border-color: var(--accent-dim); }
-.chat-mode .btn.mode-build.active { background: var(--accent); color: #0b0e13; border-color: transparent; }
+.chat-mode .btn.mode-build.active { background: var(--accent); color: #ffffff; border-color: transparent; }
 .chat-mode .btn.mode-plan.active { background: var(--orange); color: #0b0e13; border-color: transparent; }
 .chat-mode-tools { margin-left: auto; display: flex; align-items: center; gap: 6px; min-width: 0; }
 .chat-variant-select { width: auto; padding: 2px 6px; font-size: var(--fs-base); }
