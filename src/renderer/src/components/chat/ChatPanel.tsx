@@ -116,6 +116,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [todos, setTodos] = useState<TodoItem[]>([])
+  const [todosCollapsed, setTodosCollapsed] = useState(false)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
   const [queue, setQueue] = useState<QueuedMessage[]>([])
   const queueRef = useRef<QueuedMessage[]>([])
@@ -680,7 +681,18 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
           <div className="chat-todos-head">
             <span className="chat-todos-title">TODO LIST</span>
             <span className="chat-todos-count">{doneCount}/{todos.length}</span>
+            <button
+              className={`chat-todos-toggle ${todosCollapsed ? 'collapsed' : ''}`}
+              title={todosCollapsed ? 'Expand' : 'Collapse'}
+              aria-label={todosCollapsed ? 'Expand todo list' : 'Collapse todo list'}
+              onClick={() => setTodosCollapsed(v => !v)}
+            >
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="4 6 8 10 12 6" />
+              </svg>
+            </button>
           </div>
+          {!todosCollapsed && (
           <ul className="chat-todos-list">
             {todos.map((t, i) => (
               <li key={i} className={`chat-todo status-${t.status}`}>
@@ -689,6 +701,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
               </li>
             ))}
           </ul>
+          )}
         </div>
       )}
       <div className="chat-feed" ref={feedRef} onScroll={onFeedScroll}>

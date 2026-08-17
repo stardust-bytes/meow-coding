@@ -554,6 +554,16 @@ select.input { width: 100%; }
 .chat-todos-head { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding-bottom: 4px; }
 .chat-todos-title { font-size: var(--fs-base); text-transform: uppercase; letter-spacing: 0.12em; color: var(--orange); flex: 1; font-family: var(--font-display); font-weight: var(--fw-semibold); }
 .chat-todos-count { font-size: var(--fs-sm); color: var(--text-dim); font-family: var(--font-mono); font-variant-numeric: tabular-nums; background: var(--bg-code); border-radius: 999px; padding: 1px 8px; border: 1px solid var(--hairline); }
+.chat-todos-toggle {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; padding: 0;
+  appearance: none; background: transparent; border: 1px solid transparent;
+  color: var(--text-dim); border-radius: var(--radius-sm); cursor: pointer;
+  transition: color 120ms ease, background 120ms ease;
+}
+.chat-todos-toggle:hover { color: var(--text-strong); background: var(--bg-hover); }
+.chat-todos-toggle svg { transition: transform 120ms ease; }
+.chat-todos-toggle.collapsed svg { transform: rotate(-90deg); }
 .chat-todos-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .chat-todo { display: flex; align-items: flex-start; gap: 8px; padding: 3px 4px; font-size: var(--fs-md); line-height: 1.4; border-radius: var(--radius-sm); }
 .chat-todo:hover { background: rgba(255, 180, 84, 0.06); }
