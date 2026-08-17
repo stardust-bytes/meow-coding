@@ -29,7 +29,9 @@ describe('loadMeowConfig', () => {
     expect(cfg.provider).toEqual({})
     expect(cfg.agents.meow.systemPrompt).toBeTruthy()
     expect(cfg.agents.meow.systemPrompt).toMatch(/question tool/i)
-    expect(cfg.agents.meow.systemPrompt).toMatch(/search tools/i)
+    // The "use search tools extensively" filler was dropped to keep the
+    // per-request system prompt lean.
+    expect(cfg.agents.meow.systemPrompt).not.toMatch(/search tools/i)
   })
 
   it('uses empty providers when the file is corrupt', () => {
@@ -247,7 +249,7 @@ describe('configToSettings / settingsToConfig', () => {
 
   it('defaults to token-based compaction settings', () => {
     const cfg = loadMeowConfig(file)
-    expect(cfg.maxContextTokens).toBe(200000)
+    expect(cfg.maxContextTokens).toBe(128000)
     expect(cfg.maxSteps).toBe(Infinity)
     expect(cfg.compaction).toEqual({
       auto: true,

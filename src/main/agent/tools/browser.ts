@@ -46,8 +46,7 @@ export function createBrowserTools(
       name: 'browser_navigate',
       description:
         'Open a URL in a new background tab of an existing Chrome window, grouped under "Meow". ' +
-        'Never navigates or hijacks an existing tab. Returns a tabId you can pass as the tabId ' +
-        'argument of other browser_* tools to act on that tab.',
+        'Never navigates or hijacks an existing tab. Returns a tabId for other browser_* tools.',
       schema: z.object({
         url: z.string().describe('The http(s) URL to open.')
       }),
@@ -62,7 +61,7 @@ export function createBrowserTools(
       description:
         'Open a URL in a new background tab of an existing Chrome window, grouped under "Meow". ' +
         'Never opens a new Chrome window unless none are open, and does not focus Chrome. ' +
-        'Returns a tabId you can pass as the tabId argument of other browser_* tools to act on that tab.',
+        'Returns a tabId for other browser_* tools.',
       schema: z.object({
         url: z.string().describe('The http(s) URL to open.')
       }),

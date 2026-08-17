@@ -68,9 +68,7 @@ export function collectSkills(cwd: string, userSkillsDir?: string, builtinSkills
 export function skillListText(skills: Skill[]): string {
   if (skills.length === 0) return ''
   return (
-    '\n\nYou have skills available. Load one with the skill tool when the task matches its purpose. ' +
-    'Before starting significant work, load the using-superpowers skill to pick the right workflow ' +
-    '(e.g. brainstorming, writing-plans, executing-plans, subagent-driven-development).\n' +
-    'Available skills:\n' + skills.map(s => `- ${s.name}: ${s.description}`).join('\n')
+    '\n\nSkills available (load one with the skill tool when the task matches its purpose):\n' +
+    skills.map(s => `- ${s.name}: ${s.description}`).join('\n')
   )
 }

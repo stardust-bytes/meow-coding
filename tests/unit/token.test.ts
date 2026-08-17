@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { estimateTokens, estimateUsage } from '../../src/main/agent/token'
 
 describe('estimateTokens', () => {
-  it('estimates ~1 token per 4 chars like opencode', () => {
+  it('estimates ~1 token per 3.5 chars like dense JSON/code transcripts', () => {
     expect(estimateTokens('')).toBe(0)
-    expect(estimateTokens('hello world')).toBe(Math.round(11 / 4))
-    expect(estimateTokens('x'.repeat(1000))).toBe(250)
+    expect(estimateTokens('hello world')).toBe(Math.round(11 / 3.5))
+    expect(estimateTokens('x'.repeat(1000))).toBe(Math.round(1000 / 3.5))
   })
 
   it('never returns a negative count', () => {

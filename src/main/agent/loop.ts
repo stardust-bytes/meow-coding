@@ -40,7 +40,7 @@ export interface LoopDeps {
   setTodos?: (todos: TodoItem[]) => void
   variantOptions?: Record<string, unknown>
   onUsage?: (tokens: MessageTokens) => void
-  computeCost?: (usage: { input: number; output: number }) => number
+  computeCost?: (usage: { input: number; output: number; cacheRead?: number; cacheWrite?: number }) => number
   diagnostics?: (filePath: string, text: string) => Promise<string>
 }
 
@@ -51,6 +51,10 @@ const MAX_STEPS_PROMPT = 'Final step: wrap up and provide your final answer now.
 export class SessionRunner {
   private readonly maxSteps: number
   private compactedThisRun = 0
+  // Provider-reported usage of the last LLM call; overflow detection trusts it
+  // over the transcript char estimate because it includes the system prompt and
+  // tool definitions (see maybeCompact).
+  private lastTokens: MessageTokens | undefined
   // AGENTS.md paths already attached to a read output this session; cross-message
   // dedupe so instructions are not repeated across turns (opencode claims set).
   private attachedInstructions = new Set<string>()
@@ -63,7 +67,7 @@ export class SessionRunner {
     const { agentId } = this.deps
     let steps = 0
     this.compactedThisRun = 0
-    const runUsage = { input: 0, output: 0, total: 0 }
+    const runUsage = { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0 }
     while (true) {
       if (signal?.aborted) {
         this.deps.onEvent({ type: 'done', agentId, reason: 'stopped' })
@@ -129,9 +133,12 @@ export class SessionRunner {
           } else if (part.kind === 'finish') {
             tokens = part.tokens
             if (part.tokens) {
+              this.lastTokens = part.tokens
               runUsage.input += part.tokens.input
               runUsage.output += part.tokens.output
               runUsage.total += part.tokens.total
+              runUsage.cacheRead += part.tokens.cacheRead ?? 0
+              runUsage.cacheWrite += part.tokens.cacheWrite ?? 0
               // Báo usage ngay mỗi step: nếu user bấm Stop hoặc gặp lỗi giữa
               // chừng, chi phí đã tiêu vẫn được ghi nhận.
               this.deps.onUsage?.(part.tokens)
@@ -287,13 +294,25 @@ export class SessionRunner {
     if (usable <= 0) return
     let items = this.deps.getItems()
     const opts = { toolOutputMaxChars: compaction.toolOutputMaxChars, ...this.truncationOpts() }
-    if (estimateUsage(toLlmMessages(items, opts)) < usable) return
+    // Trust the provider-reported usage when available (mirrors opencode's
+    // overflow check): it covers the system prompt + tool definitions, which
+    // the transcript char estimate never counts. Fall back to the estimate
+    // only before the first response arrives.
+    const usedTokens = this.lastTokens
+      ? this.lastTokens.total ||
+        this.lastTokens.input + this.lastTokens.output +
+        (this.lastTokens.cacheRead ?? 0) + (this.lastTokens.cacheWrite ?? 0)
+      : estimateUsage(toLlmMessages(items, opts))
+    if (usedTokens < usable) return
 
     // Prune old tool outputs first (cheap) before spending an LLM compact call.
     const pruned = pruneToolOutputs(items, compaction)
     if (pruned) {
       replaceItems(items)
-      if (estimateUsage(toLlmMessages(items, opts)) < usable) return
+      const afterPrune = this.lastTokens
+        ? usedTokens
+        : estimateUsage(toLlmMessages(items, opts))
+      if (afterPrune < usable) return
     }
 
     const { head, tail } = selectHeadTail(items, compaction.keepTokens, compaction.tailTurns)

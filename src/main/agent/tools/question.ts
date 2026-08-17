@@ -11,9 +11,8 @@ export const questionTool: ToolDefinition = {
   name: 'question',
   description:
     'Ask the user a question and return their answer. Use this tool instead of writing questions ' +
-    'as plain text in your reply: it renders an interactive form the user can answer with one click. ' +
-    'For choice questions, provide `options` (label + optional description); answers come back as the ' +
-    'selected label(s). When `custom` is enabled (default) the user can also type their own answer.',
+    'as plain text: it renders an interactive form the user can answer with one click. For choice ' +
+    'questions provide `options`; answers come back as the selected label(s).',
   schema: z.object({
     question: z.string().describe('The question to ask the user.'),
     header: z.string().optional().describe('Very short label (max 30 chars)'),

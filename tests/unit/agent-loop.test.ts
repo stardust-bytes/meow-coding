@@ -421,6 +421,43 @@ describe('SessionRunner', () => {
     expect(h.events.some(e => e.type === 'compacted')).toBe(true)
   })
 
+  it('compacts based on the model-reported token usage from the previous turn', async () => {
+    const replaced: TranscriptItem[][] = []
+    const h = makeHarness({
+      tools: new Map([['read', stubTool('read')]]),
+      maxContextTokens: 200,
+      compaction: { auto: true, buffer: 20, keepTokens: 100, tailTurns: 2, toolOutputMaxChars: 2000 },
+      replaceItems: (items) => replaced.push(items),
+      maxSteps: 2,
+      llm: {
+        async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
+          h.llm.calls.push(opts)
+          if (opts.tools.length === 0) {
+            yield { kind: 'text', text: '## Objective\n- compacted' }
+            yield { kind: 'finish' }
+          } else if (h.llm.calls.length === 1) {
+            yield { kind: 'text', text: 'ok' }
+            yield { kind: 'tool-call', toolCallId: 'tc1', toolName: 'read', toolInput: { file_path: 'a.ts' } }
+            // Real usage from the provider (includes system prompt + tool
+            // definitions, which the transcript char estimate never sees).
+            yield { kind: 'finish', tokens: { input: 480, output: 20, total: 500 } }
+          } else {
+            yield { kind: 'text', text: 'done' }
+            yield { kind: 'finish' }
+          }
+        }
+      } as unknown as LlmClient
+    })
+    // Tiny transcript — the chars/4 estimate alone stays far below the budget.
+    h.items.push({ kind: 'message', message: { id: 'old', role: 'user', text: 'some earlier prompt', createdAt: 1 } })
+    h.items.push({ kind: 'message', message: { id: 'recent', role: 'user', text: 'latest prompt', createdAt: 2 } })
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+
+    expect(replaced.length).toBe(1)
+    expect(h.events.some(e => e.type === 'compacted')).toBe(true)
+  })
+
   it('truncates tool output to toolOutputMaxChars when sending to the model', async () => {
     const h = makeHarness({
       tools: new Map([['bash', stubTool('bash', async () => ({ output: 'o'.repeat(5000) }))]]),

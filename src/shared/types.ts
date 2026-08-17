@@ -71,6 +71,7 @@ export interface MessageTokens {
   total: number
   reasoning?: number
   cacheRead?: number
+  cacheWrite?: number
 }
 
 export interface ContextInfo {

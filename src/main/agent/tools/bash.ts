@@ -30,9 +30,8 @@ const WINDOWS_KILL_GRACE_MS = 600
 export const bashTool: ToolDefinition = {
   name: 'bash',
   description:
-    'Run a shell command in the project directory (already set as the working directory) and return ' +
-    'stdout+stderr. On Windows this runs in Git Bash, so use unix commands (ls, pwd, cat, sed, awk, ' +
-    'find, grep, git, npm) and do not prefix commands with "cd /d" — use plain relative or absolute paths.',
+    'Run a shell command in the project directory and return stdout+stderr. On Windows this runs in ' +
+    'Git Bash, so use unix commands (ls, pwd, cat, sed, awk, find, grep, git, npm).',
   schema: z.object({
     command: z.string().describe('The shell command to run.'),
     timeoutMs: z.number().int().optional().describe('Optional timeout in milliseconds.')

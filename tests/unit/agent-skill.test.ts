@@ -72,6 +72,12 @@ describe('skills', () => {
     expect(text).toContain('- a: does a')
   })
 
+  it('skillListText keeps the preamble short (no per-request workflow essay)', () => {
+    const text = skillListText([{ name: 'a', description: 'does a', content: 'x' }])
+    expect(text).not.toContain('Before starting significant work')
+    expect(text).toMatch(/^.{0,160}- a: does a/s)
+  })
+
   it('skill tool returns the skill content and errors on unknown', async () => {
     const skillsDir = path.join(dir, '.meow', 'skills')
     mkdirSync(skillsDir, { recursive: true })

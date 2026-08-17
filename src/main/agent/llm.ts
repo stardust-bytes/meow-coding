@@ -39,17 +39,46 @@ interface SdkUsage {
   totalTokens?: number
   reasoningTokens?: number
   cachedInputTokens?: number
+  cacheCreationInputTokens?: number
+  inputTokenDetails?: {
+    noCacheTokens?: number
+    cacheReadTokens?: number
+    cacheWriteTokens?: number
+  }
 }
 
 export function toMessageTokens(usage: SdkUsage | undefined): MessageTokens | undefined {
   if (!usage) return undefined
+  // SDK v6 reports inputTokens as the total prompt size (including cached
+  // tokens) and breaks down noCache/cacheRead/cacheWrite in inputTokenDetails.
+  // The plain input counter is what's actually billed at full price.
+  const details = usage.inputTokenDetails
   return {
-    input: usage.inputTokens ?? 0,
+    input: details?.noCacheTokens ?? usage.inputTokens ?? 0,
     output: usage.outputTokens ?? 0,
     total: usage.totalTokens ?? 0,
     reasoning: usage.reasoningTokens,
-    cacheRead: usage.cachedInputTokens
+    cacheRead: details?.cacheReadTokens ?? usage.cachedInputTokens,
+    cacheWrite: details?.cacheWriteTokens ?? usage.cacheCreationInputTokens
   }
+}
+
+const ANTHROPIC_CACHE_BREAKPOINT = { anthropic: { cacheControl: { type: 'ephemeral' } } } as const
+
+// Anthropic needs explicit cache breakpoints to reuse the prompt prefix across
+// turns (0.1x input price instead of 1.0x). Tag the first message (long-lived
+// stable prefix) and the last message (cache grows one turn at a time), mirroring
+// opencode's applyCaching. Other providers cache automatically or reject unknown
+// cache_control fields, so they are left untouched.
+export function withCacheBreakpoints(messages: ModelMessage[], provider: string): ModelMessage[] {
+  if (provider !== 'anthropic' || messages.length === 0) return messages
+  const tagged = messages.map(m => ({ ...m }))
+  tagged[0] = { ...tagged[0], providerOptions: { ...tagged[0].providerOptions, ...ANTHROPIC_CACHE_BREAKPOINT } }
+  const last = tagged.length - 1
+  if (last !== 0) {
+    tagged[last] = { ...tagged[last], providerOptions: { ...tagged[last].providerOptions, ...ANTHROPIC_CACHE_BREAKPOINT } }
+  }
+  return tagged
 }
 
 export function createAnthropicLlm(apiKey: string): LlmClient {
@@ -86,13 +115,27 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string): L
   return {
     async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
       const tools = Object.fromEntries(opts.tools.map(def => [def.name, toToolDefinition(def)]))
+      // Anthropic: top-level cacheControl caches the system prompt (sent on
+      // every request); message breakpoints cache the growing history prefix.
+      const variant = opts.variantOptions as StreamProviderOptions | undefined
+      let providerOptions: StreamProviderOptions | undefined
+      if (provider === 'anthropic') {
+        providerOptions = {
+          anthropic: {
+            cacheControl: { type: 'ephemeral' },
+            ...(variant?.anthropic as Record<string, unknown> | undefined)
+          }
+        }
+      } else {
+        providerOptions = variant
+      }
       const result = streamText({
         model: model(opts.model),
         system: opts.system,
-        messages: opts.messages,
+        messages: withCacheBreakpoints(opts.messages, provider),
         tools,
         abortSignal: opts.signal,
-        ...(opts.variantOptions ? { providerOptions: opts.variantOptions as StreamProviderOptions } : {})
+        ...(providerOptions ? { providerOptions } : {})
       })
       for await (const part of result.fullStream) {
         switch (part.type) {

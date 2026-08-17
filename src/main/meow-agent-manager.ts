@@ -798,16 +798,26 @@ export class MeowAgentManager {
       diagnostics: cfg.lsp.enabled && this.deps.lsp
         ? (filePath, text) => this.deps.lsp!.diagnosticsText(filePath, text)
         : undefined,
-      computeCost: (tokens) => calcCost({ input: tokens.input, output: tokens.output }, this.priceFor(resolved.provider, resolved.model)),
+      computeCost: (tokens) => calcCost({
+        input: tokens.input,
+        output: tokens.output,
+        cacheRead: tokens.cacheRead ?? 0,
+        cacheWrite: tokens.cacheWrite ?? 0
+      }, this.priceFor(resolved.provider, resolved.model)),
       onUsage: (tokens) => {
         const price = this.priceFor(resolved.provider, resolved.model)
         const sessionId = this.activeSessionId(agent.id)
         const usage: UsageSummary = {
           input: tokens.input,
           output: tokens.output,
-          cacheRead: 0,
-          cacheWrite: 0,
-          cost: calcCost({ input: tokens.input, output: tokens.output }, price)
+          cacheRead: tokens.cacheRead ?? 0,
+          cacheWrite: tokens.cacheWrite ?? 0,
+          cost: calcCost({
+            input: tokens.input,
+            output: tokens.output,
+            cacheRead: tokens.cacheRead ?? 0,
+            cacheWrite: tokens.cacheWrite ?? 0
+          }, price)
         }
         this.deps.store.addUsage(sessionId, usage)
         const sessionUsage = this.deps.store.getUsage(sessionId)

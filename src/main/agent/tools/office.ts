@@ -21,10 +21,8 @@ export function createOfficeTool(deps: OfficeToolDeps): ToolDefinition {
     name: 'office',
     description:
       'Create, read, analyze, and modify Office documents (.docx, .xlsx, .pptx) via the officecli ' +
-      'CLI. The binary is resolved from PATH or auto-downloaded on first use. Pass the officecli ' +
-      'arguments as an argv array (no shell), e.g. ["create","report.docx"] or ' +
-      '["add","deck.pptx","/","--type","slide","--prop","title=Q4"]. "--json" is appended ' +
-      'automatically for structured output.',
+      'CLI. Pass the officecli arguments as an argv array (no shell), e.g. ["create","report.docx"] ' +
+      'or ["add","deck.pptx","/","--type","slide","--prop","title=Q4"]. "--json" is appended automatically.',
     schema: z.object({
       args: z.array(z.string()).describe('The officecli command arguments, e.g. ["create", "report.docx"].'),
       timeoutMs: z.number().int().optional().describe('Optional timeout in milliseconds.')

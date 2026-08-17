@@ -60,7 +60,10 @@ export interface ResolvedAgentConfig {
   systemPrompt: string
 }
 
-export const DEFAULT_MAX_CONTEXT_TOKENS = 200000
+// Fallback only when the model is absent from the models.dev catalog; most
+// uncatalogued OpenAI-compatible models cap at 128k, so assuming 200k would
+// delay compaction past the real limit.
+export const DEFAULT_MAX_CONTEXT_TOKENS = 128000
 export const DEFAULT_MAX_STEPS = Infinity
 export const DEFAULT_COMPACTION: MeowCompactionConfig = {
   auto: true,
@@ -96,9 +99,7 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
         'bash, read, write, edit, glob, grep, apply-patch and todowrite. Read files before ' +
         'editing them, run tests after changes, and keep answers concise. Whenever you need ' +
         'input or a decision from the user, use the question tool to show an interactive form ' +
-        'instead of writing questions as plain text. ' +
-        'Use the available search tools to understand the codebase and the user\'s query. ' +
-        'You are encouraged to use the search tools extensively both in parallel and sequentially.'
+        'instead of writing questions as plain text.'
     }
   },
   permission: {

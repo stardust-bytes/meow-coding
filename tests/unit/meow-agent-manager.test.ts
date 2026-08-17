@@ -678,9 +678,9 @@ describe('MeowAgentManager', () => {
   it('getContextInfo reports the config limit and the auto-compact threshold', async () => {
     const { manager } = await makeManager()
     const info = manager.getContextInfo('a1')
-    // config mặc định: maxContextTokens 200000, compaction.auto true, buffer 20000
-    expect(info.limit).toBe(200000)
-    expect(info.compactThreshold).toBe(180000)
+    // config mặc định: maxContextTokens 128000, compaction.auto true, buffer 20000
+    expect(info.limit).toBe(128000)
+    expect(info.compactThreshold).toBe(108000)
     expect(info.sessionCost).toBe(0)
   })
 

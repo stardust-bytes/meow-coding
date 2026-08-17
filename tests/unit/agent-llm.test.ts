@@ -104,6 +104,67 @@ describe('createAnthropicLlm', () => {
     expect(out[1]).toEqual({ kind: 'reasoning', text: 'more' })
     expect(out[2]).toEqual({ kind: 'finish', finishReason: 'stop', tokens: { input: 10, output: 5, total: 15 } })
   })
+
+  it('adds anthropic cache breakpoints on the system and first/last messages', async () => {
+    streamTextMock.mockReturnValue({
+      fullStream: fakeFullStream([{ type: 'finish', finishReason: 'stop' }])
+    })
+    const llm = createAnthropicLlm('sk-test')
+    const messages = [
+      { role: 'user' as const, content: 'first' },
+      { role: 'user' as const, content: 'mid' },
+      { role: 'user' as const, content: 'last' }
+    ]
+    for await (const p of llm.stream({ model: 'claude-x', system: 'sys', messages, tools: [] })) {
+      void p
+    }
+    const call = streamTextMock.mock.calls[0][0]
+    expect(call.providerOptions).toEqual({ anthropic: { cacheControl: { type: 'ephemeral' } } })
+    expect(call.messages[0].providerOptions).toEqual({ anthropic: { cacheControl: { type: 'ephemeral' } } })
+    expect(call.messages[1].providerOptions).toBeUndefined()
+    expect(call.messages[2].providerOptions).toEqual({ anthropic: { cacheControl: { type: 'ephemeral' } } })
+  })
+
+  it('adds a single breakpoint when the history has one message and merges variant options', async () => {
+    streamTextMock.mockReturnValue({
+      fullStream: fakeFullStream([{ type: 'finish', finishReason: 'stop' }])
+    })
+    const llm = createAnthropicLlm('sk-test')
+    const messages = [{ role: 'user' as const, content: 'only' }]
+    for await (const p of llm.stream({
+      model: 'claude-x', system: 'sys', messages, tools: [],
+      variantOptions: { anthropic: { thinking: { type: 'enabled', budgetTokens: 1024 } } }
+    })) {
+      void p
+    }
+    const call = streamTextMock.mock.calls[0][0]
+    expect(call.providerOptions).toEqual({
+      anthropic: {
+        cacheControl: { type: 'ephemeral' },
+        thinking: { type: 'enabled', budgetTokens: 1024 }
+      }
+    })
+    expect(call.messages).toHaveLength(1)
+    expect(call.messages[0].providerOptions).toEqual({ anthropic: { cacheControl: { type: 'ephemeral' } } })
+  })
+
+  it('does not add cache breakpoints for openai-compatible providers', async () => {
+    streamTextMock.mockReturnValue({
+      fullStream: fakeFullStream([{ type: 'finish', finishReason: 'stop' }])
+    })
+    const llm = createOpenAICompatibleLlm({ apiKey: 'k', baseUrl: 'http://localhost:11434/v1' })
+    const messages = [
+      { role: 'user' as const, content: 'first' },
+      { role: 'user' as const, content: 'last' }
+    ]
+    for await (const p of llm.stream({ model: 'llama3', system: 's', messages, tools: [] })) {
+      void p
+    }
+    const call = streamTextMock.mock.calls[0][0]
+    expect(call.providerOptions).toBeUndefined()
+    expect(call.messages[0].providerOptions).toBeUndefined()
+    expect(call.messages[1].providerOptions).toBeUndefined()
+  })
 })
 
 describe('formatLlmError', () => {
@@ -169,11 +230,19 @@ describe('toMessageTokens', () => {
     expect(toMessageTokens({
       inputTokens: 100, outputTokens: 20, totalTokens: 130,
       reasoningTokens: 8, cachedInputTokens: 500
-    })).toEqual({ input: 100, output: 20, total: 130, reasoning: 8, cacheRead: 500 })
+    })).toEqual({ input: 100, output: 20, total: 130, reasoning: 8, cacheRead: 500, cacheWrite: undefined })
+  })
+
+  it('maps SDK v6 inputTokenDetails (noCache/cacheRead/cacheWrite) and cache creation', () => {
+    expect(toMessageTokens({
+      inputTokens: 130, outputTokens: 20, totalTokens: 150,
+      cacheCreationInputTokens: 30,
+      inputTokenDetails: { noCacheTokens: 100, cacheReadTokens: 500, cacheWriteTokens: 30 }
+    })).toEqual({ input: 100, output: 20, total: 150, reasoning: undefined, cacheRead: 500, cacheWrite: 30 })
   })
 
   it('defaults missing counters to 0 and leaves optional fields undefined', () => {
-    expect(toMessageTokens({})).toEqual({ input: 0, output: 0, total: 0, reasoning: undefined, cacheRead: undefined })
+    expect(toMessageTokens({})).toEqual({ input: 0, output: 0, total: 0, reasoning: undefined, cacheRead: undefined, cacheWrite: undefined })
   })
 
   it('returns undefined when the provider reports no usage', () => {
