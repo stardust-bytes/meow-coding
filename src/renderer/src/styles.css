@@ -335,9 +335,9 @@ select.input { width: 100%; }
   border-bottom: 1px solid transparent;
 }
 .pane-header.active {
-  background: var(--bg-raised);
-  color: var(--text);
-  box-shadow: inset 2px 0 0 var(--accent);
+  background: linear-gradient(180deg, var(--accent-dim), transparent 60%), var(--bg-raised);
+  color: var(--text-strong);
+  border-bottom-color: var(--accent-border);
 }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); flex: 0 0 auto; }
 .status-dot.status-spawning { background: var(--accent); box-shadow: 0 0 8px var(--accent-dim); }
