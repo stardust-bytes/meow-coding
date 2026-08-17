@@ -173,7 +173,10 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .sidebar-toggle svg { transition: transform 120ms ease; }
 .sidebar-toggle.collapsed svg { transform: rotate(180deg); }
 .sidebar.collapsed {
-  width: 48px; padding: 8px;
+  /* 48px + 1px border-right + 2x8px padding = 31px content < 32px avatar.
+     Widen to 52px so content is 35px: 32px avatars get ~1.5px breathing
+     room each side and are never clipped (incl. the rounded corners). */
+  width: 52px; padding: 8px;
   overflow-x: hidden; /* rail must never scroll horizontally */
 }
 .sidebar.collapsed .sidebar-head {
