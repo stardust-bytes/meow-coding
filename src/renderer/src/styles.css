@@ -276,7 +276,10 @@ select.input { width: 100%; }
   min-width: 0;
   cursor: default;
 }
-.pane.active { box-shadow: var(--shadow-2); }
+.pane.active {
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  box-shadow: var(--shadow-2), 0 0 16px color-mix(in srgb, var(--accent) 10%, transparent);
+}
 .pane.status-spawning { border-top-color: var(--accent); animation: pane-edge-spawn 1.1s ease-in-out infinite; }
 .pane.status-running { border-top-color: var(--green); }
 .pane.status-idle { border-top-color: var(--yellow); }
@@ -335,9 +338,9 @@ select.input { width: 100%; }
   border-bottom: 1px solid transparent;
 }
 .pane-header.active {
-  background: linear-gradient(180deg, var(--accent-dim), transparent 60%), var(--bg-raised);
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-raised));
   color: var(--text-strong);
-  border-bottom-color: var(--accent-border);
+  border-bottom-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); flex: 0 0 auto; }
 .status-dot.status-spawning { background: var(--accent); box-shadow: 0 0 8px var(--accent-dim); }
