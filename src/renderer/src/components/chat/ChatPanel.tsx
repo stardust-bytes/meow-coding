@@ -866,13 +866,13 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
             className={`btn small mode-build ${currentMode === 'build' ? 'active' : ''}`}
             onClick={() => switchMode('build')}
           >
-            build
+            Build
           </button>
           <button
             className={`btn small mode-plan ${currentMode === 'plan' ? 'active' : ''}`}
             onClick={() => switchMode('plan')}
           >
-            plan
+            Plan
           </button>
           {currentMode === 'plan' && <span className="chat-mode-hint">read-only — edits denied</span>}
           <div className="chat-mode-tools">
