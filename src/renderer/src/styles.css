@@ -276,6 +276,9 @@ select.input { width: 100%; }
   min-width: 0;
   cursor: default;
 }
+/* Pane rounds its own corners; children must not add their own radius or the
+   content clips square at the bottom, hiding the pane border-radius. */
+.pane > * { border-radius: 0; }
 .pane.active {
   border-color: color-mix(in srgb, var(--accent) 30%, transparent);
   box-shadow: var(--shadow-2), 0 0 16px color-mix(in srgb, var(--accent) 10%, transparent);
