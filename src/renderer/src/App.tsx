@@ -191,7 +191,7 @@ export default function App() {
   return (
     <div className="app">
       <ChallengeToast challenge={challenge} onDismiss={() => setChallenge(null)} />
-      <TitleBar onOpenSettings={() => setShowSettings(true)} />
+      <TitleBar />
       <div className="app-body">
         <Sidebar
           workspaces={workspaces}
@@ -201,6 +201,7 @@ export default function App() {
           onRemove={removeWorkspace}
           onRefresh={refreshWorkspaces}
           onOpenTerminal={addTerminal}
+          onOpenSettings={() => setShowSettings(true)}
         />
         <main className="main">
           {panes.length > 0 ? (

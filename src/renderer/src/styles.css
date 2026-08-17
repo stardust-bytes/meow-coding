@@ -159,7 +159,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   flex-direction: column;
   gap: 8px;
   padding: 10px;
-  overflow-y: auto;
+  overflow: hidden; /* container pinned: header/list/footer — list scrolls */
   border-radius: 0; /* flush edges — no rounded right border against the pane grid */
 }
 .sidebar-toggle {
@@ -185,7 +185,10 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .sidebar.collapsed .panel-title,
 .sidebar.collapsed .sidebar-head .btn.primary { display: none; }
 .sidebar.collapsed .project-list { display: none; }
-.project-rail { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.project-rail {
+  list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; align-items: center;
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+}
 .project-avatar {
   width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
   appearance: none; border: 1px solid var(--hairline); background: var(--bg-active);
@@ -193,7 +196,21 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   border-radius: var(--radius); cursor: pointer; transition: border-color 120ms ease, background 120ms ease;
 }
 .project-avatar:hover { border-color: var(--accent-border); color: var(--text-strong); }
-.project-rail li.active .project-avatar { border-color: var(--accent); color: var(--accent); }
+.project-rail li.active .project-avatar { border-color: var(--accent); color: var(--accent); }
+.sidebar-footer {
+  flex: 0 0 auto; display: flex; align-items: center;
+  border-top: 1px solid var(--hairline);
+  margin: 0 -10px -10px; padding: 6px 10px;
+}
+.sidebar-settings-btn {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; padding: 0;
+  appearance: none; background: transparent; border: 1px solid transparent;
+  color: var(--text-dim); border-radius: var(--radius-sm); cursor: pointer;
+  transition: color 120ms ease, background 120ms ease;
+}
+.sidebar-settings-btn:hover { color: var(--text-strong); background: var(--bg-hover); }
+.sidebar.collapsed .sidebar-footer { justify-content: center; padding: 6px 0; margin: 0 -8px -8px; }
 
 .panel-head { display: flex; align-items: center; gap: 4px; }
 .sidebar-head {
@@ -214,7 +231,10 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.project-list { list-style: none; margin: 0; padding: 0; }
+.project-list {
+  list-style: none; margin: 0; padding: 0;
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+}
 .project-row {
   display: flex; align-items: center; gap: 8px;
   padding: 6px 8px; cursor: pointer; font-size: var(--fs-md);

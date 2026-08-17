@@ -35,11 +35,9 @@ function CloseIcon() {
   )
 }
 
-interface Props {
-  onOpenSettings: () => void
-}
+interface Props {}
 
-export default function TitleBar({ onOpenSettings }: Props) {
+export default function TitleBar(_props: Props) {
   const platform = window.api.platform
   const showCustomControls = platform === 'linux'
   const [maximized, setMaximized] = useState(false)
@@ -58,7 +56,7 @@ export default function TitleBar({ onOpenSettings }: Props) {
       <div className="title-bar-brand">
         <img src={logoMark} className="title-bar-logo" alt="" />
         <span className="title-bar-title">Meow Coding</span>
-        <button className="title-bar-toolbar-btn" onClick={onOpenSettings}>Settings</button>
+
       </div>
       {showCustomControls && (
         <div className="title-bar-controls" onDoubleClick={e => e.stopPropagation()}>
