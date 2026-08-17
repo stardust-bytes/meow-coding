@@ -32,6 +32,11 @@ export default function Sidebar({
   const [openProjectMenu, setOpenProjectMenu] = useState<string | null>(null)
   const [projectMenuPos, setProjectMenuPos] = useState<{ x: number; y: number } | null>(null)
   const [error, setError] = useState('')
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('meow.sidebar.collapsed') === '1')
+
+  useEffect(() => {
+    localStorage.setItem('meow.sidebar.collapsed', collapsed ? '1' : '0')
+  }, [collapsed])
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -81,12 +86,38 @@ export default function Sidebar({
   }
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       {error && <div className="sidebar-error">{error}</div>}
       <div className="panel-head sidebar-head">
         <span className="panel-title">Projects</span>
         <button className="btn primary small" onClick={() => setShowAddProject(true)}>Add Project</button>
+        <button
+          className={`sidebar-toggle ${collapsed ? 'collapsed' : ''}`}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          onClick={() => setCollapsed(v => !v)}
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polyline points="9 4 5 8 9 12" />
+          </svg>
+        </button>
       </div>
+      {collapsed ? (
+        <ul className="project-rail">
+          {workspaces.map(ws => (
+            <li key={ws.projectPath} className={ws.projectPath === activePath ? 'active' : ''}>
+              <button
+                className="project-avatar"
+                title={ws.name}
+                aria-label={ws.name}
+                onClick={() => onOpen(ws.projectPath)}
+              >
+                {ws.name.charAt(0).toUpperCase()}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
       <ul className="project-list">
         {workspaces.map(ws => (
           <li key={ws.projectPath} className={ws.projectPath === activePath ? 'active' : ''}>
@@ -172,6 +203,7 @@ export default function Sidebar({
           </li>
         ))}
       </ul>
+      )}
       {showAddProject && (
         <AddProjectDialog onAdd={(p, n) => void handleAddProject(p, n)} onClose={() => setShowAddProject(false)} />
       )}

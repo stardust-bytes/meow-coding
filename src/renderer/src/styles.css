@@ -151,6 +151,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 
 /* Sidebar */
 .sidebar {
+
   width: 268px;
   background: var(--bg-panel);
   border-right: 1px solid var(--hairline);
@@ -160,6 +161,32 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   padding: 10px;
   overflow-y: auto;
 }
+.sidebar-toggle {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; padding: 0;
+  appearance: none; background: transparent; border: 1px solid transparent;
+  color: var(--text-dim); border-radius: var(--radius-sm); cursor: pointer;
+  transition: color 120ms ease, background 120ms ease;
+}
+.sidebar-toggle:hover { color: var(--text-strong); background: var(--bg-hover); }
+.sidebar-toggle svg { transition: transform 120ms ease; }
+.sidebar-toggle.collapsed svg { transform: rotate(180deg); }
+.sidebar.collapsed {
+  width: 48px; padding: 8px;
+}
+.sidebar.collapsed .panel-title,
+.sidebar.collapsed .sidebar-head .btn.primary { display: none; }
+.sidebar.collapsed .project-list { display: none; }
+.project-rail { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.project-avatar {
+  width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
+  appearance: none; border: 1px solid var(--hairline); background: var(--bg-active);
+  color: var(--text); font-family: var(--font-mono); font-size: var(--fs-md); font-weight: var(--fw-semibold);
+  border-radius: var(--radius); cursor: pointer; transition: border-color 120ms ease, background 120ms ease;
+}
+.project-avatar:hover { border-color: var(--accent-border); color: var(--text-strong); }
+.project-rail li.active .project-avatar { border-color: var(--accent); color: var(--accent); }
+
 .panel-head { display: flex; align-items: center; gap: 4px; }
 .sidebar-head {
   background: linear-gradient(180deg, var(--bg-raised), var(--bg-panel));
