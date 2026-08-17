@@ -173,6 +173,13 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .sidebar-toggle.collapsed svg { transform: rotate(180deg); }
 .sidebar.collapsed {
   width: 48px; padding: 8px;
+  overflow-x: hidden; /* rail must never scroll horizontally */
+}
+.sidebar.collapsed .sidebar-head {
+  /* head uses -10px margins for the 10px padding; collapsed padding is 8px
+     so -10px would overflow 2px per side -> horizontal scrollbar */
+  margin: -8px -8px 4px;
+  justify-content: center;
 }
 .sidebar.collapsed .panel-title,
 .sidebar.collapsed .sidebar-head .btn.primary { display: none; }
