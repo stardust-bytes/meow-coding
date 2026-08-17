@@ -90,12 +90,20 @@ export class MeowAgentManager {
   private toolStartTs = new Map<string, number>()
   private pendingMessages = new Map<string, { turn: number; text: string; reasoning: string; tokens?: MessageTokens }>()
   private traceEnabled = false
+  private lastUsageByAgent = new Map<string, MessageTokens>()
+  private compacting = new Set<string>()
+  private lastCompactionAt = new Map<string, number>()
+  private idleCompactTimer: ReturnType<typeof setInterval> | null = null
 
   constructor(private deps: MeowAgentManagerDeps) {
     this.tools = new Map(deps.tools)
     const cfg = loadMeowConfig(deps.configPath)
     this.deps = { ...deps, notifications: cfg.notifications }
     this.traceEnabled = cfg.trace?.enabled ?? false
+    // Auto-compact when a session sits over its context limit while idle
+    // (compaction otherwise only runs at the start of a turn step).
+    this.idleCompactTimer = setInterval(() => void this.maybeCompactIdle(), 20_000)
+    this.idleCompactTimer.unref?.()
   }
 
   setOnEvent(cb: (e: ChatEvent) => void): void {
@@ -654,9 +662,45 @@ export class MeowAgentManager {
   }
 
   async dispose(): Promise<void> {
+    if (this.idleCompactTimer) { clearInterval(this.idleCompactTimer); this.idleCompactTimer = null }
     this.stopAll()
     await this.mcp.closeAll()
     this.deps.lsp?.dispose()
+  }
+
+  // Runs compaction for agents sitting over the context limit while no turn
+  // is in flight. Cheap threshold check first; only then spend an LLM call.
+  private async maybeCompactIdle(): Promise<void> {
+    const cfg = this.loadConfigWithChatGptWebSeed()
+    for (const agentId of this.runners.keys()) {
+      if (this.running.has(agentId) || this.compacting.has(agentId)) continue
+      const now = Date.now()
+      const lastAttempt = this.lastCompactionAt.get(agentId) ?? 0
+      if (now - lastAttempt < 60_000) continue
+      const resolved = this.resolved.get(agentId)
+      if (!resolved?.provider || !resolved.model) continue
+      const modelLimit = this.modelLimits.get(`${resolved.provider}/${resolved.model}`)
+      const limit = modelLimit?.context ?? cfg.maxContextTokens ?? null
+      const compaction = cfg.compaction
+      if (!compaction?.auto || !limit || limit <= 0) continue
+      const used = this.lastUsageByAgent.get(agentId)
+      if (!used) continue
+      const usedTokens = used.total > 0
+        ? used.total
+        : used.input + used.output + (used.cacheRead ?? 0) + (used.cacheWrite ?? 0)
+      if (usedTokens < limit - compaction.buffer) continue
+      const runner = this.runners.get(agentId)
+      if (!runner) continue
+      this.compacting.add(agentId)
+      this.lastCompactionAt.set(agentId, now)
+      try {
+        await runner.compactIfOverThreshold()
+      } catch {
+        /* compactIfOverThreshold never throws; safety net only */
+      } finally {
+        this.compacting.delete(agentId)
+      }
+    }
   }
 
   private async refreshModelLimits(): Promise<void> {
@@ -820,6 +864,7 @@ export class MeowAgentManager {
             cacheWrite: tokens.cacheWrite ?? 0
           }, price)
         }
+        this.lastUsageByAgent.set(agent.id, tokens)
         this.deps.store.addUsage(sessionId, usage)
         const sessionUsage = this.deps.store.getUsage(sessionId)
         this.emit({

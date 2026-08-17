@@ -14,7 +14,7 @@ type FeedItem =
   | { kind: 'message'; id: string; role: ChatMessage['role']; text: string; reasoning?: string; images?: ImageAttachment[] }
   | { kind: 'tool'; id: string; call: ToolCallData }
   | { kind: 'error'; id: string; text: string }
-  | { kind: 'compaction'; id: string }
+  | { kind: 'compaction'; id: string; failed?: boolean }
   | { kind: 'subagent'; taskId: string; subagentType?: string; text: string; reasoning?: string; result?: string; background?: boolean; tools: string[]; state: 'running' | 'completed' | 'cancelled' | 'error' }
 
 interface PendingPrompt {
@@ -385,6 +385,11 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
       shouldJumpToEnd.current = true
       return
     }
+    if (e.type === 'compaction-failed') {
+      setItems(prev => [...prev, { kind: 'compaction', id: 'c-' + Date.now(), failed: true }])
+      shouldJumpToEnd.current = true
+      return
+    }
     if (e.type === 'done' || e.type === 'error') {
       flushDeltas()
       setRunning(false)
@@ -709,7 +714,11 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
       <div className="chat-feed" ref={feedRef} onScroll={onFeedScroll}>
         {items.map(item => {
           if (item.kind === 'compaction') {
-            return <div key={item.id} className="chat-compacted">Context compacted</div>
+            return (
+              <div key={item.id} className={`chat-compacted ${item.failed ? 'failed' : ''}`}>
+                {item.failed ? 'Context compaction failed' : 'Context compacted'}
+              </div>
+            )
           }
           if (item.kind === 'message') {
             if (item.role === 'assistant' && item.text.trim() === '' && !item.reasoning) return null

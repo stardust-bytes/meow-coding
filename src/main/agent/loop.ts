@@ -76,7 +76,7 @@ export class SessionRunner {
       steps++
       const isLastStep = steps >= this.maxSteps
 
-      await this.maybeCompact(signal)
+      await this.compactIfOverThreshold(signal)
 
       const llmMessages = this.buildMessages(isLastStep)
       let hasToolCall = false
@@ -287,7 +287,7 @@ export class SessionRunner {
   // when the estimated request size approaches the model context limit, run an
   // LLM compaction that summarizes the older head and keeps the recent tail
   // verbatim.
-  private async maybeCompact(signal?: AbortSignal): Promise<void> {
+  async compactIfOverThreshold(signal?: AbortSignal): Promise<void> {
     const { compaction, maxContextTokens, replaceItems } = this.deps
     if (!compaction?.auto || !maxContextTokens || maxContextTokens <= 0 || !replaceItems) return
     const usable = maxContextTokens - compaction.buffer
@@ -321,7 +321,13 @@ export class SessionRunner {
     const previousSummary = this.findPreviousSummary(items)
     const prompt = buildCompactionPrompt(previousSummary, serializeItems(head, compaction.toolOutputMaxChars))
     const summary = await compactTranscript({ llm: this.deps.llm, model: this.deps.model, prompt, signal })
-    if (signal?.aborted || !summary) return
+    if (signal?.aborted) return
+    if (!summary) {
+      // Surface silent failures: a failed compaction LLM call must not leave
+      // the user stuck at an over-limit context with no feedback.
+      this.deps.onEvent({ type: 'compaction-failed', agentId: this.deps.agentId })
+      return
+    }
     this.compactedThisRun++
 
     // Render the compaction like opencode: a user marker followed by the summary
