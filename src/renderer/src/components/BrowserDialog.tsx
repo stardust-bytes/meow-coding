@@ -21,18 +21,20 @@ export default function BrowserDialog({ status, onClose }: Props) {
     setPairing(await window.api.pairBrowser())
   }
 
+  const waiting = !status?.paired && (status?.status === 'listening' || status?.status === 'idle')
   const stateLabel = status?.paired
     ? `paired${status.port ? ` (port ${status.port})` : ''}`
-    : status?.status === 'listening' || status?.status === 'idle'
+    : waiting
       ? 'waiting for extension'
       : status?.status ?? 'unknown'
+  const pillClass = status?.paired ? 'browser-pill-on' : waiting ? 'browser-pill-waiting' : 'browser-pill-off'
 
   return (
     <div className="dialog-backdrop">
       <div className="dialog browser-dialog">
         <div className="browser-hd">
           <h3>Browser Bridge</h3>
-          <span className={`browser-pill ${status?.paired ? 'browser-pill-on' : 'browser-pill-off'}`}>
+          <span className={`browser-pill ${pillClass}`}>
             ● {stateLabel}
           </span>
         </div>

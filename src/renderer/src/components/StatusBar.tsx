@@ -18,11 +18,17 @@ export default function StatusBar({ workspaceName, git, agents, browser, onBrows
     void window.api.getAppVersion().then(setVersion)
   }, [])
 
+  const waiting = !browser?.paired && (browser?.status === 'listening' || browser?.status === 'idle')
   const browserLabel = browser?.paired
     ? 'browser: paired'
-    : browser?.status === 'listening' || browser?.status === 'idle'
+    : waiting
       ? 'browser: waiting'
       : 'browser: off'
+  const browserClass = browser?.paired
+    ? 'sb-browser-on'
+    : waiting
+      ? 'sb-browser-waiting'
+      : 'sb-browser-off'
 
   return (
     <footer className="status-bar">
@@ -39,7 +45,7 @@ export default function StatusBar({ workspaceName, git, agents, browser, onBrows
         {running} agent(s) running
       </span>
       <button
-        className={`sb-item sb-mono sb-browser ${browser?.paired ? 'sb-browser-on' : 'sb-browser-off'}`}
+        className={`sb-item sb-mono sb-browser ${browserClass}`}
         onClick={onBrowserClick}
         title="Open browser bridge settings"
       >
