@@ -332,7 +332,8 @@ class MainApp {
     this.meowAgent.setMode(agentId, mode)
     const ws = this.findWorkspaceByAgent(agentId)
     if (ws) {
-      this.workspaces.updateAgent(ws.projectPath, agentId, { mode })
+      const updated = this.workspaces.updateAgent(ws.projectPath, agentId, { mode })
+      this.pushAgentConfig(updated, agentId)
     }
   }
 
@@ -349,7 +350,8 @@ class MainApp {
     const ws = this.findWorkspaceByAgent(agentId)
     if (ws) {
       const stored = this.meowAgent.getVariant(agentId)
-      this.workspaces.updateAgent(ws.projectPath, agentId, { variant: stored })
+      const updated = this.workspaces.updateAgent(ws.projectPath, agentId, { variant: stored })
+      this.pushAgentConfig(updated, agentId)
     }
   }
 
@@ -357,8 +359,16 @@ class MainApp {
     this.meowAgent.setModel(agentId, provider, model)
     const ws = this.findWorkspaceByAgent(agentId)
     if (ws) {
-      this.workspaces.updateAgent(ws.projectPath, agentId, { model: `${provider}/${model}` })
+      const updated = this.workspaces.updateAgent(ws.projectPath, agentId, { model: `${provider}/${model}` })
+      this.pushAgentConfig(updated, agentId)
     }
+  }
+
+  // Keep the renderer's AgentConfig (mode/variant/model) fresh after a change
+  // so remounted chat panels don't revert to the pre-change values.
+  private pushAgentConfig(ws: Workspace, agentId: string): void {
+    const agent = ws.agents.find(a => a.id === agentId)
+    if (agent) win?.webContents.send(Channels.EventAgentConfig, { agentId, config: agent })
   }
 
   resetActiveProject(): void {

@@ -440,6 +440,24 @@ describe('MeowAgentManager', () => {
     expect(llmSystems[1]).toMatch(/PLAN MODE/)
   })
 
+  it('setMode while a turn is running applies the new mode to the next turn', async () => {
+    const { manager, llmSystems } = await makeManager({
+      partsQueue: [
+        [{ kind: 'text', text: 'a' }, { kind: 'finish' }],
+        [{ kind: 'text', text: 'b' }, { kind: 'finish' }]
+      ]
+    })
+    // send() starts the turn synchronously (running set before any await), so
+    // setMode below runs mid-turn — the common "switch mode during chat" case.
+    const first = manager.send('a1', 'first')
+    expect(manager.isRunning('a1')).toBe(true)
+    manager.setMode('a1', 'plan')
+    await first
+    expect(llmSystems[0]).not.toMatch(/PLAN MODE/)
+    await manager.send('a1', 'second')
+    expect(llmSystems[1]).toMatch(/PLAN MODE/)
+  })
+
   it('setVariant passes a clamped variant descriptor to the llm stream', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'meow-var-stream-'))
     try {

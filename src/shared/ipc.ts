@@ -1,5 +1,5 @@
 import type {
-  AgentState, CatalogProviderSummary, ChatEvent, ChatGptWebStatus, ChatMessage, ChatTranscriptItem, Command,
+  AgentConfig, AgentState, CatalogProviderSummary, ChatEvent, ChatGptWebStatus, ChatMessage, ChatTranscriptItem, Command,
   ContextChangedEvent, ContextInfo, FileSuggestion, GitStatus, ImageAttachment, McpServerStatus, MeowSettings,
   ModelRef, NewAgentInput, PromptResponse, SessionSummary, StatsSummary, Template, TerminalInfo, TodoItem, TraceEvent, TraceSummary, WorkspaceRuntime,
   WorkspaceSummary
@@ -85,6 +85,7 @@ export const Channels = {
   FilesSuggest: 'files:suggest',
   AgentSetBackground: 'agent:set-background',
   EventAgentBackground: 'agent:background',
+  EventAgentConfig: 'agent:config-changed',
   EventChatGptWebChallenge: 'chatgpt-web:challenge',
   BrowserGetStatus: 'browser:get-status',
   BrowserPair: 'browser:pair',
@@ -105,6 +106,7 @@ export interface PtyDataEvent { agentId: string; data: string }
 export interface TerminalExitEvent { id: string; exitCode: number | null }
 export interface AgentStateEvent { agentId: string; state: AgentState }
 export interface GitStatusEvent { projectPath: string; git: GitStatus | null }
+export interface AgentConfigEvent { agentId: string; config: AgentConfig }
 export interface WindowMaximizedChangeEvent { maximized: boolean }
 export type BrowserStatusEvent = BrowserStatusInfo
 
@@ -200,6 +202,7 @@ export interface AgentApi {
   onPtyData(cb: (e: PtyDataEvent) => void): () => void
   onTerminalExit(cb: (e: TerminalExitEvent) => void): () => void
   onAgentState(cb: (e: AgentStateEvent) => void): () => void
+  onAgentConfig(cb: (e: AgentConfigEvent) => void): () => void
   onGitStatus(cb: (e: GitStatusEvent) => void): () => void
   onContextChanged(cb: (e: ContextChangedEvent) => void): () => void
   onChatEvent(cb: (e: ChatEvent) => void): () => void

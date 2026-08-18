@@ -67,6 +67,17 @@ export default function App() {
     const offBg = window.api.onAgentBackground(({ agentId, background }) => {
       setBackgrounds(prev => ({ ...prev, [agentId]: background }))
     })
+    const offConfig = window.api.onAgentConfig(({ agentId, config }) => {
+      setRuntime(prev => prev && prev.workspace.agents.some(a => a.id === agentId)
+        ? {
+            ...prev,
+            workspace: {
+              ...prev.workspace,
+              agents: prev.workspace.agents.map(a => a.id === agentId ? config : a)
+            }
+          }
+        : prev)
+    })
     const offChallenge = window.api.onChatGptWebChallenge((e) => {
       setChallenge(e)
     })
@@ -87,6 +98,7 @@ export default function App() {
       offState()
       offGit()
       offBg()
+      offConfig()
       offChallenge()
       offBrowser()
       offInstallGuide()

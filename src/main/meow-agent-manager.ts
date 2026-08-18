@@ -446,11 +446,12 @@ export class MeowAgentManager {
     if (agent) {
       agent.mode = mode
       this.agents.set(agentId, agent)
-      if (!this.running.has(agentId)) {
-        this.runners.delete(agentId)
-        this.resolved.delete(agentId)
-        this.register(agent)
-      }
+      // Rebuild even while a turn is running: the in-flight runner keeps its
+      // own reference, but the next turn must see the new mode in its system
+      // prompt instead of the one baked when the session's first turn ran.
+      this.runners.delete(agentId)
+      this.resolved.delete(agentId)
+      this.register(agent)
     }
   }
 
@@ -461,11 +462,9 @@ export class MeowAgentManager {
     const valid = variant && allowed.includes(variant) ? variant : undefined
     agent.variant = valid
     this.agents.set(agentId, agent)
-    if (!this.running.has(agentId)) {
-      this.runners.delete(agentId)
-      this.resolved.delete(agentId)
-      this.register(agent)
-    }
+    this.runners.delete(agentId)
+    this.resolved.delete(agentId)
+    this.register(agent)
   }
 
   setModel(agentId: string, provider: string, model: string): void {
@@ -473,11 +472,9 @@ export class MeowAgentManager {
     if (!agent) return
     agent.model = `${provider}/${model}`
     this.agents.set(agentId, agent)
-    if (!this.running.has(agentId)) {
-      this.runners.delete(agentId)
-      this.resolved.delete(agentId)
-      this.register(agent)
-    }
+    this.runners.delete(agentId)
+    this.resolved.delete(agentId)
+    this.register(agent)
   }
 
   getAgentModel(agentId: string): ModelRef | null {

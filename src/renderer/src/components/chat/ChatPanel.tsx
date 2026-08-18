@@ -101,6 +101,10 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const [running, setRunning] = useState(false)
   const [currentMode, setCurrentMode] = useState<AgentMode>(mode)
   const [currentVariant, setCurrentVariant] = useState<string>(variant ?? '')
+  // Keep local state in sync with the authoritative main-process config pushed
+  // via EventAgentConfig; otherwise a remount reverts to the pre-change mode.
+  useEffect(() => setCurrentMode(mode), [mode])
+  useEffect(() => setCurrentVariant(variant ?? ''), [variant])
   const [availableVariants, setAvailableVariants] = useState<string[]>([])
   const [pendingPrompt, setPendingPrompt] = useState<PendingPrompt | null>(null)
   const [selectedAction, setSelectedAction] = useState(0)

@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
 import type { ChatEvent, ChatGptWebStatus, Command, ContextChangedEvent, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, TraceEvent } from '../shared/types'
-import type { AgentApi, AgentStateEvent, BrowserInstallGuideEvent, ChallengeEvent, GitStatusEvent, PtyDataEvent, TerminalExitEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
+import type { AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, ChallengeEvent, GitStatusEvent, PtyDataEvent, TerminalExitEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
 import type { BrowserStatusInfo } from '../shared/browser-types'
 
 function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
@@ -114,6 +114,7 @@ const api: AgentApi = {
   onPtyData: (cb: (e: PtyDataEvent) => void) => subscribe(Channels.EventPtyData, cb),
   onTerminalExit: (cb: (e: TerminalExitEvent) => void) => subscribe(Channels.EventTerminalExit, cb),
   onAgentState: (cb: (e: AgentStateEvent) => void) => subscribe(Channels.EventAgentState, cb),
+  onAgentConfig: (cb: (e: AgentConfigEvent) => void) => subscribe(Channels.EventAgentConfig, cb),
   onGitStatus: (cb: (e: GitStatusEvent) => void) => subscribe(Channels.EventGitStatus, cb),
   onContextChanged: (cb: (e: ContextChangedEvent) => void) => subscribe(Channels.EventContextChanged, cb),
   onChatEvent: (cb: (e: ChatEvent) => void) => subscribe(Channels.EventChat, cb),
