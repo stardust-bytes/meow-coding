@@ -58,6 +58,16 @@ const config: Configuration = {
       signingHashAlgorithms: ['sha256']
     }
   },
+  nsis: {
+    artifactName: 'Meow.Coding.Setup.${version}.${ext}',
+    oneClick: false,
+    allowToChangeInstallationDirectory: true,
+    createDesktopShortcut: true,
+    createStartMenuShortcut: true
+  },
+  portable: {
+    artifactName: 'Meow.Coding.${version}.${ext}'
+  },
   linux: {
     target: [
       { target: 'AppImage', arch: ['x64'] },
@@ -74,12 +84,6 @@ const config: Configuration = {
     ],
     category: 'public.app-category.developer-tools',
     icon: 'moew-coding-logo.png'
-  },
-  nsis: {
-    oneClick: false,
-    allowToChangeInstallationDirectory: true,
-    createDesktopShortcut: true,
-    createStartMenuShortcut: true
   }
 }
 
