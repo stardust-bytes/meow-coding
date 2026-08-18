@@ -13,6 +13,7 @@ import { LogManager } from './log-manager'
 import { GitStatusService } from './git-status-service'
 import { AlertService } from './alert-service'
 import { NotificationService } from './notification-service'
+import { Updater } from './updater'
 import { SessionStore } from './agent/session'
 import type { StoredSession } from './agent/session'
 import { SnapshotStore } from './agent/snapshot'
@@ -118,6 +119,7 @@ class MainApp {
   private watcher: FileWatcher | null = null
   private prices = new Map<string, { input?: number; output?: number; cacheRead?: number; cacheWrite?: number }>()
   private ptyStartTs = new Map<string, number>()
+  private updater: Updater
 
   constructor() {
     this.pty.on('data', ({ agentId, data }) => {
@@ -175,6 +177,29 @@ class MainApp {
       }
       win?.webContents.send(Channels.EventChat, event)
     })
+    this.updater = new Updater(
+      (e) => {
+        win?.webContents.send(Channels.EventUpdaterStatus, e)
+      },
+      {
+        isPackaged: app.isPackaged,
+        isPortable: () => !!process.env.PORTABLE_EXECUTABLE_FILE,
+        isAppImage: () => process.platform === 'linux' && !!process.env.APPIMAGE,
+        getCurrentVersion: () => app.getVersion()
+      }
+    )
+  }
+
+  checkForUpdates(): void {
+    void this.updater.check(true)
+  }
+
+  installUpdate(): void {
+    this.updater.install()
+  }
+
+  checkForUpdatesAuto(): void {
+    if (app.isPackaged) void this.updater.check(false)
   }
 
   private setState(agentId: string, patch: Partial<AgentState>): void {
@@ -584,6 +609,8 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.StatsGet, () => mainApp.meowAgent.getStats())
   ipcMain.handle(Channels.AppQuit, () => app.quit())
   ipcMain.handle(Channels.AppVersion, () => app.getVersion())
+  ipcMain.handle(Channels.UpdaterCheck, () => mainApp.checkForUpdates())
+  ipcMain.handle(Channels.UpdaterInstall, () => mainApp.installUpdate())
   ipcMain.handle(Channels.WindowMinimize, () => win?.minimize())
   ipcMain.handle(Channels.WindowToggleMaximize, () => {
     if (!win) return
@@ -619,6 +646,13 @@ app.whenReady().then(async () => {
   }
   registerIpcHandlers()
   createWindow()
+  setTimeout(() => {
+    try {
+      mainApp.checkForUpdatesAuto()
+    } catch (err) {
+      console.error('[meow] auto update check failed:', err)
+    }
+  }, 1500)
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
