@@ -8,8 +8,9 @@ import ContextTab from './ContextTab'
 import CommandsTab from './CommandsTab'
 import ChatGptWebTab from './ChatGptWebTab'
 import TemplatesTab from './TemplatesTab'
+import UpdatesTab from './UpdatesTab'
 
-type TabId = 'providers' | 'agents' | 'permissions' | 'mcp' | 'context' | 'commands' | 'chatgpt-web' | 'templates'
+type TabId = 'providers' | 'agents' | 'permissions' | 'mcp' | 'context' | 'commands' | 'chatgpt-web' | 'templates' | 'updates'
 
 const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'providers', label: 'Providers' },
@@ -19,7 +20,8 @@ const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'context', label: 'Context' },
   { id: 'commands', label: 'Commands' },
   { id: 'chatgpt-web', label: 'ChatGPT Web (Experimental)' },
-  { id: 'templates', label: 'Templates' }
+  { id: 'templates', label: 'Templates' },
+  { id: 'updates', label: 'Updates' }
 ]
 
 interface Props {
@@ -145,6 +147,7 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
             {tab === 'commands' && <CommandsTab projectPath={projectPath} />}
             {tab === 'chatgpt-web' && <ChatGptWebTab />}
             {tab === 'templates' && <TemplatesTab templates={templates} onChange={onTemplatesChange} />}
+            {tab === 'updates' && <UpdatesTab />}
           </div>
         </div>
         {status && <div className="settings-status">{status}</div>}

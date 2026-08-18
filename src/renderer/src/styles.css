@@ -924,6 +924,9 @@ select.input { width: 100%; }
 .settings-actions { display: flex; gap: 8px; align-items: center; }
 .settings-actions .spacer { flex: 1; }
 .settings-status { color: var(--green); font-size: var(--fs-md); }
+.settings-status-ok { color: var(--green); }
+.settings-status-info { color: var(--accent); }
+.updates-tab .btn + .btn { margin-left: 6px; }
 
 /* ChatGPT Web tab */
 .chatgpt-web-note {
