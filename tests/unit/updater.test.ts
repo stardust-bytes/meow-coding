@@ -10,6 +10,7 @@ const { mockAutoUpdater, listeners } = vi.hoisted(() => {
       autoDownload: true,
       autoInstallOnAppQuit: true,
       checkForUpdates: vi.fn(),
+      downloadUpdate: vi.fn(() => Promise.resolve()),
       on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
         listeners.set(event, cb)
       }),
@@ -177,12 +178,32 @@ describe('Updater', () => {
     expect(events).toEqual([{ type: 'error', message: 'boom' }])
   })
 
-  it('install calls quitAndInstall and disables auto behaviors', () => {
+  it('install before download starts the download instead of quitting', () => {
     const { updater } = makeUpdater()
     updater.install()
-    expect(mockAutoUpdater.quitAndInstall).toHaveBeenCalledTimes(1)
+    expect(mockAutoUpdater.downloadUpdate).toHaveBeenCalledTimes(1)
+    expect(mockAutoUpdater.quitAndInstall).not.toHaveBeenCalled()
     expect(mockAutoUpdater.autoDownload).toBe(false)
     expect(mockAutoUpdater.autoInstallOnAppQuit).toBe(false)
+  })
+
+  it('install after update-downloaded quits and installs', async () => {
+    const { updater } = makeUpdater()
+    // Simulate a finished download before the user clicks restart.
+    const emit = listeners.get('update-downloaded')!
+    emit({ version: '2.1.0', downloadedFile: '/tmp/update' })
+    updater.install()
+    expect(mockAutoUpdater.downloadUpdate).not.toHaveBeenCalled()
+    expect(mockAutoUpdater.quitAndInstall).toHaveBeenCalledTimes(1)
+  })
+
+  it('a failed download rejects and surfaces as an error', async () => {
+    const { events, updater } = makeUpdater()
+    mockAutoUpdater.downloadUpdate.mockRejectedValueOnce(new Error('disk full'))
+    updater.install()
+    await vi.waitFor(() => {
+      expect(events).toContainEqual({ type: 'error', message: 'disk full' })
+    })
   })
 
   it('ignores a second check while one is in flight', async () => {

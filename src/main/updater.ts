@@ -26,6 +26,7 @@ function releaseNotesText(notes: UpdateInfo['releaseNotes']): string | undefined
 
 export class Updater {
   private checking = false
+  private downloaded = false
 
   constructor(
     private readonly onStatus: (e: UpdaterStatusEvent) => void,
@@ -37,6 +38,7 @@ export class Updater {
       this.onStatus({ type: 'download-progress', percent: Math.round(progress.percent) })
     })
     autoUpdater.on('update-downloaded', (info) => {
+      this.downloaded = true
       this.onStatus({ type: 'downloaded', version: info.version })
     })
     autoUpdater.on('error', (err: Error, message?: string) => {
@@ -56,6 +58,8 @@ export class Updater {
     }
     if (this.checking) return
     this.checking = true
+    // A fresh check may find a newer version than the one already downloaded.
+    this.downloaded = false
     try {
       if (manual) this.onStatus({ type: 'checking' })
       const result = await autoUpdater.checkForUpdates()
@@ -80,7 +84,13 @@ export class Updater {
   }
 
   install(): void {
-    autoUpdater.quitAndInstall()
+    if (this.downloaded) {
+      autoUpdater.quitAndInstall()
+      return
+    }
+    void autoUpdater.downloadUpdate().catch((err) => {
+      this.onStatus({ type: 'error', message: errorMessage(err) })
+    })
   }
 
   private notSupportedReason(): string | null {
