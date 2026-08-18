@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
-import type { ChatEvent, ChatGptWebStatus, Command, ContextChangedEvent, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, TraceEvent } from '../shared/types'
+import type { ChatEvent, ChatGptWebStatus, Command, ContextChangedEvent, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, TraceEvent, UpdaterStatusEvent } from '../shared/types'
 import type { AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, ChallengeEvent, GitStatusEvent, PtyDataEvent, TerminalExitEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
 import type { BrowserStatusInfo } from '../shared/browser-types'
 
@@ -63,6 +63,8 @@ const api: AgentApi = {
   getLogPath: (agentId: string) => ipcRenderer.invoke(Channels.LogPath, agentId),
   quit: () => ipcRenderer.invoke(Channels.AppQuit),
   getAppVersion: () => ipcRenderer.invoke(Channels.AppVersion),
+  checkForUpdates: () => ipcRenderer.invoke(Channels.UpdaterCheck),
+  installUpdate: () => ipcRenderer.invoke(Channels.UpdaterInstall),
   sendChat: (agentId: string, text: string, images?: ImageAttachment[]) =>
     ipcRenderer.invoke(Channels.ChatSend, agentId, text, images),
   stopChat: (agentId: string) => ipcRenderer.invoke(Channels.ChatStop, agentId),
@@ -111,6 +113,7 @@ const api: AgentApi = {
   isWindowMaximized: () => ipcRenderer.invoke(Channels.WindowIsMaximized),
   onWindowMaximizedChange: (cb: (e: WindowMaximizedChangeEvent) => void) =>
     subscribe(Channels.EventWindowMaximizedChange, cb),
+  onUpdaterStatus: (cb: (e: UpdaterStatusEvent) => void) => subscribe(Channels.EventUpdaterStatus, cb),
   onPtyData: (cb: (e: PtyDataEvent) => void) => subscribe(Channels.EventPtyData, cb),
   onTerminalExit: (cb: (e: TerminalExitEvent) => void) => subscribe(Channels.EventTerminalExit, cb),
   onAgentState: (cb: (e: AgentStateEvent) => void) => subscribe(Channels.EventAgentState, cb),
