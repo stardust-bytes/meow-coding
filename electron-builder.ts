@@ -30,6 +30,11 @@ async function signWindows(configuration: { path: string }): Promise<void> {
 const config: Configuration = {
   appId: 'com.meow.coding',
   productName: 'Meow Coding',
+  publish: {
+    provider: 'github',
+    owner: 'stardust-bytes',
+    repo: 'meow-coding'
+  },
   icon: 'moew-coding-logo.png',
   directories: {
     output: 'release'
