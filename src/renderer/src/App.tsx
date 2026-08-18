@@ -4,7 +4,7 @@ import type { BrowserStatusInfo } from '@shared/browser-types'
 import { ChallengeToast } from './components/ChallengeToast'
 import { Terminal } from '@xterm/xterm'
 import type {
-  AgentConfig, AgentState, GitStatus, Template, TerminalInfo, WorkspaceRuntime, WorkspaceSummary
+  AgentConfig, AgentState, GitStatus, Template, TerminalInfo, UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from '@shared/types'
 import Sidebar from './components/Sidebar'
 import PaneGrid from './components/PaneGrid'
@@ -15,6 +15,7 @@ import TitleBar from './components/TitleBar'
 import SettingsDialog from './components/settings/SettingsDialog'
 import BrowserDialog from './components/BrowserDialog'
 import InstallGuideDialog from './components/InstallGuideDialog'
+import UpdateDialog from './components/UpdateDialog'
 
 export interface PaneModel {
   agent: AgentConfig
@@ -32,6 +33,8 @@ export default function App() {
   const [browser, setBrowser] = useState<BrowserStatusInfo | null>(null)
   const [browserDialogOpen, setBrowserDialogOpen] = useState(false)
   const [installGuide, setInstallGuide] = useState<BrowserInstallGuideEvent | null>(null)
+  const [updateStatus, setUpdateStatus] = useState<UpdaterStatusEvent | null>(null)
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
   const [terminals, setTerminals] = useState<TerminalInfo[]>([])
   const termsRef = useRef<Map<string, Terminal>>(new Map())
   const buffersRef = useRef<Map<string, string>>(new Map())
@@ -92,6 +95,11 @@ export default function App() {
       termsRef.current.delete(id)
       buffersRef.current.delete(id)
     })
+    const offUpdater = window.api.onUpdaterStatus((e) => {
+      setUpdateStatus(e)
+      if (e.type === 'update-available') setUpdateDialogOpen(true)
+      if (e.type === 'error' || e.type === 'not-supported') setUpdateDialogOpen(false)
+    })
     void window.api.getBrowserStatus().then(setBrowser)
     return () => {
       offData()
@@ -103,6 +111,7 @@ export default function App() {
       offBrowser()
       offInstallGuide()
       offTerminalExit()
+      offUpdater()
     }
   }, [])
 
@@ -254,6 +263,13 @@ export default function App() {
       )}
       {installGuide && (
         <InstallGuideDialog guide={installGuide} onClose={() => setInstallGuide(null)} />
+      )}
+      {updateDialogOpen && (updateStatus?.type === 'update-available' || updateStatus?.type === 'downloaded' || updateStatus?.type === 'download-progress') && (
+        <UpdateDialog
+          status={updateStatus}
+          onClose={() => setUpdateDialogOpen(false)}
+          onInstall={() => void window.api.installUpdate()}
+        />
       )}
       {showSettings && (
         <SettingsDialog
