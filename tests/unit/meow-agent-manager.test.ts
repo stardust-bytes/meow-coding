@@ -711,21 +711,24 @@ describe('MeowAgentManager', () => {
     const { manager, events } = await makeManager({
       partsQueue: [[
         { kind: 'text', text: 'hi' },
-        { kind: 'finish', tokens: { input: 1_000_000, output: 1_000_000, total: 2_000_000 } }
+        { kind: 'finish', tokens: { input: 1_000_000, output: 1_000_000, total: 2_000_000, cacheRead: 500_000 } }
       ]]
     })
     await manager.send('a1', 'hello')
     const usage = events.find(e => e.type === 'usage')
     expect(usage).toBeDefined()
     expect(usage?.type === 'usage' && usage.tokens.total).toBe(2_000_000)
-    // giá test: input 1 $/M, output 2 $/M → 1 + 2 = 3
+    // giá test: input 1 $/M, output 2 $/M → 1 + 2 = 3 (cacheRead không có giá → 0)
     expect(usage?.type === 'usage' && usage.sessionCost).toBeCloseTo(3, 10)
+    // "in" hiển thị gộp cache-read để khớp prompt_tokens của provider dashboard
+    expect(usage?.type === 'usage' && usage.sessionTokens.input).toBe(1_500_000)
+    expect(usage?.type === 'usage' && usage.sessionTokens.output).toBe(1_000_000)
   })
 
   it('getStats aggregates usage across sessions', async () => {
     const { manager } = await makeManager({
       partsQueue: [
-        [{ kind: 'text', text: 'a' }, { kind: 'finish', tokens: { input: 500, output: 300, total: 800 } }],
+        [{ kind: 'text', text: 'a' }, { kind: 'finish', tokens: { input: 500, output: 300, total: 800, cacheRead: 200 } }],
         [{ kind: 'text', text: 'b' }, { kind: 'finish', tokens: { input: 200, output: 100, total: 300 } }]
       ]
     })
@@ -733,9 +736,11 @@ describe('MeowAgentManager', () => {
     manager.newSession('a1')
     await manager.send('a1', 'second')
     const stats = manager.getStats()
-    expect(stats.totalTokens).toBe(1100)
+    // totalTokens gồm cache-read (500+300+200) + (200+100) = 1300
+    expect(stats.totalTokens).toBe(1300)
     expect(stats.totalCost).toBeGreaterThan(0)
     expect(stats.perModel['test-model']).toBeDefined()
+    expect(stats.perModel['test-model'].tokens).toBe(1300)
     expect(stats.perSession).toHaveLength(2)
   })
 

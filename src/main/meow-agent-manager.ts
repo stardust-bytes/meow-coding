@@ -625,10 +625,12 @@ export class MeowAgentManager {
       const model = this.resolved.get(s.agentId)?.model ?? ''
       const u = s.usage
       totalCost += u.cost
-      totalTokens += u.input + u.output
+      // Provider dashboards count cache-read/write tokens in the input total,
+      // so include them here to keep Meow's numbers comparable.
+      totalTokens += u.input + u.output + u.cacheRead + u.cacheWrite
       perModel[model] = {
         messages: (perModel[model]?.messages ?? 0) + 1,
-        tokens: (perModel[model]?.tokens ?? 0) + u.input + u.output,
+        tokens: (perModel[model]?.tokens ?? 0) + u.input + u.output + u.cacheRead + u.cacheWrite,
         cost: (perModel[model]?.cost ?? 0) + u.cost
       }
       perSession.push({ id: s.id, title: s.title, model, usage: u })
@@ -869,7 +871,9 @@ export class MeowAgentManager {
           agentId: agent.id,
           tokens,
           sessionCost: sessionUsage.cost,
-          sessionTokens: { input: sessionUsage.input, output: sessionUsage.output }
+          // "in" counts cached tokens too, matching provider dashboards (e.g.
+          // DeepSeek's prompt_tokens = cache hit + miss).
+          sessionTokens: { input: sessionUsage.input + sessionUsage.cacheRead + sessionUsage.cacheWrite, output: sessionUsage.output }
         })
       }
     })

@@ -63,6 +63,48 @@ export function toMessageTokens(usage: SdkUsage | undefined): MessageTokens | un
   }
 }
 
+// DeepSeek's OpenAI-compatible API only reports usage in streams when the
+// client sends stream_options.include_usage, and it reports cache hits via
+// prompt_cache_hit_tokens (not OpenAI's prompt_tokens_details.cached_tokens).
+// Mirror the official @ai-sdk/deepseek provider so streamed usage actually
+// arrives and cached prompt tokens are split out for discounted pricing.
+function convertDeepSeekUsage(usage: unknown) {
+  // Provider streams without a usage chunk call convertUsage(undefined) — same
+  // null-shape as the generic converter so counters resolve to 0.
+  const u = (usage ?? {}) as {
+    prompt_tokens?: number | null
+    completion_tokens?: number | null
+    prompt_cache_hit_tokens?: number | null
+    completion_tokens_details?: { reasoning_tokens?: number | null } | null
+  }
+  const promptTokens = u.prompt_tokens ?? 0
+  const completionTokens = u.completion_tokens ?? 0
+  const cacheReadTokens = u.prompt_cache_hit_tokens ?? 0
+  const reasoningTokens = u.completion_tokens_details?.reasoning_tokens ?? 0
+  return {
+    inputTokens: {
+      total: promptTokens,
+      noCache: promptTokens - cacheReadTokens,
+      cacheRead: cacheReadTokens,
+      cacheWrite: undefined
+    },
+    outputTokens: {
+      total: completionTokens,
+      text: completionTokens - reasoningTokens,
+      reasoning: reasoningTokens || undefined
+    }
+  }
+}
+
+function isDeepSeekEndpoint(baseUrl?: string): boolean {
+  if (!baseUrl) return false
+  try {
+    return new URL(baseUrl).hostname.endsWith('deepseek.com')
+  } catch {
+    return false
+  }
+}
+
 const ANTHROPIC_CACHE_BREAKPOINT = { anthropic: { cacheControl: { type: 'ephemeral' } } } as const
 
 // Anthropic needs explicit cache breakpoints to reuse the prompt prefix across
@@ -90,6 +132,7 @@ export function createOpenAICompatibleLlm(opts: { apiKey: string; baseUrl?: stri
 }
 
 export function createLlm(provider: string, apiKey: string, baseUrl?: string): LlmClient {
+  const isDeepSeek = provider === 'deepseek' || isDeepSeekEndpoint(baseUrl)
   const model = (modelId: string) => {
     if (provider === 'anthropic') {
       const anthropicClient = createAnthropic({
@@ -108,7 +151,10 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string): L
     return createOpenAICompatible({
       name: provider,
       baseURL: baseUrl ?? 'https://api.openai.com/v1',
-      apiKey
+      apiKey,
+      ...(isDeepSeek
+        ? { includeUsage: true, convertUsage: (usage: unknown) => convertDeepSeekUsage(usage) }
+        : {})
     }).chatModel(modelId)
   }
 

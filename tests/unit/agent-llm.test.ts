@@ -1,6 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 const streamTextMock = vi.fn()
+const { createOpenAICompatibleMock } = vi.hoisted(() => ({
+  createOpenAICompatibleMock: vi.fn()
+}))
 
 vi.mock('ai', () => ({
   streamText: (...args: unknown[]) => streamTextMock(...args),
@@ -8,7 +11,14 @@ vi.mock('ai', () => ({
   tool: (t: unknown) => t
 }))
 
-import { createAnthropicLlm, createOpenAICompatibleLlm, formatLlmError, toMessageTokens } from '../../src/main/agent/llm'
+vi.mock('@ai-sdk/openai-compatible', () => ({
+  createOpenAICompatible: (opts: unknown) => {
+    createOpenAICompatibleMock(opts)
+    return { chatModel: (modelId: string) => ({ provider: 'mock-openai-compatible', modelId }) }
+  }
+}))
+
+import { createAnthropicLlm, createLlm, createOpenAICompatibleLlm, formatLlmError, toMessageTokens } from '../../src/main/agent/llm'
 import type { LlmStreamPart } from '../../src/main/agent/llm'
 
 function fakeFullStream(parts: Array<Record<string, unknown>>) {
@@ -21,6 +31,7 @@ function fakeFullStream(parts: Array<Record<string, unknown>>) {
 
 beforeEach(() => {
   streamTextMock.mockReset()
+  createOpenAICompatibleMock.mockReset()
 })
 
 describe('createAnthropicLlm', () => {
@@ -222,6 +233,82 @@ describe('createOpenAICompatibleLlm', () => {
       out.push(p)
     }
     expect(out).toEqual([{ kind: 'finish', finishReason: 'stop' }])
+    const opts = createOpenAICompatibleMock.mock.calls[0][0]
+    expect(opts.baseURL).toBe('http://localhost:11434/v1')
+    expect(opts.apiKey).toBe('k')
+    expect(opts.includeUsage).toBeUndefined()
+  })
+})
+
+describe('DeepSeek usage capture', () => {
+  async function streamOnce(llm: ReturnType<typeof createLlm>) {
+    const out: LlmStreamPart[] = []
+    for await (const p of llm.stream({ model: 'deepseek-chat', system: 's', messages: [], tools: [] })) {
+      out.push(p)
+    }
+    return out
+  }
+
+  it('requests stream usage for the official api.deepseek.com endpoint', async () => {
+    streamTextMock.mockReturnValue({
+      fullStream: fakeFullStream([{ type: 'finish', finishReason: 'stop' }])
+    })
+    await streamOnce(createLlm('deepseek', 'k', 'https://api.deepseek.com'))
+    const opts = createOpenAICompatibleMock.mock.calls[0][0]
+    expect(opts.includeUsage).toBe(true)
+    expect(typeof opts.convertUsage).toBe('function')
+  })
+
+  it('detects DeepSeek by baseUrl hostname even with a custom provider id', async () => {
+    streamTextMock.mockReturnValue({
+      fullStream: fakeFullStream([{ type: 'finish', finishReason: 'stop' }])
+    })
+    await streamOnce(createLlm('my-gateway', 'k', 'https://api.deepseek.com/v1'))
+    const opts = createOpenAICompatibleMock.mock.calls[0][0]
+    expect(opts.includeUsage).toBe(true)
+  })
+
+  it('does not enable stream usage for other OpenAI-compatible endpoints', async () => {
+    streamTextMock.mockReturnValue({
+      fullStream: fakeFullStream([{ type: 'finish', finishReason: 'stop' }])
+    })
+    await streamOnce(createLlm('ollama', 'k', 'http://localhost:11434/v1'))
+    expect(createOpenAICompatibleMock.mock.calls[0][0].includeUsage).toBeUndefined()
+  })
+
+  it('maps prompt_cache_hit_tokens into cacheRead and reasoning tokens', async () => {
+    streamTextMock.mockReturnValue({
+      fullStream: fakeFullStream([{ type: 'finish', finishReason: 'stop' }])
+    })
+    await streamOnce(createLlm('deepseek', 'k', 'https://api.deepseek.com'))
+    const convert = createOpenAICompatibleMock.mock.calls[0][0].convertUsage
+    expect(convert({
+      prompt_tokens: 1000,
+      completion_tokens: 200,
+      prompt_cache_hit_tokens: 700,
+      completion_tokens_details: { reasoning_tokens: 50 }
+    })).toEqual({
+      inputTokens: { total: 1000, noCache: 300, cacheRead: 700, cacheWrite: undefined },
+      outputTokens: { total: 200, text: 150, reasoning: 50 }
+    })
+  })
+
+  it('surfaces streamed usage as tokens end-to-end', async () => {
+    streamTextMock.mockReturnValue({
+      fullStream: fakeFullStream([
+        { type: 'finish', finishReason: 'stop', totalUsage: {
+          inputTokens: 1000,
+          outputTokens: 200,
+          totalTokens: 1200,
+          inputTokenDetails: { noCacheTokens: 300, cacheReadTokens: 700, cacheWriteTokens: undefined },
+          reasoningTokens: 50
+        } }
+      ])
+    })
+    const out = await streamOnce(createLlm('deepseek', 'k', 'https://api.deepseek.com'))
+    expect(out).toEqual([{ kind: 'finish', finishReason: 'stop', tokens: {
+      input: 300, output: 200, total: 1200, reasoning: 50, cacheRead: 700, cacheWrite: undefined
+    } }])
   })
 })
 
