@@ -321,6 +321,15 @@ export interface ContextChangedEvent {
   files: string[]
 }
 
+export type UpdaterStatusEvent =
+  | { type: 'checking' }
+  | { type: 'update-available'; version: string; releaseNotes?: string; releaseDate?: string; currentVersion: string }
+  | { type: 'up-to-date'; currentVersion: string }
+  | { type: 'download-progress'; percent: number }
+  | { type: 'downloaded'; version: string }
+  | { type: 'error'; message: string }
+  | { type: 'not-supported'; message: string }
+
 export type BackgroundState = 'foreground' | 'background'
 
 export interface FileSuggestion {

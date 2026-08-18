@@ -1,7 +1,7 @@
 import type {
   AgentConfig, AgentState, CatalogProviderSummary, ChatEvent, ChatGptWebStatus, ChatMessage, ChatTranscriptItem, Command,
   ContextChangedEvent, ContextInfo, FileSuggestion, GitStatus, ImageAttachment, McpServerStatus, MeowSettings,
-  ModelRef, NewAgentInput, PromptResponse, SessionSummary, StatsSummary, Template, TerminalInfo, TodoItem, TraceEvent, TraceSummary, WorkspaceRuntime,
+  ModelRef, NewAgentInput, PromptResponse, SessionSummary, StatsSummary, Template, TerminalInfo, TodoItem, TraceEvent, TraceSummary, UpdaterStatusEvent, WorkspaceRuntime,
   WorkspaceSummary
 } from './types'
 import type { BrowserStatusInfo, PairingInfo } from './browser-types'
@@ -40,6 +40,9 @@ export const Channels = {
   LogPath: 'log:path',
   AppQuit: 'app:quit',
   AppVersion: 'app:version',
+  UpdaterCheck: 'updater:check',
+  UpdaterInstall: 'updater:install',
+  EventUpdaterStatus: 'updater:status',
   ChatSend: 'chat:send',
   ChatStop: 'chat:stop',
   ChatRunCommand: 'chat:run-command',
@@ -157,6 +160,8 @@ export interface AgentApi {
   getLogPath(agentId: string): Promise<string>
   quit(): Promise<void>
   getAppVersion(): Promise<string>
+  checkForUpdates(): Promise<void>
+  installUpdate(): Promise<void>
   sendChat(agentId: string, text: string, images?: ImageAttachment[]): Promise<void>
   stopChat(agentId: string): Promise<void>
   suggestFiles(agentId: string, prefix: string): Promise<FileSuggestion[]>
@@ -199,6 +204,7 @@ export interface AgentApi {
   closeWindow(): Promise<void>
   isWindowMaximized(): Promise<boolean>
   onWindowMaximizedChange(cb: (e: WindowMaximizedChangeEvent) => void): () => void
+  onUpdaterStatus(cb: (e: UpdaterStatusEvent) => void): () => void
   onPtyData(cb: (e: PtyDataEvent) => void): () => void
   onTerminalExit(cb: (e: TerminalExitEvent) => void): () => void
   onAgentState(cb: (e: AgentStateEvent) => void): () => void
