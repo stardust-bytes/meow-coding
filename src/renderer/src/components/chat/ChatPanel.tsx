@@ -31,11 +31,17 @@ interface PendingPrompt {
 // Splits user text on @path tokens and highlights them, matching the main-side
 // expandReferences syntax (bare or quoted forms).
 const MENTION_SPLIT_RE = /(@[\w./\\-]+)/g
+// Leading slash command token ("/init", "/review", ...).
+const SLASH_RE = /^(\/[\w-]+)/
 
-function MentionText({ text }: { text: string }) {
-  const parts = text.split(MENTION_SPLIT_RE)
+function MentionText({ text, commands }: { text: string; commands: Command[] }) {
+  const m = SLASH_RE.exec(text)
+  const slash = m && commands.some(c => c.name === m[1].slice(1)) ? m[1] : null
+  const rest = slash !== null ? text.slice(slash.length) : text
+  const parts = rest.split(MENTION_SPLIT_RE)
   return (
     <div className="chat-text">
+      {slash && <span className="chat-slash">{slash}</span>}
       {parts.map((part, i) =>
         part.startsWith('@')
           ? <span key={i} className="chat-mention">{part}</span>
@@ -46,12 +52,14 @@ function MentionText({ text }: { text: string }) {
 }
 
 // Owns the per-message subtree so streamed deltas only re-render the message
-// that changed, not the whole feed. Props are primitives, so React.memo works.
-const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, onOpenImage }: {
+// that changed, not the whole feed. Props are primitives or stable state
+// references (commands), so React.memo works.
+const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, commands, onOpenImage }: {
   role: ChatMessage['role']
   text: string
   reasoning?: string
   images?: ImageAttachment[]
+  commands: Command[]
   onOpenImage?: (dataUrl: string) => void
 }) {
   return (
@@ -81,7 +89,7 @@ const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, o
               ))}
             </div>
           )}
-          {text.trim() !== '' && <MentionText text={text} />}
+          {text.trim() !== '' && <MentionText text={text} commands={commands} />}
         </>
       )}
     </div>
@@ -734,6 +742,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
                 text={item.text}
                 reasoning={item.reasoning}
                 images={item.images}
+                commands={commands}
                 onOpenImage={setLightboxUrl}
               />
             )
