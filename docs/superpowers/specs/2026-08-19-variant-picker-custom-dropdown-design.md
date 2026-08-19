@@ -84,7 +84,11 @@ Add (copied from `.model-*` styles, renamed):
 - `.dropdown` — `position: relative; display: inline-flex;`
 - `.dropdown-trigger` — same as `.model-trigger`
 - `.dropdown-trigger:hover` — same as `.model-trigger:hover`
-- `.dropdown-menu` — same as `.model-menu` (absolute, bottom: calc(100% + 4px), right: 0)
+- `.dropdown-menu` — shared popup chrome from `.model-menu` (absolute,
+  bottom: calc(100% + 4px), right: 0, z-index 40, bg/border/radius/shadow,
+  flex column). No fixed width.
+- `.variant-menu` — width auto, `min-width: 140px` (variant lists are short;
+  unlike `.model-menu`'s fixed 300px).
 - `.variant-label`, `.variant-caret`, `.variant-list`, `.variant-item`,
   `.variant-item.active` — copied from `.model-label`, `.model-caret`,
   `.model-list`, `.model-item`
