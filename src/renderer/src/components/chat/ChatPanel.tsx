@@ -389,10 +389,12 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     }
     if (e.type === 'user-message') {
       setItems(prev => {
-        // The desktop UI adds user rows optimistically (local send) and via
-        // queue-updated; skip the echo so remote messages don't double up.
+        // The desktop UI adds user rows optimistically (local send, 'u-' ids)
+        // and via queue-updated; skip that echo, but never drop two identical
+        // remote messages (store ids are UUIDs).
         const last = prev[prev.length - 1]
-        if (last && last.kind === 'message' && last.role === 'user' && last.text === e.message.text) return prev
+        const optimistic = last && last.kind === 'message' && last.role === 'user' && last.id.startsWith('u-')
+        if (optimistic && last.text === e.message.text) return prev
         return [...prev, {
           kind: 'message', id: e.message.id, role: 'user', text: e.message.text, images: e.message.images
         }]
