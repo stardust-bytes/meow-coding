@@ -23,6 +23,8 @@ function makeCtx(overrides: Partial<RemoteCommandContext> = {}) {
     listMessages: vi.fn(),
     send: vi.fn(async () => {}),
     respondPrompt: vi.fn(),
+    runCommand: vi.fn(async () => {}),
+    listCommands: vi.fn(() => []),
     isRunning: vi.fn(),
     isBackground: vi.fn()
   }
@@ -178,6 +180,26 @@ describe('dispatchRemoteCommand', () => {
     const res = await dispatchRemoteCommand('chat:respond', { agentId: 'a1', allow: true }, ctx)
     expect(res.ok).toBe(false)
     expect(meowAgent.respondPrompt).not.toHaveBeenCalled()
+  })
+
+  it('chat:send routes a known slash command to runCommand, not send', async () => {
+    const { ctx, meowAgent } = makeCtx()
+    meowAgent.listAgents.mockReturnValue([agent('a1', 'One')])
+    meowAgent.listCommands.mockReturnValue([{ name: 'help', type: 'prompt', args: [] }])
+    const res = await dispatchRemoteCommand('chat:send', { agentId: 'a1', text: '/help xyz' }, ctx)
+    expect(res).toEqual({ ok: true, result: { queued: true } })
+    expect(meowAgent.runCommand).toHaveBeenCalledWith('a1', 'help', 'xyz')
+    expect(meowAgent.send).not.toHaveBeenCalled()
+  })
+
+  it('chat:send falls back to send for an unknown slash command', async () => {
+    const { ctx, meowAgent } = makeCtx()
+    meowAgent.listAgents.mockReturnValue([agent('a1', 'One')])
+    meowAgent.listCommands.mockReturnValue([{ name: 'help', type: 'prompt', args: [] }])
+    const res = await dispatchRemoteCommand('chat:send', { agentId: 'a1', text: '/nope hi' }, ctx)
+    expect(res.ok).toBe(true)
+    expect(meowAgent.send).toHaveBeenCalledWith('a1', '/nope hi')
+    expect(meowAgent.runCommand).not.toHaveBeenCalled()
   })
 
   it('chat:send calls send with the exact agentId and text and returns queued', async () => {

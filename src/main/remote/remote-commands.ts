@@ -7,7 +7,8 @@ export type RemoteCommandResult = Omit<RemoteCmdResult, 'type' | 'id'>
 
 export interface RemoteCommandContext {
   meowAgent: Pick<MeowAgentManager, 'listAgents' | 'listSessions' | 'createSession' | 'switchSession' |
-    'renameSession' | 'listMessages' | 'send' | 'respondPrompt' | 'isRunning' | 'isBackground'>
+    'renameSession' | 'listMessages' | 'send' | 'respondPrompt' | 'runCommand' |
+    'listCommands' | 'isRunning' | 'isBackground'>
   workspaceStore: Pick<WorkspaceStore, 'list'>
   isEnabled(): boolean
 }
@@ -87,6 +88,18 @@ export async function dispatchRemoteCommand(
         const missing = agentError()
         if (missing) return missing
         if (typeof params.text !== 'string' || !params.text.trim()) return { ok: false, error: 'text is required' }
+        // Slash commands must go through runCommand (like the desktop input),
+        // not send(): send() would persist the raw "/cmd …" text as a user
+        // message and hand the command string to the model as a prompt.
+        const m = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(params.text)
+        if (m) {
+          const agent = ctx.meowAgent.listAgents().find(a => a.id === agentId)
+          const command = agent ? ctx.meowAgent.listCommands(agent.cwd).find(c => c.name === m[1]) : undefined
+          if (command) {
+            await ctx.meowAgent.runCommand(agentId!, m[1], m[2] ?? '')
+            return { ok: true, result: { queued: true } }
+          }
+        }
         await ctx.meowAgent.send(agentId!, params.text)
         return { ok: true, result: { queued: true } }
       }
