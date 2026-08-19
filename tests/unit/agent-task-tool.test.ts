@@ -49,6 +49,38 @@ describe('task tool (subagent)', () => {
     expect(names).toEqual(['glob', 'grep', 'read'])
   })
 
+  it('uses a dedicated model/llm when resolveSubagent returns one', async () => {
+    const mainLlm = new StubLlm()
+    const subLlm = new StubLlm()
+    const task = createTaskTool({
+      llm: mainLlm,
+      model: 'main-model',
+      tools: new Map([['read', stubTool('read')]]),
+      resolveSubagent: (type) => type === 'research'
+        ? { provider: 'p2', model: 'x-model', llm: subLlm }
+        : undefined
+    })
+    const ctx: ToolContext = { cwd: '/proj', ask: async () => null }
+    await task.run({ prompt: 'x' }, ctx)
+    expect(mainLlm.calls).toHaveLength(0)
+    expect(subLlm.calls).toHaveLength(1)
+    expect(subLlm.calls[0].model).toBe('x-model')
+  })
+
+  it('falls back to the main model/llm when resolveSubagent is undefined', async () => {
+    const llm = new StubLlm()
+    const task = createTaskTool({
+      llm,
+      model: 'main-model',
+      tools: new Map([['read', stubTool('read')]]),
+      resolveSubagent: () => undefined
+    })
+    const ctx: ToolContext = { cwd: '/proj', ask: async () => null }
+    await task.run({ prompt: 'x' }, ctx)
+    expect(llm.calls).toHaveLength(1)
+    expect(llm.calls[0].model).toBe('main-model')
+  })
+
   it('background=true returns immediately and reports the result via callback', async () => {
     const llm = new StubLlm()
     const tools = new Map<string, ToolDefinition>([['read', stubTool('read')]])

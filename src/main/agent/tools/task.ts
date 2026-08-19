@@ -13,6 +13,12 @@ export interface SubagentConfig {
   tools: string[]
 }
 
+export interface ResolvedSubagentModel {
+  provider: string
+  model: string
+  llm: LlmClient
+}
+
 // Mirrors opencode: each subagent is a specialized agent type with its own
 // system prompt and tool set. `general` can modify files (SDD implementer),
 // `reviewer` inspects diffs read-only, `research` explores read-only.
@@ -58,6 +64,8 @@ export function createTaskTool(opts: {
   llm: LlmClient
   model: string
   tools: Map<string, ToolDefinition>
+  // Optional per-role override: a dedicated model + LLM client for subagents.
+  resolveSubagent?: (type: SubagentType) => ResolvedSubagentModel | undefined
   // Called when a background subagent finishes so the manager can append the
   // result into the main transcript.
   onBackgroundResult?: (id: string, text: string, error?: string) => void
@@ -73,6 +81,7 @@ export function createTaskTool(opts: {
     signal?: AbortSignal
   ): Promise<SubagentResult> => {
     const cfg = SUBAGENT_CONFIGS[input.subagent_type]
+    const sub = opts.resolveSubagent?.(input.subagent_type)
     const safeTools = new Map<string, ToolDefinition>()
     for (const name of cfg.tools) {
       const def = opts.tools.get(name)
@@ -81,10 +90,10 @@ export function createTaskTool(opts: {
     const runner = new SessionRunner({
       agentId: `sub-${input.subagent_type}-${id}`,
       taskId: id,
-      model: opts.model,
+      model: sub?.model ?? opts.model,
       system: cfg.system,
       cwd: ctx.cwd,
-      llm: opts.llm,
+      llm: sub?.llm ?? opts.llm,
       tools: safeTools,
       turn: ctx.turn,
       decidePermission: () => 'allow',
