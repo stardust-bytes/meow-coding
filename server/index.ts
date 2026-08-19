@@ -86,6 +86,9 @@ export async function createRelayServer(options: { port?: number } = {}): Promis
       send(ws, { type: 'desktop-status', online: false })
       return
     }
+    // Desktop is online — tell the freshly connected mobile immediately, so it
+    // doesn't show "offline" until the desktop happens to answer a pair.
+    send(ws, { type: 'desktop-status', online: true })
     if (msg.auth && CODE_RE.test(msg.auth)) {
       const entry = pairingCode.get(msg.auth)
       if (entry && entry.expiresAt <= Date.now()) pairingCode.delete(msg.auth)
