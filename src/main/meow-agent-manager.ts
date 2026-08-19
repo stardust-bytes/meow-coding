@@ -271,12 +271,12 @@ export class MeowAgentManager {
     const q = this.queues.get(agentId) ?? []
     const idx = q.findIndex(m => m.id === id)
     if (idx < 0 || !text.trim()) return
-    q[idx] = { ...q[idx], text }
+    q[idx] = { ...q[idx], text, displayText: undefined }
     this.queues.set(agentId, q)
     this.emitQueue(agentId)
   }
 
-  async send(agentId: string, text: string, images?: ImageAttachment[]): Promise<void> {
+  async send(agentId: string, text: string, images?: ImageAttachment[], displayText?: string): Promise<void> {
     const agent = this.agents.get(agentId)
     if (!agent) return
     if (this.running.has(agentId)) {
@@ -285,12 +285,12 @@ export class MeowAgentManager {
         this.emit({ type: 'error', agentId, message: '[meow] Hàng đợi đã đầy (tối đa 5 tin). Hãy chờ turn hiện tại xong hoặc xóa tin đang chờ.' })
         return
       }
-      q.push({ id: randomUUID(), text, images })
+      q.push({ id: randomUUID(), text, images, displayText })
       this.queues.set(agentId, q)
       this.emitQueue(agentId)
       return
     }
-    await this.runTurn(agentId, text, images)
+    await this.runTurn(agentId, text, images, displayText)
     await this.drainQueue(agentId)
   }
 
@@ -302,17 +302,18 @@ export class MeowAgentManager {
     if (q.length === 0) this.queues.delete(agentId)
     else this.queues.set(agentId, q)
     this.emitQueue(agentId)
-    await this.runTurn(agentId, next.text, next.images)
+    await this.runTurn(agentId, next.text, next.images, next.displayText)
     await this.drainQueue(agentId)
   }
 
-  private async runTurn(agentId: string, text: string, images?: ImageAttachment[]): Promise<void> {
+  private async runTurn(agentId: string, text: string, images?: ImageAttachment[], displayText?: string): Promise<void> {
     const agent = this.agents.get(agentId)
     if (!agent) return
     const message: ChatMessage = {
       id: randomUUID(),
       role: 'user',
       text: expandReferences(agent.cwd, text),
+      displayText,
       images,
       createdAt: Date.now()
     }
@@ -619,7 +620,9 @@ export class MeowAgentManager {
       return
     }
     const text = await resolveCommand(command, args, { cwd: agent.cwd, commands: all })
-    await this.send(agentId, text)
+    // Keep the raw "/cmd …" input for the UI; the LLM receives the resolved prompt.
+    const displayText = args.trim() ? `/${command.name} ${args.trim()}` : `/${command.name}`
+    await this.send(agentId, text, undefined, displayText)
   }
 
   getStats(): StatsSummary {

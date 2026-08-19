@@ -191,7 +191,8 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     void window.api.listChatTranscript(agentId).then(items => {
       setItems(items.map(it => it.kind === 'message'
         ? {
-            kind: 'message', id: it.message.id, role: it.message.role, text: it.message.text,
+            kind: 'message', id: it.message.id, role: it.message.role,
+            text: it.message.displayText ?? it.message.text,
             reasoning: it.message.reasoning, images: it.message.images
           }
         : { kind: 'tool', id: it.tool.id, call: { ...it.tool } }
@@ -382,7 +383,8 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
       const started = prev.find(p => !e.queue.some(q => q.id === p.id))
       if (started) {
         setItems(prevItems => [...prevItems, {
-          kind: 'message', id: 'u-' + started.id, role: 'user', text: started.text, images: started.images
+          kind: 'message', id: 'u-' + started.id, role: 'user',
+          text: started.displayText ?? started.text, images: started.images
         }])
       }
       return
@@ -403,7 +405,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
             break
           }
         }
-        const row = { kind: 'message' as const, id: e.message.id, role: 'user' as const, text: e.message.text, images: e.message.images }
+        const row = { kind: 'message' as const, id: e.message.id, role: 'user' as const, text: e.message.displayText ?? e.message.text, images: e.message.images }
         if (idx >= 0) {
           const next = [...prev]
           next[idx] = row
@@ -807,10 +809,10 @@ if (e.type === 'usage') {
             {queue.map(q => (
               <div key={q.id} className="chat-queue-item">
                 <span className="chat-queue-badge">queued</span>
-                <span className="chat-queue-text" onClick={() => setEditTarget(q)} title="Edit">{q.text}</span>
+                <span className="chat-queue-text" onClick={() => setEditTarget({ ...q, text: q.displayText ?? q.text })} title="Edit">{q.displayText ?? q.text}</span>
                 <button
                   className="chat-queue-remove"
-                  aria-label={`remove queued ${q.text}`}
+                  aria-label={`remove queued ${q.displayText ?? q.text}`}
                   onClick={() => void window.api.removeQueued(agentId, q.id)}
                 >
                   ×

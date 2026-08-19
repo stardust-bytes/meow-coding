@@ -30,7 +30,7 @@ function titleFrom(text: string): string {
 function titleFromItems(items: ChatTranscriptItem[]): string {
   for (const item of items) {
     if (item.kind === 'message' && item.message.role === 'user' && item.message.text.trim()) {
-      return titleFrom(item.message.text)
+      return titleFrom(item.message.displayText ?? item.message.text)
     }
   }
   return DEFAULT_SESSION_TITLE
@@ -174,7 +174,7 @@ export class SessionStore {
     const session = all[idx]
     session.items.push({ kind: 'message', message })
     if (session.title === DEFAULT_SESSION_TITLE && message.role === 'user' && message.text.trim()) {
-      session.title = titleFrom(message.text)
+      session.title = titleFrom(message.displayText ?? message.text)
     }
     session.updatedAt = this.nextUpdatedAt()
     this.saveSessions(all)

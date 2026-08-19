@@ -94,6 +94,9 @@ export interface ChatMessage {
   id: string
   role: ChatRole
   text: string
+  // Raw user input when `text` was resolved before sending (e.g. a slash
+  // command expanded into its template); the UI shows this instead of `text`.
+  displayText?: string
   reasoning?: string
   tokens?: MessageTokens
   images?: ImageAttachment[]
@@ -150,6 +153,7 @@ export type ChatEvent =
 export interface QueuedMessage {
   id: string
   text: string
+  displayText?: string
   images?: ImageAttachment[]
 }
 

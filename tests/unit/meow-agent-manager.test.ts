@@ -667,6 +667,52 @@ describe('MeowAgentManager', () => {
     expect(events.some(e => e.type === 'done')).toBe(true)
   })
 
+  it('stores the raw slash input as displayText while the resolved prompt reaches the LLM', async () => {
+    const { manager, events } = await makeManager()
+    await manager.runCommand('a1', 'init', 'custom arg')
+    const echo = events.find(e => e.type === 'user-message') as Extract<ChatEvent, { type: 'user-message' }>
+    expect(echo.message.displayText).toBe('/init custom arg')
+    expect(echo.message.text).toContain('Create an AGENTS.md file for this project')
+    // The resolved prompt is what gets persisted and later sent to the model.
+    const stored = manager.listMessages('a1').find(m => m.role === 'user')
+    expect(stored?.text).toBe(echo.message.text)
+  })
+
+  it('sp-brainstorming bubble shows the raw slash input, not the resolved template', async () => {
+    const { manager, events } = await makeManager()
+    expect(manager.listCommands('/proj').map(c => c.name)).toContain('sp-brainstorming')
+    await manager.runCommand('a1', 'sp-brainstorming', 'tôi test')
+    const echo = events.find(e => e.type === 'user-message') as Extract<ChatEvent, { type: 'user-message' }>
+    expect(echo.message.displayText).toBe('/sp-brainstorming tôi test')
+    expect(echo.message.text).toContain('Use the Superpowers skill `brainstorming`')
+    expect(echo.message.text).toContain('User request:')
+    expect(echo.message.text).toContain('tôi test')
+    // Renderer shows displayText ?? text → the raw slash input.
+    expect(echo.message.displayText ?? echo.message.text).toBe('/sp-brainstorming tôi test')
+  })
+
+  it('queues displayText alongside the resolved text when a turn is running', async () => {
+    const { manager, events } = await makeManager({ hangUntilAbort: true })
+    const run = manager.send('a1', 'first')
+    await new Promise<void>(resolve => {
+      const t = setInterval(() => {
+        if (events.some(e => e.type === 'turn-started')) {
+          clearInterval(t)
+          resolve()
+        }
+      }, 5)
+    })
+    manager.send('a1', 'Create an AGENTS.md file for this project', undefined, '/init queued')
+    const queued = manager.listQueued('a1')
+    expect(queued[0]?.displayText).toBe('/init queued')
+    expect(queued[0]?.text).toContain('Create an AGENTS.md')
+    // Stopping turn 1 drains the queue into a new hanging turn; stop again to release it.
+    manager.stop('a1')
+    await new Promise(r => setTimeout(r, 30))
+    manager.stop('a1')
+    await run
+  })
+
   it('runs /new as a system command that creates a new session without calling the LLM', async () => {
     const { manager, events, createLlm } = await makeManager()
     expect(manager.listCommands('/proj').map(c => c.name)).toContain('new')
