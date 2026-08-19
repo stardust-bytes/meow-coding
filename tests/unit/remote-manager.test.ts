@@ -45,6 +45,7 @@ function makeClient() {
     sendEvent: vi.fn(),
     startPairing: vi.fn(),
     revokeToken: vi.fn(),
+    connect: vi.fn(),
     close: vi.fn(),
     onStatusChange: vi.fn((cb: (s: RelayStatus) => void) => {
       statusCb = cb
@@ -212,5 +213,36 @@ describe('RemoteManager', () => {
     expect(clients.length).toBe(2)
     expect(first.close).toHaveBeenCalled()
     expect(clients[1].client).not.toBe(first)
+  })
+
+  it('auto-connects on startup when enabled', () => {
+    const created: ReturnType<typeof makeClient>[] = []
+    const createClient = vi.fn((deps: RelayClientDeps) => {
+      const fake = makeClient()
+      created.push(fake)
+      return fake.client as never
+    })
+    const m = new RemoteManager({
+      store: makeStore({ enabled: true }),
+      pairing: new RemotePairing(),
+      context: makeContext(),
+      createClient
+    })
+    expect(createClient).toHaveBeenCalledTimes(1)
+    expect(created).toHaveLength(1)
+    expect(created[0].client.connect).toHaveBeenCalled()
+    m.dispose()
+  })
+
+  it('does not create a client on startup when disabled', () => {
+    const createClient = vi.fn()
+    const m = new RemoteManager({
+      store: makeStore({ enabled: false }),
+      pairing: new RemotePairing(),
+      context: makeContext(),
+      createClient
+    })
+    expect(createClient).not.toHaveBeenCalled()
+    m.dispose()
   })
 })

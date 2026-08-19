@@ -195,9 +195,9 @@ describe('RemoteRelayClient relay flow', () => {
     const client = newClient({ url: `ws://127.0.0.1:${port}`, deviceId: 'desk-1' })
     client.connect()
     await waitForStatus(client, (s) => s.connected)
-    client.startPairing()
+    const { code } = client.startPairing()
 
-    const mobile = await fakeMobile(port, '000000')
+    const mobile = await fakeMobile(port, code === '000000' ? '000001' : '000000')
     expect(mobile.pair.ok).toBe(false)
     expect(mobile.token).toBeUndefined()
     expect(client.status.paired).toBe(false)

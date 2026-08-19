@@ -29,6 +29,7 @@ export class RemoteManager {
     const settings = this.deps.store.load()
     this.enabled = settings.enabled
     this.deps.pairing.setToken(settings.sessionToken ?? '')
+    if (this.enabled) this.connectClient()
   }
 
   getStatus(): RemoteStatus {
@@ -38,6 +39,7 @@ export class RemoteManager {
       connected: this.clientStatus.connected,
       paired: this.clientStatus.paired,
       deviceId: settings.deviceId,
+      relayUrl: settings.relayUrl,
       ...(this.pairingCode !== undefined ? { pairingCode: this.pairingCode } : {}),
       ...(this.pairingExpiresAt !== undefined ? { pairingExpiresAt: this.pairingExpiresAt } : {}),
       ...(this.clientStatus.error !== undefined ? { error: this.clientStatus.error } : {})

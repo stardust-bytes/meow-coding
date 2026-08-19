@@ -66,6 +66,7 @@ export interface RemoteStatus {
   connected: boolean
   paired: boolean
   deviceId: string
+  relayUrl?: string
   pairingCode?: string
   pairingExpiresAt?: number
   mobileOnline?: boolean

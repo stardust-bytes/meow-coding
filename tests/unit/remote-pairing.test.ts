@@ -24,6 +24,10 @@ function makePairing() {
   return { pairing, clock }
 }
 
+function wrongCode(code: string): string {
+  return code === '000000' ? '000001' : '000000'
+}
+
 describe('RemotePairing', () => {
   it('startPairing returns a fresh 6-digit code with a 5 minute TTL', () => {
     const { pairing, clock } = makePairing()
@@ -44,7 +48,7 @@ describe('RemotePairing', () => {
   it('rejects wrong codes and accepts the right one', () => {
     const { pairing } = makePairing()
     const { code } = pairing.startPairing()
-    expect(pairing.validatePairingCode('000000')).toBe(false)
+    expect(pairing.validatePairingCode(wrongCode(code))).toBe(false)
     expect(pairing.validatePairingCode(code)).toBe(true)
   })
 
@@ -52,7 +56,7 @@ describe('RemotePairing', () => {
     const { pairing, clock } = makePairing()
     const { code } = pairing.startPairing()
     for (let i = 0; i < 5; i++) {
-      expect(pairing.validatePairingCode('000000')).toBe(false)
+      expect(pairing.validatePairingCode(wrongCode(code))).toBe(false)
     }
     // locked: even the correct code is rejected
     expect(pairing.validatePairingCode(code)).toBe(false)

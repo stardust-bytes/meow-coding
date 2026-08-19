@@ -6,18 +6,17 @@ interface Pairing {
   expiresAt: number
 }
 
-const RELAY_URL_KEY = 'meow.remote.relayUrl'
-
 export default function RemoteTab() {
   const [status, setStatus] = useState<RemoteStatus | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [relayUrl, setRelayUrl] = useState(() => localStorage.getItem(RELAY_URL_KEY) ?? '')
+  const [relayUrl, setRelayUrl] = useState('')
   const [pairing, setPairing] = useState<Pairing | null>(null)
   const [now, setNow] = useState(() => Date.now())
 
   const applyStatus = useCallback((s: RemoteStatus) => {
     setStatus(s)
+    if (s.relayUrl !== undefined) setRelayUrl(s.relayUrl ?? '')
     if (!s.enabled || s.pairingExpiresAt === undefined) {
       setPairing(null)
     } else if (s.pairingCode) {
@@ -70,7 +69,6 @@ export default function RemoteTab() {
     setError('')
     try {
       await window.api.setRemoteRelayUrl(url)
-      localStorage.setItem(RELAY_URL_KEY, url)
     } catch (err) {
       setError(String(err))
     } finally {
