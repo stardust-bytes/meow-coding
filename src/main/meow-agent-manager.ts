@@ -174,6 +174,10 @@ export class MeowAgentManager {
     if (agent.kind === 'native') this.register(agent)
   }
 
+  listAgents(): AgentConfig[] {
+    return [...this.agents.values()]
+  }
+
   removeAgent(agentId: string): void {
     this.stop(agentId)
     this.runners.delete(agentId)
