@@ -25,6 +25,7 @@ describe('IPC contract', () => {
       'minimizeWindow', 'toggleMaximizeWindow', 'closeWindow', 'isWindowMaximized', 'onWindowMaximizedChange',
       'getBrowserStatus', 'pairBrowser', 'openBrowserInstallGuide', 'openBrowserExtensionFolder', 'openBrowserChromeExtensions',
       'getBrowserConsoleLogs', 'getBrowserNetworkLogs', 'onBrowserStatus', 'onBrowserOpenInstallGuide',
+      'getRemoteStatus', 'setRemoteEnabled', 'setRemoteRelayUrl', 'startRemotePairing', 'revokeRemoteToken', 'onRemoteStatus',
       'traceList', 'traceRead', 'traceDelete', 'onTraceEvent'
     ]
     const api: AgentApi = {
@@ -101,6 +102,12 @@ describe('IPC contract', () => {
       getBrowserNetworkLogs: async () => [],
       onBrowserStatus: () => () => {},
       onBrowserOpenInstallGuide: () => () => {},
+      getRemoteStatus: async () => ({ enabled: false, connected: false, paired: false, deviceId: '' }),
+      setRemoteEnabled: async () => {},
+      setRemoteRelayUrl: async () => {},
+      startRemotePairing: async () => null,
+      revokeRemoteToken: async () => {},
+      onRemoteStatus: () => () => {},
       platform: 'win32',
       minimizeWindow: async () => {},
       toggleMaximizeWindow: async () => {},
@@ -193,6 +200,12 @@ describe('IPC contract', () => {
     expect(Channels.BrowserGetNetworkLogs).toBe('browser:get-network-logs')
     expect(Channels.EventBrowserStatus).toBe('browser:status')
     expect(Channels.EventBrowserOpenInstallGuide).toBe('browser:install-guide')
+    expect(Channels.RemoteGetStatus).toBe('remote:get-status')
+    expect(Channels.RemoteSetEnabled).toBe('remote:set-enabled')
+    expect(Channels.RemoteSetRelayUrl).toBe('remote:set-relay-url')
+    expect(Channels.RemoteStartPairing).toBe('remote:start-pairing')
+    expect(Channels.RemoteRevokeToken).toBe('remote:revoke-token')
+    expect(Channels.EventRemoteStatus).toBe('remote:status')
     expect(Channels.ProjectOpenFolder).toBe('project:open-folder')
     expect(Channels.TerminalOpen).toBe('terminal:open')
     expect(Channels.TerminalClose).toBe('terminal:close')

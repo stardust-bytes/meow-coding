@@ -15,6 +15,7 @@ export interface RelayClientDeps {
   deviceId: string
   pairing: RemotePairing
   dispatch: (name: RemoteCommandName, params: Record<string, unknown>) => Promise<RemoteCommandResult>
+  onPairOk?: (token: string) => void
   now?: () => number
   wsImpl?: new (url: string) => WebSocket
 }
@@ -131,7 +132,10 @@ export class RemoteRelayClient {
       ? { type: 'pair-result', ok: true, token: this.deps.pairing.issueToken() }
       : { type: 'pair-result', ok: false, error: 'invalid pairing code or token' }
     this.send(res)
-    if (ok) this.setStatus({ paired: true })
+    if (ok) {
+      this.setStatus({ paired: true })
+      if (res.token) this.deps.onPairOk?.(res.token)
+    }
   }
 
   private async handleCmd(ws: WebSocket, msg: RemoteCmd): Promise<void> {

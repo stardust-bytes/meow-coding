@@ -32,6 +32,9 @@ import { getWindowChromeOptions } from './window-chrome'
 import { ChatGptWebManager } from './chatgpt-web/manager'
 import { BrowserBridge } from './browser/bridge'
 import { createChromeLauncher, ensureExtensionInstalled } from './browser/chrome-launcher'
+import { RemoteManager } from './remote/remote-manager'
+import { RemoteSettingsStore } from './remote/remote-settings'
+import { RemotePairing } from './remote/remote-pairing'
 import { Channels } from '../shared/ipc'
 import type { AgentState, Command, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, TerminalInfo, Workspace, WorkspaceRuntime } from '../shared/types'
 
@@ -112,6 +115,18 @@ class MainApp {
       win?.webContents.send(Channels.EventAgentBackground, { agentId, background })
     }
   })
+  remoteStore = new RemoteSettingsStore(
+    createJsonStore(path.join(app.getPath('userData'), 'remote.json'))
+  )
+  remote = new RemoteManager({
+    store: this.remoteStore,
+    pairing: new RemotePairing(),
+    context: {
+      meowAgent: this.meowAgent,
+      workspaceStore: this.workspaces,
+      isEnabled: () => this.remoteStore.load().enabled
+    }
+  })
 
   private states = new Map<string, AgentState>()
   private gitTimer: ReturnType<typeof setInterval> | null = null
@@ -175,6 +190,7 @@ class MainApp {
       } else if (event.type === 'done' || event.type === 'error') {
         this.setState(event.agentId, { status: 'idle', alert: 'normal' })
       }
+      mainApp.remote?.handleAgentEvent(event)
       win?.webContents.send(Channels.EventChat, event)
     })
     this.updater = new Updater(
@@ -626,6 +642,11 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.BrowserOpenChromeExtensions, () => mainApp.browserLauncher.openChrome())
   ipcMain.handle(Channels.BrowserGetConsoleLogs, (_e, limit?: number) => mainApp.browserBridge.getConsoleLogs(limit))
   ipcMain.handle(Channels.BrowserGetNetworkLogs, (_e, limit?: number) => mainApp.browserBridge.getNetworkLogs(limit))
+  ipcMain.handle(Channels.RemoteGetStatus, () => mainApp.remote?.getStatus())
+  ipcMain.handle(Channels.RemoteSetEnabled, (_e, enabled: boolean) => mainApp.remote?.setEnabled(enabled))
+  ipcMain.handle(Channels.RemoteSetRelayUrl, (_e, url: string) => mainApp.remote?.setRelayUrl(url))
+  ipcMain.handle(Channels.RemoteStartPairing, () => mainApp.remote?.startPairing() ?? null)
+  ipcMain.handle(Channels.RemoteRevokeToken, () => mainApp.remote?.revokeToken())
 }
 
 app.whenReady().then(async () => {
@@ -635,6 +656,9 @@ app.whenReady().then(async () => {
   })
   mainApp.browserBridge.onStatusChange(info => {
     win?.webContents.send(Channels.EventBrowserStatus, info)
+  })
+  mainApp.remote?.onStatusChange(info => {
+    win?.webContents.send(Channels.EventRemoteStatus, info)
   })
   const extSource = app.isPackaged
     ? path.join(process.resourcesPath, 'browser-extension')
@@ -668,6 +692,8 @@ app.on('before-quit', (event) => {
     return mainApp.traces.flushAll()
   }).then(() => {
     return mainApp.browserBridge.close()
+  }).then(() => {
+    mainApp.remote?.dispose()
   }).then(() => {
     mainApp.pty
       .stopAll()

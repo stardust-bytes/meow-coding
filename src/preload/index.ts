@@ -3,6 +3,7 @@ import { Channels } from '../shared/ipc'
 import type { ChatEvent, ChatGptWebStatus, Command, ContextChangedEvent, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, TraceEvent, UpdaterStatusEvent } from '../shared/types'
 import type { AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, ChallengeEvent, GitStatusEvent, PtyDataEvent, TerminalExitEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
 import type { BrowserStatusInfo } from '../shared/browser-types'
+import type { RemoteStatus } from '../shared/remote-types'
 
 function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
   const listener = (_event: unknown, payload: T) => cb(payload)
@@ -129,6 +130,12 @@ const api: AgentApi = {
   getBrowserConsoleLogs: (limit?: number) => ipcRenderer.invoke(Channels.BrowserGetConsoleLogs, limit),
   getBrowserNetworkLogs: (limit?: number) => ipcRenderer.invoke(Channels.BrowserGetNetworkLogs, limit),
   onBrowserStatus: (cb: (info: BrowserStatusInfo) => void) => subscribe(Channels.EventBrowserStatus, cb),
+  getRemoteStatus: () => ipcRenderer.invoke(Channels.RemoteGetStatus),
+  setRemoteEnabled: (enabled: boolean) => ipcRenderer.invoke(Channels.RemoteSetEnabled, enabled),
+  setRemoteRelayUrl: (url: string) => ipcRenderer.invoke(Channels.RemoteSetRelayUrl, url),
+  startRemotePairing: () => ipcRenderer.invoke(Channels.RemoteStartPairing),
+  revokeRemoteToken: () => ipcRenderer.invoke(Channels.RemoteRevokeToken),
+  onRemoteStatus: (cb: (s: RemoteStatus) => void) => subscribe(Channels.EventRemoteStatus, cb),
   onBrowserOpenInstallGuide: (cb: (e: BrowserInstallGuideEvent) => void) => subscribe(Channels.EventBrowserOpenInstallGuide, cb),
   suggestFiles: (agentId: string, prefix: string) =>
     ipcRenderer.invoke(Channels.FilesSuggest, agentId, prefix),
