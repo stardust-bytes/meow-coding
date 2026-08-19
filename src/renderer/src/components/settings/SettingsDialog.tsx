@@ -122,7 +122,13 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
               <ProvidersTab settings={draft} catalog={catalog} onChange={patch} />
             )}
             {draft && tab === 'agents' && (
-              <AgentsTab agents={draft.agents} onChange={agents => patch({ agents })} />
+              <AgentsTab
+                agents={draft.agents}
+                providers={draft.providers}
+                subagentModels={draft.subagentModels}
+                onChangeAgents={agents => patch({ agents })}
+                onChangeSubagentModels={subagentModels => patch({ subagentModels })}
+              />
             )}
             {draft && tab === 'permissions' && (
               <PermissionsTab permission={draft.permission} onChange={permission => patch({ permission })} />

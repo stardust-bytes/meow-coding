@@ -967,6 +967,8 @@ select.input { width: 100%; }
 .agent-name { font-weight: var(--fw-semibold); flex: 1; min-width: 0; }
 .agents-prompt { min-height: 72px; resize: vertical; font-family: var(--font-mono); font-size: var(--fs-md); }
 .agents-add { display: flex; gap: 6px; align-items: center; }
+.submodel-fields { display: flex; gap: 8px; }
+.submodel-fields .input { flex: 1; min-width: 0; }
 
 /* Permissions tab */
 .permission-add { display: flex; gap: 6px; align-items: center; }
