@@ -4,7 +4,7 @@ export type RemoteCommandName =
   | 'workspace:list' | 'agent:list' | 'agent:state'
   | 'session:list' | 'session:switch' | 'session:create' | 'session:rename'
   | 'session:messages'
-  | 'chat:send'
+  | 'chat:send' | 'chat:respond'
 
 export type RemoteEvent =
   | { type: 'agent:state'; agentId: string; running: boolean; background: boolean }

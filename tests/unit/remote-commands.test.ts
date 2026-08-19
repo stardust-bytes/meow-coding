@@ -22,6 +22,7 @@ function makeCtx(overrides: Partial<RemoteCommandContext> = {}) {
     renameSession: vi.fn(),
     listMessages: vi.fn(),
     send: vi.fn(async () => {}),
+    respondPrompt: vi.fn(),
     isRunning: vi.fn(),
     isBackground: vi.fn()
   }
@@ -159,6 +160,24 @@ describe('dispatchRemoteCommand', () => {
     const res = await dispatchRemoteCommand('session:messages', { agentId: 'a1' }, ctx)
     expect(res).toEqual({ ok: true, result: msgs })
     expect(meowAgent.listMessages).toHaveBeenCalledWith('a1')
+  })
+
+  it('chat:respond calls respondPrompt with allow and optional text', async () => {
+    const { ctx, meowAgent } = makeCtx()
+    meowAgent.listAgents.mockReturnValue([agent('a1', 'One')])
+    const res = await dispatchRemoteCommand('chat:respond', {
+      agentId: 'a1', promptId: 'p1', allow: true, text: 'yes', always: true
+    }, ctx)
+    expect(res).toEqual({ ok: true, result: { responded: true } })
+    expect(meowAgent.respondPrompt).toHaveBeenCalledWith('a1', 'p1', { allow: true, text: 'yes', always: true })
+  })
+
+  it('chat:respond requires promptId', async () => {
+    const { ctx, meowAgent } = makeCtx()
+    meowAgent.listAgents.mockReturnValue([agent('a1', 'One')])
+    const res = await dispatchRemoteCommand('chat:respond', { agentId: 'a1', allow: true }, ctx)
+    expect(res.ok).toBe(false)
+    expect(meowAgent.respondPrompt).not.toHaveBeenCalled()
   })
 
   it('chat:send calls send with the exact agentId and text and returns queued', async () => {

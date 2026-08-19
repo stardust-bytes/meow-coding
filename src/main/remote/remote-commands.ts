@@ -1,4 +1,5 @@
 import type { MeowAgentManager } from '../meow-agent-manager'
+import type { PromptResponse } from '../../shared/types'
 import type { WorkspaceStore } from '../workspace-store'
 import type { RemoteCommandName, RemoteCmdResult } from '../../shared/remote-types'
 
@@ -6,7 +7,7 @@ export type RemoteCommandResult = Omit<RemoteCmdResult, 'type' | 'id'>
 
 export interface RemoteCommandContext {
   meowAgent: Pick<MeowAgentManager, 'listAgents' | 'listSessions' | 'createSession' | 'switchSession' |
-    'renameSession' | 'listMessages' | 'send' | 'isRunning' | 'isBackground'>
+    'renameSession' | 'listMessages' | 'send' | 'respondPrompt' | 'isRunning' | 'isBackground'>
   workspaceStore: Pick<WorkspaceStore, 'list'>
   isEnabled(): boolean
 }
@@ -69,6 +70,18 @@ export async function dispatchRemoteCommand(
         const missing = agentError()
         if (missing) return missing
         return { ok: true, result: ctx.meowAgent.listMessages(agentId!) }
+      }
+      case 'chat:respond': {
+        const missing = agentError()
+        if (missing) return missing
+        if (typeof params.promptId !== 'string') return { ok: false, error: 'missing required param: promptId' }
+        const resp: PromptResponse = {
+          allow: params.allow === true,
+          ...(typeof params.text === 'string' ? { text: params.text } : {}),
+          ...(params.always === true ? { always: true } : {})
+        }
+        ctx.meowAgent.respondPrompt(agentId!, params.promptId, resp)
+        return { ok: true, result: { responded: true } }
       }
       case 'chat:send': {
         const missing = agentError()
