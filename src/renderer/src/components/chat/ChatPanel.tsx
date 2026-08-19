@@ -387,6 +387,18 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
       }
       return
     }
+    if (e.type === 'user-message') {
+      setItems(prev => {
+        // The desktop UI adds user rows optimistically (local send) and via
+        // queue-updated; skip the echo so remote messages don't double up.
+        const last = prev[prev.length - 1]
+        if (last && last.kind === 'message' && last.role === 'user' && last.text === e.message.text) return prev
+        return [...prev, {
+          kind: 'message', id: e.message.id, role: 'user', text: e.message.text, images: e.message.images
+        }]
+      })
+      return
+    }
     if (e.type === 'usage') {
       setContextUsed(contextTokens(e.tokens))
       setSessionCost(e.sessionCost)

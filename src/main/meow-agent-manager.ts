@@ -309,13 +309,15 @@ export class MeowAgentManager {
   private async runTurn(agentId: string, text: string, images?: ImageAttachment[]): Promise<void> {
     const agent = this.agents.get(agentId)
     if (!agent) return
-    this.deps.store.appendMessage(this.activeSessionId(agentId), {
+    const message: ChatMessage = {
       id: randomUUID(),
       role: 'user',
       text: expandReferences(agent.cwd, text),
       images,
       createdAt: Date.now()
-    })
+    }
+    this.deps.store.appendMessage(this.activeSessionId(agentId), message)
+    this.emit({ type: 'user-message', agentId, message })
     const config = this.resolved.get(agentId)
     if (!config?.apiKey) {
       this.emit({

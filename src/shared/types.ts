@@ -144,6 +144,7 @@ export type ChatEvent =
       subagentType?: string; text?: string; tool?: string
       reasoning?: string; background?: boolean; result?: string
       state?: 'running' | 'completed' | 'cancelled' | 'error' }
+  | { type: 'user-message'; agentId: string; message: ChatMessage }
   | { type: 'session-created'; agentId: string }
 
 export interface QueuedMessage {

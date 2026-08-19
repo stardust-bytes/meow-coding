@@ -136,6 +136,16 @@ describe('RemoteManager', () => {
     expect(fake.client.sendEvent).toHaveBeenCalledWith({ type: 'chat:event', event: e })
   })
 
+  it('handleAgentEvent forwards user-message as chat:event', () => {
+    manager.setEnabled(true)
+    const e: ChatEvent = {
+      type: 'user-message', agentId: 'a1',
+      message: { id: 'm1', role: 'user', text: 'hello', createdAt: Date.now() }
+    }
+    manager.handleAgentEvent(e)
+    expect(fake.client.sendEvent).toHaveBeenCalledWith({ type: 'chat:event', event: e })
+  })
+
   it('does not call sendEvent when no client exists', () => {
     manager.handleAgentEvent({ type: 'text-delta', agentId: 'a1', delta: 'hi' })
     expect(fake.client.sendEvent).not.toHaveBeenCalled()
