@@ -17,6 +17,10 @@ pushed from main over IPC (`window.api.onChatEvent`).
 | `DiffView.tsx` | Inline diff view for edit tool calls. |
 | `ContextFooter.tsx` | Token/context usage + session cost footer. |
 | `ModelPicker.tsx` | Model selector for the agent. |
+| `VariantPicker.tsx` | Variant selector (reasoning effort etc.) for the agent. |
+| `Dropdown.tsx` | Reusable dropdown menu (used by ModelPicker/VariantPicker). |
+| `questionAnswer.ts` | `buildQuestionAnswer` — helper for permission/question answers. |
+| `markdownTable.ts` | `normalizeMarkdownTables` — repairs markdown table pipes before rendering. |
 
 ## Conventions
 

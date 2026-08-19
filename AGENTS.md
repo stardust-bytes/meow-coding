@@ -15,7 +15,7 @@ aider, ...) chạy song song trong các pane terminal trên một cửa sổ.
 
 - `src/main` — main process: PTY, stores, services, IPC handlers, vòng đời app.
 - `src/preload` — contextBridge, expose `window.api` (implement `AgentApi`).
-- `src/renderer` — React UI: sidebar, pane grid, xterm.
+- `src/renderer` — React UI: sidebar, pane grid, xterm + native-agent chat.
 - `src/shared` — types + IPC contract chung. **KHÔNG** import Node/Electron ở đây.
 - `src/browser-extension` — Chrome MV3 extension (build riêng bằng esbuild → `out/browser-extension`,
   copy sang `userData/browser-extension/` để Load unpacked trên profile Chrome thật).
@@ -31,6 +31,8 @@ Alias `@shared` → `src/shared` (đã cấu hình trong electron.vite.config.ts
 - `npm run typecheck` — tsc node + web + extension.
 - `npm run build:extension` — build Chrome extension (esbuild → `out/browser-extension`).
 - `npm run e2e` — Playwright smoke (cần `npm run build` trước).
+- `npm run dist` / `dist:dir` / `dist:linux` / `dist:mac` — đóng gói qua electron-builder.
+- `npm run regen:models` — regenerate `src/main/models-snapshot.json`.
 
 ## Cài đặt trên Windows
 

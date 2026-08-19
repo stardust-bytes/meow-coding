@@ -6,6 +6,9 @@ Hợp đồng dùng chung giữa main / preload / renderer.
   Chỉ JSON-serializable: **không** class, không function, không import Node/Electron.
 - `ipc.ts` — `Channels` (mọi channel string) + `AgentApi` (interface API) + kiểu event payload
   (`PtyDataEvent`, `AgentStateEvent`, `GitStatusEvent`).
+- `browser-types.ts` — types riêng cho browser bridge (pairing, snapshot).
+- `text.ts` — helper text thuần (append stream delta, ...).
+- `usage.ts` — helper tính context/token usage thuần.
 
 ## Quy ước
 

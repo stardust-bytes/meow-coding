@@ -15,6 +15,10 @@ main process config.
 | `McpTab.tsx` | MCP server configs + connection status. |
 | `ContextTab.tsx` | Context/compaction settings: max tokens, max steps, notifications, tool-output limits. |
 | `CommandsTab.tsx` | Slash-command editor (project-level). |
+| `ChatGptWebTab.tsx` | ChatGPT web login/session tab. |
+| `TemplatesTab.tsx` | Agent template CRUD. |
+| `UpdatesTab.tsx` | Update channel + check/install. |
+| `Modal.tsx` | Reusable modal shell for the settings dialog. |
 
 ## Conventions
 

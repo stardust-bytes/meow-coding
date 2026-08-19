@@ -9,7 +9,8 @@ React renderer (không có quyền truy cập Node/Electron trực tiếp).
 - `src/App.tsx` — trung tâm state: workspaces, templates, runtime đang mở; định nghĩa `PaneModel`
   (agent + state + git) cho từng pane.
 - `src/components/` — `Sidebar`, `PaneGrid`, `Pane`, `PaneHeader`, `XtermHost`, `EmptyState`,
-  `AddProjectDialog`, `AddAgentDialog`, `TemplatesPanel`.
+  `StatusBar`, `TitleBar`, `BackgroundPanel`, `AddProjectDialog`, `AddAgentDialog`, `UpdateDialog`,
+  `BrowserDialog`, `InstallGuideDialog`, `ChallengeToast`, `chat/`, `settings/`.
 - `src/styles.css` — dark theme coding, spacing theo thang 4px.
 
 ## Quy ước

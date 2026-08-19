@@ -7,6 +7,8 @@ handlers và vòng đời app.
 
 - `index.ts` — `MainApp` điều phối toàn bộ: setState, forward sự kiện `pty:data`/`agent:state`/
   `git:status` ra renderer; `registerIpcHandlers`; window lifecycle; `before-quit` → `pty.stopAll()`.
+- `meow-agent-manager.ts` — `MeowAgentManager`: orchestrate agent chat loop, sessions, commands,
+  permissions, subagents, MCP/user tools, stats, settings. Nơi duy nhất điều phối native agent.
 - `pty-manager.ts` — wrapper node-pty, phát sự kiện `data`/`exit`. `buildSpawnCommand` bọc lệnh
   non-`.exe` qua `cmd.exe` trên Windows (ConPTY không spawn được `.cmd` shim trực tiếp). Dùng
   `tree-kill` để kill cả process tree khi stop.
@@ -17,6 +19,16 @@ handlers và vòng đời app.
 - `log-manager.ts` — append output mỗi agent ra `userData/logs/<agentId>.log`.
 - `git-status-service.ts` — `git status --porcelain=v2 -b` (timeout 5s), parse branch + dirty count.
 - `alert-service.ts` — phát `idle` sau ngưỡng (mặc định 5 phút) và `exit` (theo exit code).
+- `notification-service.ts` — native Electron `Notification` cho sự kiện cần input/done.
+- `file-suggest.ts` — gợi ý file cho `@`-mention (deep search cả cây project, ignore
+  node_modules/.git/out/dist).
+- `file-watcher.ts` — watch đệ quy project, lọc text file, gộp thay đổi (debounce 500ms).
+- `models-catalog.ts` / `model-variants.ts` — catalog model providers + biến thể (reasoning, pricing).
+- `terminal-shell.ts` — `resolveShell`: chọn shell mặc định theo platform.
+- `updater.ts` — electron-updater wrapper, phát `UpdaterStatusEvent`.
+- `window-chrome.ts` — `getWindowChromeOptions`: title-bar ẩn trên Windows/Linux.
+- `chatgpt-web/` — ChatGPT web login + browser worker + model catalog.
+- `browser/` — BrowserBridge (WS server local + pairing) + Chrome launcher + snapshot format.
 
 ## Quy ước
 
@@ -32,6 +44,10 @@ handlers và vòng đời app.
 
 ## Kiểm thử
 
-- Unit: `tests/unit/{template-manager,workspace-store,git-status-service,alert-service,json-store,log-manager,ipc-contract}`.
-- Integration: `tests/integration/pty-manager.test.ts` (spawn thật qua ConPTY, dùng fixture CLI).
+- Unit: `tests/unit/` — một file test cho một module: pty-spawn-command, terminal-shell,
+  window-chrome, updater, models-catalog, model-variants, notification-service, file-suggest,
+  file-watcher, git-status-service, alert-service, json-store, log-manager, template-manager,
+  workspace-store, meow-agent-manager, ipc-contract, ...
+- Integration: `tests/integration/pty-manager.test.ts` (spawn thật qua ConPTY, dùng fixture CLI),
+  `agent-stream-overlap.test.ts`, `browser/bridge-flow.test.ts`.
 - Chạy: `npm run typecheck`, `npm test`.

@@ -2,9 +2,11 @@
 
 Tài liệu theo workflow Superpowers.
 
+- `superpowers/brainstorms/` — ghi chú phiên brainstorm.
 - `superpowers/specs/` — design specs: mục tiêu, quyết định, phạm vi, kiến trúc, luồng dữ liệu, xử lý
   lỗi, kiểm thử, tiêu chí thành công. Viết **trước** khi code.
 - `superpowers/plans/` — kế hoạch triển khai từng bước, dẫn dắt từ spec đến thực thi.
+- `superpowers/notes/` — ghi chú kỹ thuật / quyết định rời rạc.
 
 ## Quy ước
 

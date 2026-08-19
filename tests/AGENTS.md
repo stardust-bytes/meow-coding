@@ -1,9 +1,10 @@
 # AGENTS.md — tests
 
 - `unit/` — test logic thuần (Vitest, environment `node`). Một file cho một module: `<name>.test.ts`.
-- `integration/` — test PTY thật (chạy trên ConPTY Windows): `pty-manager.test.ts`.
+- `integration/` — test tích hợp thật: `pty-manager.test.ts` (ConPTY), `agent-stream-overlap.test.ts`,
+  `browser/bridge-flow.test.ts`.
 - `e2e/` — Playwright cho Electron, smoke test mở app.
-- `fixtures/` — fake CLI (`echo-agent.js`) để spawn thay agent thật khi cần.
+- `fixtures/` — fake CLI (`echo-agent.js`) spawn thay agent thật + `mock-lsp-server.js`.
 
 ## Quy ước
 

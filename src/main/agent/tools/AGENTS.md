@@ -24,6 +24,8 @@ The tool registry for the native Meow agent. Each file exports a `ToolDefinition
 | `revert.ts` | Revert files via snapshot store. |
 | `skill.ts` | Load a skill into context. |
 | `websearch.ts` / `webfetch.ts` | Web search / page fetch (need API keys). |
+| `browser.ts` | Browser control via the Chrome bridge (navigate/click/read/...). |
+| `office.ts` | Create/read/edit Office documents via the officecli CLI. |
 | `lsp.ts` | LSP diagnostics for a file (via `../lsp/`). |
 | `snapshot-util.ts` | Snapshot helpers for tools. |
 
@@ -31,5 +33,5 @@ The tool registry for the native Meow agent. Each file exports a `ToolDefinition
 
 - Each tool is a plain object matching `ToolDefinition`; `schema` is a zod type with a `.parse()`.
 - Never spawn/kill processes directly from the renderer — only tools in this folder (main process) may do so.
-- `bash` on Windows: non-`.exe` commands go through git-bash — do not break `spawnWithFallback` logic.
+- `bash` on Windows: prefer Git Bash (`gitBashPath`/`buildShellCommand`), fall back to `cmd.exe` — do not break that logic.
 - Add new tools to `registry.ts` and to `DEFAULT_MEOW_CONFIG.permission` in `../config.ts`.

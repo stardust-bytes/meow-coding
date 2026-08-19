@@ -22,6 +22,7 @@ commands, references, compaction and usage accounting. Orchestrated by `MeowAgen
 | `truncation.ts` | `TruncationStore`: truncation state per session. |
 | `usage.ts` | `calcCost` / `EMPTY_USAGE` / price-based cost accounting. |
 | `token.ts` | Token estimation/counting helpers. |
+| `trace-store.ts` | `TraceStore`: per-session trace event log (buffered + flushed async, seq per session). |
 | `apply-patch.ts` | Unified-diff parser + applier (the `apply-patch` tool backend). |
 | `plugin.ts` | Loads user tools from `userData/tools`. |
 | `skill.ts` | Collects skills (builtin + user) into `skillListText` for the system prompt. |

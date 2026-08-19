@@ -15,8 +15,12 @@ terminal/chat, sidebar, status bar, title bar, and dialogs. All data flows throu
 | `StatusBar.tsx` | Bottom bar: workspace name, git branch, running count, app version (via IPC). |
 | `TitleBar.tsx` | Custom window chrome (min/max/close) for frameless platforms. |
 | `XtermHost.tsx` | PTY terminal host via xterm.js. |
-| `EmptyState.tsx` | Shown when no workspace is open. |
-| `TemplatesPanel.tsx` | Template CRUD UI. |
+| `EmptyState.tsx` | Shown when no pane is open (workspace vs. no-workspace hint). |
+| `BackgroundPanel.tsx` | Lists background agents; open/stop them. |
+| `UpdateDialog.tsx` | Auto-update status + install prompt. |
+| `BrowserDialog.tsx` | Chrome bridge pairing + status UI. |
+| `InstallGuideDialog.tsx` | Extension install steps for the browser bridge. |
+| `ChallengeToast.tsx` | ChatGPT web challenge toast. |
 | `AddAgentDialog.tsx` / `AddProjectDialog.tsx` | Creation dialogs. |
 | `chat/` | The native-agent chat UI — see its own AGENTS.md. |
 | `settings/` | Settings dialog + tabs — see its own AGENTS.md. |
