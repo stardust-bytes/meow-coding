@@ -8,6 +8,7 @@ import ToolCallCard from './ToolCallCard'
 import MarkdownText from './MarkdownText'
 import SessionBar from './SessionBar'
 import ModelPicker from './ModelPicker'
+import VariantPicker from './VariantPicker'
 import ContextFooter from './ContextFooter'
 
 type FeedItem =
@@ -909,21 +910,14 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
           <div className="chat-mode-tools">
             <ModelPicker agentId={agentId} />
             {availableVariants.length > 0 && (
-              <select
-                className="input chat-variant-select"
+              <VariantPicker
+                variants={availableVariants}
                 value={currentVariant}
-                aria-label="Model effort"
-                onChange={e => {
-                  const v = e.target.value
+                onChange={v => {
                   setCurrentVariant(v)
                   onVariantChange?.(v === '' ? undefined : v)
                 }}
-              >
-                <option value="">Default</option>
-                {availableVariants.map(v => (
-                  <option key={v} value={v}>{v}</option>
-                ))}
-              </select>
+              />
             )}
           </div>
         </div>
