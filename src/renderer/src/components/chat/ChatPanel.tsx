@@ -390,18 +390,30 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     if (e.type === 'user-message') {
       setItems(prev => {
         // The desktop UI adds user rows optimistically (local send, 'u-' ids)
-        // and via queue-updated; skip that echo, but never drop two identical
-        // remote messages (store ids are UUIDs).
-        const last = prev[prev.length - 1]
-        const optimistic = last && last.kind === 'message' && last.role === 'user' && last.id.startsWith('u-')
-        if (optimistic && last.text === e.message.text) return prev
-        return [...prev, {
-          kind: 'message', id: e.message.id, role: 'user', text: e.message.text, images: e.message.images
-        }]
+        // and via queue-updated. The echo is the truth for that send: replace
+        // the pending optimistic row wherever it sits. Text may differ (a
+        // slash command's raw text resolves to a different prompt), so don't
+        // compare content — an unreplaced 'u-' row is the one to replace.
+        // Never drop two identical remote messages (store ids are UUIDs).
+        let idx = -1
+        for (let i = prev.length - 1; i >= 0; i--) {
+          const it = prev[i]
+          if (it.kind === 'message' && it.role === 'user' && it.id.startsWith('u-')) {
+            idx = i
+            break
+          }
+        }
+        const row = { kind: 'message' as const, id: e.message.id, role: 'user' as const, text: e.message.text, images: e.message.images }
+        if (idx >= 0) {
+          const next = [...prev]
+          next[idx] = row
+          return next
+        }
+        return [...prev, row]
       })
       return
     }
-    if (e.type === 'usage') {
+if (e.type === 'usage') {
       setContextUsed(contextTokens(e.tokens))
       setSessionCost(e.sessionCost)
       setSessionTokens(e.sessionTokens)
