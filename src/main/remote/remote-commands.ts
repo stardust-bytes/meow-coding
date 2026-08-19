@@ -6,7 +6,7 @@ export type RemoteCommandResult = Omit<RemoteCmdResult, 'type' | 'id'>
 
 export interface RemoteCommandContext {
   meowAgent: Pick<MeowAgentManager, 'listAgents' | 'listSessions' | 'createSession' | 'switchSession' |
-    'renameSession' | 'send' | 'isRunning' | 'isBackground'>
+    'renameSession' | 'listMessages' | 'send' | 'isRunning' | 'isBackground'>
   workspaceStore: Pick<WorkspaceStore, 'list'>
   isEnabled(): boolean
 }
@@ -64,6 +64,11 @@ export async function dispatchRemoteCommand(
         if (typeof params.sessionId !== 'string') return { ok: false, error: 'missing required param: sessionId' }
         if (typeof params.title !== 'string') return { ok: false, error: 'missing required param: title' }
         return { ok: true, result: ctx.meowAgent.renameSession(agentId!, params.sessionId, params.title) }
+      }
+      case 'session:messages': {
+        const missing = agentError()
+        if (missing) return missing
+        return { ok: true, result: ctx.meowAgent.listMessages(agentId!) }
       }
       case 'chat:send': {
         const missing = agentError()

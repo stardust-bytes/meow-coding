@@ -20,6 +20,7 @@ function makeCtx(overrides: Partial<RemoteCommandContext> = {}) {
     createSession: vi.fn(),
     switchSession: vi.fn(),
     renameSession: vi.fn(),
+    listMessages: vi.fn(),
     send: vi.fn(async () => {}),
     isRunning: vi.fn(),
     isBackground: vi.fn()
@@ -148,6 +149,16 @@ describe('dispatchRemoteCommand', () => {
     const res = await dispatchRemoteCommand('session:rename', { agentId: 'a1', sessionId: 's1', title: 'New' }, ctx)
     expect(meowAgent.renameSession).toHaveBeenCalledWith('a1', 's1', 'New')
     expect(res).toEqual({ ok: true, result: summary })
+  })
+
+  it('session:messages returns the message history for the agent', async () => {
+    const { ctx, meowAgent } = makeCtx()
+    meowAgent.listAgents.mockReturnValue([agent('a1', 'One')])
+    const msgs = [{ id: 'm1', role: 'user', text: 'hi', createdAt: 1 }]
+    meowAgent.listMessages.mockReturnValue(msgs)
+    const res = await dispatchRemoteCommand('session:messages', { agentId: 'a1' }, ctx)
+    expect(res).toEqual({ ok: true, result: msgs })
+    expect(meowAgent.listMessages).toHaveBeenCalledWith('a1')
   })
 
   it('chat:send calls send with the exact agentId and text and returns queued', async () => {

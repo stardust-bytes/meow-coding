@@ -3,6 +3,7 @@ import type { ChatEvent } from './types'
 export type RemoteCommandName =
   | 'workspace:list' | 'agent:list' | 'agent:state'
   | 'session:list' | 'session:switch' | 'session:create' | 'session:rename'
+  | 'session:messages'
   | 'chat:send'
 
 export type RemoteEvent =
