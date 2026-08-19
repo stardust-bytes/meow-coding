@@ -962,6 +962,15 @@ select.input { width: 100%; }
   font-size: var(--fs-md);
 }
 
+/* Remote Control tab */
+.remote-tab .remote-code {
+  color: var(--yellow);
+  font-family: var(--font-mono);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.15em;
+}
+
 /* Agents tab */
 .agents-row { display: flex; flex-direction: column; gap: 6px; }
 .agents-row-head { display: flex; align-items: center; gap: 8px; }
