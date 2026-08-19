@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
 import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, NotificationsSettings, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TraceEvent, UsageSummary } from '../shared/types'
-import type { AgentConfig, AgentMode, CatalogProviderSummary, Command, ModelRef } from '../shared/types'
+import type { AgentConfig, AgentMode, CatalogProviderSummary, Command, ModelRef, SubagentType } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, settingsToConfig, writeMeowConfig,
   type MeowConfig, type ResolvedAgentConfig
@@ -33,6 +33,7 @@ import { ModelsCatalog } from './models-catalog'
 import type { VariantBody } from './model-variants'
 import { revertTool } from './agent/tools/revert'
 import { createTaskTool } from './agent/tools/task'
+import type { ResolvedSubagentModel } from './agent/tools/task'
 import type { ToolDefinition } from './agent/tools/types'
 import type { NotificationService } from './notification-service'
 import { TraceStore } from './agent/trace-store'
@@ -762,10 +763,21 @@ export class MeowAgentManager {
     const llmClient = resolved.provider === CHATGPT_WEB_PROVIDER_ID
       ? (this.deps.createChatGptWebLlmClient ?? defaultCreateChatGptWebLlmClient)(this.deps.chatGptWeb as ChatGptWebManager)
       : (this.deps.createLlm ?? createLlm)(resolved.provider, resolved.apiKey ?? '', resolved.baseUrl)
+    const resolveSubagent = (type: SubagentType): ResolvedSubagentModel | undefined => {
+      const ref = cfg.subagentModels?.[type]
+      if (!ref) return undefined
+      const subResolved = resolveAgentConfig(cfg, agent.name, this.deps.env, `${ref.provider}/${ref.model}`)
+      if (!subResolved.provider || !subResolved.model || !subResolved.apiKey) return undefined // fallback main
+      const subLlm = subResolved.provider === CHATGPT_WEB_PROVIDER_ID
+        ? (this.deps.createChatGptWebLlmClient ?? defaultCreateChatGptWebLlmClient)(this.deps.chatGptWeb as ChatGptWebManager)
+        : (this.deps.createLlm ?? createLlm)(subResolved.provider, subResolved.apiKey, subResolved.baseUrl)
+      return { provider: subResolved.provider, model: subResolved.model, llm: subLlm }
+    }
     const taskTool = createTaskTool({
       llm: llmClient,
       model: resolved.model,
       tools: this.tools,
+      resolveSubagent,
       onBackgroundResult: (taskId, text, error) => {
         const sessionId = this.activeSessionId(agent.id)
         this.deps.store.appendMessage(sessionId, {

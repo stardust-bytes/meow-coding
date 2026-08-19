@@ -347,6 +347,40 @@ describe('configToSettings / settingsToConfig', () => {
   })
 })
 
+describe('subagentModels', () => {
+  const write = (sub: unknown) => {
+    writeFileSync(file, JSON.stringify({
+      provider: { p1: { apiKey: 'k', models: ['m1', 'm2'] } },
+      model: 'p1',
+      subagentModels: sub
+    }))
+    return loadMeowConfig(file)
+  }
+
+  it('keeps valid role models', () => {
+    const c = write({ research: { provider: 'p1', model: 'm2' } })
+    expect(c.subagentModels).toEqual({ research: { provider: 'p1', model: 'm2' } })
+  })
+
+  it('drops roles whose model is not in provider.models (fallback to main)', () => {
+    const c = write({ general: { provider: 'p1', model: 'nope' } })
+    expect(c.subagentModels).toBeUndefined()
+  })
+
+  it('drops roles whose provider is missing', () => {
+    const c = write({ reviewer: { provider: 'ghost', model: 'm1' } })
+    expect(c.subagentModels).toBeUndefined()
+  })
+
+  it('round-trips through configToSettings/settingsToConfig', () => {
+    const loaded = write({ research: { provider: 'p1', model: 'm2' } })
+    const s = configToSettings(loaded)
+    expect(s.subagentModels).toEqual({ research: { provider: 'p1', model: 'm2' } })
+    const back = settingsToConfig(s, loaded)
+    expect(back.subagentModels).toEqual({ research: { provider: 'p1', model: 'm2' } })
+  })
+})
+
 function cfgWithProviders() {
   const c = loadMeowConfig(file)
   c.provider = {

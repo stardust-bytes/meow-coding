@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import type { AgentSettings, CompactionSettings, MeowSettings, NotificationsSettings, PermissionRule } from '../../shared/types'
+import type { AgentSettings, CompactionSettings, MeowSettings, ModelRef, NotificationsSettings, PermissionRule, SubagentType } from '../../shared/types'
 import type { McpServerConfig } from './mcp/manager'
 
 export type { PermissionRule }
@@ -50,6 +50,7 @@ export interface MeowConfig {
   lsp: LspConfig
   notifications?: NotificationsConfig
   trace?: TraceConfig
+  subagentModels?: Partial<Record<SubagentType, ModelRef>>
 }
 
 export interface ResolvedAgentConfig {
@@ -216,6 +217,24 @@ function normalizeMcp(raw: Record<string, McpServerConfig> | undefined): Record<
   return out
 }
 
+const SUBAGENT_ROLES: readonly SubagentType[] = ['research', 'general', 'reviewer']
+
+function normalizeSubagentModels(
+  raw: Partial<Record<SubagentType, ModelRef>> | undefined,
+  providers: Record<string, MeowProviderConfig>
+): Partial<Record<SubagentType, ModelRef>> | undefined {
+  if (!raw) return undefined
+  const out: Partial<Record<SubagentType, ModelRef>> = {}
+  for (const type of SUBAGENT_ROLES) {
+    const ref = raw[type]
+    if (!ref || !ref.provider || !ref.model) continue
+    const provider = providers[ref.provider]
+    if (!provider || !provider.models.includes(ref.model)) continue
+    out[type] = { provider: ref.provider, model: ref.model }
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
 function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
   const providers: Record<string, MeowProviderConfig> = {}
   for (const [id, p] of Object.entries(raw.provider ?? {})) {
@@ -233,7 +252,8 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     toolOutput: normalizeToolOutput(raw.toolOutput),
     lsp: normalizeLsp(raw.lsp),
     notifications: normalizeNotifications(raw.notifications),
-    trace: normalizeTrace(raw.trace)
+    trace: normalizeTrace(raw.trace),
+    subagentModels: normalizeSubagentModels(raw.subagentModels, providers)
   }
 }
 
@@ -320,7 +340,8 @@ export function configToSettings(cfg: MeowConfig): MeowSettings {
     toolOutput: cfg.toolOutput,
     lsp: cfg.lsp,
     notifications: cfg.notifications ? normalizeNotifications(cfg.notifications) : DEFAULT_NOTIFICATIONS,
-    trace: normalizeTrace(cfg.trace)
+    trace: normalizeTrace(cfg.trace),
+    ...(cfg.subagentModels ? { subagentModels: cfg.subagentModels } : {})
   }
 }
 
@@ -362,7 +383,10 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
     notifications: settings.notifications
       ? normalizeNotifications(settings.notifications)
       : normalizeNotifications(base.notifications),
-    trace: normalizeTrace(settings.trace ?? base.trace)
+    trace: normalizeTrace(settings.trace ?? base.trace),
+    ...(settings.subagentModels
+      ? { subagentModels: normalizeSubagentModels(settings.subagentModels, providers) }
+      : {})
   }
 }
 

@@ -66,6 +66,7 @@ async function makeManager(opts: StubLlmOptions & {
   const llmCalls: string[][] = []
   const llmSystems: string[] = []
   const llmVariants: Array<Record<string, unknown> | undefined> = []
+  const llmModels: string[] = []
   let llmClient: LlmClient
   const createLlm = vi.fn((): LlmClient => {
     llmClient = {
@@ -73,6 +74,7 @@ async function makeManager(opts: StubLlmOptions & {
         llmCalls.push((request.tools ?? []).map(t => t.name))
         llmSystems.push(request.system)
         llmVariants.push(request.variantOptions)
+        llmModels.push(request.model)
         if (opts.hangUntilAbort) {
           await new Promise<void>(resolve => {
             if (request.signal?.aborted) return resolve()
@@ -105,7 +107,7 @@ async function makeManager(opts: StubLlmOptions & {
   })
   manager.setOnEvent(e => events.push(e))
   await manager.init([{ ...MEOW_AGENT }, { ...PTY_AGENT }])
-  return { manager, store, events, createLlm, savedPermissions, llmCalls, llmSystems, llmVariants }
+  return { manager, store, events, createLlm, savedPermissions, llmCalls, llmSystems, llmVariants, llmModels }
 }
 
 describe('MeowAgentManager', () => {
@@ -776,5 +778,71 @@ describe('MeowAgentManager', () => {
       model: `${CHATGPT_WEB_PROVIDER_ID}/high`
     })
     expect(manager.getAgentModel('a4')).toEqual({ provider: CHATGPT_WEB_PROVIDER_ID, model: 'high' })
+  })
+
+  it('task tool resolves a configured subagent model to a dedicated llm', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-subagent-'))
+    try {
+      const configPath = path.join(dir, 'meow.json')
+      writeFileSync(configPath, JSON.stringify({
+        provider: {
+          test: { apiKey: 'sk-test', models: ['test-model'] },
+          p1: { apiKey: 'sk-p1', models: ['m1', 'm2'] }
+        },
+        model: 'test',
+        subagentModels: { research: { provider: 'p1', model: 'm2' } }
+      }))
+      const { manager, llmModels, createLlm } = await makeManager({
+        configPath,
+        partsQueue: [
+          [
+            { kind: 'tool-call', toolCallId: 'tc1', toolName: 'task', toolInput: { prompt: 'research x', subagent_type: 'research' } },
+            { kind: 'finish' }
+          ],
+          [{ kind: 'text', text: 'sub result' }, { kind: 'finish' }],
+          [{ kind: 'text', text: 'done' }, { kind: 'finish' }]
+        ]
+      })
+      manager.newSession('a1')
+      await manager.send('a1', 'research x')
+      // The subagent ran on a dedicated p1 client using the configured m2 model.
+      expect(createLlm.mock.calls.some(c => c[0] === 'p1' && c[1] === 'sk-p1')).toBe(true)
+      expect(llmModels).toContain('m2')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('task tool falls back to the main model when the subagent provider has no api key', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-subagent-'))
+    try {
+      const configPath = path.join(dir, 'meow.json')
+      writeFileSync(configPath, JSON.stringify({
+        provider: {
+          test: { apiKey: 'sk-test', models: ['test-model'] },
+          p1: { apiKeyEnv: 'MEOW_UNSET_KEY', models: ['m1', 'm2'] }
+        },
+        model: 'test',
+        subagentModels: { research: { provider: 'p1', model: 'm2' } }
+      }))
+      const { manager, llmModels, createLlm } = await makeManager({
+        configPath,
+        partsQueue: [
+          [
+            { kind: 'tool-call', toolCallId: 'tc1', toolName: 'task', toolInput: { prompt: 'research x', subagent_type: 'research' } },
+            { kind: 'finish' }
+          ],
+          [{ kind: 'text', text: 'sub result' }, { kind: 'finish' }],
+          [{ kind: 'text', text: 'done' }, { kind: 'finish' }]
+        ]
+      })
+      manager.newSession('a1')
+      await manager.send('a1', 'research x')
+      // No dedicated subagent client: the task tool inherits the main model/llm.
+      expect(createLlm.mock.calls.some(c => c[0] === 'p1')).toBe(false)
+      expect(llmModels.every(m => m === 'test-model')).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
