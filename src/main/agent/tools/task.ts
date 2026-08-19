@@ -3,10 +3,10 @@ import { z } from 'zod'
 import type { LlmClient } from '../llm'
 import { SessionRunner } from '../loop'
 import type { TranscriptItem } from '../message'
-import type { ChatMessage, ToolCallData } from '../../../shared/types'
+import type { ChatMessage, SubagentType, ToolCallData } from '../../../shared/types'
 import type { ToolContext, ToolDefinition, ToolRunResult } from './types'
 
-export type SubagentType = 'research' | 'general' | 'reviewer'
+export type { SubagentType } from '../../../shared/types'
 
 export interface SubagentConfig {
   system: string
