@@ -66,4 +66,5 @@ Alias `@shared` → `src/shared` (đã cấu hình trong electron.vite.config.ts
 ## Docs
 
 - `docs/superpowers/specs` — design specs; `docs/superpowers/plans` — kế hoạch triển khai.
+- `docs/changelog-format.md` — format viết changelog giữa các version (tái sử dụng mỗi release).
 - Workflow: brainstorm → spec → plan → thực thi (chi tiết trong docs hiện có).
