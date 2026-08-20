@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
+import type { ArtifactsChangedEvent } from '../shared/ipc'
 import type { ChatEvent, ChatGptWebStatus, Command, ContextChangedEvent, FileViewerPayload, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, TraceEvent, UpdaterStatusEvent } from '../shared/types'
 import type { AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, ChallengeEvent, GitStatusEvent, PtyDataEvent, TerminalExitEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
 import type { BrowserStatusInfo } from '../shared/browser-types'
@@ -31,6 +32,14 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.FileViewerOpenInEditor, path),
   showFileInFolder: (path: string) =>
     ipcRenderer.invoke(Channels.FileViewerShowInFolder, path),
+  listDir: (absPath: string) =>
+    ipcRenderer.invoke(Channels.DirList, absPath),
+  listArtifacts: (projectPath: string) =>
+    ipcRenderer.invoke(Channels.ArtifactsList, projectPath),
+  clearArtifacts: (projectPath: string) =>
+    ipcRenderer.invoke(Channels.ArtifactsClear, projectPath),
+  onArtifactsChanged: (cb: (e: ArtifactsChangedEvent) => void) =>
+    subscribe(Channels.EventArtifactsChanged, cb),
   openTerminal: (cwd: string) =>
     ipcRenderer.invoke(Channels.TerminalOpen, cwd),
   closeTerminal: (id: string) =>

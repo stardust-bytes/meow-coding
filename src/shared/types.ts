@@ -330,6 +330,22 @@ export interface ContextChangedEvent {
   files: string[]
 }
 
+export interface DirEntry {
+  name: string
+  path: string
+  isDirectory: boolean
+}
+
+export interface ArtifactEntry {
+  id: string
+  path: string
+  absPath: string
+  kind: 'create' | 'edit'
+  agentId: string
+  agentName: string
+  ts: number
+}
+
 export type UpdaterStatusEvent =
   | { type: 'checking' }
   | { type: 'update-available'; version: string; releaseNotes?: string; releaseDate?: string; currentVersion: string }

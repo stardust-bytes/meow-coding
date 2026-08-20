@@ -1,6 +1,6 @@
 import type {
-  AgentConfig, AgentState, CatalogProviderSummary, ChatEvent, ChatGptWebStatus, ChatMessage, ChatTranscriptItem, Command,
-  ContextChangedEvent, ContextInfo, FileContentResult, FileSuggestion, FileViewerPayload, GitStatus, ImageAttachment, McpServerStatus, MeowSettings,
+  AgentConfig, AgentState, ArtifactEntry, CatalogProviderSummary, ChatEvent, ChatGptWebStatus, ChatMessage, ChatTranscriptItem, Command,
+  ContextChangedEvent, ContextInfo, DirEntry, FileContentResult, FileSuggestion, FileViewerPayload, GitStatus, ImageAttachment, McpServerStatus, MeowSettings,
   ModelRef, NewAgentInput, PromptResponse, SessionSummary, StatsSummary, Template, TerminalInfo, TodoItem, TraceEvent, TraceSummary, UpdaterStatusEvent, WorkspaceRuntime,
   WorkspaceSummary
 } from './types'
@@ -113,7 +113,11 @@ export const Channels = {
   TraceList: 'trace:list',
   TraceRead: 'trace:read',
   TraceDelete: 'trace:delete',
-  EventTrace: 'trace:event'
+  EventTrace: 'trace:event',
+  DirList: 'dir:list',
+  ArtifactsList: 'artifacts:list',
+  ArtifactsClear: 'artifacts:clear',
+  EventArtifactsChanged: 'artifacts:changed'
 } as const
 
 export interface PtyDataEvent { agentId: string; data: string }
@@ -135,6 +139,11 @@ export interface BrowserInstallGuideEvent {
   extensionDir: string
 }
 
+export interface ArtifactsChangedEvent {
+  projectPath: string
+  artifacts: ArtifactEntry[]
+}
+
 export interface AgentApi {
   listWorkspaces(): Promise<WorkspaceSummary[]>
   addWorkspace(projectPath: string, name: string): Promise<WorkspaceRuntime | null>
@@ -146,6 +155,10 @@ export interface AgentApi {
   getFileContent(path: string): Promise<FileContentResult>
   openFileInEditor(path: string): Promise<void>
   showFileInFolder(path: string): Promise<void>
+  listDir(absPath: string): Promise<DirEntry[]>
+  listArtifacts(projectPath: string): Promise<ArtifactEntry[]>
+  clearArtifacts(projectPath: string): Promise<void>
+  onArtifactsChanged(cb: (e: ArtifactsChangedEvent) => void): () => void
   openTerminal(cwd: string): Promise<TerminalInfo>
   closeTerminal(id: string): Promise<void>
   addAgent(projectPath: string, input: NewAgentInput): Promise<WorkspaceRuntime>
