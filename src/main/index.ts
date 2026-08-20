@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from 'electron'
 import { spawn } from 'node:child_process'
-import { rmSync } from 'node:fs'
+import { existsSync, rmSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
@@ -28,6 +28,9 @@ import { isTextPath, openFileViewer, openWithSystemApp, readFileContent } from '
 import { MeowAgentManager } from './meow-agent-manager'
 import { CommandStore } from './agent/commands'
 import { FileWatcher } from './file-watcher'
+import { ArtifactStore } from './artifact-store'
+import { isPathInside, listDir, shouldIgnore } from './dir-lister'
+import type { DirEntry } from '../shared/types'
 import { LspManager } from './agent/lsp/manager'
 import { ModelsCatalog } from './models-catalog'
 import { getWindowChromeOptions } from './window-chrome'
@@ -115,6 +118,14 @@ class MainApp {
     },
     onBackgroundChange: (agentId, background) => {
       win?.webContents.send(Channels.EventAgentBackground, { agentId, background })
+    },
+    onArtifact: (entry) => {
+      const projectPath = this.activeProject
+      if (!projectPath || !isPathInside(projectPath, entry.absPath)) return
+      this.artifacts.record(projectPath, {
+        ...entry,
+        agentName: this.resolveAgentName(entry.agentId)
+      })
     }
   })
   remoteStore = new RemoteSettingsStore(
@@ -134,6 +145,9 @@ class MainApp {
   private gitTimer: ReturnType<typeof setInterval> | null = null
   private activeProject: string | null = null
   private watcher: FileWatcher | null = null
+  artifacts = new ArtifactStore((projectPath, artifacts) => {
+    win?.webContents.send(Channels.EventArtifactsChanged, { projectPath, artifacts })
+  })
   private prices = new Map<string, { input?: number; output?: number; cacheRead?: number; cacheWrite?: number }>()
   private ptyStartTs = new Map<string, number>()
   private updater: Updater
@@ -346,8 +360,42 @@ class MainApp {
     this.watcher?.stop()
     this.watcher = new FileWatcher(projectPath, (files) => {
       win?.webContents.send(Channels.EventContextChanged, { projectPath, files })
+      this.recordWatcherChanges(projectPath, files)
     })
     this.watcher.start()
+  }
+
+  // PTY agents (opencode, Claude Code CLI, ...) are external processes we
+  // cannot instrument, so file changes observed while one is running become
+  // artifacts attributed to the most recently active running agent.
+  private recordWatcherChanges(projectPath: string, files: string[]): void {
+    const running = [...this.states.entries()]
+      .filter(([, s]) => s.status === 'running')
+      .sort((a, b) => (b[1].lastOutputAt ?? 0) - (a[1].lastOutputAt ?? 0))
+    const agentId = running[0]?.[0]
+    if (!agentId) return
+    for (const rel of files) {
+      if (rel.split('/').some(seg => shouldIgnore(seg))) continue
+      const absPath = path.join(projectPath, rel)
+      this.artifacts.record(projectPath, {
+        path: rel,
+        absPath,
+        kind: existsSync(absPath) ? 'edit' : 'create',
+        agentId,
+        agentName: this.resolveAgentName(agentId)
+      })
+    }
+  }
+
+  private resolveAgentName(agentId: string): string {
+    const ws = this.activeProject ? this.workspaces.get(this.activeProject) : undefined
+    return ws?.agents.find(a => a.id === agentId)?.name ?? agentId
+  }
+
+  dirList(absPath: string): Promise<DirEntry[]> {
+    const root = this.activeProject
+    if (!root || !isPathInside(root, absPath)) throw new Error('Not a project path')
+    return listDir(absPath)
   }
 
   private startGitPoll(projectPath: string): void {
@@ -543,6 +591,12 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.FileViewerOpenInEditor, (_e, absPath: string) => openInEditor(absPath))
   ipcMain.handle(Channels.FileViewerShowInFolder, (_e, absPath: string) => {
     shell.showItemInFolder(absPath)
+  })
+  ipcMain.handle(Channels.DirList, (_e, absPath: string) => mainApp.dirList(absPath))
+  ipcMain.handle(Channels.ArtifactsList, (_e, projectPath: string) =>
+    mainApp.artifacts.list(projectPath))
+  ipcMain.handle(Channels.ArtifactsClear, (_e, projectPath: string) => {
+    mainApp.artifacts.clear(projectPath)
   })
   ipcMain.handle(Channels.TerminalOpen, (_e, cwd: string) => mainApp.openTerminal(cwd))
   ipcMain.handle(Channels.TerminalClose, (_e, id: string) => mainApp.closeTerminal(id))

@@ -19,6 +19,11 @@ export function sortEntries(entries: DirEntry[]): DirEntry[] {
   })
 }
 
+export function isPathInside(root: string, target: string): boolean {
+  const rel = path.relative(root, target)
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))
+}
+
 export async function listDir(absPath: string): Promise<DirEntry[]> {
   const dirents = await readdir(absPath, { withFileTypes: true })
   const entries: DirEntry[] = []
