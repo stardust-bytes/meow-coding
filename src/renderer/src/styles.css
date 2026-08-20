@@ -1511,6 +1511,7 @@ select.input { width: 100%; }
 .right-panel-tabs {
   flex: 0 0 44px; display: flex; flex-direction: column; align-items: stretch;
   border-left: 1px solid var(--hairline); background: var(--bg-raised);
+  border-radius: 0;
 }
 .right-panel-tab {
   flex: 0 0 auto; height: 44px; display: flex; align-items: center; justify-content: center;
