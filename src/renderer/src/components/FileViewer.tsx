@@ -78,7 +78,6 @@ export default function FileViewer({ path: filePath, root }: Props) {
           )}
           <button className="btn small" onClick={() => void window.api.openFileInEditor(filePath)}>Open in VS Code</button>
           <button className="btn small" onClick={() => void copy()} disabled={!content}>Copy</button>
-          <button className="btn small" onClick={() => window.close()}>Close</button>
         </div>
       </div>
       {/* Full-bleed for highlighted code (VS Code look), padded for everything else. */}
