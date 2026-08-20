@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CirclePlus, Pencil } from 'lucide-react'
 import type { ArtifactEntry } from '@shared/types'
 import FileContextMenu, { type FileMenuState } from './FileContextMenu'
+import { truncatePath } from './truncatePath'
 
 interface Props {
   root: string | null
@@ -23,6 +24,29 @@ function relativeTime(ts: number): string {
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
   if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
   return `${Math.floor(diff / 86_400_000)}d ago`
+}
+
+// Shows the tail of a long path (…/file.md) by measuring the real text
+// width via canvas — CSS can only ellipsize the end, not the head.
+function TruncatedPath({ text, className }: { text: string; className?: string }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [display, setDisplay] = useState(text)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const ctx = document.createElement('canvas').getContext('2d')
+    if (!ctx) { setDisplay(text); return }
+    const measure = (s: string) => { ctx.font = getComputedStyle(el).font; return ctx.measureText(s).width }
+    const update = () => {
+      const next = truncatePath(text, measure, el.clientWidth)
+      setDisplay(prev => (prev === next ? prev : next))
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [text])
+  return <span ref={ref} className={className} title={text}>{display}</span>
 }
 
 export default function RightPanelArtifacts({ root, artifacts, onClear }: Props) {
@@ -73,7 +97,7 @@ export default function RightPanelArtifacts({ root, artifacts, onClear }: Props)
                   }}
                 >
                   {entry.kind === 'create' ? <CreateIcon /> : <EditIcon />}
-                  <span className="artifact-path" title={entry.path}>{entry.path}</span>
+                  <TruncatedPath text={entry.path} className="artifact-path" />
                   <span className="artifact-time">{relativeTime(entry.ts)}</span>
                 </div>
               ))}
