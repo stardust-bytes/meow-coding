@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
 import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, NotificationsSettings, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TraceEvent, UsageSummary } from '../shared/types'
-import type { AgentConfig, AgentMode, CatalogProviderSummary, Command, ModelRef, SubagentType } from '../shared/types'
+import type { AgentConfig, AgentMode, ArtifactEntry, CatalogProviderSummary, Command, ModelRef, SubagentType } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, settingsToConfig, writeMeowConfig,
   type MeowConfig, type ResolvedAgentConfig
@@ -67,6 +67,7 @@ export interface MeowAgentManagerDeps {
   notify?: NotificationService
   onActivateAgent?: (agentId: string) => void
   onBackgroundChange?: (agentId: string, background: boolean) => void
+  onArtifact?: (entry: Omit<ArtifactEntry, 'id' | 'ts'>) => void
   notifications?: NotificationsSettings
 }
 
@@ -852,6 +853,7 @@ export class MeowAgentManager {
       replaceItems: (items) => this.deps.store.replaceItems(this.activeSessionId(agent.id), items),
       snapshots: this.deps.snapshots,
       onEvent: (e) => this.emit(e),
+      onArtifact: (entry) => this.deps.onArtifact?.(entry),
       getItems: () => this.deps.store.get(this.activeSessionId(agent.id))?.items ?? [],
       appendMessage: (msg) => this.deps.store.appendMessage(this.activeSessionId(agent.id), msg),
       appendTool: (tool) => this.deps.store.appendTool(this.activeSessionId(agent.id), tool),

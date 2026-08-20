@@ -4,6 +4,7 @@ import { z } from 'zod'
 import type { ToolDefinition, ToolRunResult } from './types'
 import { resolveCwd } from './bash'
 import { snapshotFile } from './snapshot-util'
+import { recordArtifact } from './artifact'
 import { applyUnifiedPatch } from '../apply-patch'
 
 export const applyPatchTool: ToolDefinition = {
@@ -31,6 +32,9 @@ export const applyPatchTool: ToolDefinition = {
     try {
       const files = applyUnifiedPatch(patch, io)
       if (files.length === 0) return { output: '(no file changes in patch)' }
+      for (const f of files) {
+        recordArtifact(ctx, resolveCwd(ctx.cwd, f.filePath), f.created ? 'create' : 'edit')
+      }
       let output = files
         .map(f => `${f.created ? 'created' : 'updated'} ${f.filePath}`)
         .join('\n')

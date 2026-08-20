@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { ToolDefinition, ToolRunResult } from './types'
 import { resolveCwd } from './bash'
 import { snapshotFile } from './snapshot-util'
+import { recordArtifact } from './artifact'
 
 export const editTool: ToolDefinition = {
   name: 'edit',
@@ -27,6 +28,7 @@ export const editTool: ToolDefinition = {
     if (matches > 1) return { error: `edit: old_string matched ${matches} times; make it unique` }
     snapshotFile(ctx, full)
     writeFileSync(full, content.replace(old_string, new_string))
+    recordArtifact(ctx, full, 'edit')
     const diag = ctx.diagnostics ? await ctx.diagnostics(full, content.replace(old_string, new_string)) : ''
     return { output: `edited ${file_path}${diag ? `\n${diag}` : ''}` }
   }

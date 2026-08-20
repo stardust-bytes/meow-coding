@@ -1,6 +1,6 @@
 import type { z } from 'zod'
 import type { SnapshotStore } from '../snapshot'
-import type { QuestionPrompt, TodoItem } from '../../../shared/types'
+import type { ArtifactEntry, QuestionPrompt, TodoItem } from '../../../shared/types'
 
 export type ToolSchema = z.ZodType | Record<string, unknown>
 
@@ -25,6 +25,8 @@ export interface ToolContext {
   // Returns instruction-reminder text to append to the read tool output
   // ('' when no nearby instructions or already attached) — opencode-style.
   onFileRead?(filePath: string): string
+  // Records a file created/modified by this agent (id/ts/agentName resolved by main).
+  onArtifact?(entry: Omit<ArtifactEntry, 'id' | 'ts'>): void
 }
 
 export interface SubagentToolEvent {

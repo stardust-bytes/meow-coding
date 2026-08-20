@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ChatEvent, ChatMessage, MessageTokens, PromptResponse, QuestionPrompt, TodoItem, ToolCallData } from '../../shared/types'
+import type { ArtifactEntry, ChatEvent, ChatMessage, MessageTokens, PromptResponse, QuestionPrompt, TodoItem, ToolCallData } from '../../shared/types'
 import { appendStreamDelta } from '../../shared/text'
 import type { LlmClient, LlmStreamPart } from './llm'
 import { formatLlmError } from './llm'
@@ -34,6 +34,7 @@ export interface LoopDeps {
   replaceItems?: (items: TranscriptItem[]) => void
   snapshots?: SnapshotStore
   onEvent: (e: ChatEvent) => void
+  onArtifact?: (entry: Omit<ArtifactEntry, 'id' | 'ts'>) => void
   getItems: () => TranscriptItem[]
   appendMessage: (msg: ChatMessage) => void
   appendTool: (tool: ToolCallData) => void
@@ -263,7 +264,8 @@ export class SessionRunner {
             if (files.length === 0) return ''
             for (const f of files) this.attachedInstructions.add(f.path)
             return `<system-reminder>\n${files.map(f => `Instructions from: ${f.path}\n${f.content}`).join('\n\n')}\n</system-reminder>`
-          }
+          },
+          onArtifact: (entry) => this.deps.onArtifact?.(entry)
         }
         try {
           const r = await def.run(call.input, toolCtx)
