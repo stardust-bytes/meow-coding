@@ -33,6 +33,8 @@ export const applyPatchTool: ToolDefinition = {
       const files = applyUnifiedPatch(patch, io)
       if (files.length === 0) return { output: '(no file changes in patch)' }
       for (const f of files) {
+        // Deleted files leave no artifact entry.
+        if (!existsSync(resolveCwd(ctx.cwd, f.filePath))) continue
         recordArtifact(ctx, resolveCwd(ctx.cwd, f.filePath), f.created ? 'create' : 'edit')
       }
       let output = files
