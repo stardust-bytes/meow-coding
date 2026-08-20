@@ -221,8 +221,10 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .sidebar-settings-label { font-size: var(--fs-md); font-weight: var(--fw-medium); }
 .sidebar.collapsed .sidebar-settings-btn { width: 24px; padding: 0; justify-content: center; }
 .sidebar.collapsed .sidebar-settings-label { display: none; }
-.sidebar.collapsed .sidebar-footer { justify-content: center; padding: 6px 0; margin: 0 -8px -8px; }
-
+.sidebar.collapsed .sidebar-footer { justify-content: center; padding: 6px 0; margin: 0 -8px -8px; }
+
+
+
 .panel-head { display: flex; align-items: center; gap: 4px; }
 .sidebar-head {
   background: linear-gradient(180deg, var(--bg-raised), var(--bg-panel));
@@ -1478,10 +1480,13 @@ select.input { width: 100%; }
 .pane-tab.active { background: var(--bg-raised); color: var(--text); border-color: var(--accent-dim); }
 
 /* File viewer popup window */
-.viewer { display: flex; flex-direction: column; height: 100vh; background: var(--bg); color: var(--text); }
+.viewer { display: flex; flex-direction: column; height: 100vh; background: var(--bg-chat); color: var(--text); }
 .viewer-toolbar {
   display: flex; align-items: center; gap: 8px; padding: 8px 12px;
   border-bottom: 1px solid var(--accent-border); flex-wrap: wrap;
+  /* The universal * { border-radius } rule bores every corner; the toolbar
+     sits flush against the window and the body below, so square it off. */
+  border-radius: 0;
 }
 .viewer-path {
   font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--text-dim);
@@ -1489,6 +1494,10 @@ select.input { width: 100%; }
 }
 .viewer-actions { display: flex; gap: 6px; }
 .viewer-body { flex: 1; overflow: auto; padding: 16px 20px; }
+/* Highlighted code sits a few px from the window edge; the body keeps the
+   dark-plus background so the 4px gap is invisible — a small breathing room
+   around the code (VS Code-like but not glued to the window). */
+.viewer-body--flush { padding: 0.5rem; background: var(--bg-chat); }
 .viewer-md { width: 100%; }
 /* MarkdownText reuses .chat-text (bubble: 92% max-width + bg + border) — strip
    that for the viewer so content spans the full window width. */
@@ -1496,19 +1505,27 @@ select.input { width: 100%; }
   max-width: none; background: transparent; border: none; padding: 0; box-shadow: none;
   font-size: var(--fs-base);
 }
+/* The universal * { border-radius } rule rounds every element; the file
+   content area stays square (VS Code-like). */
+.viewer-md, .viewer-md .chat-text,
+.viewer-pre, .viewer-code, .viewer-code pre, .viewer-code code {
+  border-radius: 0;
+}
 .viewer-pre {
   white-space: pre-wrap; word-break: break-word;
   font-family: var(--font-mono); font-size: var(--fs-sm); line-height: 1.6; margin: 0;
+  user-select: text;
 }
 /* Shiki output carries its own <pre> with the theme's background (VS Code
-   Dark+); this wrapper only adds breathing room and horizontal scrolling. */
+   Dark+); no extra padding here so the code runs edge-to-edge. */
 .viewer-code {
-  padding: 14px 16px;
   overflow-x: auto;
+  user-select: text;
 }
 .viewer-code pre {
   margin: 0;
   font-family: var(--font-mono); font-size: var(--fs-sm); line-height: 1.6;
+  background-color: transparent !important;
 }
 .viewer-code code {
   font-family: inherit;

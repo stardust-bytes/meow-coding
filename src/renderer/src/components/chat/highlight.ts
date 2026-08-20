@@ -37,6 +37,39 @@ export function isHighlightable(ext: string): boolean {
   return mapExtToLang(ext) !== undefined
 }
 
+// Warms the engine + grammar for `ext` so the first real highlight is fast.
+// Called in parallel with the file-content IPC read; without this the popup's
+// first highlight pays engine init (~50ms) + grammar compile (~200ms) after
+// the content is already on screen (plain text flashes, then colors pop in).
+// A short, representative snippet per language family so the warm pass hits
+// the grammar's hot regexes (comments, strings, keywords, functions, numbers).
+// Oniguruma compiles lazily per pattern, so tokenizing '' warms nothing.
+const WARM_SNIPPETS: Record<string, string> = {
+  typescript: `import { a } from 'b'\nexport function f(x: number): number { return x + 1 } // hi\nconst s = "str"`,
+  javascript: `import { a } from 'b'\nexport function f(x) { return x + 1 } // hi\nconst s = "str"`,
+  tsx: `import { useState } from 'react'\nexport function A() { const [n, setN] = useState(0)\nreturn <div onClick={() => setN(n + 1)}>{n}</div> } // hi`,
+  jsx: `import { useState } from 'react'\nexport function A() { const [n, setN] = useState(0)\nreturn <div onClick={() => setN(n + 1)}>{n}</div> } // hi`,
+  python: `import os\ndef f(x: int) -> int:\n    return x + 1  # hi\ns = "str"`,
+  java: `import java.util.*;\npublic class A { int x = 1; // hi\n  public int f(int n) { return n + 1; } }`,
+  vue: `<template><p>{{ msg }}</p></template>\n<script setup>\nconst msg = "hi"\n</script>`,
+  c: `#include <stdio.h>\nint main(void) { int x = 1; // hi\n  printf("hi"); return 0; }`,
+  cpp: `#include <vector>\nint main() { int x = 1; // hi\n  auto v = std::vector<int>{1,2,3}; return 0; }`,
+  css: `.a { color: red; /* hi */ }\n#b { margin: 0 1px; }`,
+  json: `{ "a": 1, "b": [1, 2, 3], "c": "hi" }`,
+  shellscript: `#!/bin/bash\nx=1\necho "hi" # comment\nfor i in 1 2 3; do echo $i; done`
+}
+
+export async function preloadLanguage(ext: string): Promise<void> {
+  const lang = mapExtToLang(ext)
+  if (!lang) return
+  const highlighter = await getHighlighter()
+  await highlighter.loadLanguage(lang as BundledLanguage)
+  // Compile the grammar's hot patterns once so the real highlight is
+  // near-instant (~50ms instead of ~200ms).
+  const warm = WARM_SNIPPETS[lang] ?? `const x = 1 // warm\nfunction f() { return "s" }`
+  highlighter.codeToHtml(warm, { lang: lang as BundledLanguage, theme: HIGHLIGHT_THEME })
+}
+
 // Returns Shiki's highlighted <pre> HTML (VS Code Dark+), or null on any
 // failure — unknown grammar, wasm/grammar load error — so the caller falls
 // back to its own plain-text rendering and the viewer never breaks.
