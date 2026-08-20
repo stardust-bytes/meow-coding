@@ -29,6 +29,10 @@ sessions, permissions, and skill system.
 - **Office documents** — the native agent can create and edit `.docx`, `.xlsx`, and `.pptx` through
   the `office` tool (powered by OfficeCLI; binary auto-downloaded on first use).
 - **ChatGPT Web provider (experimental)** — use a headless ChatGPT web session as an LLM provider.
+- **Project explorer & artifacts** — right panel with a lazy-loaded directory tree (expanded state
+  survives tab switches) and an artifacts list of the `.md` files agents created or edited.
+- **Browser bridge** — control a real Chrome profile through a local WebSocket bridge paired with a
+  Chrome extension (MV3), with browser/click/type tools for the native agent.
 
 ## What it's based on (Sources)
 
@@ -63,7 +67,7 @@ Meow Coding is built on open-source technology and openly credits its design inf
 
 - Full tool registry: `bash`, `edit`, `write`, `read`, `apply-patch`, `glob`, `grep`, `git`,
   `question`, `todowrite`, `task` (subagents), `revert`, `skill`, `webfetch`, `websearch`, `lsp`,
-  and `office`.
+  `browser` (drive a real Chrome profile), and `office`.
 - Permission rules per tool: `allow` / `ask` / `deny`, with "always allow" persistence.
 - Context compaction with auto-continue, prune, and tool-output truncation to stay within budget.
 - User tools loaded from `userData/tools`, and project `.meow/` directories for project-level
@@ -78,22 +82,49 @@ Meow Coding is built on open-source technology and openly credits its design inf
 
 ### UI & desktop
 
-- Frameless custom title bar (min / max / close).
+- Frameless custom title bar (min / max / close) with lucide-react icons.
 - "Studio Dark" design system: tokenized fonts, colors, and a coral accent.
-- Settings dialog covering providers, agents, permissions, MCP, context, commands, templates, and
-  ChatGPT Web.
+- Settings dialog covering providers, agents, permissions, MCP, context, commands, templates,
+  remote control, and ChatGPT Web.
 - Idle/exit alert notifications; per-agent logs written to `userData/logs/<agentId>.log`.
+
+### Right panel (explorer & artifacts)
+
+- **Directory tree** — lazy-loads folders on first expand, auto-expands the project root, and
+  refreshes in the background when the project changes. Expanded folders and scroll position
+  survive switching between the Tree and Artifacts tabs.
+- **Artifacts** — lists only the `.md` files agents created or edited (via write/edit/apply-patch
+  tools, or file-watcher attribution for external CLI agents). Spurious watcher events — reads,
+  AV scans, indexer touches — are filtered out by comparing `(mtime, size)` against a baseline, so
+  files an agent merely read never appear.
+- Resizable panel with a fixed header; both tabs stay mounted for instant switching.
+
+### Remote control (mobile) — coming soon
+
+The desktop side is ready: enable **Settings → Remote Control**, point it at a self-hosted
+WebSocket relay (`server/`), and pair with a 6-digit code (TTL ~5 min). The mobile app that
+consumes this protocol is **coming soon** — see `docs/remote-control.md` for the protocol and
+relay setup.
 
 ## Architecture
 
-Three isolated processes communicating over a centralized IPC contract:
+Electron runs three isolated processes communicating over a centralized IPC contract, plus two
+companion pieces:
 
 - **`src/main`** — Electron main process: PTY management, stores, services, IPC handlers, and app
-  lifecycle. The only place that spawns/kills processes.
+  lifecycle. The only place that spawns/kills processes. Also hosts the Chrome browser bridge
+  (`src/main/browser`) and the file watcher that attributes external agent edits to artifacts.
 - **`src/preload`** — context bridge exposing a typed `window.api` (implements `AgentApi`).
-- **`src/renderer`** — React UI: sidebar, pane grid, terminal, and the native-agent chat panel.
+- **`src/renderer`** — React UI: sidebar, pane grid, terminal, native-agent chat panel, and the
+  right-panel explorer/artifacts.
 - **`src/shared`** — shared types and the IPC contract (`Channels` + `AgentApi`); no Node/Electron
   imports here.
+- **`src/browser-extension`** — Chrome MV3 extension (built separately with esbuild) that pairs
+  with the desktop browser bridge.
+- **`server/`** — optional self-hosted WebSocket relay for the remote-control (mobile) protocol.
+
+(The browser-extension and server are not Electron processes; they connect to the desktop over
+WebSocket.)
 
 Security: `contextIsolation: true`, `nodeIntegration: false`; the renderer never touches Node or
 Electron directly.
@@ -132,7 +163,7 @@ latest installers from the [Releases](https://github.com/stardust-bytes/meow-cod
 
 ```bash
 npm test                    # unit + integration (Vitest)
-npm run typecheck           # tsc for node + web
+npm run typecheck           # tsc for node, web, extension, and server
 npm run build && npm run e2e # Playwright smoke test
 ```
 
@@ -143,3 +174,5 @@ npm run build && npm run e2e # Playwright smoke test
   permissions, and snapshots.
 - Bundled skill assets (Anthropic skills) are Apache-2.0 and ship with their original license files
   under `resources/skills/`.
+- The browser bridge binds `127.0.0.1` only and requires a pairing code before accepting commands;
+  the remote-control relay stores nothing and never interprets payloads.
