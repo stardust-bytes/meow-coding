@@ -88,7 +88,7 @@ export default function RightPanelTree({ root }: Props) {
     if (!root) return
     setRootNode(prev => ({ ...prev, loading: true }))
     window.api.listDir(root)
-      .then(children => setRootNode({ loaded: true, loading: false, error: null, expanded: false, children }))
+      .then(children => setRootNode({ loaded: true, loading: false, error: null, expanded: true, children }))
       .catch(err => setRootNode({ loaded: true, loading: false, error: err instanceof Error ? err.message : String(err), expanded: false, children: [] }))
   }, [root])
 
