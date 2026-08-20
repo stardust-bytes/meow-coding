@@ -59,13 +59,15 @@ export default function RightPanelTree({ root }: Props) {
   }, [])
 
   const toggle = useCallback((absPath: string) => {
+    const node = nodes[absPath]
+    // Lazy-load on first expand; read from render-state closure to stay pure.
+    if (node && !node.expanded && !node.loaded && !node.loading) void load(absPath)
     setNodes(prev => {
-      const node = prev[absPath]
-      if (!node) return prev
-      if (!node.loaded && !node.loading) void load(absPath)
-      return { ...prev, [absPath]: { ...node, expanded: !node.expanded } }
+      const n = prev[absPath]
+      if (!n) return prev
+      return { ...prev, [absPath]: { ...n, expanded: !n.expanded } }
     })
-  }, [load])
+  }, [nodes, load])
 
   // Root initial load when a project is opened.
   useEffect(() => {
