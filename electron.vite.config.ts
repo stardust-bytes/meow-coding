@@ -26,6 +26,7 @@ export default defineConfig({
   },
   renderer: {
     plugins: [react(), devCspRelax()],
-    resolve: { alias: { '@shared': resolve(__dirname, 'src/shared') } }
+    resolve: { alias: { '@shared': resolve(__dirname, 'src/shared') } },
+    server: { port: 1305, strictPort: true }
   }
 })

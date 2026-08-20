@@ -26,7 +26,7 @@ function ChevronIcon({ open }: { open: boolean }) {
 }
 
 function FolderIcon() {
-  return <Folder size={13} aria-hidden="true" className="tree-icon folder" />
+  return <Folder size={13} fill="currentColor" aria-hidden="true" className="tree-icon folder" />
 }
 
 function FileIcon() {
