@@ -1578,3 +1578,6 @@ select.input { width: 100%; }
 /* Title bar panel toggle */
 .title-bar-right { display: flex; align-items: center; height: 100%; -webkit-app-region: no-drag; }
 .title-bar-panel-toggle { width: 38px; }
+/* Windows titleBarOverlay draws the OS min/max/close buttons over the right
+   ~138px of the bar — keep the panel toggle clear of them. */
+.title-bar-win32 .title-bar-right { margin-right: 138px; }
