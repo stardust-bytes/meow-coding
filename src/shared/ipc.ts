@@ -1,6 +1,6 @@
 import type {
   AgentConfig, AgentState, CatalogProviderSummary, ChatEvent, ChatGptWebStatus, ChatMessage, ChatTranscriptItem, Command,
-  ContextChangedEvent, ContextInfo, FileSuggestion, GitStatus, ImageAttachment, McpServerStatus, MeowSettings,
+  ContextChangedEvent, ContextInfo, FileContentResult, FileSuggestion, FileViewerPayload, GitStatus, ImageAttachment, McpServerStatus, MeowSettings,
   ModelRef, NewAgentInput, PromptResponse, SessionSummary, StatsSummary, Template, TerminalInfo, TodoItem, TraceEvent, TraceSummary, UpdaterStatusEvent, WorkspaceRuntime,
   WorkspaceSummary
 } from './types'
@@ -14,6 +14,10 @@ export const Channels = {
   WorkspaceOpen: 'workspace:open',
   ProjectOpenFolder: 'project:open-folder',
   ProjectOpenInEditor: 'project:open-in-editor',
+  FileOpen: 'file:open',
+  FileViewerGetContent: 'file-viewer:get-content',
+  FileViewerOpenInEditor: 'file-viewer:open-in-editor',
+  FileViewerShowInFolder: 'file-viewer:show-in-folder',
   AgentAdd: 'agent:add',
   AgentRemove: 'agent:remove',
   AgentSetMode: 'agent:set-mode',
@@ -138,6 +142,10 @@ export interface AgentApi {
   openWorkspace(projectPath: string): Promise<WorkspaceRuntime>
   openInEditor(projectPath: string): Promise<void>
   openFolder(projectPath: string): Promise<void>
+  openFile(payload: FileViewerPayload): Promise<void>
+  getFileContent(path: string): Promise<FileContentResult>
+  openFileInEditor(path: string): Promise<void>
+  showFileInFolder(path: string): Promise<void>
   openTerminal(cwd: string): Promise<TerminalInfo>
   closeTerminal(id: string): Promise<void>
   addAgent(projectPath: string, input: NewAgentInput): Promise<WorkspaceRuntime>

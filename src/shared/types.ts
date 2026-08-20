@@ -347,6 +347,19 @@ export interface FileSuggestion {
   isDirectory: boolean
 }
 
+export interface FileViewerPayload {
+  /** raw path from chat (relative or absolute) */
+  path: string
+  /** agent cwd used to resolve relative paths */
+  root: string
+}
+
+export interface FileContentResult {
+  path: string
+  ext: string
+  content: string
+}
+
 export interface NotificationsSettings {
   needsInput: boolean
   onDone: boolean
