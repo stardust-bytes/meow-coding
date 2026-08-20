@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import type { ArtifactEntry } from '@shared/types'
 import RightPanelTree from './RightPanelTree'
 import RightPanelArtifacts from './RightPanelArtifacts'
@@ -53,20 +53,18 @@ export default function RightPanel({
     document.addEventListener('mouseup', onUp)
   }, [width, onWidthChange])
 
-  // Refresh the width used by the drag closure if it changes mid-drag.
-  useEffect(() => {
-    if (dragRef.current) dragRef.current.startWidth = width
-  }, [width])
-
   return (
     <div className="right-panel" style={{ width }}>
       <div className="right-panel-resizer" onMouseDown={startDrag} />
       <div className="right-panel-content">
-        {tab === 'tree' ? (
+        {/* Keep both views mounted so the tree keeps its expanded state (and
+            scroll position) when the user switches tabs. */}
+        <div className={`right-panel-view${tab === 'tree' ? '' : ' hidden'}`}>
           <RightPanelTree root={root} />
-        ) : (
+        </div>
+        <div className={`right-panel-view${tab === 'artifacts' ? '' : ' hidden'}`}>
           <RightPanelArtifacts root={root} artifacts={artifacts} onClear={onClearArtifacts} />
-        )}
+        </div>
       </div>
       <div className="right-panel-tabs" role="tablist" aria-label="Right panel tabs">
         <button

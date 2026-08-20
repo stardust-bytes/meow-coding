@@ -36,10 +36,13 @@ function relativeTime(ts: number): string {
 export default function RightPanelArtifacts({ root, artifacts, onClear }: Props) {
   const [menu, setMenu] = useState<FileMenuState | null>(null)
 
+  // Only surface markdown files in the artifacts panel.
+  const mdArtifacts = artifacts.filter(a => a.path.toLowerCase().endsWith('.md'))
+
   // Group by agent, preserving first-seen order.
   const groups: { agentId: string; agentName: string; entries: ArtifactEntry[] }[] = []
   const index = new Map<string, typeof groups[number]>()
-  for (const entry of artifacts) {
+  for (const entry of mdArtifacts) {
     let group = index.get(entry.agentId)
     if (!group) {
       group = { agentId: entry.agentId, agentName: entry.agentName || entry.agentId, entries: [] }
@@ -53,7 +56,7 @@ export default function RightPanelArtifacts({ root, artifacts, onClear }: Props)
     <div className="right-panel-body">
       <div className="right-panel-header">
         <span className="right-panel-title">Artifacts</span>
-        {artifacts.length > 0 && (
+        {mdArtifacts.length > 0 && (
           <button className="btn small" title="Clear artifacts" onClick={onClear}>Clear</button>
         )}
       </div>
