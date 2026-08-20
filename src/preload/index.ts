@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
-import type { ChatEvent, ChatGptWebStatus, Command, ContextChangedEvent, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, TraceEvent, UpdaterStatusEvent } from '../shared/types'
+import type { ChatEvent, ChatGptWebStatus, Command, ContextChangedEvent, FileViewerPayload, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, TraceEvent, UpdaterStatusEvent } from '../shared/types'
 import type { AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, ChallengeEvent, GitStatusEvent, PtyDataEvent, TerminalExitEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
 import type { BrowserStatusInfo } from '../shared/browser-types'
 import type { RemoteStatus } from '../shared/remote-types'
@@ -23,6 +23,14 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.ProjectOpenInEditor, projectPath),
   openFolder: (projectPath: string) =>
     ipcRenderer.invoke(Channels.ProjectOpenFolder, projectPath),
+  openFile: (payload: FileViewerPayload) =>
+    ipcRenderer.invoke(Channels.FileOpen, payload),
+  getFileContent: (path: string) =>
+    ipcRenderer.invoke(Channels.FileViewerGetContent, path),
+  openFileInEditor: (path: string) =>
+    ipcRenderer.invoke(Channels.FileViewerOpenInEditor, path),
+  showFileInFolder: (path: string) =>
+    ipcRenderer.invoke(Channels.FileViewerShowInFolder, path),
   openTerminal: (cwd: string) =>
     ipcRenderer.invoke(Channels.TerminalOpen, cwd),
   closeTerminal: (id: string) =>

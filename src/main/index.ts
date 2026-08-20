@@ -1,6 +1,7 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from 'electron'
 import { spawn } from 'node:child_process'
 import { rmSync } from 'node:fs'
+import { stat } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { createJsonStore } from './json-store'
@@ -23,6 +24,7 @@ import { TraceStore } from './agent/trace-store'
 import { SavedPermissions } from './agent/saved-permissions'
 import type { SavedPermission } from './agent/saved-permissions'
 import { createDefaultTools } from './agent/tools/registry'
+import { isTextPath, openFileViewer, openWithSystemApp, readFileContent } from './file-viewer'
 import { MeowAgentManager } from './meow-agent-manager'
 import { CommandStore } from './agent/commands'
 import { FileWatcher } from './file-watcher'
@@ -36,7 +38,7 @@ import { RemoteManager } from './remote/remote-manager'
 import { RemoteSettingsStore } from './remote/remote-settings'
 import { RemotePairing } from './remote/remote-pairing'
 import { Channels } from '../shared/ipc'
-import type { AgentState, Command, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, TerminalInfo, Workspace, WorkspaceRuntime } from '../shared/types'
+import type { AgentState, Command, FileViewerPayload, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, TerminalInfo, Workspace, WorkspaceRuntime } from '../shared/types'
 
 let win: BrowserWindow | null = null
 
@@ -510,6 +512,37 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.ProjectOpenFolder, async (_e, projectPath: string) => {
     const err = await shell.openPath(projectPath)
     if (err) console.error('[meow] open folder failed:', err)
+  })
+  ipcMain.handle(Channels.FileOpen, async (_e, payload: FileViewerPayload) => {
+    const abs = path.resolve(payload.root, payload.path)
+    try {
+      const st = await stat(abs)
+      if (!st.isFile()) throw new Error('not a file')
+    } catch {
+      new Notification({ title: 'Meow Coding', body: `[meow] Không tìm thấy file: ${payload.path}` }).show()
+      return
+    }
+    const kind = isTextPath(abs)
+    if (kind === false) {
+      await openWithSystemApp(abs)
+      return
+    }
+    if (kind === true) {
+      openFileViewer(payload, () => win)
+      return
+    }
+    // Unknown extension: probe content to decide text vs binary.
+    try {
+      await readFileContent(abs)
+      openFileViewer(payload, () => win)
+    } catch {
+      await openWithSystemApp(abs)
+    }
+  })
+  ipcMain.handle(Channels.FileViewerGetContent, (_e, absPath: string) => readFileContent(absPath))
+  ipcMain.handle(Channels.FileViewerOpenInEditor, (_e, absPath: string) => openInEditor(absPath))
+  ipcMain.handle(Channels.FileViewerShowInFolder, (_e, absPath: string) => {
+    shell.showItemInFolder(absPath)
   })
   ipcMain.handle(Channels.TerminalOpen, (_e, cwd: string) => mainApp.openTerminal(cwd))
   ipcMain.handle(Channels.TerminalClose, (_e, id: string) => mainApp.closeTerminal(id))
