@@ -54,13 +54,14 @@ function MentionText({ text, commands }: { text: string; commands: Command[] }) 
 // Owns the per-message subtree so streamed deltas only re-render the message
 // that changed, not the whole feed. Props are primitives or stable state
 // references (commands), so React.memo works.
-const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, commands, onOpenImage }: {
+const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, commands, onOpenImage, onOpenFile }: {
   role: ChatMessage['role']
   text: string
   reasoning?: string
   images?: ImageAttachment[]
   commands: Command[]
   onOpenImage?: (dataUrl: string) => void
+  onOpenFile?: (path: string) => void
 }) {
   return (
     <div className={`chat-msg ${role}`}>
@@ -72,7 +73,7 @@ const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, c
               <div className="chat-reasoning-text">{reasoning}</div>
             </details>
           ) : null}
-          {text.trim() !== '' && <MarkdownText text={text} />}
+          {text.trim() !== '' && <MarkdownText text={text} onOpenFile={onOpenFile} />}
         </>
       ) : (
         <>
@@ -255,6 +256,10 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     return off
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId, cwd])
+
+  const openFile = useCallback((p: string) => {
+    void window.api.openFile({ path: p, root: cwd })
+  }, [cwd])
 
   const onFeedScroll = useCallback(() => {
     const el = feedRef.current
@@ -772,6 +777,7 @@ if (e.type === 'usage') {
                 images={item.images}
                 commands={commands}
                 onOpenImage={setLightboxUrl}
+                onOpenFile={openFile}
               />
             )
           }
