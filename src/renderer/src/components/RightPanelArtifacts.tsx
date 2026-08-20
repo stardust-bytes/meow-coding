@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { CirclePlus, Pencil } from 'lucide-react'
 import type { ArtifactEntry } from '@shared/types'
 import FileContextMenu, { type FileMenuState } from './FileContextMenu'
 
@@ -9,20 +10,11 @@ interface Props {
 }
 
 function CreateIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" className="artifact-icon create">
-      <path d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2zm0 1a5 5 0 1 1 0 10A5 5 0 0 1 8 3z" />
-      <path d="M8 5v6M5 8h6" stroke="currentColor" strokeWidth="1.4" />
-    </svg>
-  )
+  return <CirclePlus size={12} aria-hidden="true" className="artifact-icon create" />
 }
 
 function EditIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" className="artifact-icon edit">
-      <path d="M11.5 1.5l3 3L6 13l-3.5.5L3 10l8.5-8.5z" />
-    </svg>
-  )
+  return <Pencil size={12} aria-hidden="true" className="artifact-icon edit" />
 }
 
 function relativeTime(ts: number): string {

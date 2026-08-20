@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import type { AgentMode, ChatEvent, ChatMessage, Command, ImageAttachment, QuestionOption, QueuedMessage, SessionSummary, TodoItem, TodoStatus, ToolCallData } from '@shared/types'
 import { appendStreamDelta } from '@shared/text'
 import { contextTokens } from '@shared/usage'
@@ -740,9 +741,7 @@ if (e.type === 'usage') {
               aria-label={todosCollapsed ? 'Expand todo list' : 'Collapse todo list'}
               onClick={() => setTodosCollapsed(v => !v)}
             >
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <polyline points="4 6 8 10 12 6" />
-              </svg>
+              <ChevronDown size={12} aria-hidden="true" />
             </button>
           </div>
           {!todosCollapsed && (

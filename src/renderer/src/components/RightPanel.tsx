@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react'
+import { FileText, FolderTree } from 'lucide-react'
 import type { ArtifactEntry } from '@shared/types'
 import RightPanelTree from './RightPanelTree'
 import RightPanelArtifacts from './RightPanelArtifacts'
@@ -14,20 +15,11 @@ interface Props {
 }
 
 function FolderTreeIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
-      <path d="M1.5 3.5h4l1.5 2h7.5v7a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z" />
-    </svg>
-  )
+  return <FolderTree size={16} aria-hidden="true" />
 }
 
 function ArtifactIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
-      <path d="M3 1.5h6.5L13 5v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1z" />
-      <path d="M9.5 1.5V5H13" />
-    </svg>
-  )
+  return <FileText size={16} aria-hidden="true" />
 }
 
 export default function RightPanel({

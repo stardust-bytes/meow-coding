@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Ellipsis } from 'lucide-react'
 import type { AgentState, GitStatus } from '@shared/types'
 
 interface Props {
@@ -28,13 +29,7 @@ const STATUS_LABEL: Record<AgentState['status'], string> = {
 }
 
 function MoreIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-      <circle cx="3" cy="8" r="1.5" />
-      <circle cx="8" cy="8" r="1.5" />
-      <circle cx="13" cy="8" r="1.5" />
-    </svg>
-  )
+  return <Ellipsis size={14} aria-hidden="true" />
 }
 
 export default function PaneHeader({

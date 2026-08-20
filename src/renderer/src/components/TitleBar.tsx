@@ -1,47 +1,25 @@
 import { useEffect, useState } from 'react'
+import { Copy, Minus, PanelRight, PanelRightClose, Square, X } from 'lucide-react'
 import logoMark from '../assets/logo-mark.png'
 
 function MinimizeIcon() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" aria-hidden="true">
-      <line x1="0" y1="5" x2="10" y2="5" />
-    </svg>
-  )
+  return <Minus size={10} aria-hidden="true" />
 }
 
 function MaximizeIcon() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" aria-hidden="true">
-      <rect x="0.5" y="0.5" width="9" height="9" />
-    </svg>
-  )
+  return <Square size={10} aria-hidden="true" />
 }
 
 function RestoreIcon() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" aria-hidden="true">
-      <path d="M2.5 2.5V0.5H9.5V7.5H7.5" />
-      <rect x="0.5" y="2.5" width="7" height="7" />
-    </svg>
-  )
+  return <Copy size={10} aria-hidden="true" />
 }
 
 function CloseIcon() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" aria-hidden="true">
-      <line x1="0" y1="0" x2="10" y2="10" />
-      <line x1="10" y1="0" x2="0" y2="10" />
-    </svg>
-  )
+  return <X size={10} aria-hidden="true" />
 }
 
 function PanelIcon({ open }: { open: boolean }) {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
-      <rect x="1" y="2" width="14" height="12" rx="1" />
-      <path d={open ? 'M11 2v12' : 'M11 5v7'} />
-    </svg>
-  )
+  return open ? <PanelRight size={14} aria-hidden="true" /> : <PanelRightClose size={14} aria-hidden="true" />
 }
 
 interface Props {

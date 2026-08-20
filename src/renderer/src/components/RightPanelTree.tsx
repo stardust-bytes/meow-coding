@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ChevronRight, File, Folder } from 'lucide-react'
 import type { DirEntry } from '@shared/types'
 import FileContextMenu, { type FileMenuState } from './FileContextMenu'
 
@@ -16,30 +17,20 @@ interface NodeData {
 
 function ChevronIcon({ open }: { open: boolean }) {
   return (
-    <svg
-      width="10" height="10" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true"
+    <ChevronRight
+      size={10}
+      aria-hidden="true"
       style={{ transform: open ? 'rotate(90deg)' : undefined, transition: 'transform 120ms ease' }}
-    >
-      <path d="M3 1.5L7.5 5L3 8.5Z" />
-    </svg>
+    />
   )
 }
 
 function FolderIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" className="tree-icon folder">
-      <path d="M1.5 3.5h4l1.5 2h7.5v7a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z" />
-    </svg>
-  )
+  return <Folder size={13} aria-hidden="true" className="tree-icon folder" />
 }
 
 function FileIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" className="tree-icon file">
-      <path d="M3 1.5h6.5L13 5v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1z" />
-      <path d="M9.5 1.5V5H13" />
-    </svg>
-  )
+  return <File size={13} aria-hidden="true" className="tree-icon file" />
 }
 
 export default function RightPanelTree({ root }: Props) {
