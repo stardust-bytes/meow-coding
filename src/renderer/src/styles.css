@@ -228,6 +228,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   border-bottom: 1px solid var(--hairline);
   margin: -10px -10px 4px;
   padding: 8px 10px;
+  border-radius: 0;
 }
 .panel-title {
   font-family: var(--font-display);
