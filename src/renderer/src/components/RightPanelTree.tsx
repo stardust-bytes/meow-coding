@@ -48,26 +48,38 @@ export default function RightPanelTree({ root }: Props) {
   const [menu, setMenu] = useState<FileMenuState | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const emptyNode = (): NodeData => ({ loaded: false, loading: false, error: null, expanded: false, children: [] })
+
   const load = useCallback(async (absPath: string) => {
-    setNodes(prev => ({ ...prev, [absPath]: { ...prev[absPath], loading: true, error: null } }))
+    setNodes(prev => ({ ...prev, [absPath]: { ...(prev[absPath] ?? emptyNode()), loading: true, error: null } }))
     try {
       const children = await window.api.listDir(absPath)
-      setNodes(prev => ({ ...prev, [absPath]: { ...prev[absPath], loaded: true, loading: false, children } }))
+      setNodes(prev => ({ ...prev, [absPath]: { ...(prev[absPath] ?? emptyNode()), loaded: true, loading: false, children } }))
     } catch (err) {
-      setNodes(prev => ({ ...prev, [absPath]: { ...prev[absPath], loading: false, error: err instanceof Error ? err.message : String(err) } }))
+      setNodes(prev => ({ ...prev, [absPath]: { ...(prev[absPath] ?? emptyNode()), loading: false, error: err instanceof Error ? err.message : String(err) } }))
     }
   }, [])
 
   const toggle = useCallback((absPath: string) => {
     const node = nodes[absPath]
     // Lazy-load on first expand; read from render-state closure to stay pure.
-    if (node && !node.expanded && !node.loaded && !node.loading) void load(absPath)
+    const firstExpand = !node || (!node.expanded && !node.loaded && !node.loading)
+    if (firstExpand) void load(absPath)
     setNodes(prev => {
-      const n = prev[absPath]
-      if (!n) return prev
+      const n = prev[absPath] ?? emptyNode()
       return { ...prev, [absPath]: { ...n, expanded: !n.expanded } }
     })
   }, [nodes, load])
+
+  const toggleRoot = useCallback(() => {
+    if (!root) return
+    if (!rootNode.expanded && !rootNode.loaded && !rootNode.loading) {
+      window.api.listDir(root)
+        .then(children => setRootNode(prev => ({ ...prev, loaded: true, loading: false, children })))
+        .catch(err => setRootNode(prev => ({ ...prev, loading: false, error: err instanceof Error ? err.message : String(err) })))
+    }
+    setRootNode(prev => ({ ...prev, expanded: !prev.expanded }))
+  }, [root, rootNode])
 
   // Root initial load when a project is opened.
   useEffect(() => {
@@ -166,7 +178,7 @@ export default function RightPanelTree({ root }: Props) {
         <button className="btn small" title="Refresh" onClick={refresh}>Refresh</button>
       </div>
       <div className="tree">
-        <div className="tree-row tree-root" onClick={() => toggle(root)}>
+        <div className="tree-row tree-root" onClick={toggleRoot}>
           <span className="tree-chevron"><ChevronIcon open={rootNode.expanded} /></span>
           <FolderIcon />
           <span className="tree-name">{rootName}</span>
