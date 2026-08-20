@@ -90,8 +90,10 @@ interface ArtifactEntry {
 
 1. **Native agent — instrumented tools** (exact, like Claude Code / Codex):
    - Add `onArtifact?(entry: ArtifactEntry): void` callback to `ToolContext`.
-   - `write` tool → record `create`.
-   - `edit` and `apply-patch` tools → record `edit`.
+   - `write` tool → record (create or edit — see rule below).
+   - `edit` and `apply-patch` tools → record (apply-patch can add new files).
+   - Kind rule (all sources, incl. watcher fallback): `create` if the file does
+     not exist after the operation, else `edit`.
    - Wired: `SessionRunner` deps → `MeowAgentManager` → main app `ArtifactStore`.
    - `ctx.agentId` identifies the agent; agent name resolved from the workspace
      agent config.
@@ -103,7 +105,7 @@ interface ArtifactEntry {
    - On change events, attribute each changed file to the **most recently active
      running agent** (by `AgentState.lastOutputAt`) when at least one agent is
      running; skip if no agent is running (avoid recording user's manual edits).
-   - Kind inferred as `create` when the file does not exist yet, else `edit`.
+   - Kind per the shared rule above (create/edit by post-op existence).
    - Dedupe: if a path was already recorded by tool instrumentation for that
      agent, update the existing entry instead of inserting a duplicate.
 
