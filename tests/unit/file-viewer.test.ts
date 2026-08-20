@@ -25,6 +25,11 @@ describe('isTextPath', () => {
       expect(isTextPath(p)).toBe(true)
     }
   })
+  it('opens code files in the viewer: tsx, java, vue and more', () => {
+    for (const p of ['a.tsx', 'b.java', 'c.vue', 'd.svelte', 'e.kt', 'f.swift', 'g.cs', 'h.dart', 'i.rb', 'j.ex', 'k.clj']) {
+      expect(isTextPath(p)).toBe(true)
+    }
+  })
   it('treats extension-less files as text', () => {
     expect(isTextPath('Dockerfile')).toBe(true)
     expect(isTextPath('Makefile')).toBe(true)
@@ -52,6 +57,16 @@ describe('looksLikeBinaryContent', () => {
 describe('TEXT_EXTENSIONS', () => {
   it('includes core text extensions', () => {
     for (const e of ['md', 'txt', 'ts', 'tsx', 'json', 'py', 'yaml', 'yml', 'css', 'html']) {
+      expect(TEXT_EXTENSIONS).toContain(e)
+    }
+  })
+  it('includes code file extensions across languages', () => {
+    for (const e of [
+      'tsx', 'jsx', 'vue', 'svelte', 'astro', 'scss', 'less',
+      'java', 'kt', 'swift', 'dart', 'cs', 'go', 'rs', 'zig', 'nim',
+      'rb', 'php', 'lua', 'pl', 'hs', 'ex', 'clj', 'erl', 'fs',
+      'mts', 'cts', 'graphql', 'gql', 'proto', 'prisma', 'tf', 'hcl'
+    ]) {
       expect(TEXT_EXTENSIONS).toContain(e)
     }
   })

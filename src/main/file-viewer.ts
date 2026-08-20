@@ -4,10 +4,28 @@ import path from 'node:path'
 import type { FileContentResult, FileViewerPayload } from '../shared/types'
 
 export const TEXT_EXTENSIONS = [
-  'md', 'markdown', 'txt', 'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'json', 'yaml', 'yml',
-  'css', 'scss', 'html', 'htm', 'py', 'java', 'c', 'cpp', 'cc', 'h', 'hpp',
-  'go', 'rs', 'rb', 'php', 'sh', 'bat', 'cmd', 'ps1', 'toml', 'ini', 'conf',
-  'cfg', 'log', 'xml', 'svg', 'csv', 'sql', 'env', 'gitignore'
+  // Docs & markup
+  'md', 'markdown', 'mdx', 'rst', 'adoc', 'asciidoc', 'tex', 'typ', 'txt',
+  'html', 'htm', 'xhtml', 'xml', 'svg', 'csv', 'tsv',
+  // JS/TS
+  'js', 'mjs', 'cjs', 'jsx', 'ts', 'mts', 'cts', 'tsx',
+  // Frontend frameworks & styles
+  'vue', 'svelte', 'astro', 'css', 'scss', 'sass', 'less', 'styl',
+  // Data & config
+  'json', 'jsonc', 'json5', 'yaml', 'yml', 'toml', 'ini', 'conf', 'cfg',
+  'properties', 'env', 'sql', 'graphql', 'gql', 'proto', 'prisma',
+  // C family
+  'c', 'h', 'cpp', 'cc', 'cxx', 'hpp', 'hh', 'hxx', 'm', 'mm', 'cs', 'csx',
+  // JVM, mobile & desktop
+  'java', 'kt', 'kts', 'scala', 'sc', 'groovy', 'gradle', 'swift', 'dart', 'xaml',
+  // Scripting
+  'py', 'pyi', 'pyw', 'rb', 'rake', 'php', 'pl', 'pm', 'lua', 'r', 'jl',
+  'sh', 'bash', 'zsh', 'fish', 'bat', 'cmd', 'ps1', 'psm1', 'psd1', 'vbs',
+  // Functional, systems & misc
+  'go', 'rs', 'zig', 'nim', 'hs', 'ex', 'exs', 'erl', 'hrl',
+  'clj', 'cljs', 'cljc', 'edn', 'fs', 'fsx', 'sol', 'vim', 'asm', 's',
+  'f', 'f90', 'f95', 'pas', 'pp', 'cob', 'cbl', 'adb', 'ads',
+  'log', 'gitignore', 'plist', 'ipynb', 'tf', 'tfvars', 'hcl', 'cmake', 'mk'
 ]
 
 // Extensions that need a dedicated OS app (never shown in the viewer).
