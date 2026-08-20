@@ -1465,6 +1465,12 @@ select.input { width: 100%; }
 .viewer { display: flex; flex-direction: column; height: 100vh; background: var(--bg); color: var(--text); }
 .viewer-body { flex: 1; overflow: auto; padding: 16px 20px; }
 .viewer-md { width: 100%; }
+/* MarkdownText reuses .chat-text (bubble: 92% max-width + bg + border) — strip
+   that for the viewer so content spans the full window width. */
+.viewer-md .chat-text {
+  max-width: none; background: transparent; border: none; padding: 0; box-shadow: none;
+  font-size: var(--fs-base);
+}
 .viewer-pre {
   white-space: pre-wrap; word-break: break-word;
   font-family: var(--font-mono); font-size: var(--fs-sm); line-height: 1.6; margin: 0;
