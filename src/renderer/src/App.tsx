@@ -4,7 +4,7 @@ import type { BrowserStatusInfo } from '@shared/browser-types'
 import { ChallengeToast } from './components/ChallengeToast'
 import { Terminal } from '@xterm/xterm'
 import type {
-  AgentConfig, AgentState, GitStatus, Template, TerminalInfo, UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
+  AgentConfig, AgentState, ArtifactEntry, GitStatus, Template, TerminalInfo, UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from '@shared/types'
 import Sidebar from './components/Sidebar'
 import PaneGrid from './components/PaneGrid'
@@ -12,6 +12,7 @@ import BackgroundPanel from './components/BackgroundPanel'
 import EmptyState from './components/EmptyState'
 import StatusBar from './components/StatusBar'
 import TitleBar from './components/TitleBar'
+import RightPanel from './components/RightPanel'
 import SettingsDialog from './components/settings/SettingsDialog'
 import BrowserDialog from './components/BrowserDialog'
 import InstallGuideDialog from './components/InstallGuideDialog'
@@ -36,11 +37,35 @@ export default function App() {
   const [updateStatus, setUpdateStatus] = useState<UpdaterStatusEvent | null>(null)
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
   const [terminals, setTerminals] = useState<TerminalInfo[]>([])
+  const [rightOpen, setRightOpen] = useState(() => localStorage.getItem('meow.rightpanel.open') !== '0')
+  const [rightTab, setRightTab] = useState<'tree' | 'artifacts'>(() =>
+    localStorage.getItem('meow.rightpanel.tab') === 'artifacts' ? 'artifacts' : 'tree')
+  const [rightWidth, setRightWidth] = useState(() => {
+    const w = Number(localStorage.getItem('meow.rightpanel.width'))
+    return Number.isFinite(w) && w >= 240 && w <= 600 ? w : 280
+  })
+  const [artifacts, setArtifacts] = useState<Record<string, ArtifactEntry[]>>({})
   const termsRef = useRef<Map<string, Terminal>>(new Map())
   const buffersRef = useRef<Map<string, string>>(new Map())
 
   const refreshWorkspaces = useCallback(async () => {
     setWorkspaces(await window.api.listWorkspaces())
+  }, [])
+
+  useEffect(() => {
+    localStorage.setItem('meow.rightpanel.open', rightOpen ? '1' : '0')
+  }, [rightOpen])
+  useEffect(() => {
+    localStorage.setItem('meow.rightpanel.tab', rightTab)
+  }, [rightTab])
+  useEffect(() => {
+    localStorage.setItem('meow.rightpanel.width', String(rightWidth))
+  }, [rightWidth])
+
+  useEffect(() => {
+    return window.api.onArtifactsChanged(({ projectPath, artifacts: list }) => {
+      setArtifacts(prev => ({ ...prev, [projectPath]: list }))
+    })
   }, [])
 
   useEffect(() => {
@@ -121,8 +146,10 @@ export default function App() {
       buffersRef.current.delete(t.id)
     }
     const rt = await window.api.openWorkspace(path)
+    const list = await window.api.listArtifacts(path)
     setRuntime(rt)
     setTerminals([])
+    setArtifacts(prev => ({ ...prev, [path]: list }))
     setBackgrounds(Object.fromEntries(rt.workspace.agents.map(a => [a.id, a.background ?? false])))
     for (const id of buffersRef.current.keys()) {
       if (!rt.workspace.agents.some(a => a.id === id)) buffersRef.current.delete(id)
@@ -212,7 +239,7 @@ export default function App() {
   return (
     <div className="app">
       <ChallengeToast challenge={challenge} onDismiss={() => setChallenge(null)} />
-      <TitleBar />
+      <TitleBar panelOpen={rightOpen} onTogglePanel={() => setRightOpen(v => !v)} />
       <div className="app-body">
         <Sidebar
           workspaces={workspaces}
@@ -250,6 +277,20 @@ export default function App() {
             <EmptyState hasWorkspace={runtime !== null} />
           )}
         </main>
+        {rightOpen && (
+          <RightPanel
+            root={runtime?.workspace.projectPath ?? null}
+            tab={rightTab}
+            width={rightWidth}
+            artifacts={artifacts[runtime?.workspace.projectPath ?? ''] ?? []}
+            onTabChange={setRightTab}
+            onWidthChange={setRightWidth}
+            onClearArtifacts={() => {
+              const p = runtime?.workspace.projectPath
+              if (p) void window.api.clearArtifacts(p)
+            }}
+          />
+        )}
       </div>
       <StatusBar
         workspaceName={runtime?.workspace.name ?? null}

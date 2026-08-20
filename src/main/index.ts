@@ -467,6 +467,7 @@ class MainApp {
     this.watcher?.stop()
     this.watcher = null
     this.meowAgent.stopAll()
+    if (this.activeProject) this.artifacts.clear(this.activeProject)
     this.activeProject = null
     this.closeAllTerminals()
     this.states.clear()

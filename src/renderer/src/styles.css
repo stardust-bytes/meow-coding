@@ -1489,3 +1489,92 @@ select.input { width: 100%; }
 
 .chat-file-link { color: var(--accent); text-decoration: underline; cursor: pointer; }
 .chat-file-link:hover { text-decoration: none; }
+
+/* Right panel (directory tree + artifacts) */
+.right-panel {
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 0;
+  display: flex;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--hairline);
+  animation: meow-rise 300ms 120ms ease-out both;
+}
+.right-panel-resizer {
+  position: absolute; left: -3px; top: 0; bottom: 0; width: 7px;
+  cursor: col-resize; z-index: 5;
+}
+.right-panel-resizer:hover { background: var(--accent-dim); }
+.right-panel-content {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden;
+}
+.right-panel-tabs {
+  flex: 0 0 44px; display: flex; flex-direction: column; align-items: stretch;
+  border-left: 1px solid var(--hairline); background: var(--bg-raised);
+}
+.right-panel-tab {
+  flex: 0 0 auto; height: 44px; display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none; color: var(--text-dim); cursor: pointer;
+  border-left: 2px solid transparent; transition: background 120ms ease, color 120ms ease;
+}
+.right-panel-tab:hover { background: var(--bg-hover); color: var(--text-strong); }
+.right-panel-tab.active { color: var(--accent); border-left-color: var(--accent); background: var(--bg-hover); }
+.right-panel-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
+.right-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 10px; border-bottom: 1px solid var(--hairline); flex: 0 0 auto;
+}
+.right-panel-title {
+  font-family: var(--font-display); font-size: var(--fs-sm); font-weight: var(--fw-semibold);
+  color: var(--text-strong); letter-spacing: 0.02em; text-transform: uppercase;
+}
+.right-panel-empty { padding: 16px; color: var(--text-faint); font-size: var(--fs-sm); }
+.right-panel-menu {
+  min-width: 170px; background: var(--bg-raised); border: 1px solid var(--hairline);
+  border-radius: var(--radius); padding: 4px; display: flex; flex-direction: column; gap: 2px;
+  box-shadow: var(--shadow-3);
+}
+
+/* Tree */
+.tree { padding: 4px 0 12px; user-select: none; }
+.tree-row {
+  display: flex; align-items: center; gap: 4px; padding: 3px 8px;
+  color: var(--text); font-size: var(--fs-sm); cursor: pointer; white-space: nowrap;
+}
+.tree-row:hover { background: var(--bg-hover); color: var(--text-strong); }
+.tree-root { font-weight: var(--fw-semibold); color: var(--text-strong); }
+.tree-chevron { flex: 0 0 12px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-faint); }
+.tree-icon { flex: 0 0 auto; }
+.tree-icon.folder { color: var(--yellow); }
+.tree-icon.file { color: var(--text-dim); }
+.tree-name { overflow: hidden; text-overflow: ellipsis; }
+.tree-dim { color: var(--text-faint); cursor: default; }
+.tree-dim:hover { background: transparent; }
+.tree-error { color: var(--red); }
+
+/* Artifacts */
+.artifacts { padding: 4px 0 12px; }
+.artifact-group { margin-bottom: 6px; }
+.artifact-group-header {
+  display: flex; align-items: center; gap: 6px; padding: 4px 10px;
+  font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
+.artifact-badge {
+  background: var(--bg-active); color: var(--accent); border-radius: 999px;
+  font-size: var(--fs-xs); padding: 0 6px; line-height: 14px;
+}
+.artifact-row {
+  display: flex; align-items: center; gap: 6px; padding: 3px 10px;
+  color: var(--text); font-size: var(--fs-sm); cursor: pointer; white-space: nowrap;
+}
+.artifact-row:hover { background: var(--bg-hover); color: var(--text-strong); }
+.artifact-icon { flex: 0 0 auto; }
+.artifact-icon.create { color: var(--green); }
+.artifact-icon.edit { color: var(--yellow); }
+.artifact-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-mono); }
+.artifact-time { flex: 0 0 auto; color: var(--text-faint); font-size: var(--fs-xs); }
+
+/* Title bar panel toggle */
+.title-bar-right { display: flex; align-items: center; height: 100%; -webkit-app-region: no-drag; }
+.title-bar-panel-toggle { width: 38px; }

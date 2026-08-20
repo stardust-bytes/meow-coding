@@ -35,9 +35,21 @@ function CloseIcon() {
   )
 }
 
-interface Props {}
+function PanelIcon({ open }: { open: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
+      <rect x="1" y="2" width="14" height="12" rx="1" />
+      <path d={open ? 'M11 2v12' : 'M11 5v7'} />
+    </svg>
+  )
+}
 
-export default function TitleBar(_props: Props) {
+interface Props {
+  panelOpen: boolean
+  onTogglePanel: () => void
+}
+
+export default function TitleBar({ panelOpen, onTogglePanel }: Props) {
   const platform = window.api.platform
   const showCustomControls = platform === 'linux'
   const [maximized, setMaximized] = useState(false)
@@ -58,23 +70,33 @@ export default function TitleBar(_props: Props) {
         <span className="title-bar-title">Meow Coding</span>
 
       </div>
-      {showCustomControls && (
-        <div className="title-bar-controls" onDoubleClick={e => e.stopPropagation()}>
-          <button className="title-bar-btn" aria-label="Minimize" onClick={() => void window.api.minimizeWindow()}>
-            <MinimizeIcon />
-          </button>
-          <button
-            className="title-bar-btn"
-            aria-label={maximized ? 'Restore' : 'Maximize'}
-            onClick={() => void window.api.toggleMaximizeWindow()}
-          >
-            {maximized ? <RestoreIcon /> : <MaximizeIcon />}
-          </button>
-          <button className="title-bar-btn title-bar-btn-close" aria-label="Close" onClick={() => void window.api.closeWindow()}>
-            <CloseIcon />
-          </button>
-        </div>
-      )}
+      <div className="title-bar-right">
+        <button
+          className="title-bar-btn title-bar-panel-toggle"
+          aria-label={panelOpen ? 'Hide Panel' : 'Show Panel'}
+          title={panelOpen ? 'Hide Panel' : 'Show Panel'}
+          onClick={onTogglePanel}
+        >
+          <PanelIcon open={panelOpen} />
+        </button>
+        {showCustomControls && (
+          <div className="title-bar-controls" onDoubleClick={e => e.stopPropagation()}>
+            <button className="title-bar-btn" aria-label="Minimize" onClick={() => void window.api.minimizeWindow()}>
+              <MinimizeIcon />
+            </button>
+            <button
+              className="title-bar-btn"
+              aria-label={maximized ? 'Restore' : 'Maximize'}
+              onClick={() => void window.api.toggleMaximizeWindow()}
+            >
+              {maximized ? <RestoreIcon /> : <MaximizeIcon />}
+            </button>
+            <button className="title-bar-btn title-bar-btn-close" aria-label="Close" onClick={() => void window.api.closeWindow()}>
+              <CloseIcon />
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
