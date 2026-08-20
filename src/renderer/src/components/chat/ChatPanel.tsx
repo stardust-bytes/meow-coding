@@ -150,6 +150,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const pinRafRef = useRef<number | null>(null)
   const prevLastIdRef = useRef<string | null>(null)
   const stuckRef = useRef(true)
+  const [showJumpToEnd, setShowJumpToEnd] = useState(false)
 
   const refreshVariants = useCallback(() => {
     void window.api.getAgentVariants(agentId).then(list => {
@@ -266,7 +267,17 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     const el = feedRef.current
     if (!el) return
     // Stay glued to the bottom unless the user scrolls up to read history.
-    stuckRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+    stuckRef.current = atBottom
+    setShowJumpToEnd(!atBottom)
+  }, [])
+
+  const jumpToEnd = useCallback(() => {
+    const feed = feedRef.current
+    if (!feed) return
+    feed.scrollTop = feed.scrollHeight
+    stuckRef.current = true
+    setShowJumpToEnd(false)
   }, [])
 
   useEffect(() => {
@@ -756,7 +767,8 @@ if (e.type === 'usage') {
           )}
         </div>
       )}
-      <div className="chat-feed" ref={feedRef} onScroll={onFeedScroll}>
+      <div className="chat-feed-wrap">
+        <div className="chat-feed" ref={feedRef} onScroll={onFeedScroll}>
         {items.map(item => {
           if (item.kind === 'compaction') {
             return (
@@ -827,6 +839,13 @@ if (e.type === 'usage') {
           </div>
         )}
         <div ref={endRef} />
+        </div>
+        {showJumpToEnd && (
+          <button className="chat-jump-to-end" onClick={jumpToEnd} title="Scroll to end">
+            <ChevronDown size={14} aria-hidden="true" />
+            <span>Scroll to end</span>
+          </button>
+        )}
       </div>
       <div className="chat-composer">
         {pendingPrompt && (
