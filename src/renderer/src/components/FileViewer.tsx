@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import MarkdownText from './chat/MarkdownText'
+import { isHighlightable, highlightCode } from './chat/highlight'
 
 interface Props {
   path: string
@@ -10,6 +11,7 @@ export default function FileViewer({ path: filePath, root }: Props) {
   const [content, setContent] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [raw, setRaw] = useState(false)
+  const [highlighted, setHighlighted] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -18,6 +20,7 @@ export default function FileViewer({ path: filePath, root }: Props) {
         if (alive) {
           setContent(r.content)
           setRaw(false)
+          setHighlighted(null)
         }
       })
       .catch((e: unknown) => {
@@ -41,6 +44,20 @@ export default function FileViewer({ path: filePath, root }: Props) {
 
   const ext = filePath.toLowerCase().split('.').pop() ?? ''
   const isMarkdown = ext === 'md' || ext === 'markdown'
+  const code = isHighlightable(ext)
+
+  // Highlight the code once per file (lazy grammar load, memoized result).
+  useEffect(() => {
+    if (!code || raw || content === null) {
+      setHighlighted(null)
+      return
+    }
+    let alive = true
+    void highlightCode(content, ext).then(html => {
+      if (alive) setHighlighted(html)
+    })
+    return () => { alive = false }
+  }, [code, raw, content, ext])
 
   const openLinkedFile = useCallback((p: string) => {
     void window.api.openFile({ path: p, root })
@@ -56,8 +73,12 @@ export default function FileViewer({ path: filePath, root }: Props) {
               {raw ? 'Markdown' : 'Raw'}
             </button>
           )}
+          {code && !isMarkdown && (
+            <button className="btn small" onClick={() => setRaw(v => !v)}>
+              {raw ? 'Highlighted' : 'Raw'}
+            </button>
+          )}
           <button className="btn small" onClick={() => void window.api.openFileInEditor(filePath)}>Open in VS Code</button>
-          <button className="btn small" onClick={() => void window.api.showFileInFolder(filePath)}>Reveal in Folder</button>
           <button className="btn small" onClick={() => void copy()} disabled={!content}>Copy</button>
           <button className="btn small" onClick={() => window.close()}>Close</button>
         </div>
@@ -69,6 +90,8 @@ export default function FileViewer({ path: filePath, root }: Props) {
           <div className="viewer-loading">Loading…</div>
         ) : isMarkdown && !raw ? (
           <div className="viewer-md"><MarkdownText text={content} onOpenFile={openLinkedFile} /></div>
+        ) : code && !raw && highlighted ? (
+          <div className="viewer-code" dangerouslySetInnerHTML={{ __html: highlighted }} />
         ) : (
           <pre className="viewer-pre">{content}</pre>
         )}
