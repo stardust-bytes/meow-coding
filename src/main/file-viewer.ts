@@ -60,6 +60,9 @@ export function openFileViewer(payload: FileViewerPayload, getMainWindow: () => 
     height: 700,
     title: path.basename(abs),
     backgroundColor: '#1e1e1e',
+    // Hide the default File/Edit/View/Window menu bar; Alt still reveals it so
+    // shortcuts (copy/paste) keep working.
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
