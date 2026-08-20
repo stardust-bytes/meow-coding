@@ -30,7 +30,7 @@ interface PendingPrompt {
 }
 
 // Splits user text on @path tokens and highlights them, matching the main-side
-// expandReferences syntax (bare or quoted forms).
+// @reference syntax (bare or quoted forms).
 const MENTION_SPLIT_RE = /(@[\w./\\-]+)/g
 // Leading slash command token ("/init", "/review", ...).
 const SLASH_RE = /^(\/[\w-]+)/

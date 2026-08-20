@@ -18,7 +18,7 @@ import { McpManager } from './agent/mcp/manager'
 import { collectSkills, skillListText } from './agent/skill'
 import { loadUserTools } from './agent/plugin'
 import { instructionsText, loadInstructions } from './agent/instructions'
-import { expandReferences } from './agent/references'
+import { referenceHints } from './agent/references'
 import { suggestFiles } from './file-suggest'
 import { SnapshotStore } from './agent/snapshot'
 import type { SnapshotTurn } from './agent/snapshot'
@@ -313,8 +313,8 @@ export class MeowAgentManager {
     const message: ChatMessage = {
       id: randomUUID(),
       role: 'user',
-      text: expandReferences(agent.cwd, text),
-      displayText,
+      text: referenceHints(agent.cwd, text),
+      displayText: displayText ?? text,
       images,
       createdAt: Date.now()
     }
