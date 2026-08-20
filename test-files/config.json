@@ -1,0 +1,7 @@
+{
+  "name": "meow-file-viewer-test",
+  "version": "1.0.0",
+  "features": ["markdown", "raw-text", "copy"],
+  "maxSizeMB": 5,
+  "enabled": true
+}

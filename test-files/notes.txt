@@ -1,0 +1,9 @@
+Đây là file text thuần (plain text) để test popup xem file dạng text thô.
+
+Nội dung không có định dạng markdown, chỉ là văn bản thường.
+Dòng 1
+Dòng 2
+Dòng 3
+
+- đây không phải bullet markdown, chỉ là ký tự
+- nó hiển thị y nguyên như source

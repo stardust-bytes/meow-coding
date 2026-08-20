@@ -52,12 +52,14 @@ export function openFileViewer(payload: FileViewerPayload, getMainWindow: () => 
   const mainWin = getMainWindow()
   if (!mainWin) return
   const base = mainWin.webContents.getURL().split('?')[0]
+  // No `parent`: a child window minimizes into the parent's corner on Windows
+  // and has no taskbar entry. An independent window minimizes to the taskbar
+  // with a native title bar (min/max/close) and hover preview.
   const win = new BrowserWindow({
     width: 900,
     height: 700,
     title: path.basename(abs),
     backgroundColor: '#1e1e1e',
-    parent: mainWin,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
