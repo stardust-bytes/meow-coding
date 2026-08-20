@@ -367,7 +367,10 @@ class MainApp {
 
   // PTY agents (opencode, Claude Code CLI, ...) are external processes we
   // cannot instrument, so file changes observed while one is running become
-  // artifacts attributed to the most recently active running agent.
+  // artifacts attributed to the most recently active running agent. Only
+  // files whose (mtime, size) actually moved count: fs.watch fires for
+  // atime/attribute touches that leave content unchanged, and those are not
+  // agent edits.
   private recordWatcherChanges(projectPath: string, files: string[]): void {
     const running = [...this.states.entries()]
       .filter(([, s]) => s.status === 'running')
@@ -376,6 +379,7 @@ class MainApp {
     if (!agentId) return
     for (const rel of files) {
       if (rel.split('/').some(seg => shouldIgnore(seg))) continue
+      if (this.watcher && !this.watcher.hasContentChanged(rel)) continue
       const absPath = path.join(projectPath, rel)
       this.artifacts.record(projectPath, {
         path: rel,
