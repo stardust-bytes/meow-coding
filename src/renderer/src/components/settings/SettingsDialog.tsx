@@ -19,8 +19,6 @@ const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'mcp', label: 'MCP' },
   { id: 'context', label: 'Context' },
   { id: 'commands', label: 'Commands' },
-  { id: 'remote', label: 'Remote Control' },
-  { id: 'templates', label: 'Templates' },
   { id: 'updates', label: 'Updates' }
 ]
 
