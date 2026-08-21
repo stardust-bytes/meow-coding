@@ -471,7 +471,13 @@ select.input { width: 100%; }
 .dialog.browser-dialog { width: 540px; }
 .update-dialog { width: 480px; max-width: 90vw; }
 .update-version { font-family: var(--font-mono); }
-.update-changelog { max-height: 240px; overflow-y: auto; border: 1px solid var(--hairline); border-radius: 6px; padding: 8px 10px; margin: 8px 0; font-size: var(--fs-md); }
+.update-changelog { max-height: 240px; overflow-y: auto; border: 1px solid var(--hairline); border-radius: 0; padding: 0.5rem; margin: 8px 0; font-size: var(--fs-md); width: 100%; }
+/* MarkdownText renders as a chat bubble (92% max-width + padding) — strip
+   that so the changelog spans the full dialog width. */
+.update-changelog .chat-text {
+  max-width: none; background: transparent; border: none; padding: 0; box-shadow: none;
+  border-radius: 0; font-size: var(--fs-md);
+}
 .update-progress-track { height: 6px; background: var(--bg-hover); border-radius: 3px; overflow: hidden; margin: 8px 0; }
 .update-progress-fill { height: 100%; background: var(--accent); transition: width 120ms ease; }
 .update-progress-label { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--text-dim); }
