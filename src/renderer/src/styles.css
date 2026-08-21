@@ -1515,6 +1515,15 @@ select.input { width: 100%; }
   max-width: none; background: transparent; border: none; padding: 0; box-shadow: none;
   font-size: var(--fs-base);
 }
+/* In the viewer, wide blocks (code, tables) stretch to natural width and the
+   body owns the horizontal scrollbar; paragraphs still wrap. */
+.viewer-md .chat-md pre,
+.viewer-md .chat-md table {
+  width: max-content; min-width: 100%;
+}
+.viewer-md .chat-md pre {
+  overflow-x: visible;
+}
 /* The universal * { border-radius } rule rounds every element; the file
    content area stays square (VS Code-like). */
 .viewer-md, .viewer-md .chat-text,
@@ -1522,14 +1531,14 @@ select.input { width: 100%; }
   border-radius: 0;
 }
 .viewer-pre {
-  white-space: pre-wrap; word-break: break-word;
+  white-space: pre;
   font-family: var(--font-mono); font-size: var(--fs-sm); line-height: 1.6; margin: 0;
   user-select: text;
 }
 /* Shiki output carries its own <pre> with the theme's background (VS Code
-   Dark+); no extra padding here so the code runs edge-to-edge. */
+   Dark+); no extra padding here so the code runs edge-to-edge. No inner
+   overflow-x: the body owns the single horizontal scrollbar. */
 .viewer-code {
-  overflow-x: auto;
   user-select: text;
 }
 .viewer-code pre {
