@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { normalizeMarkdownTables } from './markdownTable'
+import { isPathLike } from './markdownPaths'
 
 interface Props {
   text: string
@@ -9,11 +10,6 @@ interface Props {
 }
 
 marked.setOptions({ gfm: true, breaks: true })
-
-// Looks like a local file path: dot-relative, slash-relative, a Windows drive
-// (C:\), or ends with a common file extension. http(s)/mailto links are left
-// alone so the existing window-open handler opens them externally.
-const PATH_LIKE = /^(\.{0,2}[\\/]|[A-Za-z]:[\\/]|[\\/])|\.\w{1,6}$/i
 
 export default function MarkdownText({ text, onOpenFile }: Props) {
   const html = useMemo(() => {
@@ -25,15 +21,19 @@ export default function MarkdownText({ text, onOpenFile }: Props) {
     doc.querySelectorAll('a[href]').forEach(a => {
       const href = a.getAttribute('href') ?? ''
       if (href.startsWith('#') || /^(https?|mailto):/i.test(href)) return
-      if (PATH_LIKE.test(href)) {
+      if (isPathLike(href)) {
         a.setAttribute('href', '#')
         a.setAttribute('data-file', href)
         a.classList.add('chat-file-link')
       }
     })
     doc.querySelectorAll('code').forEach(code => {
+      // Code blocks (fenced/indented) are never file links — only inline code
+      // can reference a path. Without this a long block whose last line ends
+      // in .ext gets underlined like a link.
+      if (code.closest('pre')) return
       const t = code.textContent?.trim() ?? ''
-      if (t && PATH_LIKE.test(t)) {
+      if (isPathLike(t)) {
         code.setAttribute('data-file', t)
         code.classList.add('chat-file-link')
       }
