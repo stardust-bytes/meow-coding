@@ -85,10 +85,14 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 :focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 
 /* Scrollbar — slim, rounded, accent on hover */
-*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar { width: 12px; height: 12px; }
 *::-webkit-scrollbar-track { background: transparent; }
-*::-webkit-scrollbar-thumb { background: rgba(139, 147, 163, 0.25); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
-*::-webkit-scrollbar-thumb:hover { background: var(--accent); border: 2px solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-thumb {
+  background: rgba(160, 170, 188, 0.5); border-radius: 999px;
+  border: 2px solid transparent; background-clip: padding-box;
+  min-height: 40px; min-width: 40px;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--accent-strong); border: 2px solid transparent; background-clip: padding-box; }
 *::-webkit-scrollbar-corner { background: transparent; }
 
 .app { height: 100%; display: flex; flex-direction: column; }
@@ -1585,7 +1589,7 @@ select.input { width: 100%; }
   font-family: var(--font-display); font-size: var(--fs-sm); font-weight: var(--fw-semibold);
   color: var(--text-strong); letter-spacing: 0.02em; text-transform: uppercase;
 }
-.right-panel-empty { padding: 16px; color: var(--text-faint); font-size: var(--fs-sm); }
+.right-panel-empty { padding: 16px; color: var(--text-faint); font-size: var(--fs-base); }
 .right-panel-menu {
   min-width: 170px; background: var(--bg-raised); border: 1px solid var(--hairline);
   border-radius: var(--radius); padding: 4px; display: flex; flex-direction: column; gap: 2px;
