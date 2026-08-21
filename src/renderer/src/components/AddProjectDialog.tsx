@@ -31,6 +31,7 @@ export default function AddProjectDialog({ onAdd, onClose }: Props) {
     <div className="dialog-backdrop">
       <div className="dialog">
         <h3>Add project</h3>
+        <button className="dialog-close" aria-label="Close" onClick={onClose}>✕</button>
         <label className="label">Folder</label>
         <div className="row">
           <input className="input grow" value={path} onChange={e => setPath(e.target.value)} />

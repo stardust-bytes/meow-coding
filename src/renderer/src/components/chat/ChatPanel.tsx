@@ -721,6 +721,7 @@ if (e.type === 'usage') {
           <div className="dialog-backdrop">
             <div className="dialog subagent-live">
               <h3>sub-agent{live.subagentType ? ` (${live.subagentType})` : ''}{live.background ? ' · background' : ''}</h3>
+              <button className="dialog-close" aria-label="Close" onClick={() => setLiveTaskId(null)}>✕</button>
               <div className="subagent-live-state">
                 <span className={`subagent-state state-${live.state}`}>{live.state}</span>
                 {live.tools.length > 0 && live.tools.map(t => <code key={t}>{t}</code>)}
@@ -728,9 +729,6 @@ if (e.type === 'usage') {
               {live.reasoning && <details className="chat-reasoning"><summary>Thinking</summary><div className="chat-reasoning-text">{live.reasoning}</div></details>}
               <div className="subagent-live-text">{live.text || (live.state === 'running' ? '…' : '')}</div>
               {live.result && <div className="subagent-live-result">{live.result}</div>}
-              <div className="dialog-actions">
-                <button className="btn" onClick={() => setLiveTaskId(null)}>Close</button>
-              </div>
             </div>
           </div>
         )

@@ -465,6 +465,15 @@ select.input { width: 100%; }
   display: flex; flex-direction: column; gap: 10px;
 }
 .dialog h3 { margin: 0; font-size: var(--fs-lg); font-family: var(--font-display); font-weight: var(--fw-semibold); }
+.dialog-close {
+  position: absolute; top: 10px; right: 10px;
+  width: 26px; height: 26px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none; border-radius: var(--radius-sm);
+  color: var(--text-dim); font-size: 15px; line-height: 1; cursor: pointer;
+}
+.dialog-close:hover { background: var(--bg-hover); color: var(--text-strong); }
+.dialog { position: relative; }
 .label { font-size: var(--fs-base); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-strong); font-family: var(--font-display); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 6px; }
 .dialog-actions .btn { min-width: 80px; text-align: center; }

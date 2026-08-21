@@ -24,6 +24,7 @@ export default function Modal({
     <div className="dialog-backdrop">
       <div className="dialog">
         <h3>{title}</h3>
+        <button className="dialog-close" aria-label="Close" onClick={onClose}>✕</button>
         {children}
         <div className="dialog-actions">
           <button className="btn" onClick={onClose}>Cancel</button>

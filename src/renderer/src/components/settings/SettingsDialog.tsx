@@ -107,6 +107,7 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
     <div className="dialog-backdrop">
       <div className="dialog settings-dialog">
         <h3>Settings</h3>
+        <button className="dialog-close" aria-label="Close" onClick={closeGuarded}>✕</button>
         <div className="settings-body">
           <nav className="settings-nav">
             {TABS.map(t => (

@@ -27,6 +27,7 @@ export default function AddAgentDialog({ projectPath, templates, onAdd, onClose 
     <div className="dialog-backdrop">
       <div className="dialog">
         <h3>Add agent</h3>
+        <button className="dialog-close" aria-label="Close" onClick={onClose}>✕</button>
         <label className="label">Template</label>
         <select className="input" value={templateId}
           onChange={e => {

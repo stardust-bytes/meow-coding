@@ -34,6 +34,7 @@ export default function BrowserDialog({ status, onClose }: Props) {
       <div className="dialog browser-dialog">
         <div className="browser-hd">
           <h3>Browser Bridge</h3>
+          <button className="dialog-close" aria-label="Close" onClick={onClose}>✕</button>
           <span className={`browser-pill ${pillClass}`}>
             ● {stateLabel}
           </span>
@@ -46,7 +47,6 @@ export default function BrowserDialog({ status, onClose }: Props) {
             </div>
             <div className="dialog-actions">
               <button className="btn" onClick={pair}>New Pairing Code</button>
-              <button className="btn" onClick={onClose}>Close</button>
             </div>
           </>
         ) : (
@@ -73,9 +73,6 @@ export default function BrowserDialog({ status, onClose }: Props) {
                   <button className="btn primary" onClick={pair}>Pair With Code</button>
                 </div>
               )}
-            </div>
-            <div className="dialog-actions">
-              <button className="btn" onClick={onClose}>Close</button>
             </div>
           </>
         )}
