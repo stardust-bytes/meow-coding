@@ -129,6 +129,25 @@ export default function GatewayTab() {
       </div>
 
       {error && <div className="settings-status">{error}</div>}
+
+      <div className="gateway-master-toggle">
+        <label className="gateway-toggle">
+          <input
+            type="checkbox"
+            checked={draft.enabled}
+            onChange={e => void save({ enabled: e.target.checked })}
+          />
+          <span className="gateway-switch" aria-hidden="true" />
+          <span className="gateway-master-label">
+            {draft.enabled ? 'Gateway: ON' : 'Gateway: OFF'}
+          </span>
+        </label>
+        <span className="gateway-status-hint">
+          {draft.enabled && draft.apiKey
+            ? (status.running ? `running on port ${status.actualPort}` : 'starting…')
+            : (draft.enabled ? 'cần đặt API key ở trên' : '')}
+        </span>
+      </div>
     </div>
   )
 }
