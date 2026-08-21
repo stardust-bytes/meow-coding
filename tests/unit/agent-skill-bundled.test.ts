@@ -18,7 +18,7 @@ describe('bundled skills', () => {
       'brainstorming', 'brand-guidelines', 'canvas-design',
       'dispatching-parallel-agents', 'executing-plans',
       'finishing-a-development-branch', 'frontend-design',
-      'receiving-code-review', 'requesting-code-review',
+      'katalon-studio', 'receiving-code-review', 'requesting-code-review',
       'subagent-driven-development', 'systematic-debugging',
       'test-driven-development', 'theme-factory', 'using-git-worktrees',
       'using-superpowers', 'verification-before-completion',
