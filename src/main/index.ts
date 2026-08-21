@@ -50,6 +50,26 @@ let tray: TrayManager | null = null
 
 if (process.env.MEOW_USER_DATA) app.setPath('userData', process.env.MEOW_USER_DATA)
 
+// Only one instance may run at a time. While the app is hidden to the tray,
+// double-clicking the desktop icon would otherwise spawn a second process
+// (duplicate browser bridge, duplicated background agents). The second
+// instance quits and asks the primary one to show its existing window.
+const gotTheLock = app.requestSingleInstanceLock()
+if (!gotTheLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (win) {
+      if (win.isMinimized()) win.restore()
+      win.show()
+      win.focus()
+      if (process.platform === 'darwin') app.show()
+    } else {
+      createWindow()
+    }
+  })
+}
+
 function openInEditor(projectPath: string): Promise<void> {
   return new Promise(resolve => {
     const child = process.platform === 'win32'
@@ -763,6 +783,7 @@ function registerIpcHandlers(): void {
 }
 
 app.whenReady().then(async () => {
+  if (!gotTheLock) return // secondary instance — already quitting
   mainApp.meowAgent.truncationCleanup()
   await mainApp.browserBridge.start().catch(err => {
     console.error('[meow] browser bridge start failed:', err)
