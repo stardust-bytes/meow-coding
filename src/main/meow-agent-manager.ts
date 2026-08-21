@@ -9,8 +9,6 @@ import {
 import { SessionRunner } from './agent/loop'
 import { createLlm } from './agent/llm'
 import type { LlmClient } from './agent/llm'
-import { CHATGPT_WEB_PROVIDER_ID, getChatGptWebModelRefs } from './chatgpt-web/model-catalog'
-import type { ChatGptWebManager } from './chatgpt-web/manager'
 import { decidePermission } from './agent/permission'
 import { SessionStore } from './agent/session'
 import type { SessionSummary, StoredSession } from './agent/session'
@@ -36,22 +34,18 @@ import { createTaskTool } from './agent/tools/task'
 import type { ResolvedSubagentModel } from './agent/tools/task'
 import type { ToolDefinition } from './agent/tools/types'
 import type { NotificationService } from './notification-service'
+import type { Vault } from './connections/vault'
 import { TraceStore } from './agent/trace-store'
 import type { TraceEventInput } from './agent/trace-store'
 
-function defaultCreateChatGptWebLlmClient(manager: ChatGptWebManager): LlmClient {
-  return manager.createLlmClient()
-}
-
 export interface MeowAgentManagerDeps {
   configPath: string
+  vault?: Vault
   store: SessionStore
   trace?: TraceStore
   onTrace?: (e: TraceEvent) => void
   tools: Map<string, ToolDefinition>
   createLlm?: (provider: string, apiKey: string, baseUrl?: string) => LlmClient
-  chatGptWeb?: ChatGptWebManager
-  createChatGptWebLlmClient?: (manager: ChatGptWebManager) => LlmClient
   env?: NodeJS.ProcessEnv
   userSkillsDir?: string
   userToolsDir?: string
@@ -494,8 +488,8 @@ export class MeowAgentManager {
   getAgentModel(agentId: string): ModelRef | null {
     const agent = this.agents.get(agentId)
     if (!agent) return null
-    const cfg = this.loadConfigWithChatGptWebSeed()
-    const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env, agent.model)
+    const cfg = loadMeowConfig(this.deps.configPath)
+    const resolved = this.resolveAgentConfig(cfg, agent.name, agent.model)
     if (!resolved.provider || !resolved.model) return null
     return { provider: resolved.provider, model: resolved.model }
   }
@@ -503,8 +497,8 @@ export class MeowAgentManager {
   getContextInfo(agentId: string): ContextInfo {
     const agent = this.agents.get(agentId)
     if (!agent) return { limit: null, compactThreshold: null, sessionCost: 0 }
-    const cfg = this.loadConfigWithChatGptWebSeed()
-    const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env, agent.model)
+    const cfg = loadMeowConfig(this.deps.configPath)
+    const resolved = this.resolveAgentConfig(cfg, agent.name, agent.model)
     const modelLimit = resolved.provider && resolved.model
       ? this.modelLimits.get(`${resolved.provider}/${resolved.model}`)
       : undefined
@@ -523,7 +517,6 @@ export class MeowAgentManager {
     for (const [provider, p] of Object.entries(cfg.provider)) {
       for (const model of p.models) refs.push({ provider, model })
     }
-    refs.push(...(this.deps.chatGptWeb?.getModelRefsIfActive() ?? []))
     return refs
   }
 
@@ -539,8 +532,8 @@ export class MeowAgentManager {
 
   private allowedVariantsFor(agent: AgentConfig): string[] {
     if (!this.deps.catalog) return []
-    const cfg = this.loadConfigWithChatGptWebSeed()
-    const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env, agent.model)
+    const cfg = loadMeowConfig(this.deps.configPath)
+    const resolved = this.resolveAgentConfig(cfg, agent.name, agent.model)
     if (!resolved.provider || !resolved.model) return []
     return Object.keys(this.modelVariants.get(`${resolved.provider}/${resolved.model}`) ?? {})
   }
@@ -560,10 +553,20 @@ export class MeowAgentManager {
     const catalog = await this.deps.catalog?.fetch() ?? {}
     const models = catalog[providerId]?.models ?? []
     const settings = this.getSettings()
-    const existing = settings.providers.find(p => p.id === providerId)
+    // Store the key in the encrypted vault and keep only a keyRef in settings;
+    // fall back to plaintext apiKey when safeStorage is unavailable (e.g.
+    // Linux without a keyring) so connecting still works.
+    let keyRef: string | undefined
+    let plainKey = ''
+    if (this.deps.vault?.isAvailable()) {
+      keyRef = `provider:${providerId}`
+      this.deps.vault.saveSecret(keyRef, apiKey)
+    } else {
+      plainKey = apiKey
+    }
     const nextProviders = [
       ...settings.providers.filter(p => p.id !== providerId),
-      { id: providerId, apiKey, baseUrl: baseUrl || catalog[providerId]?.api, models }
+      { id: providerId, apiKey: plainKey, keyRef, baseUrl: baseUrl || catalog[providerId]?.api, models }
     ]
     const defaultProvider = settings.providers.some(p => p.id === settings.defaultProvider)
       ? settings.defaultProvider
@@ -573,6 +576,7 @@ export class MeowAgentManager {
 
   async disconnectProvider(providerId: string): Promise<MeowSettings> {
     const settings = this.getSettings()
+    this.deps.vault?.deleteSecret(`provider:${providerId}`)
     const nextProviders = settings.providers.filter(p => p.id !== providerId)
     const defaultProvider = nextProviders.some(p => p.id === settings.defaultProvider)
       ? settings.defaultProvider
@@ -686,7 +690,7 @@ export class MeowAgentManager {
   // Runs compaction for agents sitting over the context limit while no turn
   // is in flight. Cheap threshold check first; only then spend an LLM call.
   private async maybeCompactIdle(): Promise<void> {
-    const cfg = this.loadConfigWithChatGptWebSeed()
+    const cfg = loadMeowConfig(this.deps.configPath)
     for (const agentId of this.runners.keys()) {
       if (this.running.has(agentId) || this.compacting.has(agentId)) continue
       const now = Date.now()
@@ -763,8 +767,8 @@ export class MeowAgentManager {
       this.runners.delete(agent.id)
       this.resolved.delete(agent.id)
     }
-    const cfg = this.loadConfigWithChatGptWebSeed()
-    const resolved = resolveAgentConfig(cfg, agent.name, this.deps.env, agent.model)
+    const cfg = loadMeowConfig(this.deps.configPath)
+    const resolved = this.resolveAgentConfig(cfg, agent.name, agent.model)
     this.resolved.set(agent.id, resolved)
     const modelLimit = resolved.provider && resolved.model
       ? this.modelLimits.get(`${resolved.provider}/${resolved.model}`)
@@ -775,17 +779,13 @@ export class MeowAgentManager {
     // prompt (opencode-style); module-level ones attach on read via loop.ts.
     const instructionFiles = loadInstructions(agent.cwd)
     const instructions = instructionsText(instructionFiles)
-    const llmClient = resolved.provider === CHATGPT_WEB_PROVIDER_ID
-      ? (this.deps.createChatGptWebLlmClient ?? defaultCreateChatGptWebLlmClient)(this.deps.chatGptWeb as ChatGptWebManager)
-      : (this.deps.createLlm ?? createLlm)(resolved.provider, resolved.apiKey ?? '', resolved.baseUrl)
+    const llmClient = (this.deps.createLlm ?? createLlm)(resolved.provider, resolved.apiKey ?? '', resolved.baseUrl)
     const resolveSubagent = (type: SubagentType): ResolvedSubagentModel | undefined => {
       const ref = cfg.subagentModels?.[type]
       if (!ref) return undefined
-      const subResolved = resolveAgentConfig(cfg, agent.name, this.deps.env, `${ref.provider}/${ref.model}`)
+      const subResolved = this.resolveAgentConfig(cfg, agent.name, `${ref.provider}/${ref.model}`)
       if (!subResolved.provider || !subResolved.model || !subResolved.apiKey) return undefined // fallback main
-      const subLlm = subResolved.provider === CHATGPT_WEB_PROVIDER_ID
-        ? (this.deps.createChatGptWebLlmClient ?? defaultCreateChatGptWebLlmClient)(this.deps.chatGptWeb as ChatGptWebManager)
-        : (this.deps.createLlm ?? createLlm)(subResolved.provider, subResolved.apiKey, subResolved.baseUrl)
+      const subLlm = (this.deps.createLlm ?? createLlm)(subResolved.provider, subResolved.apiKey, subResolved.baseUrl)
       return { provider: subResolved.provider, model: subResolved.model, llm: subLlm }
     }
     const taskTool = createTaskTool({
@@ -915,20 +915,14 @@ export class MeowAgentManager {
     this.runners.set(agent.id, runner)
   }
 
-  // The chatgpt-web "provider" is a browser-driven session, not an API-key
-  // entry a user configures in meow.json. Seed a synthetic provider entry so
-  // resolveAgentConfig's generic provider/model lookup resolves it like any
-  // other provider, without requiring changes to agent/config.ts. Use this
-  // wherever loadMeowConfig feeds into resolveAgentConfig.
-  private loadConfigWithChatGptWebSeed(): MeowConfig {
-    const cfg = loadMeowConfig(this.deps.configPath)
-    if (this.deps.chatGptWeb && !cfg.provider[CHATGPT_WEB_PROVIDER_ID]) {
-      cfg.provider[CHATGPT_WEB_PROVIDER_ID] = {
-        apiKey: CHATGPT_WEB_PROVIDER_ID,
-        models: getChatGptWebModelRefs().map(r => r.model)
-      }
-    }
-    return cfg
+  private resolveAgentConfig(cfg: MeowConfig, agentName: string, agentModel?: string): ResolvedAgentConfig {
+    return resolveAgentConfig(
+      cfg,
+      agentName,
+      this.deps.env,
+      agentModel,
+      this.deps.vault ? (ref: string) => this.deps.vault!.getSecret(ref) : undefined
+    )
   }
 
   private priceFor(provider: string, model: string): ModelPrice | undefined {

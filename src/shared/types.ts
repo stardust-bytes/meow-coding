@@ -213,6 +213,8 @@ export interface PromptResponse {
 export interface ProviderSettings {
   id: string
   apiKey: string
+  /** Reference into the encrypted vault; prefer over apiKey. */
+  keyRef?: string
   baseUrl?: string
   models: string[]
 }
@@ -276,10 +278,100 @@ export interface ModelRef {
   model: string
 }
 
-export interface ChatGptWebStatus {
+export type ProviderId = 'claude' | 'codex' | 'apikey'
+export type AuthMode = 'oauth' | 'api-key' | 'imported' | 'desktop'
+
+export type RoutingStrategy =
+  | 'auto' | 'random' | 'single'
+  | 'quota-high-first' | 'quota-low-first' | 'expiry-soon-first'
+
+export interface GatewayConfig {
   enabled: boolean
-  loggedIn: boolean
-  verifiedAt: string | null
+  port: number
+  /** User-set Bearer key required to call the local gateway. */
+  apiKey: string
+  routingStrategy: RoutingStrategy
+  coldownSeconds: number
+  quotaReservePercent: number
+}
+
+export interface GatewayStatus extends GatewayConfig {
+  running: boolean
+  actualPort: number | null
+}
+
+export interface GatewayRequestLog {
+  ts: number
+  method: string
+  path: string
+  status: number
+  accountId: string | null
+  model: string | null
+  durationMs: number
+  tokensIn: number
+  tokensOut: number
+  error?: string
+}
+
+export interface QuotaInfo {
+  provider: ProviderId
+  planType?: string
+  periodStart?: string
+  periodEnd?: string
+  used?: number
+  limit?: number
+  remaining?: number
+  raw?: unknown
+  refreshedAt: number
+}
+
+export interface ProviderAccount {
+  id: string
+  provider: ProviderId
+  name: string
+  authMode: AuthMode
+  active: boolean
+  createdAt: number
+  lastUsed: number
+  apiBaseUrl?: string
+  apiKeyField?: string
+  extraEnv?: Record<string, string>
+  profile?: { email?: string; name?: string; orgName?: string; planType?: string; avatarUrl?: string }
+  quota?: QuotaInfo
+  quotaError?: string
+  claudeConfigDir?: string
+  codexAuthMode?: 'oauth' | 'apikey'
+  chatgptProfileDir?: string
+  tags?: string[]
+  note?: string
+}
+
+export interface LoginStart {
+  loginId: string
+  provider: ProviderId
+  authUrl: string
+  mode: 'browser-code' | 'callback'
+  expiresIn: number
+}
+
+export interface ConnectionProviderStatus {
+  provider: ProviderId
+  accounts: ProviderAccount[]
+  activeAccountId: string | null
+  login?: LoginStart | null
+}
+
+export interface ConnectionsState {
+  providers: ConnectionProviderStatus[]
+}
+
+export interface ApiKeyInput {
+  label: string
+  apiKey: string
+  apiBaseUrl?: string
+  apiKeyField?: string
+  extraEnv?: Record<string, string>
+  note?: string
 }
 
 export interface CatalogProviderSummary {

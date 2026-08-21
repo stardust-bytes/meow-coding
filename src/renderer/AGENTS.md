@@ -10,7 +10,7 @@ React renderer (không có quyền truy cập Node/Electron trực tiếp).
   (agent + state + git) cho từng pane.
 - `src/components/` — `Sidebar`, `PaneGrid`, `Pane`, `PaneHeader`, `XtermHost`, `EmptyState`,
   `StatusBar`, `TitleBar`, `BackgroundPanel`, `AddProjectDialog`, `AddAgentDialog`, `UpdateDialog`,
-  `BrowserDialog`, `InstallGuideDialog`, `ChallengeToast`, `chat/`, `settings/`.
+  `BrowserDialog`, `InstallGuideDialog`, `chat/`, `settings/`.
 - `src/styles.css` — dark theme coding, spacing theo thang 4px.
 
 ## Quy ước

@@ -28,7 +28,8 @@ sessions, permissions, and skill system.
 - **Cost tracking** — token and dollar usage per session and per model via the models.dev catalog.
 - **Office documents** — the native agent can create and edit `.docx`, `.xlsx`, and `.pptx` through
   the `office` tool (powered by OfficeCLI; binary auto-downloaded on first use).
-- **ChatGPT Web provider (experimental)** — use a headless ChatGPT web session as an LLM provider.
+- **Model Connections** — manage Claude Code / Codex / API-key accounts with OAuth login, account
+  switching, and quota monitoring (see below).
 - **Project explorer & artifacts** — right panel with a lazy-loaded directory tree (expanded state
   survives tab switches) and an artifacts list of the `.md` files agents created or edited.
 - **Browser bridge** — control a real Chrome profile through a local WebSocket bridge paired with a
@@ -76,16 +77,26 @@ Meow Coding is built on open-source technology and openly credits its design inf
 
 ### Providers & models
 
-- Anthropic and OpenAI-compatible providers, plus the experimental ChatGPT Web provider.
+- Anthropic and OpenAI-compatible providers.
 - Model catalog from models.dev with provider/model browsing and per-agent model selection.
 - Model variants (effort levels) and a "plan" vs "build" agent mode.
+
+### Model Connections (account management)
+
+- **Claude Code**: OAuth login (PKCE), multiple accounts, one-click switch, quota/plan view. Each
+  account gets its own `CLAUDE_CONFIG_DIR` so your real `~/.claude` is never touched.
+- **Codex**: OAuth login via local callback, switches by writing `~/.codex/auth.json` (atomic,
+  with backup/restore), quota view.
+- **API key vault**: provider API keys stored encrypted in the OS keychain (safeStorage) instead of
+  plaintext in settings; `keyRef` resolves at runtime.
+- Quota monitoring with `[meow]` alerts when usage crosses 90% (5-minute cooldown).
 
 ### UI & desktop
 
 - Frameless custom title bar (min / max / close) with lucide-react icons.
 - "Studio Dark" design system: tokenized fonts, colors, and a coral accent.
-- Settings dialog covering providers, agents, permissions, MCP, context, commands, templates,
-  remote control, and ChatGPT Web.
+- Settings dialog covering connections, providers, agents, permissions, MCP, context, commands,
+  templates, and remote control.
 - Idle/exit alert notifications; per-agent logs written to `userData/logs/<agentId>.log`.
 
 ### Right panel (explorer & artifacts)

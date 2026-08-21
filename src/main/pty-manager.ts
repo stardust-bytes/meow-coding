@@ -36,11 +36,18 @@ export class PtyManager extends EventEmitter {
   private sessions = new Map<string, PtySession>()
   private stopping = new Set<string>()
 
-  start(agentId: string, name: string, command: string, args: string[], cwd: string): PtySession {
+  start(
+    agentId: string,
+    name: string,
+    command: string,
+    args: string[],
+    cwd: string,
+    env?: Record<string, string>
+  ): PtySession {
     if (this.sessions.has(agentId)) throw new Error(`Agent already running: ${agentId}`)
     if (this.stopping.has(agentId)) throw new Error(`Agent is stopping: ${agentId}`)
     const resolved = buildSpawnCommand(command, args)
-    return this.spawnSession(agentId, name, resolved.command, resolved.args, cwd, 'agent')
+    return this.spawnSession(agentId, name, resolved.command, resolved.args, cwd, 'agent', env)
   }
 
   startTerminal(id: string, shell: string, cwd: string): PtySession {
@@ -63,14 +70,15 @@ export class PtyManager extends EventEmitter {
     command: string,
     args: string[],
     cwd: string,
-    kind: 'agent' | 'terminal'
+    kind: 'agent' | 'terminal',
+    env?: Record<string, string>
   ): PtySession {
     const proc = pty.spawn(command, args, {
       name: 'xterm-256color',
       cols: 100,
       rows: 30,
       cwd,
-      env: { ...process.env } as Record<string, string>
+      env: { ...process.env, ...(env ?? {}) } as Record<string, string>
     })
     const session: PtySession = { agentId: id, name, cwd, process: proc, pid: proc.pid, kind }
     this.sessions.set(id, session)

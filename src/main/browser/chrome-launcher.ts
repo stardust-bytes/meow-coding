@@ -2,7 +2,7 @@ import { shell, type BrowserWindow } from 'electron'
 import { existsSync, mkdirSync, cpSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { Channels } from '../../shared/ipc'
-import { resolveChromeExecutablePath } from '../chatgpt-web/browser-login'
+import { resolveChromeExecutablePath } from './chrome-path'
 
 export interface BrowserLauncherDeps {
   getWindow?: () => BrowserWindow | null

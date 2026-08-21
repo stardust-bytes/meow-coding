@@ -65,7 +65,11 @@ export default function ProvidersTab({ settings, catalog, onChange }: Props) {
       setModels([])
     }
     onChange({ providers: result.providers, defaultProvider: result.defaultProvider })
+    setStatus(`Disconnected ${id}.`)
   }
+
+  const maskKey = (key: string): string =>
+    key.length <= 8 ? '••••' : `${key.slice(0, 4)}…${key.slice(-4)}`
 
   const viewModels = async (id: string) => {
     if (expandedId === id) {
@@ -91,7 +95,7 @@ export default function ProvidersTab({ settings, catalog, onChange }: Props) {
       </div>
       <p className="settings-hint">
         Find a provider below and enter your API key, or use "+ Connect provider". Models are synced
-        automatically from models.dev.
+        automatically from models.dev. API keys are stored encrypted in the OS keychain.
       </p>
 
       <div className="provider-connect">
@@ -133,6 +137,11 @@ export default function ProvidersTab({ settings, catalog, onChange }: Props) {
                 <span className="mcp-dot connected" />
                 <span className="provider-connected-name">{p.id}</span>
               </button>
+              {p.keyRef
+                ? <span className="provider-connected-secure" title="Key stored encrypted in OS keychain">🔒 key vaulted</span>
+                : p.apiKey
+                  ? <span className="provider-connected-secure" title="Key stored in settings (not encrypted)">key {maskKey(p.apiKey)}</span>
+                  : null}
               {p.baseUrl && <span className="provider-connected-baseurl">{p.baseUrl}</span>}
               <button className="btn small" onClick={() => void setDefault(p.id)}>
                 {settings.defaultProvider === p.id ? 'default' : 'set default'}
@@ -161,7 +170,8 @@ export default function ProvidersTab({ settings, catalog, onChange }: Props) {
         >
           {modal.kind === 'catalog' ? (
             <p className="settings-hint">
-              Provider <code>{modal.id}</code> — enter your API key below.
+              Provider <code>{modal.id}</code> — enter your API key below. It will be stored encrypted
+              in the OS keychain.
             </p>
           ) : (
             <input

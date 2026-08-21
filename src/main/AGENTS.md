@@ -27,7 +27,8 @@ handlers và vòng đời app.
 - `terminal-shell.ts` — `resolveShell`: chọn shell mặc định theo platform.
 - `updater.ts` — electron-updater wrapper, phát `UpdaterStatusEvent`.
 - `window-chrome.ts` — `getWindowChromeOptions`: title-bar ẩn trên Windows/Linux.
-- `chatgpt-web/` — ChatGPT web login + browser worker + model catalog.
+- `connections/` — Model Connections: vault (safeStorage) + account store + provider adapters
+  (Claude OAuth, Codex OAuth, API key vault) + quota monitoring.
 - `browser/` — BrowserBridge (WS server local + pairing) + Chrome launcher + snapshot format.
 
 ## Quy ước

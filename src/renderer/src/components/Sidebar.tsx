@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Ellipsis, PanelLeft, Settings } from 'lucide-react'
+import { Ellipsis, PanelLeft, Settings, Server } from 'lucide-react'
 import type { NewAgentInput, Template, WorkspaceSummary } from '@shared/types'
 import AddProjectDialog from './AddProjectDialog'
 import AddAgentDialog from './AddAgentDialog'
@@ -18,10 +18,11 @@ interface Props {
   onRefresh: () => void
   onOpenTerminal: (path: string) => void
   onOpenSettings: () => void
+  onOpenModelRouter: () => void
 }
 
 export default function Sidebar({
-  workspaces, templates, activePath, onOpen, onRemove, onRefresh, onOpenTerminal, onOpenSettings
+  workspaces, templates, activePath, onOpen, onRemove, onRefresh, onOpenTerminal, onOpenSettings, onOpenModelRouter
 }: Props) {
   const [showAddProject, setShowAddProject] = useState(false)
   const [addAgentPath, setAddAgentPath] = useState<string | null>(null)
@@ -29,6 +30,8 @@ export default function Sidebar({
   const [projectMenuPos, setProjectMenuPos] = useState<{ x: number; y: number } | null>(null)
   const [error, setError] = useState('')
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('meow.sidebar.collapsed') === '1')
+  const [footerMenuOpen, setFooterMenuOpen] = useState(false)
+  const [footerMenuPos, setFooterMenuPos] = useState<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     localStorage.setItem('meow.sidebar.collapsed', collapsed ? '1' : '0')
@@ -37,16 +40,21 @@ export default function Sidebar({
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       const target = e.target as Node
-      // Menu may be portaled to <body>, so also ignore clicks inside it.
+      // Menus may be portaled to <body>, so also ignore clicks inside them.
       if (target instanceof Element &&
-        (target.closest('.project-menu') || target.closest('.project-menu-dropdown'))) return
+        (target.closest('.project-menu') || target.closest('.project-menu-dropdown') ||
+         target.closest('.sidebar-footer-menu') || target.closest('.sidebar-footer-dropdown'))) return
       setOpenProjectMenu(null)
       setProjectMenuPos(null)
+      setFooterMenuOpen(false)
+      setFooterMenuPos(null)
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setOpenProjectMenu(null)
         setProjectMenuPos(null)
+        setFooterMenuOpen(false)
+        setFooterMenuPos(null)
       }
     }
     document.addEventListener('mousedown', onDocClick)
@@ -211,14 +219,43 @@ export default function Sidebar({
       )}
       <footer className="sidebar-footer">
         <button
-          className="sidebar-settings-btn"
-          title="Settings"
-          aria-label="Settings"
-          onClick={onOpenSettings}
+          className="sidebar-settings-btn sidebar-footer-menu"
+          title="Menu"
+          aria-label="Menu"
+          onClick={e => {
+            const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+            const width = 160
+            const x = Math.max(4, Math.min(r.right - width, window.innerWidth - width - 8))
+            const y = r.bottom + 4
+            setFooterMenuPos({ x, y })
+            setFooterMenuOpen(v => !v)
+          }}
         >
           <Settings size={15} aria-hidden="true" />
-          <span className="sidebar-settings-label">Settings</span>
+          <span className="sidebar-settings-label">Menu</span>
         </button>
+        {footerMenuOpen && footerMenuPos && createPortal(
+          <div
+            className="sidebar-menu-dropdown sidebar-footer-dropdown"
+            style={{ position: 'fixed', left: footerMenuPos.x, top: footerMenuPos.y, right: 'auto', bottom: 'auto' }}
+          >
+            <button
+              className="menu-item"
+              onClick={() => { setFooterMenuOpen(false); setFooterMenuPos(null); onOpenModelRouter() }}
+            >
+              <Server size={14} aria-hidden="true" />
+              Model Router
+            </button>
+            <button
+              className="menu-item"
+              onClick={() => { setFooterMenuOpen(false); setFooterMenuPos(null); onOpenSettings() }}
+            >
+              <Settings size={14} aria-hidden="true" />
+              Settings
+            </button>
+          </div>,
+          document.body
+        )}
       </footer>
     </aside>
   )

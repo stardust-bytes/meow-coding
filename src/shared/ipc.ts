@@ -1,8 +1,8 @@
 import type {
-  AgentConfig, AgentState, ArtifactEntry, CatalogProviderSummary, ChatEvent, ChatGptWebStatus, ChatMessage, ChatTranscriptItem, Command,
-  ContextChangedEvent, ContextInfo, DirEntry, FileContentResult, FileSuggestion, FileViewerPayload, GitStatus, ImageAttachment, McpServerStatus, MeowSettings,
-  ModelRef, NewAgentInput, PromptResponse, SessionSummary, StatsSummary, Template, TerminalInfo, TodoItem, TraceEvent, TraceSummary, UpdaterStatusEvent, WorkspaceRuntime,
-  WorkspaceSummary
+  AgentConfig, AgentState, ApiKeyInput, ArtifactEntry, CatalogProviderSummary, ChatEvent, ChatMessage, ChatTranscriptItem, Command,
+  ContextChangedEvent, ContextInfo, ConnectionsState, DirEntry, FileContentResult, FileSuggestion, FileViewerPayload, GatewayConfig, GatewayRequestLog,
+  GitStatus, ImageAttachment, LoginStart, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PromptResponse, ProviderAccount, ProviderId, QuotaInfo,
+  SessionSummary, StatsSummary, Template, TerminalInfo, TodoItem, TraceEvent, TraceSummary, UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from './types'
 import type { BrowserStatusInfo, PairingInfo } from './browser-types'
 import type { RemoteStatus } from './remote-types'
@@ -73,10 +73,24 @@ export const Channels = {
   CommandRemove: 'commands:remove',
   StatsGet: 'stats:get',
   McpStatus: 'mcp:status',
-  ChatGptWebGetStatus: 'chatgpt-web:get-status',
-  ChatGptWebSetEnabled: 'chatgpt-web:set-enabled',
-  ChatGptWebLogin: 'chatgpt-web:login',
-  ChatGptWebLogout: 'chatgpt-web:logout',
+  ConnectionsList: 'connections:list',
+  ConnectionsLoginStart: 'connections:login-start',
+  ConnectionsLoginCancel: 'connections:login-cancel',
+  ConnectionsLoginSubmit: 'connections:login-submit',
+  ConnectionsSwitch: 'connections:switch',
+  ConnectionsRemove: 'connections:remove',
+  ConnectionsImport: 'connections:import',
+  ConnectionsApiKeySave: 'connections:api-key-save',
+  ConnectionsApiKeyTest: 'connections:api-key-test',
+  ConnectionsQuotaRefresh: 'connections:quota-refresh',
+  EventConnectionsChanged: 'connections:changed',
+  EventConnectionsLoginProgress: 'connections:login-progress',
+  EventConnectionsQuotaAlert: 'connections:quota-alert',
+  GatewayGetConfig: 'gateway:get-config',
+  GatewaySaveConfig: 'gateway:save-config',
+  GatewayListLogs: 'gateway:list-logs',
+  GatewayClearLogs: 'gateway:clear-logs',
+  EventGatewayChanged: 'gateway:changed',
   WindowMinimize: 'window:minimize',
   WindowToggleMaximize: 'window:toggle-maximize',
   WindowClose: 'window:close',
@@ -94,7 +108,6 @@ export const Channels = {
   AgentSetBackground: 'agent:set-background',
   EventAgentBackground: 'agent:background',
   EventAgentConfig: 'agent:config-changed',
-  EventChatGptWebChallenge: 'chatgpt-web:challenge',
   BrowserGetStatus: 'browser:get-status',
   BrowserPair: 'browser:pair',
   BrowserOpenInstallGuide: 'browser:open-install-guide',
@@ -128,13 +141,6 @@ export interface AgentConfigEvent { agentId: string; config: AgentConfig }
 export interface WindowMaximizedChangeEvent { maximized: boolean }
 export type BrowserStatusEvent = BrowserStatusInfo
 
-export type ChallengeReason = 'cloudflare' | 'session-expired'
-
-export interface ChallengeEvent {
-  reason: ChallengeReason
-  timestamp: string
-}
-
 export interface BrowserInstallGuideEvent {
   extensionDir: string
 }
@@ -142,6 +148,23 @@ export interface BrowserInstallGuideEvent {
 export interface ArtifactsChangedEvent {
   projectPath: string
   artifacts: ArtifactEntry[]
+}
+
+export interface ConnectionsChangedEvent {
+  state: ConnectionsState
+}
+
+export interface ConnectionsLoginProgressEvent {
+  loginId: string
+  provider: ProviderId
+  status: 'started' | 'awaiting-code' | 'completed' | 'failed' | 'cancelled'
+  message?: string
+}
+
+export interface ConnectionsQuotaAlertEvent {
+  provider: ProviderId
+  accountId: string
+  message: string
 }
 
 export interface AgentApi {
@@ -174,6 +197,24 @@ export interface AgentApi {
   listProviderCatalog(): Promise<CatalogProviderSummary[]>
   connectProvider(providerId: string, apiKey: string, baseUrl?: string): Promise<MeowSettings>
   disconnectProvider(providerId: string): Promise<MeowSettings>
+  listConnections(): Promise<ConnectionsState>
+  startConnectionLogin(provider: ProviderId, mode?: 'oauth'): Promise<LoginStart>
+  cancelConnectionLogin(loginId: string): Promise<void>
+  submitConnectionCode(loginId: string, code: string): Promise<ProviderAccount>
+  switchConnectionAccount(provider: ProviderId, accountId: string): Promise<void>
+  removeConnectionAccount(accountId: string): Promise<void>
+  importConnectionAccount(provider: ProviderId, json: string): Promise<ProviderAccount>
+  saveApiKeyAccount(input: ApiKeyInput): Promise<ProviderAccount>
+  testApiKeyAccount(accountId: string): Promise<{ ok: boolean; error?: string }>
+  refreshConnectionsQuota(provider?: ProviderId, accountId?: string): Promise<void>
+  onConnectionsChanged(cb: (e: ConnectionsChangedEvent) => void): () => void
+  onConnectionsLoginProgress(cb: (e: ConnectionsLoginProgressEvent) => void): () => void
+  onConnectionsQuotaAlert(cb: (e: ConnectionsQuotaAlertEvent) => void): () => void
+  getGatewayConfig(): Promise<import('./types').GatewayStatus>
+  saveGatewayConfig(cfg: GatewayConfig): Promise<import('./types').GatewayStatus>
+  listGatewayLogs(limit?: number): Promise<GatewayRequestLog[]>
+  clearGatewayLogs(): Promise<void>
+  onGatewayChanged(cb: (status: import('./types').GatewayStatus) => void): () => void
   listTemplates(): Promise<Template[]>
   saveTemplate(template: Template): Promise<Template>
   removeTemplate(id: string): Promise<void>
@@ -222,10 +263,6 @@ export interface AgentApi {
   removeCommand(name: string): Promise<void>
   getStats(): Promise<StatsSummary>
   getMcpStatus(): Promise<McpServerStatus[]>
-  getChatGptWebStatus(): Promise<ChatGptWebStatus>
-  setChatGptWebEnabled(enabled: boolean): Promise<ChatGptWebStatus>
-  loginChatGptWeb(): Promise<ChatGptWebStatus>
-  logoutChatGptWeb(): Promise<ChatGptWebStatus>
   platform: string
   minimizeWindow(): Promise<void>
   toggleMaximizeWindow(): Promise<void>
@@ -240,7 +277,6 @@ export interface AgentApi {
   onGitStatus(cb: (e: GitStatusEvent) => void): () => void
   onContextChanged(cb: (e: ContextChangedEvent) => void): () => void
   onChatEvent(cb: (e: ChatEvent) => void): () => void
-  onChatGptWebChallenge(cb: (e: ChallengeEvent) => void): () => void
   getBrowserStatus(): Promise<BrowserStatusInfo>
   pairBrowser(): Promise<PairingInfo>
   openBrowserInstallGuide(): Promise<void>

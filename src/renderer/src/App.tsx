@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { BrowserInstallGuideEvent, ChallengeEvent } from '@shared/ipc'
+import type { BrowserInstallGuideEvent } from '@shared/ipc'
 import type { BrowserStatusInfo } from '@shared/browser-types'
-import { ChallengeToast } from './components/ChallengeToast'
 import { Terminal } from '@xterm/xterm'
 import type {
   AgentConfig, AgentState, ArtifactEntry, GitStatus, Template, TerminalInfo, UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
@@ -14,6 +13,7 @@ import StatusBar from './components/StatusBar'
 import TitleBar from './components/TitleBar'
 import RightPanel from './components/RightPanel'
 import SettingsDialog from './components/settings/SettingsDialog'
+import ModelRouterDialog from './components/ModelRouter/ModelRouterDialog'
 import BrowserDialog from './components/BrowserDialog'
 import InstallGuideDialog from './components/InstallGuideDialog'
 import UpdateDialog from './components/UpdateDialog'
@@ -28,9 +28,9 @@ export default function App() {
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
   const [templates, setTemplates] = useState<Template[]>([])
   const [showSettings, setShowSettings] = useState(false)
+  const [showModelRouter, setShowModelRouter] = useState(false)
   const [runtime, setRuntime] = useState<WorkspaceRuntime | null>(null)
   const [backgrounds, setBackgrounds] = useState<Record<string, boolean>>({})
-  const [challenge, setChallenge] = useState<ChallengeEvent | null>(null)
   const [browser, setBrowser] = useState<BrowserStatusInfo | null>(null)
   const [browserDialogOpen, setBrowserDialogOpen] = useState(false)
   const [installGuide, setInstallGuide] = useState<BrowserInstallGuideEvent | null>(null)
@@ -106,9 +106,6 @@ export default function App() {
           }
         : prev)
     })
-    const offChallenge = window.api.onChatGptWebChallenge((e) => {
-      setChallenge(e)
-    })
     const offBrowser = window.api.onBrowserStatus((info) => {
       setBrowser(info)
     })
@@ -135,7 +132,6 @@ export default function App() {
       offGit()
       offBg()
       offConfig()
-      offChallenge()
       offBrowser()
       offInstallGuide()
       offTerminalExit()
@@ -241,7 +237,6 @@ export default function App() {
 
   return (
     <div className="app">
-      <ChallengeToast challenge={challenge} onDismiss={() => setChallenge(null)} />
       <TitleBar panelOpen={rightOpen} onTogglePanel={() => setRightOpen(v => !v)} />
       <div className="app-body">
         <Sidebar
@@ -253,6 +248,7 @@ export default function App() {
           onRefresh={refreshWorkspaces}
           onOpenTerminal={addTerminal}
           onOpenSettings={() => setShowSettings(true)}
+          onOpenModelRouter={() => setShowModelRouter(true)}
         />
         <main className="main">
           {panes.length > 0 ? (
@@ -322,6 +318,9 @@ export default function App() {
           templates={templates}
           onTemplatesChange={setTemplates}
         />
+      )}
+      {showModelRouter && (
+        <ModelRouterDialog onClose={() => setShowModelRouter(false)} />
       )}
     </div>
   )

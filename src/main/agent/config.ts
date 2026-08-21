@@ -9,6 +9,8 @@ export type { McpServerConfig }
 export interface MeowProviderConfig {
   apiKeyEnv?: string
   apiKey?: string
+  /** Reference into the encrypted vault (safeStorage) — preferred over apiKey. */
+  keyRef?: string
   baseUrl?: string
   models: string[]
 }
@@ -270,9 +272,14 @@ export function loadMeowConfig(filePath: string): MeowConfig {
 
 export function resolveApiKey(
   provider: MeowProviderConfig,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  getSecret?: (ref: string) => string | null
 ): string | null {
   if (provider.apiKey) return provider.apiKey
+  if (provider.keyRef && getSecret) {
+    const secret = getSecret(provider.keyRef)
+    if (secret) return secret
+  }
   if (provider.apiKeyEnv) return env[provider.apiKeyEnv] ?? null
   return null
 }
@@ -281,7 +288,8 @@ export function resolveAgentConfig(
   cfg: MeowConfig,
   agentName: string,
   env: NodeJS.ProcessEnv = process.env,
-  agentModel?: string
+  agentModel?: string,
+  getSecret?: (ref: string) => string | null
 ): ResolvedAgentConfig {
   const agent = cfg.agents[agentName] ?? cfg.agents.meow
   let providerName = agent.provider ?? cfg.model
@@ -311,7 +319,7 @@ export function resolveAgentConfig(
   return {
     provider: providerName,
     model,
-    apiKey: resolveApiKey(provider, env),
+    apiKey: resolveApiKey(provider, env, getSecret),
     baseUrl: provider.baseUrl,
     systemPrompt: agent.systemPrompt
   }
@@ -322,6 +330,7 @@ export function configToSettings(cfg: MeowConfig): MeowSettings {
     providers: Object.entries(cfg.provider).map(([id, p]) => ({
       id,
       apiKey: p.apiKey ?? '',
+      keyRef: p.keyRef,
       baseUrl: p.baseUrl,
       models: p.models
     })),
@@ -352,9 +361,10 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
     if (!p.id.trim()) continue
     providers[p.id.trim()] = {
       apiKey: p.apiKey || undefined,
+      keyRef: p.keyRef || undefined,
       baseUrl: p.baseUrl || undefined,
       models,
-      apiKeyEnv: p.apiKey ? undefined : `${p.id.trim().toUpperCase()}_API_KEY`
+      apiKeyEnv: p.apiKey || p.keyRef ? undefined : `${p.id.trim().toUpperCase()}_API_KEY`
     }
   }
   const defaultProvider = providers[settings.defaultProvider] ? settings.defaultProvider : (Object.keys(providers)[0] ?? '')

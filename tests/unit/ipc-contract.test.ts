@@ -17,8 +17,9 @@ describe('IPC contract', () => {
       'checkForUpdates', 'installUpdate', 'onUpdaterStatus',
       'onPtyData', 'onAgentState', 'onAgentConfig', 'onGitStatus', 'onTerminalExit',
       'sendChat', 'stopChat', 'runCommand', 'undoChat', 'redoChat', 'newChatSession', 'listChatMessages', 'listChatTranscript', 'respondPrompt', 'removeQueued', 'editQueued',
-      'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus', 'getChatGptWebStatus', 'setChatGptWebEnabled', 'loginChatGptWeb', 'logoutChatGptWeb', 'listCommands', 'saveCommand', 'removeCommand', 'getStats', 'onContextChanged',
-      'suggestFiles', 'setAgentBackground', 'onAgentBackground', 'onChatGptWebChallenge',
+      'onChatEvent', 'getSettings', 'saveSettings', 'getMcpStatus', 'listCommands', 'saveCommand', 'removeCommand', 'getStats', 'onContextChanged',
+      'suggestFiles', 'setAgentBackground', 'onAgentBackground',
+      'listConnections', 'startConnectionLogin', 'cancelConnectionLogin', 'submitConnectionCode', 'switchConnectionAccount', 'removeConnectionAccount', 'importConnectionAccount', 'saveApiKeyAccount', 'testApiKeyAccount', 'refreshConnectionsQuota', 'onConnectionsChanged', 'onConnectionsLoginProgress', 'onConnectionsQuotaAlert', 'getGatewayConfig', 'saveGatewayConfig', 'listGatewayLogs', 'clearGatewayLogs', 'onGatewayChanged',
       'listSessions', 'createSession', 'switchSession', 'deleteSession', 'renameSession',
       'getChatTodos',
       'isChatRunning',
@@ -89,10 +90,24 @@ describe('IPC contract', () => {
       getSettings: async () => ({ providers: [], defaultProvider: '', agents: [], permission: {}, mcp: {}, maxContextTokens: 200000, maxSteps: Infinity, compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 2000 }, toolOutput: { maxBytes: 51200, maxLines: 2000 }, lsp: { enabled: true, diagnosticsTimeoutMs: 3000 } }),
       saveSettings: async (s) => s,
       getMcpStatus: async () => [],
-      getChatGptWebStatus: async () => ({ enabled: false, loggedIn: false, verifiedAt: null }),
-      setChatGptWebEnabled: async () => ({ enabled: false, loggedIn: false, verifiedAt: null }),
-      loginChatGptWeb: async () => ({ enabled: false, loggedIn: false, verifiedAt: null }),
-      logoutChatGptWeb: async () => ({ enabled: false, loggedIn: false, verifiedAt: null }),
+      listConnections: async () => ({ providers: [] }),
+      startConnectionLogin: async () => ({ loginId: '', provider: 'claude', authUrl: '', mode: 'browser-code', expiresIn: 300 }),
+      cancelConnectionLogin: async () => {},
+      submitConnectionCode: async () => ({ id: '', provider: 'claude', name: '', authMode: 'oauth', active: false, createdAt: 0, lastUsed: 0 }),
+      switchConnectionAccount: async () => {},
+      removeConnectionAccount: async () => {},
+      importConnectionAccount: async () => ({ id: '', provider: 'claude', name: '', authMode: 'imported', active: false, createdAt: 0, lastUsed: 0 }),
+      saveApiKeyAccount: async () => ({ id: '', provider: 'apikey', name: '', authMode: 'api-key', active: false, createdAt: 0, lastUsed: 0 }),
+      testApiKeyAccount: async () => ({ ok: true }),
+      refreshConnectionsQuota: async () => {},
+      onConnectionsChanged: () => () => {},
+      onConnectionsLoginProgress: () => () => {},
+      onConnectionsQuotaAlert: () => () => {},
+      getGatewayConfig: async () => ({ enabled: false, port: 1480, apiKey: '', routingStrategy: 'auto', coldownSeconds: 300, quotaReservePercent: 10, running: false, actualPort: null }),
+      saveGatewayConfig: async (c) => ({ ...c, running: false, actualPort: null }),
+      listGatewayLogs: async () => [],
+      clearGatewayLogs: async () => {},
+      onGatewayChanged: () => () => {},
       getBrowserStatus: async () => ({ status: 'idle', port: 0, paired: false }),
       pairBrowser: async () => ({ code: '000000', expiresAt: 0 }),
       openBrowserInstallGuide: async () => {},
@@ -122,7 +137,6 @@ describe('IPC contract', () => {
       suggestFiles: async () => [],
       setAgentBackground: async () => {},
       onAgentBackground: () => () => {},
-      onChatGptWebChallenge: () => () => {},
       listSessions: async () => [],
       createSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),
       switchSession: async () => ({ id: '', agentId: '', title: '', messageCount: 0, createdAt: 0, updatedAt: 0 }),
@@ -156,7 +170,6 @@ describe('IPC contract', () => {
     expect(Channels.FilesSuggest).toBe('files:suggest')
     expect(Channels.AgentSetBackground).toBe('agent:set-background')
     expect(Channels.EventAgentBackground).toBe('agent:background')
-    expect(Channels.EventChatGptWebChallenge).toBe('chatgpt-web:challenge')
     expect(Channels.AppVersion).toBe('app:version')
     expect(Channels.SessionList).toBe('session:list')
     expect(Channels.SessionCreate).toBe('session:create')
@@ -182,10 +195,6 @@ describe('IPC contract', () => {
     expect(Channels.ProviderConnect).toBe('provider:connect')
     expect(Channels.ProviderDisconnect).toBe('provider:disconnect')
     expect(Channels.McpStatus).toBe('mcp:status')
-    expect(Channels.ChatGptWebGetStatus).toBe('chatgpt-web:get-status')
-    expect(Channels.ChatGptWebSetEnabled).toBe('chatgpt-web:set-enabled')
-    expect(Channels.ChatGptWebLogin).toBe('chatgpt-web:login')
-    expect(Channels.ChatGptWebLogout).toBe('chatgpt-web:logout')
     expect(Channels.WindowMinimize).toBe('window:minimize')
     expect(Channels.WindowToggleMaximize).toBe('window:toggle-maximize')
     expect(Channels.WindowClose).toBe('window:close')

@@ -53,63 +53,63 @@ dùng `ConnectionsStore` (đã có) để lấy account + vault secrets. UI: dro
 
 ## Phase 1 — Gateway core (main process)
 
-- [ ] **T1.1** `src/shared/types.ts`: `RoutingStrategy`, `GatewayConfig`, `GatewayRequestLog`,
+- [x] **T1.1** `src/shared/types.ts`: `RoutingStrategy`, `GatewayConfig`, `GatewayRequestLog`,
   `GatewayStatus = GatewayConfig & { running: boolean; actualPort: number | null }`.
-- [ ] **T1.2** `src/shared/ipc.ts`: Channels `GatewayGetConfig`, `GatewaySaveConfig`, `GatewayListLogs`,
+- [x] **T1.2** `src/shared/ipc.ts`: Channels `GatewayGetConfig`, `GatewaySaveConfig`, `GatewayListLogs`,
   `GatewayClearLogs`, `EventGatewayChanged`; AgentApi `getGatewayConfig()`, `saveGatewayConfig(cfg)`,
   `listGatewayLogs(limit?)`, `clearGatewayLogs()`, `onGatewayChanged(cb)`.
-- [ ] **T1.3** `src/main/gateway/config.ts`: `GatewayConfigStore` — load/save `userData/gateway.json`,
+- [x] **T1.3** `src/main/gateway/config.ts`: `GatewayConfigStore` — load/save `userData/gateway.json`,
   defaults `{ enabled: false, port: 1480, apiKey: '', routingStrategy: 'auto', coldownSeconds: 300,
   quotaReservePercent: 10 }`.
-- [ ] **T1.4** `src/main/gateway/log-store.ts`: `append(entry)`, `list(limit)`, `clear()` — file
+- [x] **T1.4** `src/main/gateway/log-store.ts`: `append(entry)`, `list(limit)`, `clear()` — file
   `userData/gateway-logs/<yyyy-mm-dd>.jsonl` (1 JSON/line).
-- [ ] **T1.5** `src/main/gateway/router.ts`: `selectAccount(accounts, health, opts)`:
+- [x] **T1.5** `src/main/gateway/router.ts`: `selectAccount(accounts, health, opts)`:
   - filter: có token/key (qua `getSecrets`), không bị health block
   - quota reserve: `remaining < reserve%` → đẩy cuối
   - sort theo strategy (`auto`: remaining desc → lastUsed asc → plan tier desc; `random`; `single`
     → account active; `quota-high-first`/`quota-low-first`/`expiry-soon-first`)
   - return account | null.
-- [ ] **T1.6** `src/main/gateway/forward.ts`: `chatCompletions(account, secrets, body, signal)` — build
+- [x] **T1.6** `src/main/gateway/forward.ts`: `chatCompletions(account, secrets, body, signal)` — build
   upstream URL (codex: `apiBaseUrl` hoặc mặc định; api-key: `apiBaseUrl`), set
   `Authorization: Bearer <token/apiKey>`, forward body, relay SSE nếu `stream:true`. `listModels()`.
-- [ ] **T1.7** `src/main/gateway/server.ts`: `createGatewayServer(deps)` — http server bind 127.0.0.1:
+- [x] **T1.7** `src/main/gateway/server.ts`: `createGatewayServer(deps)` — http server bind 127.0.0.1:
   - Bearer auth với `cfg.apiKey` (thiếu/sai → 401; tắt → 503)
   - `GET /v1/models` → gộp model list
   - `POST /v1/chat/completions` → router.select → forward → ghi log; 429/5xx → health block
   - trả `{ port }` actual (EADDRINUSE → error).
-- [ ] **T1.8** `src/main/gateway/manager.ts`: `GatewayManager` — start/stop server theo config,
+- [x] **T1.8** `src/main/gateway/manager.ts`: `GatewayManager` — start/stop server theo config,
   health map `Map<accountId, { blockedUntil }>`, `getStatus()`, emit `EventGatewayChanged`.
-- [ ] **T1.9** Wire `src/main/index.ts`: init `gateway` (dir userData), IPC handlers `gateway:*`,
+- [x] **T1.9** Wire `src/main/index.ts`: init `gateway` (dir userData), IPC handlers `gateway:*`,
   start/stop lifecycle (start khi app ready nếu enabled; stop before-quit).
-- [ ] **T1.10** `src/preload/index.ts`: expose `gateway.*`.
+- [x] **T1.10** `src/preload/index.ts`: expose `gateway.*`.
 - **Verify T1**: typecheck pass; test router + server (T3.1-T3.2 sớm).
 
 ## Phase 2 — UI
 
-- [ ] **T2.1** `src/renderer/.../components/Sidebar.tsx`: footer → dropdown 2 mục (Model Router /
+- [x] **T2.1** `src/renderer/.../components/Sidebar.tsx`: footer → dropdown 2 mục (Model Router /
   Settings), portal + click-ngoài/Escape (theo pattern project-menu hiện có). Props thêm
   `onOpenModelRouter`.
-- [ ] **T2.2** `src/renderer/.../components/ModelRouter/AccountsTab.tsx`: move nguyên nội dung
+- [x] **T2.2** `src/renderer/.../components/ModelRouter/AccountsTab.tsx`: move nguyên nội dung
   `settings/ConnectionsTab.tsx` (đổi path import).
-- [ ] **T2.3** `src/renderer/.../components/ModelRouter/GatewayTab.tsx`: toggle + port + gateway API
+- [x] **T2.3** `src/renderer/.../components/ModelRouter/GatewayTab.tsx`: toggle + port + gateway API
   key + routing dropdown + coldown + quota reserve; copy endpoint; hiển thị `GatewayStatus`.
-- [ ] **T2.4** `src/renderer/.../components/ModelRouter/QuotaTab.tsx`: danh sách account (email/plan/
+- [x] **T2.4** `src/renderer/.../components/ModelRouter/QuotaTab.tsx`: danh sách account (email/plan/
   quota bar/refresh) — tái dùng `QuotaBar` logic từ AccountsTab.
-- [ ] **T2.5** `src/renderer/.../components/ModelRouter/LogsTab.tsx`: bảng ts/account/model/status/
+- [x] **T2.5** `src/renderer/.../components/ModelRouter/LogsTab.tsx`: bảng ts/account/model/status/
   tokens/ms + Refresh + Clear.
-- [ ] **T2.6** `src/renderer/.../components/ModelRouter/ModelRouterDialog.tsx`: modal full-height +
+- [x] **T2.6** `src/renderer/.../components/ModelRouter/ModelRouterDialog.tsx`: modal full-height +
   sub-nav 4 tab; lắng nghe `onConnectionsChanged` + `onGatewayChanged`.
-- [ ] **T2.7** `App.tsx`: state `showModelRouter`, render dialog; truyền `onOpenModelRouter` vào Sidebar.
-- [ ] **T2.8** `SettingsDialog.tsx`: gỡ import + tab Connections; xoá file
+- [x] **T2.7** `App.tsx`: state `showModelRouter`, render dialog; truyền `onOpenModelRouter` vào Sidebar.
+- [x] **T2.8** `SettingsDialog.tsx`: gỡ import + tab Connections; xoá file
   `settings/ConnectionsTab.tsx`.
-- [ ] **T2.9** `styles.css`: style dropdown footer + ModelRouter dialog + tabs.
+- [x] **T2.9** `styles.css`: style dropdown footer + ModelRouter dialog + tabs.
 - **Verify T2**: typecheck pass; `npm run dev` mở dropdown → popup hoạt động.
 
 ## Phase 3 — Tests + polish
 
-- [ ] **T3.1** `tests/unit/gateway-router.test.ts`: select theo strategy, coldown block/unblock,
+- [x] **T3.1** `tests/unit/gateway-router.test.ts`: select theo strategy, coldown block/unblock,
   quota reserve xếp sau, single→active, empty→null.
-- [ ] **T3.2** `tests/unit/gateway-server.test.ts`: auth 401, tắt→503, forward mock fetch 200 + 429→
+- [x] **T3.2** `tests/unit/gateway-server.test.ts`: auth 401, tắt→503, forward mock fetch 200 + 429→
   health block, log ghi đúng (dùng tmpdir).
-- [ ] **T3.3** `tests/unit/ipc-contract.test.ts`: thêm 4 gateway methods + 1 event.
-- [ ] **T3.4** `npm run typecheck` + `npm test` pass (trừ officecli pre-existing); `npm run build` pass.
+- [x] **T3.3** `tests/unit/ipc-contract.test.ts`: thêm 4 gateway methods + 1 event.
+- [x] **T3.4** `npm run typecheck` + `npm test` pass (trừ officecli pre-existing); `npm run build` pass.

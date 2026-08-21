@@ -113,7 +113,7 @@ export default function RemoteTab() {
 
   return (
     <div className="settings-tab remote-tab">
-      <div className="chatgpt-web-row">
+      <div className="settings-row">
         <span>Allow remote control</span>
         <button className="btn" disabled={busy} onClick={() => void toggle()}>
           {status.enabled ? 'Disable' : 'Enable'}
@@ -135,7 +135,7 @@ export default function RemoteTab() {
 
       {status.enabled && (
         <>
-          <div className="chatgpt-web-row">
+          <div className="settings-row">
             <span>Pair a mobile device</span>
             <button className="btn primary" disabled={busy || !status.connected} onClick={() => void startPairing()}>
               Start pairing
@@ -154,7 +154,7 @@ export default function RemoteTab() {
               </span>
             </div>
           )}
-          <div className="chatgpt-web-row">
+          <div className="settings-row">
             <span>Trusted devices</span>
             <button className="btn" disabled={busy || !status.paired} onClick={() => void revoke()}>
               Revoke trusted devices

@@ -6,12 +6,11 @@ import PermissionsTab from './PermissionsTab'
 import McpTab from './McpTab'
 import ContextTab from './ContextTab'
 import CommandsTab from './CommandsTab'
-import ChatGptWebTab from './ChatGptWebTab'
 import RemoteTab from './RemoteTab'
 import TemplatesTab from './TemplatesTab'
 import UpdatesTab from './UpdatesTab'
 
-type TabId = 'providers' | 'agents' | 'permissions' | 'mcp' | 'context' | 'commands' | 'chatgpt-web' | 'remote' | 'templates' | 'updates'
+type TabId = 'providers' | 'agents' | 'permissions' | 'mcp' | 'context' | 'commands' | 'remote' | 'templates' | 'updates'
 
 const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'providers', label: 'Providers' },
@@ -20,7 +19,6 @@ const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'mcp', label: 'MCP' },
   { id: 'context', label: 'Context' },
   { id: 'commands', label: 'Commands' },
-  { id: 'chatgpt-web', label: 'ChatGPT Web (Experimental)' },
   { id: 'remote', label: 'Remote Control' },
   { id: 'templates', label: 'Templates' },
   { id: 'updates', label: 'Updates' }
@@ -154,7 +152,6 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
               />
             )}
             {tab === 'commands' && <CommandsTab projectPath={projectPath} />}
-            {tab === 'chatgpt-web' && <ChatGptWebTab />}
             {tab === 'remote' && <RemoteTab />}
             {tab === 'templates' && <TemplatesTab templates={templates} onChange={onTemplatesChange} />}
             {tab === 'updates' && <UpdatesTab />}
