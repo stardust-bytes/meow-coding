@@ -122,7 +122,10 @@ export default function App() {
     })
     const offUpdater = window.api.onUpdaterStatus((e) => {
       setUpdateStatus(e)
-      if (e.type === 'update-available') setUpdateDialogOpen(true)
+      // Download runs in the background even when the popup is closed — when
+      // it finishes, bring the dialog back so the user can restart now or
+      // defer to later.
+      if (e.type === 'update-available' || e.type === 'downloaded') setUpdateDialogOpen(true)
       if (e.type === 'error' || e.type === 'not-supported') setUpdateDialogOpen(false)
     })
     void window.api.getBrowserStatus().then(setBrowser)

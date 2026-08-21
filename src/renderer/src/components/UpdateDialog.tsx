@@ -39,7 +39,7 @@ export default function UpdateDialog({ status, onClose, onInstall }: Props) {
     <div className="dialog-backdrop">
       <div className="dialog update-dialog">
         <h3>{ready ? 'Update ready' : 'Update available'}</h3>
-        <button className="dialog-close" aria-label="Close" onClick={onClose} disabled={downloading}>✕</button>
+        <button className="dialog-close" aria-label="Close" onClick={onClose}>✕</button>
         {version && (
           <p className="update-version">
             {currentVersion ? `v${currentVersion} → v${version}` : `v${version}`}

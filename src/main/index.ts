@@ -215,6 +215,16 @@ class MainApp {
     this.updater = new Updater(
       (e) => {
         win?.webContents.send(Channels.EventUpdaterStatus, e)
+        if (e.type === 'downloaded') {
+          // Download finished in the background — let the user know even with
+          // the dialog closed; clicking installs and restarts.
+          const n = new Notification({
+            title: 'Meow Coding',
+            body: `[meow] v${e.version} đã tải xong. Click để cài đặt và khởi động lại.`
+          })
+          n.on('click', () => this.updater.install())
+          n.show()
+        }
       },
       {
         isPackaged: app.isPackaged,
