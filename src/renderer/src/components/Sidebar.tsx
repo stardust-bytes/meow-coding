@@ -268,13 +268,9 @@ export default function Sidebar({
                 <button
                   className="btn small"
                   disabled={updateChecking}
-                  onClick={() => {
-                    setFooterMenuOpen(false)
-                    setFooterMenuPos(null)
-                    onCheckUpdate()
-                  }}
+                  onClick={onCheckUpdate}
                 >
-                  <RefreshCw size={12} aria-hidden="true" />
+                  <RefreshCw size={12} aria-hidden="true" className={updateChecking ? 'spin' : undefined} />
                   {updateChecking ? 'Checking…' : 'Check update'}
                 </button>
               </div>

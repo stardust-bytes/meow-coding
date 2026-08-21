@@ -453,7 +453,7 @@ select.input { width: 100%; }
   background: rgba(4, 6, 12, 0.6);
   backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center;
-  z-index: 10;
+  z-index: 100;
 }
 .dialog {
   background: var(--bg-raised);
@@ -1228,6 +1228,8 @@ select.input { width: 100%; }
 .sidebar-update-version { color: var(--text-faint); font-size: var(--fs-sm); font-family: var(--font-mono); padding: 0 10px; }
 .sidebar-update-actions { display: flex; flex-direction: column; gap: 4px; padding: 0 6px 4px; }
 .sidebar-update-actions .btn { display: inline-flex; align-items: center; gap: 6px; justify-content: flex-start; }
+.sidebar-update-actions .btn .spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .menu-item.danger:hover { background: rgba(255, 95, 86, 0.12); color: var(--red); }
 .project-row { position: relative; }
