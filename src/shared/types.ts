@@ -148,6 +148,7 @@ export type ChatEvent =
       reasoning?: string; background?: boolean; result?: string
       state?: 'running' | 'completed' | 'cancelled' | 'error' }
   | { type: 'user-message'; agentId: string; message: ChatMessage }
+  | { type: 'message-removed'; agentId: string; messageId: string }
   | { type: 'session-created'; agentId: string }
 
 export interface QueuedMessage {

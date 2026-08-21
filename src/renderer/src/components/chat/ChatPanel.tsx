@@ -448,6 +448,12 @@ if (e.type === 'usage') {
       shouldJumpToEnd.current = true
       return
     }
+    if (e.type === 'message-removed') {
+      setItems(prev => prev.filter(i =>
+        !(i.kind === 'message' && (i.id === e.messageId || i.id === 'u-' + e.messageId))
+      ))
+      return
+    }
     if (e.type === 'done' || e.type === 'error') {
       flushDeltas()
       setRunning(false)

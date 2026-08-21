@@ -262,10 +262,15 @@ export class MeowAgentManager {
   removeQueued(agentId: string, id: string): void {
     const q = this.queues.get(agentId) ?? []
     const next = q.filter(m => m.id !== id)
-    if (next.length === q.length) return
-    if (next.length === 0) this.queues.delete(agentId)
-    else this.queues.set(agentId, next)
-    this.emitQueue(agentId)
+    if (next.length !== q.length) {
+      if (next.length === 0) this.queues.delete(agentId)
+      else this.queues.set(agentId, next)
+      this.emitQueue(agentId)
+    }
+    // If the message was already injected into the running turn, drop it from
+    // the transcript too so the bubble disappears everywhere.
+    this.deps.store.removeMessage(this.activeSessionId(agentId), id)
+    this.emit({ type: 'message-removed', agentId, messageId: id })
   }
 
   editQueued(agentId: string, id: string, text: string): void {
@@ -857,6 +862,13 @@ export class MeowAgentManager {
       getItems: () => this.deps.store.get(this.activeSessionId(agent.id))?.items ?? [],
       appendMessage: (msg) => this.deps.store.appendMessage(this.activeSessionId(agent.id), msg),
       appendTool: (tool) => this.deps.store.appendTool(this.activeSessionId(agent.id), tool),
+      takeSteers: () => {
+        const q = this.queues.get(agent.id)
+        if (!q || q.length === 0) return []
+        this.queues.delete(agent.id)
+        this.emitQueue(agent.id)
+        return q
+      },
       setTodos: (todos) => {
         this.deps.store.setTodos(this.activeSessionId(agent.id), todos)
         this.emit({ type: 'todo-updated', agentId: agent.id, todos })
