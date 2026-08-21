@@ -545,7 +545,7 @@ select.input { width: 100%; }
 .status-bar .sb-browser-waiting { color: var(--red); border-color: rgba(255, 95, 86, 0.4); }
 .status-bar .sb-browser-on { color: var(--green); border-color: rgba(74, 222, 159, 0.35); }
 
-.browser-hd { display: flex; align-items: center; justify-content: space-between; }
+.browser-hd { display: flex; align-items: center; justify-content: space-between; padding-right: 28px; }
 .browser-hd h3 { margin: 0; }
 .browser-pill {
   font-family: var(--font-mono); font-size: var(--fs-sm); padding: 2px 8px;
