@@ -296,8 +296,8 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .btn:hover { background: var(--bg-input-hover); border-color: var(--accent-border); }
 .btn:active { transform: translateY(1px); }
 .btn.small { padding: 2px 8px; font-size: var(--fs-base); }
-.btn.primary { background: var(--accent); color: #ffffff; border-color: transparent; font-weight: var(--fw-semibold); }
-.btn.primary:hover { background: var(--accent-strong); border-color: transparent; }
+.btn.primary { background: #3f8fe0; color: #ffffff; border-color: transparent; font-weight: var(--fw-semibold); }
+.btn.primary:hover { background: #4d9be8; border-color: transparent; }
 .btn:disabled { opacity: 0.45; cursor: default; transform: none; }
 .btn.ghost { background: transparent; }
 .btn.ghost:hover { background: var(--bg-hover); }
