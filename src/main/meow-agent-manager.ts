@@ -34,7 +34,7 @@ import { createTaskTool } from './agent/tools/task'
 import type { ResolvedSubagentModel } from './agent/tools/task'
 import type { ToolDefinition } from './agent/tools/types'
 import type { NotificationService } from './notification-service'
-import type { Vault } from './connections/vault'
+import type { Vault } from './vault'
 import { TraceStore } from './agent/trace-store'
 import type { TraceEventInput } from './agent/trace-store'
 

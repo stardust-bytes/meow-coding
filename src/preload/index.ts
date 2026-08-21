@@ -2,8 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
 import type { ArtifactsChangedEvent } from '../shared/ipc'
 import type { ChatEvent, Command, ContextChangedEvent, FileViewerPayload, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, TraceEvent, UpdaterStatusEvent } from '../shared/types'
-import type { AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, ConnectionsChangedEvent, ConnectionsLoginProgressEvent, ConnectionsQuotaAlertEvent, GitStatusEvent, PtyDataEvent, TerminalExitEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
-import type { ApiKeyInput, GatewayConfig, GatewayStatus, ProviderId } from '../shared/types'
+import type { AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, GitStatusEvent, PtyDataEvent, TerminalExitEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
 import type { BrowserStatusInfo } from '../shared/browser-types'
 import type { RemoteStatus } from '../shared/remote-types'
 
@@ -65,33 +64,6 @@ const api: AgentApi = {
   connectProvider: (providerId: string, apiKey: string, baseUrl?: string) =>
     ipcRenderer.invoke(Channels.ProviderConnect, providerId, apiKey, baseUrl),
   disconnectProvider: (providerId: string) => ipcRenderer.invoke(Channels.ProviderDisconnect, providerId),
-  listConnections: () => ipcRenderer.invoke(Channels.ConnectionsList),
-  startConnectionLogin: (provider: ProviderId, mode?: 'oauth') =>
-    ipcRenderer.invoke(Channels.ConnectionsLoginStart, provider, mode),
-  cancelConnectionLogin: (loginId: string) => ipcRenderer.invoke(Channels.ConnectionsLoginCancel, loginId),
-  submitConnectionCode: (loginId: string, code: string) =>
-    ipcRenderer.invoke(Channels.ConnectionsLoginSubmit, loginId, code),
-  switchConnectionAccount: (provider: ProviderId, accountId: string) =>
-    ipcRenderer.invoke(Channels.ConnectionsSwitch, provider, accountId),
-  removeConnectionAccount: (accountId: string) => ipcRenderer.invoke(Channels.ConnectionsRemove, accountId),
-  importConnectionAccount: (provider: ProviderId, json: string) =>
-    ipcRenderer.invoke(Channels.ConnectionsImport, provider, json),
-  saveApiKeyAccount: (input: ApiKeyInput) => ipcRenderer.invoke(Channels.ConnectionsApiKeySave, input),
-  testApiKeyAccount: (accountId: string) => ipcRenderer.invoke(Channels.ConnectionsApiKeyTest, accountId),
-  refreshConnectionsQuota: (provider?: ProviderId, accountId?: string) =>
-    ipcRenderer.invoke(Channels.ConnectionsQuotaRefresh, provider, accountId),
-  onConnectionsChanged: (cb: (e: ConnectionsChangedEvent) => void) =>
-    subscribe(Channels.EventConnectionsChanged, cb),
-  onConnectionsLoginProgress: (cb: (e: ConnectionsLoginProgressEvent) => void) =>
-    subscribe(Channels.EventConnectionsLoginProgress, cb),
-  onConnectionsQuotaAlert: (cb: (e: ConnectionsQuotaAlertEvent) => void) =>
-    subscribe(Channels.EventConnectionsQuotaAlert, cb),
-  getGatewayConfig: () => ipcRenderer.invoke(Channels.GatewayGetConfig),
-  saveGatewayConfig: (cfg: GatewayConfig) => ipcRenderer.invoke(Channels.GatewaySaveConfig, cfg),
-  listGatewayLogs: (limit?: number) => ipcRenderer.invoke(Channels.GatewayListLogs, limit),
-  clearGatewayLogs: () => ipcRenderer.invoke(Channels.GatewayClearLogs),
-  onGatewayChanged: (cb: (status: GatewayStatus) => void) =>
-    subscribe(Channels.EventGatewayChanged, cb),
   listTemplates: () => ipcRenderer.invoke(Channels.TemplateList),
   saveTemplate: (template: Template) => ipcRenderer.invoke(Channels.TemplateSave, template),
   removeTemplate: (id: string) => ipcRenderer.invoke(Channels.TemplateRemove, id),

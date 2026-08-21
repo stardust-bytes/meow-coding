@@ -27,8 +27,7 @@ handlers và vòng đời app.
 - `terminal-shell.ts` — `resolveShell`: chọn shell mặc định theo platform.
 - `updater.ts` — electron-updater wrapper, phát `UpdaterStatusEvent`.
 - `window-chrome.ts` — `getWindowChromeOptions`: title-bar ẩn trên Windows/Linux.
-- `connections/` — Model Connections: vault (safeStorage) + account store + provider adapters
-  (Claude OAuth, Codex OAuth, API key vault) + quota monitoring.
+- `vault.ts` — encrypted secret store (safeStorage) cho API keys của providers.
 - `browser/` — BrowserBridge (WS server local + pairing) + Chrome launcher + snapshot format.
 
 ## Quy ước

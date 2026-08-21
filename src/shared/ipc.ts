@@ -1,7 +1,7 @@
 import type {
-  AgentConfig, AgentState, ApiKeyInput, ArtifactEntry, CatalogProviderSummary, ChatEvent, ChatMessage, ChatTranscriptItem, Command,
-  ContextChangedEvent, ContextInfo, ConnectionsState, DirEntry, FileContentResult, FileSuggestion, FileViewerPayload, GatewayConfig, GatewayRequestLog,
-  GitStatus, ImageAttachment, LoginStart, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PromptResponse, ProviderAccount, ProviderId, QuotaInfo,
+  AgentConfig, AgentState, ArtifactEntry, CatalogProviderSummary, ChatEvent, ChatMessage, ChatTranscriptItem, Command,
+  ContextChangedEvent, ContextInfo, DirEntry, FileContentResult, FileSuggestion, FileViewerPayload,
+  GitStatus, ImageAttachment, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PromptResponse,
   SessionSummary, StatsSummary, Template, TerminalInfo, TodoItem, TraceEvent, TraceSummary, UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from './types'
 import type { BrowserStatusInfo, PairingInfo } from './browser-types'
@@ -73,24 +73,6 @@ export const Channels = {
   CommandRemove: 'commands:remove',
   StatsGet: 'stats:get',
   McpStatus: 'mcp:status',
-  ConnectionsList: 'connections:list',
-  ConnectionsLoginStart: 'connections:login-start',
-  ConnectionsLoginCancel: 'connections:login-cancel',
-  ConnectionsLoginSubmit: 'connections:login-submit',
-  ConnectionsSwitch: 'connections:switch',
-  ConnectionsRemove: 'connections:remove',
-  ConnectionsImport: 'connections:import',
-  ConnectionsApiKeySave: 'connections:api-key-save',
-  ConnectionsApiKeyTest: 'connections:api-key-test',
-  ConnectionsQuotaRefresh: 'connections:quota-refresh',
-  EventConnectionsChanged: 'connections:changed',
-  EventConnectionsLoginProgress: 'connections:login-progress',
-  EventConnectionsQuotaAlert: 'connections:quota-alert',
-  GatewayGetConfig: 'gateway:get-config',
-  GatewaySaveConfig: 'gateway:save-config',
-  GatewayListLogs: 'gateway:list-logs',
-  GatewayClearLogs: 'gateway:clear-logs',
-  EventGatewayChanged: 'gateway:changed',
   WindowMinimize: 'window:minimize',
   WindowToggleMaximize: 'window:toggle-maximize',
   WindowClose: 'window:close',
@@ -150,23 +132,6 @@ export interface ArtifactsChangedEvent {
   artifacts: ArtifactEntry[]
 }
 
-export interface ConnectionsChangedEvent {
-  state: ConnectionsState
-}
-
-export interface ConnectionsLoginProgressEvent {
-  loginId: string
-  provider: ProviderId
-  status: 'started' | 'awaiting-code' | 'completed' | 'failed' | 'cancelled'
-  message?: string
-}
-
-export interface ConnectionsQuotaAlertEvent {
-  provider: ProviderId
-  accountId: string
-  message: string
-}
-
 export interface AgentApi {
   listWorkspaces(): Promise<WorkspaceSummary[]>
   addWorkspace(projectPath: string, name: string): Promise<WorkspaceRuntime | null>
@@ -197,24 +162,6 @@ export interface AgentApi {
   listProviderCatalog(): Promise<CatalogProviderSummary[]>
   connectProvider(providerId: string, apiKey: string, baseUrl?: string): Promise<MeowSettings>
   disconnectProvider(providerId: string): Promise<MeowSettings>
-  listConnections(): Promise<ConnectionsState>
-  startConnectionLogin(provider: ProviderId, mode?: 'oauth'): Promise<LoginStart>
-  cancelConnectionLogin(loginId: string): Promise<void>
-  submitConnectionCode(loginId: string, code: string): Promise<ProviderAccount>
-  switchConnectionAccount(provider: ProviderId, accountId: string): Promise<void>
-  removeConnectionAccount(accountId: string): Promise<void>
-  importConnectionAccount(provider: ProviderId, json: string): Promise<ProviderAccount>
-  saveApiKeyAccount(input: ApiKeyInput): Promise<ProviderAccount>
-  testApiKeyAccount(accountId: string): Promise<{ ok: boolean; error?: string }>
-  refreshConnectionsQuota(provider?: ProviderId, accountId?: string): Promise<void>
-  onConnectionsChanged(cb: (e: ConnectionsChangedEvent) => void): () => void
-  onConnectionsLoginProgress(cb: (e: ConnectionsLoginProgressEvent) => void): () => void
-  onConnectionsQuotaAlert(cb: (e: ConnectionsQuotaAlertEvent) => void): () => void
-  getGatewayConfig(): Promise<import('./types').GatewayStatus>
-  saveGatewayConfig(cfg: GatewayConfig): Promise<import('./types').GatewayStatus>
-  listGatewayLogs(limit?: number): Promise<GatewayRequestLog[]>
-  clearGatewayLogs(): Promise<void>
-  onGatewayChanged(cb: (status: import('./types').GatewayStatus) => void): () => void
   listTemplates(): Promise<Template[]>
   saveTemplate(template: Template): Promise<Template>
   removeTemplate(id: string): Promise<void>

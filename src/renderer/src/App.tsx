@@ -13,7 +13,6 @@ import StatusBar from './components/StatusBar'
 import TitleBar from './components/TitleBar'
 import RightPanel from './components/RightPanel'
 import SettingsDialog from './components/settings/SettingsDialog'
-import ModelRouterDialog from './components/ModelRouter/ModelRouterDialog'
 import BrowserDialog from './components/BrowserDialog'
 import InstallGuideDialog from './components/InstallGuideDialog'
 import UpdateDialog from './components/UpdateDialog'
@@ -320,8 +319,31 @@ export default function App() {
         />
       )}
       {showModelRouter && (
-        <ModelRouterDialog onClose={() => setShowModelRouter(false)} />
+        <ModelRouterComingSoon onClose={() => setShowModelRouter(false)} />
       )}
+    </div>
+  )
+}
+
+function ModelRouterComingSoon({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div className="dialog-backdrop">
+      <div className="dialog">
+        <h3>Model Router</h3>
+        <button className="dialog-close" aria-label="Close" onClick={onClose}>✕</button>
+        <p className="settings-hint">Coming soon.</p>
+        <div className="dialog-actions">
+          <button className="btn" onClick={onClose}>Close</button>
+        </div>
+      </div>
     </div>
   )
 }

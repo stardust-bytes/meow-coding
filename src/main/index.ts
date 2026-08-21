@@ -34,13 +34,7 @@ import type { DirEntry } from '../shared/types'
 import { LspManager } from './agent/lsp/manager'
 import { ModelsCatalog } from './models-catalog'
 import { getWindowChromeOptions } from './window-chrome'
-import { ConnectionsManager } from './connections/manager'
-import { GatewayManager } from './gateway/manager'
-import { QuotaMonitor } from './connections/quota'
-import { Vault } from './connections/vault'
-import { apiKeyAdapter } from './connections/providers/apikey'
-import { claudeAdapter } from './connections/providers/claude'
-import { codexAdapter } from './connections/providers/codex'
+import { Vault } from './vault'
 import { TrayManager } from './tray-manager'
 import { BrowserBridge } from './browser/bridge'
 import { createChromeLauncher, ensureExtensionInstalled } from './browser/chrome-launcher'
@@ -48,7 +42,7 @@ import { RemoteManager } from './remote/remote-manager'
 import { RemoteSettingsStore } from './remote/remote-settings'
 import { RemotePairing } from './remote/remote-pairing'
 import { Channels } from '../shared/ipc'
-import type { AgentState, ApiKeyInput, Command, FileViewerPayload, GatewayConfig, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, ProviderId, Template, TerminalInfo, Workspace, WorkspaceRuntime } from '../shared/types'
+import type { AgentState, Command, FileViewerPayload, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, TerminalInfo, Workspace, WorkspaceRuntime } from '../shared/types'
 
 let win: BrowserWindow | null = null
 let isQuitting = false
@@ -113,26 +107,6 @@ class MainApp {
   })
   traces = new TraceStore(path.join(app.getPath('userData'), 'traces'))
   vault = new Vault(path.join(app.getPath('userData'), 'connections', 'vault.json'))
-  connections = new ConnectionsManager({
-    dir: path.join(app.getPath('userData'), 'connections'),
-    vault: this.vault,
-    adapters: { apikey: apiKeyAdapter, claude: claudeAdapter, codex: codexAdapter },
-    notify: new NotificationService(() => !win || !win.isFocused()),
-    emit: (channel, payload) => win?.webContents.send(channel, payload),
-    openExternal: (url) => void shell.openExternal(url)
-  })
-  quotaMonitor = new QuotaMonitor(
-    this.connections,
-    new NotificationService(() => !win || !win.isFocused()),
-    (payload) => win?.webContents.send(Channels.EventConnectionsQuotaAlert, payload)
-  )
-  gateway = new GatewayManager({
-    dir: path.join(app.getPath('userData'), 'gateway'),
-    connections: this.connections,
-    emit: (channel, payload) => {
-      if (channel === 'gateway-changed') win?.webContents.send(Channels.EventGatewayChanged, payload)
-    }
-  })
   meowAgent = new MeowAgentManager({
     configPath: path.join(app.getPath('userData'), 'meow.json'),
     vault: this.vault,
@@ -342,8 +316,7 @@ class MainApp {
     }
     this.setState(agentId, { status: 'spawning', exitCode: null, alert: 'normal' })
     try {
-      const env = this.connections.resolveSpawnEnv(tmpl.id)
-      this.pty.start(agentId, agent.name, tmpl.command, tmpl.args, agent.cwd, env)
+      this.pty.start(agentId, agent.name, tmpl.command, tmpl.args, agent.cwd)
       this.ptyStartTs.set(agentId, Date.now())
       if (mainApp.meowAgent.isTraceEnabled()) {
         this.traces.append(agentId, {
@@ -770,25 +743,6 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.SettingsSave, (_e, settings: MeowSettings) =>
     mainApp.meowAgent.saveSettings(settings))
   ipcMain.handle(Channels.McpStatus, () => mainApp.meowAgent.getMcpStatus())
-  ipcMain.handle(Channels.ConnectionsList, () => mainApp.connections.listState())
-  ipcMain.handle(Channels.ConnectionsLoginStart, (_e, provider: ProviderId, mode?: 'oauth') =>
-    mainApp.connections.startLogin(provider, mode))
-  ipcMain.handle(Channels.ConnectionsLoginCancel, (_e, loginId: string) => mainApp.connections.cancelLogin(loginId))
-  ipcMain.handle(Channels.ConnectionsLoginSubmit, (_e, loginId: string, code: string) =>
-    mainApp.connections.submitCode(loginId, code))
-  ipcMain.handle(Channels.ConnectionsSwitch, (_e, provider: ProviderId, accountId: string) =>
-    mainApp.connections.switchAccount(provider, accountId))
-  ipcMain.handle(Channels.ConnectionsRemove, (_e, accountId: string) => mainApp.connections.removeAccount(accountId))
-  ipcMain.handle(Channels.ConnectionsImport, (_e, provider: ProviderId, json: string) =>
-    mainApp.connections.importAccount(provider, json))
-  ipcMain.handle(Channels.ConnectionsApiKeySave, (_e, input: ApiKeyInput) => mainApp.connections.saveApiKey(input))
-  ipcMain.handle(Channels.ConnectionsApiKeyTest, (_e, accountId: string) => mainApp.connections.testApiKey(accountId))
-  ipcMain.handle(Channels.ConnectionsQuotaRefresh, (_e, provider?: ProviderId, accountId?: string) =>
-    mainApp.connections.refreshQuota(provider, accountId))
-  ipcMain.handle(Channels.GatewayGetConfig, () => mainApp.gateway.getStatus())
-  ipcMain.handle(Channels.GatewaySaveConfig, (_e, cfg: GatewayConfig) => mainApp.gateway.saveConfig(cfg))
-  ipcMain.handle(Channels.GatewayListLogs, (_e, limit?: number) => mainApp.gateway.listLogs(limit))
-  ipcMain.handle(Channels.GatewayClearLogs, () => mainApp.gateway.clearLogs())
   ipcMain.handle(Channels.CommandList, (_e, projectPath: string) => mainApp.meowAgent.listCommands(projectPath))
   ipcMain.handle(Channels.CommandSave, (_e, command: Command) => mainApp.meowAgent.saveCommand(command))
   ipcMain.handle(Channels.CommandRemove, (_e, name: string) => mainApp.meowAgent.removeCommand(name))
@@ -840,8 +794,6 @@ app.whenReady().then(async () => {
     rmSync(path.join(app.getPath('userData'), 'traces'), { recursive: true, force: true })
   }
   registerIpcHandlers()
-  mainApp.quotaMonitor.start()
-  mainApp.gateway.start().catch(err => console.error('[meow] gateway start failed:', err))
   createWindow()
   tray = TrayManager.create({
     userDataDir: app.getPath('userData'),
@@ -874,8 +826,7 @@ app.on('before-quit', (event) => {
   cleaningUp = true
   isQuitting = true
   mainApp.stopGitPoll()
-  mainApp.quotaMonitor.stop()
-  void mainApp.gateway.stop().then(() => mainApp.meowAgent.dispose()).then(() => {
+  void mainApp.meowAgent.dispose().then(() => {
     return mainApp.traces.flushAll()
   }).then(() => {
     return mainApp.browserBridge.close()

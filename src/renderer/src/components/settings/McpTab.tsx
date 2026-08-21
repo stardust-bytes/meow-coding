@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { McpServerConfig, McpServerStatus } from '@shared/types'
+import Modal from './Modal'
 
 interface Props {
   mcp: Record<string, McpServerConfig>
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export default function McpTab({ mcp, status, onChange }: Props) {
+  const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [newUrl, setNewUrl] = useState('')
   const [newCommand, setNewCommand] = useState('')
@@ -27,6 +29,14 @@ export default function McpTab({ mcp, status, onChange }: Props) {
     onChange(next)
   }
 
+  const openAdd = () => {
+    setNewName('')
+    setNewUrl('')
+    setNewCommand('')
+    setNewArgs('')
+    setAdding(true)
+  }
+
   const addServer = () => {
     const name = newName.trim()
     if (!name || mcp[name]) return
@@ -36,10 +46,7 @@ export default function McpTab({ mcp, status, onChange }: Props) {
     const args = newArgs.split(' ').map(a => a.trim()).filter(Boolean)
     if (args.length > 0) cfg.args = args
     onChange({ ...mcp, [name]: cfg })
-    setNewName('')
-    setNewUrl('')
-    setNewCommand('')
-    setNewArgs('')
+    setAdding(false)
   }
 
   const removeServer = (name: string) => {
@@ -52,9 +59,12 @@ export default function McpTab({ mcp, status, onChange }: Props) {
 
   return (
     <div className="settings-tab mcp-tab">
-      <p className="settings-hint">
-        MCP servers. Each server is a stdio command or an HTTP URL. Changes apply after Save.
-      </p>
+      <div className="mcp-head">
+        <p className="settings-hint">
+          MCP servers. Each server is a stdio command or an HTTP URL. Changes apply after Save.
+        </p>
+        <button className="btn primary small" onClick={openAdd}>+ Add server</button>
+      </div>
       {Object.entries(mcp).map(([name, cfg]) => {
         const st = statusFor(name)
         return (
@@ -93,13 +103,57 @@ export default function McpTab({ mcp, status, onChange }: Props) {
           </div>
         )
       })}
-      <div className="mcp-add">
-        <input className="input" placeholder="server name" value={newName} onChange={e => setNewName(e.target.value)} />
-        <input className="input" placeholder="url (optional)" value={newUrl} onChange={e => setNewUrl(e.target.value)} />
-        <input className="input" placeholder="command (optional)" value={newCommand} onChange={e => setNewCommand(e.target.value)} />
-        <input className="input" placeholder="args (optional)" value={newArgs} onChange={e => setNewArgs(e.target.value)} />
-        <button className="btn primary" disabled={!newName.trim()} onClick={addServer}>Add</button>
-      </div>
+      {adding && (
+        <Modal
+          title="Add MCP server"
+          onClose={() => setAdding(false)}
+          onSubmit={addServer}
+          submitLabel="Add"
+          submitDisabled={!newName.trim()}
+        >
+          <div className="settings-field">
+            <label className="label" htmlFor="mcp-name">Name</label>
+            <input
+              id="mcp-name"
+              className="input"
+              placeholder="server name (e.g. playwright)"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className="settings-field">
+            <label className="label" htmlFor="mcp-url">URL</label>
+            <input
+              id="mcp-url"
+              className="input"
+              placeholder="http://localhost:3000/mcp"
+              value={newUrl}
+              onChange={e => setNewUrl(e.target.value)}
+            />
+          </div>
+          <div className="settings-field">
+            <label className="label" htmlFor="mcp-command">Command</label>
+            <input
+              id="mcp-command"
+              className="input"
+              placeholder="e.g. npx @playwright/mcp"
+              value={newCommand}
+              onChange={e => setNewCommand(e.target.value)}
+            />
+          </div>
+          <div className="settings-field">
+            <label className="label" htmlFor="mcp-args">Args</label>
+            <input
+              id="mcp-args"
+              className="input"
+              placeholder="space separated (optional)"
+              value={newArgs}
+              onChange={e => setNewArgs(e.target.value)}
+            />
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }

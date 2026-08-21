@@ -1,7 +1,13 @@
 import { useState } from 'react'
 import type { AgentSettings, MeowSettings, ModelRef, SubagentType } from '@shared/types'
+import Modal from './Modal'
 
 const SUBMODEL_ROLES = ['research', 'general', 'reviewer'] as const
+
+const defaultPrompt = (name: string) =>
+  `You are ${name}, a coding agent running inside the Meow Coding desktop app. ` +
+  'You help the user build and maintain their codebase. Read files before editing them, ' +
+  'run tests after changes, and keep answers concise.'
 
 interface Props {
   agents: AgentSettings[]
@@ -14,6 +20,7 @@ interface Props {
 export default function AgentsTab({ agents, providers, subagentModels, onChangeAgents, onChangeSubagentModels }: Props) {
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
+  const [newPrompt, setNewPrompt] = useState('')
 
   const setRole = (role: SubagentType, ref: ModelRef | undefined) => {
     const next = { ...(subagentModels ?? {}) }
@@ -26,6 +33,12 @@ export default function AgentsTab({ agents, providers, subagentModels, onChangeA
     onChangeAgents(agents.map((a, i) => (i === index ? { ...a, ...patch } : a)))
   }
 
+  const openAdd = () => {
+    setNewName('')
+    setNewPrompt('')
+    setAdding(true)
+  }
+
   const addAgent = () => {
     const name = newName.trim()
     if (!name || agents.some(a => a.name === name)) return
@@ -33,12 +46,9 @@ export default function AgentsTab({ agents, providers, subagentModels, onChangeA
       ...agents,
       {
         name,
-        systemPrompt: `You are ${name}, a coding agent running inside the Meow Coding desktop app. ` +
-          'You help the user build and maintain their codebase. Read files before editing them, ' +
-          'run tests after changes, and keep answers concise.'
+        systemPrompt: newPrompt.trim() || defaultPrompt(name)
       }
     ])
-    setNewName('')
     setAdding(false)
   }
 
@@ -50,9 +60,12 @@ export default function AgentsTab({ agents, providers, subagentModels, onChangeA
 
   return (
     <div className="settings-tab agents-tab">
-      <p className="settings-hint">
-        Agent system prompts. "meow" is the default native agent and cannot be removed.
-      </p>
+      <div className="agents-head">
+        <p className="settings-hint">
+          Agent system prompts. "meow" is the default native agent and cannot be removed.
+        </p>
+        <button className="btn primary small" onClick={openAdd}>+ Add agent</button>
+      </div>
       {agents.map((a, i) => (
         <div className="settings-row agents-row" key={a.name}>
           <div className="agents-row-head">
@@ -103,19 +116,36 @@ export default function AgentsTab({ agents, providers, subagentModels, onChangeA
           )
         })}
       </div>
-      {adding ? (
-        <div className="agents-add">
-          <input
-            className="input"
-            placeholder="agent name (e.g. reviewer)"
-            value={newName}
-            onChange={e => setNewName(e.target.value)}
-          />
-          <button className="btn primary" disabled={!newName.trim()} onClick={addAgent}>Add</button>
-          <button className="btn" onClick={() => setAdding(false)}>Cancel</button>
-        </div>
-      ) : (
-        <button className="btn" onClick={() => setAdding(true)}>+ Add agent</button>
+      {adding && (
+        <Modal
+          title="Add agent"
+          onClose={() => setAdding(false)}
+          onSubmit={addAgent}
+          submitLabel="Add"
+          submitDisabled={!newName.trim()}
+        >
+          <div className="settings-field">
+            <label className="label" htmlFor="agent-name">Name</label>
+            <input
+              id="agent-name"
+              className="input"
+              placeholder="agent name (e.g. reviewer)"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className="settings-field">
+            <label className="label" htmlFor="agent-prompt">System prompt</label>
+            <textarea
+              id="agent-prompt"
+              className="input agents-prompt"
+              placeholder="System prompt for this agent. Leave empty to use the default."
+              value={newPrompt}
+              onChange={e => setNewPrompt(e.target.value)}
+            />
+          </div>
+        </Modal>
       )}
     </div>
   )
