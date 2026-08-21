@@ -31,7 +31,7 @@ export default function Sidebar({
   const [error, setError] = useState('')
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('meow.sidebar.collapsed') === '1')
   const [footerMenuOpen, setFooterMenuOpen] = useState(false)
-  const [footerMenuPos, setFooterMenuPos] = useState<{ x: number; y: number } | null>(null)
+  const [footerMenuPos, setFooterMenuPos] = useState<{ x: number; bottom: number } | null>(null)
 
   useEffect(() => {
     localStorage.setItem('meow.sidebar.collapsed', collapsed ? '1' : '0')
@@ -226,8 +226,10 @@ export default function Sidebar({
             const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
             const width = 160
             const x = Math.max(4, Math.min(r.right - width, window.innerWidth - width - 8))
-            const y = r.bottom + 4
-            setFooterMenuPos({ x, y })
+            // Footer sits at the bottom edge of the window, so the menu opens
+            // upward (bottom-anchored) to stay inside the viewport.
+            const bottom = window.innerHeight - r.top + 4
+            setFooterMenuPos({ x, bottom })
             setFooterMenuOpen(v => !v)
           }}
         >
@@ -237,7 +239,7 @@ export default function Sidebar({
         {footerMenuOpen && footerMenuPos && createPortal(
           <div
             className="sidebar-menu-dropdown sidebar-footer-dropdown"
-            style={{ position: 'fixed', left: footerMenuPos.x, top: footerMenuPos.y, right: 'auto', bottom: 'auto' }}
+            style={{ position: 'fixed', left: footerMenuPos.x, right: 'auto', top: 'auto', bottom: footerMenuPos.bottom }}
           >
             <button
               className="menu-item"
