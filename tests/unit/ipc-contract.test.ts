@@ -66,7 +66,6 @@ describe('IPC contract', () => {
       getAppVersion: async () => '0.0.0',
       checkForUpdates: async () => {},
       installUpdate: async () => {},
-      getChangelog: async () => '',
       onUpdaterStatus: () => () => {},
       onPtyData: () => () => {},
       onAgentState: () => () => {},

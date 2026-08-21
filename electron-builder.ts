@@ -46,8 +46,7 @@ const config: Configuration = {
   extraResources: [
     { from: 'resources/skills', to: 'skills' },
     { from: 'out/browser-extension', to: 'browser-extension' },
-    { from: 'resources/tray-icon.png', to: 'tray-icon.png' },
-    { from: 'resources/changelog', to: 'changelog' }
+    { from: 'resources/tray-icon.png', to: 'tray-icon.png' }
   ],
   asar: true,
   win: {

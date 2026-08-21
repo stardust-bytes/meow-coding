@@ -83,7 +83,6 @@ const api: AgentApi = {
   getAppVersion: () => ipcRenderer.invoke(Channels.AppVersion),
   checkForUpdates: () => ipcRenderer.invoke(Channels.UpdaterCheck),
   installUpdate: () => ipcRenderer.invoke(Channels.UpdaterInstall),
-  getChangelog: () => ipcRenderer.invoke(Channels.UpdaterChangelog),
   sendChat: (agentId: string, text: string, images?: ImageAttachment[]) =>
     ipcRenderer.invoke(Channels.ChatSend, agentId, text, images),
   stopChat: (agentId: string) => ipcRenderer.invoke(Channels.ChatStop, agentId),

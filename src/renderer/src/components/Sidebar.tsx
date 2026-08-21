@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Ellipsis, FileText, PanelLeft, RefreshCw, Settings, Server } from 'lucide-react'
+import { Ellipsis, PanelLeft, RefreshCw, Settings, Server } from 'lucide-react'
 import type { NewAgentInput, Template, WorkspaceSummary } from '@shared/types'
 import AddProjectDialog from './AddProjectDialog'
 import AddAgentDialog from './AddAgentDialog'
-import MarkdownText from './chat/MarkdownText'
 
 function MoreIcon() {
   return <Ellipsis size={14} aria-hidden="true" />
@@ -36,22 +35,10 @@ export default function Sidebar({
   const [footerMenuOpen, setFooterMenuOpen] = useState(false)
   const [footerMenuPos, setFooterMenuPos] = useState<{ x: number; bottom: number } | null>(null)
   const [version, setVersion] = useState('')
-  const [changelogOpen, setChangelogOpen] = useState(false)
-  const [changelog, setChangelog] = useState('')
 
   useEffect(() => {
     void window.api.getAppVersion().then(setVersion)
   }, [])
-
-  const openChangelog = async () => {
-    setChangelog('')
-    setChangelogOpen(true)
-    try {
-      setChangelog(await window.api.getChangelog())
-    } catch {
-      setChangelog('')
-    }
-  }
 
   useEffect(() => {
     localStorage.setItem('meow.sidebar.collapsed', collapsed ? '1' : '0')
@@ -280,13 +267,6 @@ export default function Sidebar({
               <div className="sidebar-update-actions">
                 <button
                   className="btn small"
-                  onClick={() => { void openChangelog() }}
-                >
-                  <FileText size={12} aria-hidden="true" />
-                  Changelogs
-                </button>
-                <button
-                  className="btn small"
                   disabled={updateChecking}
                   onClick={() => {
                     setFooterMenuOpen(false)
@@ -302,40 +282,7 @@ export default function Sidebar({
           </div>,
           document.body
         )}
-        {changelogOpen && (
-          <ChangelogDialog
-            version={version}
-            text={changelog}
-            onClose={() => setChangelogOpen(false)}
-          />
-        )}
       </footer>
     </aside>
-  )
-}
-
-function ChangelogDialog({ version, text, onClose }: { version: string; text: string; onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
-  return (
-    <div className="dialog-backdrop">
-      <div className="dialog update-dialog">
-        <h3>Changelog</h3>
-        <button className="dialog-close" aria-label="Close" onClick={onClose}>✕</button>
-        {version && <p className="update-version">v{version}</p>}
-        <div className="update-changelog">
-          {text ? <MarkdownText text={text} /> : <span className="settings-hint">No changelog available.</span>}
-        </div>
-        <div className="dialog-actions">
-          <button className="btn" onClick={onClose}>Close</button>
-        </div>
-      </div>
-    </div>
   )
 }
