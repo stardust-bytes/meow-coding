@@ -297,7 +297,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .btn:active { transform: translateY(1px); }
 .btn.small { padding: 2px 8px; font-size: var(--fs-base); }
 .btn.primary { background: #3f8fe0; color: #ffffff; border-color: transparent; font-weight: var(--fw-semibold); }
-.btn.primary:hover { background: #4d9be8; border-color: transparent; }
+.btn.primary:hover { background: #3476ba; border-color: transparent; }
 .btn:disabled { opacity: 0.45; cursor: default; transform: none; }
 .btn.ghost { background: transparent; }
 .btn.ghost:hover { background: var(--bg-hover); }
