@@ -35,6 +35,7 @@ import { LspManager } from './agent/lsp/manager'
 import { ModelsCatalog } from './models-catalog'
 import { getWindowChromeOptions } from './window-chrome'
 import { ChatGptWebManager } from './chatgpt-web/manager'
+import { TrayManager } from './tray-manager'
 import { BrowserBridge } from './browser/bridge'
 import { createChromeLauncher, ensureExtensionInstalled } from './browser/chrome-launcher'
 import { RemoteManager } from './remote/remote-manager'
@@ -44,6 +45,8 @@ import { Channels } from '../shared/ipc'
 import type { AgentState, Command, FileViewerPayload, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, TerminalInfo, Workspace, WorkspaceRuntime } from '../shared/types'
 
 let win: BrowserWindow | null = null
+let isQuitting = false
+let tray: TrayManager | null = null
 
 if (process.env.MEOW_USER_DATA) app.setPath('userData', process.env.MEOW_USER_DATA)
 
@@ -513,6 +516,14 @@ function createWindow(): void {
   win.on('closed', () => {
     win = null
   })
+  win.on('close', (event) => {
+    // Closing the window hides it to the tray so agents keep running; real
+    // quit only happens through tray Exit / Cmd+Q (isQuitting set by
+    // before-quit). If no tray is available, keep the old close-to-quit.
+    if (isQuitting || !tray) return
+    event.preventDefault()
+    tray.hideWindow()
+  })
   win.on('maximize', () => win?.webContents.send(Channels.EventWindowMaximizedChange, { maximized: true }))
   win.on('unmaximize', () => win?.webContents.send(Channels.EventWindowMaximizedChange, { maximized: false }))
 }
@@ -762,6 +773,11 @@ app.whenReady().then(async () => {
   }
   registerIpcHandlers()
   createWindow()
+  tray = TrayManager.create({
+    userDataDir: app.getPath('userData'),
+    getWindow: () => win,
+    onQuit: () => app.quit()
+  })
   setTimeout(() => {
     try {
       mainApp.checkForUpdatesAuto()
@@ -770,7 +786,14 @@ app.whenReady().then(async () => {
     }
   }, 1500)
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    const w = BrowserWindow.getAllWindows()[0]
+    if (!w) {
+      createWindow()
+      return
+    }
+    if (w.isMinimized()) w.restore()
+    w.show()
+    w.focus()
   })
 })
 
@@ -779,6 +802,7 @@ app.on('before-quit', (event) => {
   if (cleaningUp) return
   event.preventDefault()
   cleaningUp = true
+  isQuitting = true
   mainApp.stopGitPoll()
   void mainApp.meowAgent.dispose().then(() => {
     return mainApp.traces.flushAll()
@@ -787,6 +811,8 @@ app.on('before-quit', (event) => {
   }).then(() => {
     mainApp.remote?.dispose()
   }).then(() => {
+    tray?.dispose()
+    tray = null
     mainApp.pty
       .stopAll()
       .finally(() => app.exit(0))
