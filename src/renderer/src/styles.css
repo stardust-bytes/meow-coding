@@ -1220,6 +1220,14 @@ select.input { width: 100%; }
 .menu-item.danger { color: var(--red); }
 .sidebar-footer-menu { display: flex; align-items: center; gap: 6px; width: 100%; }
 .sidebar-menu-dropdown .menu-item { display: flex; align-items: center; gap: 8px; }
+.sidebar-update-block {
+  border-top: 1px solid var(--hairline);
+  margin-top: 4px; padding-top: 6px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.sidebar-update-version { color: var(--text-faint); font-size: var(--fs-sm); font-family: var(--font-mono); padding: 0 10px; }
+.sidebar-update-actions { display: flex; flex-direction: column; gap: 4px; padding: 0 6px 4px; }
+.sidebar-update-actions .btn { display: inline-flex; align-items: center; gap: 6px; justify-content: flex-start; }
 
 .menu-item.danger:hover { background: rgba(255, 95, 86, 0.12); color: var(--red); }
 .project-row { position: relative; }

@@ -35,6 +35,9 @@ export default function App() {
   const [installGuide, setInstallGuide] = useState<BrowserInstallGuideEvent | null>(null)
   const [updateStatus, setUpdateStatus] = useState<UpdaterStatusEvent | null>(null)
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
+  const [updateChecking, setUpdateChecking] = useState(false)
+  const [upToDateOpen, setUpToDateOpen] = useState(false)
+  const manualCheckRef = useRef(false)
   const [terminals, setTerminals] = useState<TerminalInfo[]>([])
   const [rightOpen, setRightOpen] = useState(() => localStorage.getItem('meow.rightpanel.open') !== '0')
   const [rightTab, setRightTab] = useState<'tree' | 'artifacts'>(() =>
@@ -118,11 +121,18 @@ export default function App() {
     })
     const offUpdater = window.api.onUpdaterStatus((e) => {
       setUpdateStatus(e)
+      setUpdateChecking(e.type === 'checking')
       // Download runs in the background even when the popup is closed — when
       // it finishes, bring the dialog back so the user can restart now or
       // defer to later.
       if (e.type === 'update-available' || e.type === 'downloaded') setUpdateDialogOpen(true)
       if (e.type === 'error' || e.type === 'not-supported') setUpdateDialogOpen(false)
+      // Only surface "up to date" when the user asked for a manual check —
+      // the automatic check on startup must not pop a dialog.
+      if (e.type === 'up-to-date' && manualCheckRef.current) {
+        manualCheckRef.current = false
+        setUpToDateOpen(true)
+      }
     })
     void window.api.getBrowserStatus().then(setBrowser)
     return () => {
@@ -136,6 +146,11 @@ export default function App() {
       offTerminalExit()
       offUpdater()
     }
+  }, [])
+
+  const handleCheckUpdate = useCallback(() => {
+    manualCheckRef.current = true
+    window.api.checkForUpdates()
   }, [])
 
   const openWorkspace = useCallback(async (path: string) => {
@@ -248,6 +263,8 @@ export default function App() {
           onOpenTerminal={addTerminal}
           onOpenSettings={() => setShowSettings(true)}
           onOpenModelRouter={() => setShowModelRouter(true)}
+          onCheckUpdate={handleCheckUpdate}
+          updateChecking={updateChecking}
         />
         <main className="main">
           {panes.length > 0 ? (
@@ -310,6 +327,9 @@ export default function App() {
           onInstall={() => void window.api.installUpdate()}
         />
       )}
+      {upToDateOpen && (
+        <UpToDateDialog version={updateStatus?.type === 'up-to-date' ? updateStatus.currentVersion : undefined} onClose={() => setUpToDateOpen(false)} />
+      )}
       {showSettings && (
         <SettingsDialog
           onClose={() => setShowSettings(false)}
@@ -321,6 +341,31 @@ export default function App() {
       {showModelRouter && (
         <ModelRouterComingSoon onClose={() => setShowModelRouter(false)} />
       )}
+    </div>
+  )
+}
+
+function UpToDateDialog({ version, onClose }: { version?: string; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div className="dialog-backdrop">
+      <div className="dialog">
+        <h3>Update</h3>
+        <button className="dialog-close" aria-label="Close" onClick={onClose}>✕</button>
+        <p className="settings-hint">
+          Đây là phiên bản mới nhất{version ? ` (v${version})` : ''}.
+        </p>
+        <div className="dialog-actions">
+          <button className="btn" onClick={onClose}>Close</button>
+        </div>
+      </div>
     </div>
   )
 }

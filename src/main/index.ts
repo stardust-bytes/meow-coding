@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from 'electron'
 import { spawn } from 'node:child_process'
-import { existsSync, rmSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
@@ -252,6 +252,15 @@ class MainApp {
 
   checkForUpdates(): void {
     void this.updater.check(true)
+  }
+
+  getChangelog(): string {
+    const base = app.isPackaged
+      ? path.join(process.resourcesPath, 'changelog')
+      : path.join(app.getAppPath(), 'resources', 'changelog')
+    const file = path.join(base, `${app.getVersion()}.md`)
+    if (!existsSync(file)) return ''
+    return readFileSync(file, 'utf-8')
   }
 
   installUpdate(): void {
@@ -751,6 +760,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.AppVersion, () => app.getVersion())
   ipcMain.handle(Channels.UpdaterCheck, () => mainApp.checkForUpdates())
   ipcMain.handle(Channels.UpdaterInstall, () => mainApp.installUpdate())
+  ipcMain.handle(Channels.UpdaterChangelog, () => mainApp.getChangelog())
   ipcMain.handle(Channels.WindowMinimize, () => win?.minimize())
   ipcMain.handle(Channels.WindowToggleMaximize, () => {
     if (!win) return
