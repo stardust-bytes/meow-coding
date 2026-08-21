@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ArtifactEntry, ChatEvent, ChatMessage, MessageTokens, PromptResponse, QuestionPrompt, TodoItem, ToolCallData } from '../../shared/types'
+import type { ArtifactEntry, ChatEvent, ChatMessage, MessageTokens, PromptResponse, QuestionPrompt, QueuedMessage, TodoItem, ToolCallData } from '../../shared/types'
 import { appendStreamDelta } from '../../shared/text'
 import type { LlmClient, LlmStreamPart } from './llm'
 import { formatLlmError } from './llm'
@@ -38,6 +38,9 @@ export interface LoopDeps {
   getItems: () => TranscriptItem[]
   appendMessage: (msg: ChatMessage) => void
   appendTool: (tool: ToolCallData) => void
+  // Returns and clears all pending steered messages (injected at the next step
+  // boundary while a turn is running, opencode-style).
+  takeSteers?: () => QueuedMessage[]
   setTodos?: (todos: TodoItem[]) => void
   variantOptions?: Record<string, unknown>
   onUsage?: (tokens: MessageTokens) => void
@@ -73,6 +76,25 @@ export class SessionRunner {
       if (signal?.aborted) {
         this.deps.onEvent({ type: 'done', agentId, reason: 'stopped' })
         return
+      }
+      const steers = this.deps.takeSteers?.() ?? []
+      if (steers.length > 0) {
+        for (const s of steers) {
+          const msg: ChatMessage = {
+            id: s.id,
+            role: 'user',
+            text: s.text,
+            displayText: s.displayText ?? s.text,
+            images: s.images,
+            createdAt: Date.now()
+          }
+          this.deps.appendMessage(msg)
+          this.deps.onEvent({ type: 'user-message', agentId, message: msg })
+        }
+        // Fresh step budget for the continued work, like opencode's
+        // currentStep reset after promoting steers.
+        steps = 0
+        continue
       }
       steps++
       const isLastStep = steps >= this.maxSteps

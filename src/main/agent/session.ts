@@ -145,6 +145,21 @@ export class SessionStore {
     this.saveSessions(all)
   }
 
+  // Removes a single user message (e.g. a steered message the user deleted
+  // after it was injected into the running turn).
+  removeMessage(id: string, messageId: string): void {
+    const all = this.loadSessions()
+    const idx = all.findIndex(s => s.id === id)
+    if (idx < 0) return
+    const after = all[idx].items.filter(
+      it => !(it.kind === 'message' && it.message.id === messageId)
+    )
+    if (after.length === all[idx].items.length) return
+    all[idx].items = after
+    all[idx].updatedAt = this.nextUpdatedAt()
+    this.saveSessions(all)
+  }
+
   // Cuts the transcript from the last user message onwards (used by undo) and
   // returns the removed items.
   truncateFromLastUser(id: string): ChatTranscriptItem[] {
