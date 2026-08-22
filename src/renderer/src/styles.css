@@ -1725,6 +1725,7 @@ select.input { width: 100%; }
   width: 280px; max-height: 380px; overflow-y: auto;
   background: var(--bg-raised); border: 1px solid var(--hairline);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  border-radius: var(--radius);
   padding: 4px;
 }
 .git-branch-section {
