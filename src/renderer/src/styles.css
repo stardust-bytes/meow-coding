@@ -1745,7 +1745,7 @@ select.input { width: 100%; }
 .git-branch-create {
   display: flex; gap: 6px; padding: 6px 4px 2px; border-top: 1px solid var(--hairline); margin-top: 4px;
 }
-.git-branch-create .input { flex: 1; min-width: 0; }
+.git-branch-create .input { flex: 1; min-width: 0; border-radius: var(--radius); }
 
 /* Tabs */
 .git-tabs { display: flex; gap: 2px; padding: 6px 12px 0; border-bottom: 1px solid var(--hairline); }
