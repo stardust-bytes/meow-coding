@@ -1,8 +1,10 @@
 import type { BrowserWindowConstructorOptions } from 'electron'
 
 const TITLE_BAR_HEIGHT = 32
-const TITLE_BAR_BG = '#252526'
-const TITLE_BAR_SYMBOL = '#cccccc'
+// Match the app's title bar background (--bg-panel: #10141b) and text
+// (--text: #cdd3de) so the Windows overlay buttons blend with the theme.
+const TITLE_BAR_BG = '#10141b'
+const TITLE_BAR_SYMBOL = '#cdd3de'
 
 export function getWindowChromeOptions(platform: NodeJS.Platform): BrowserWindowConstructorOptions {
   if (platform === 'win32') {
