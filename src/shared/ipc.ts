@@ -25,6 +25,7 @@ export const Channels = {
   GitCheckout: 'git:checkout',
   GitStash: 'git:stash',
   GitStashPop: 'git:stash-pop',
+  GitDiscard: 'git:discard',
   GitStatusDetail: 'git:status-detail',
   GitGetDiff: 'git:get-diff',
   GitGetCommits: 'git:get-commits',
@@ -163,6 +164,7 @@ export interface AgentApi {
   gitCheckout(projectPath: string, branch: string): Promise<GitActionResult>
   gitStash(projectPath: string): Promise<GitActionResult>
   gitStashPop(projectPath: string): Promise<GitActionResult>
+  gitDiscard(projectPath: string): Promise<GitActionResult>
   gitGetStatusDetail(projectPath: string): Promise<GitStatusDetail | null>
   gitGetDiff(projectPath: string, file?: string, staged?: boolean): Promise<string>
   gitGetCommits(projectPath: string, file?: string, count?: number): Promise<GitCommit[]>

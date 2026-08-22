@@ -644,6 +644,7 @@ function registerIpcHandlers(): void {
     mainApp.gitSvc.checkout(projectPath, branch))
   ipcMain.handle(Channels.GitStash, (_e, projectPath: string) => mainApp.gitSvc.stashPush(projectPath))
   ipcMain.handle(Channels.GitStashPop, (_e, projectPath: string) => mainApp.gitSvc.stashPop(projectPath))
+  ipcMain.handle(Channels.GitDiscard, (_e, projectPath: string) => mainApp.gitSvc.discard(projectPath))
   ipcMain.handle(Channels.GitStatusDetail, (_e, projectPath: string) => mainApp.gitSvc.getStatusDetail(projectPath))
   ipcMain.handle(Channels.GitGetDiff, (_e, projectPath: string, file?: string, staged?: boolean) =>
     mainApp.gitSvc.getDiff(projectPath, file, staged))

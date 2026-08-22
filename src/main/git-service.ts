@@ -105,6 +105,14 @@ export class GitService {
     return this.runResult(projectPath, ['stash', 'pop'])
   }
 
+  async discard(projectPath: string): Promise<GitActionResult> {
+    const co = await this.runResult(projectPath, ['checkout', '--', '.'])
+    if (!co.ok) return co
+    // -f removes untracked files/dirs; -x is intentionally omitted so ignored
+    // files (node_modules, out) survive a discard.
+    return this.runResult(projectPath, ['clean', '-fd'])
+  }
+
   // --- status -------------------------------------------------------------
 
   static parseStatus(stdout: string): GitStatusDetail {

@@ -10,7 +10,7 @@ describe('IPC contract', () => {
       'listWorkspaces', 'addWorkspace', 'removeWorkspace', 'openWorkspace', 'openInEditor',
       'openFolder', 'openTerminal', 'closeTerminal',
       'gitOpenViewer', 'gitGetBranches', 'gitCreateBranch', 'gitCheckout', 'gitStash', 'gitStashPop',
-      'gitGetStatusDetail', 'gitGetDiff', 'gitGetCommits', 'gitGetCommitDiff', 'gitCompareCommits', 'gitGetBlame', 'gitGetFileHistory',
+      'gitGetStatusDetail', 'gitGetDiff', 'gitGetCommits', 'gitGetCommitDiff', 'gitCompareCommits', 'gitGetBlame', 'gitGetFileHistory', 'gitDiscard',
       'addAgent', 'removeAgent', 'setAgentMode', 'setAgentVariant', 'getAgentVariants', 'setAgentModel', 'getAgentModel', 'getContextInfo', 'getProviderModels', 'fetchProviderModels',
       'listProviderCatalog', 'connectProvider', 'disconnectProvider',
       'listTemplates', 'saveTemplate', 'removeTemplate',
@@ -43,6 +43,7 @@ describe('IPC contract', () => {
       gitCheckout: async () => ({ ok: true }),
       gitStash: async () => ({ ok: true }),
       gitStashPop: async () => ({ ok: true }),
+      gitDiscard: async () => ({ ok: true }),
       gitGetStatusDetail: async () => null,
       gitGetDiff: async () => '',
       gitGetCommits: async () => [],
@@ -221,6 +222,7 @@ describe('IPC contract', () => {
     expect(Channels.GitCheckout).toBe('git:checkout')
     expect(Channels.GitStash).toBe('git:stash')
     expect(Channels.GitStashPop).toBe('git:stash-pop')
+    expect(Channels.GitDiscard).toBe('git:discard')
     expect(Channels.GitStatusDetail).toBe('git:status-detail')
     expect(Channels.GitGetDiff).toBe('git:get-diff')
     expect(Channels.GitGetCommits).toBe('git:get-commits')

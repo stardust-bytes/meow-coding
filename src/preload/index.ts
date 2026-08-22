@@ -44,6 +44,8 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.GitStash, projectPath),
   gitStashPop: (projectPath: string) =>
     ipcRenderer.invoke(Channels.GitStashPop, projectPath),
+  gitDiscard: (projectPath: string) =>
+    ipcRenderer.invoke(Channels.GitDiscard, projectPath),
   gitGetStatusDetail: (projectPath: string) =>
     ipcRenderer.invoke(Channels.GitStatusDetail, projectPath),
   gitGetDiff: (projectPath: string, file?: string, staged?: boolean) =>
