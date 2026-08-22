@@ -24,6 +24,26 @@ React renderer (không có quyền truy cập Node/Electron trực tiếp).
 - Component dạng functional + hooks; khai báo interface `Props` trong cùng file.
 - Label UI tiếng Anh. Dùng số liệu tabular-nums khi hiển thị.
 
+## CSS — border-radius & phạm vi style
+
+Bài học rút ra từ màn hình Git viewer (đừng lặp lại):
+
+- **`src/styles.css` có rule toàn cục `* { border-radius: var(--radius) }`** — nó bo góc MỌI element
+  trừ khi bị override rõ ràng. Khi muốn một khu vực "vuông" (không bo góc), đừng chỉ set
+  `border-radius: 0` lên từng rule — sẽ sót (tab, panel, cell) và dễ viết sai cú pháp.
+- **Pattern chuẩn cho một màn hình/popup muốn vuông góc:**
+  ```css
+  /* Đầu section: */
+  .git-viewer * { border-radius: 0; }          /* vuông toàn bộ */
+  .git-viewer .btn,
+  .git-viewer .git-header-btn { border-radius: var(--radius-sm); }  /* chỉ giữ cho nút */
+  ```
+  Chỉ liệt kê những element THẬT SỰ cần bo góc (nút, input, dropdown content, option...).
+- Trước khi sửa: kiểm tra xem element có đang bị rule `*` làm tròn không (`grep "border-radius"` +
+  theo dõi class). Đừng giả định.
+- Sửa CSS bằng python khi file dùng CRLF (edit tool sẽ không khớp chuỗi) — xem `tests/*.test.ts`,
+  `styles.css` đều CRLF.
+
 ## Hiệu năng
 
 Rút ra từ một buổi debug lag ô chat input thật (đo bằng Chromium trace qua CDP, không suy đoán):
