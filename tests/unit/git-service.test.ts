@@ -63,6 +63,20 @@ describe('GitService.parse', () => {
     })
   })
 
+  it('parseCommits strips the leading newline git adds after each record', () => {
+    // git emits "<rec>\x1e\n<rec>\x1e\n" — records after the first start
+    // with "\n". A leading "\n" used to corrupt the hash.
+    const rec1 = ['aaa', 'A', 'a@x', '1', 'first', 'b1', ''].join('\x1f')
+    const rec2 = ['bbb', 'B', 'b@x', '2', 'second', 'b2', ''].join('\x1f')
+    const commits = GitService.parseCommits(`${rec1}\x1e\n${rec2}\x1e\n`)
+    expect(commits).toHaveLength(2)
+    expect(commits[0].hash).toBe('aaa')
+    expect(commits[1].hash).toBe('bbb')
+    expect(commits[1].shortHash).toBe('bbb')
+    expect(commits[1].subject).toBe('second')
+    expect(commits[1].message).toBe('b2')
+  })
+
   it('parseDiffTree splits files and counts additions/deletions', () => {
     const raw = [
       'diff --git a/a.ts b/a.ts',

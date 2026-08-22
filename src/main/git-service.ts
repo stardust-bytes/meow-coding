@@ -220,7 +220,11 @@ export class GitService {
     const out: GitCommit[] = []
     for (const rec of stdout.split('\x1e')) {
       if (!rec.trim()) continue
-      const [hash, author, authorEmail, dateStr, subject, ...body] = rec.split('\x1f')
+      // Git appends a newline after the %x1e record separator for every
+      // commit, so records after the first carry a leading "\n" — strip it
+      // or the hash becomes "\\n432402…" and git rejects it downstream.
+      const fields = rec.trim().split('\x1f')
+      const [hash, author, authorEmail, dateStr, subject, ...body] = fields
       if (!hash) continue
       out.push({
         hash,
