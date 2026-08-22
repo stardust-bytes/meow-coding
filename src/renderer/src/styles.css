@@ -119,6 +119,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .title-bar {
   height: 34px; flex: 0 0 34px; display: flex; align-items: center; justify-content: space-between;
   background: var(--bg-panel); border-bottom: 1px solid var(--hairline);
+  border-radius: 0; /* flush against the window edge */
   -webkit-app-region: drag; user-select: none;
 }
 .title-bar-brand { display: flex; align-items: center; gap: 8px; padding-left: 12px; min-width: 0; }
