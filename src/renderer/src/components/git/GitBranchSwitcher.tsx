@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, GitBranch } from 'lucide-react'
 import type { GitBranch as GitBranchType } from '@shared/types'
 
@@ -15,6 +15,20 @@ interface Props {
 export default function GitBranchSwitcher({ projectPath, branches, current, busy, onSwitch, onCreated, onError }: Props) {
   const [open, setOpen] = useState(false)
   const [newName, setNewName] = useState('')
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  // Close on outside click. mousedown (not click) so the toggle button still
+  // gets its own click to re-open; clicks inside the dropdown are ignored.
+  useEffect(() => {
+    if (!open) return
+    const onDocMouseDown = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    return () => document.removeEventListener('mousedown', onDocMouseDown)
+  }, [open])
 
   const locals = branches.filter(b => !b.isRemote)
   const remotes = branches.filter(b => b.isRemote)
@@ -34,7 +48,7 @@ export default function GitBranchSwitcher({ projectPath, branches, current, busy
   }
 
   return (
-    <div className="git-branch-wrap">
+    <div className="git-branch-wrap" ref={rootRef}>
       <button
         className="git-branch-current"
         disabled={busy}
