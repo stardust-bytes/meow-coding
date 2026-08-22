@@ -536,6 +536,8 @@ select.input { width: 100%; }
 .status-bar .sb-right { margin-left: auto; }
 .status-bar .sb-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
 .status-bar .sb-dim { color: var(--text-dim); }
+.status-bar .sb-git { appearance: none; background: transparent; border: 1px solid transparent; border-radius: var(--radius-sm); cursor: pointer; padding: 0 4px; }
+.status-bar .sb-git:hover { background: var(--bg-hover); color: var(--text-strong); }
 .status-bar .sb-browser {
   border: 1px solid var(--hairline); border-radius: 4px; background: transparent;
   cursor: pointer; padding: 1px 8px; color: var(--text-dim); font-size: var(--fs-md);

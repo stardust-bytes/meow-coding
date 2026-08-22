@@ -263,6 +263,7 @@ export default function App() {
           onOpenTerminal={addTerminal}
           onOpenSettings={() => setShowSettings(true)}
           onOpenModelRouter={() => setShowModelRouter(true)}
+          onOpenGit={path => void window.api.gitOpenViewer(path)}
           onCheckUpdate={handleCheckUpdate}
           updateChecking={updateChecking}
         />
@@ -313,6 +314,7 @@ export default function App() {
         agents={runtime?.agents ?? []}
         browser={browser}
         onBrowserClick={() => setBrowserDialogOpen(true)}
+        onGitClick={runtime ? () => void window.api.gitOpenViewer(runtime.workspace.projectPath) : undefined}
       />
       {browserDialogOpen && (
         <BrowserDialog status={browser} onClose={() => setBrowserDialogOpen(false)} />

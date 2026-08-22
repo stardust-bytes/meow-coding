@@ -8,9 +8,10 @@ interface Props {
   agents: AgentState[]
   browser?: BrowserStatusInfo | null
   onBrowserClick?: () => void
+  onGitClick?: () => void
 }
 
-export default function StatusBar({ workspaceName, git, agents, browser, onBrowserClick }: Props) {
+export default function StatusBar({ workspaceName, git, agents, browser, onBrowserClick, onGitClick }: Props) {
   const [version, setVersion] = useState('')
   const running = agents.filter(a => a.status === 'running' || a.status === 'spawning').length
 
@@ -36,10 +37,14 @@ export default function StatusBar({ workspaceName, git, agents, browser, onBrows
         <span className="sb-item sb-mono">{workspaceName}</span>
       )}
       {git && (
-        <span className="sb-item sb-mono sb-dim">
+        <button
+          className="sb-item sb-mono sb-dim sb-git"
+          onClick={onGitClick}
+          title="Open git viewer"
+        >
           {git.branch ? `${git.branch} ` : ''}
           {git.dirtyCount > 0 ? `\u25cf ${git.dirtyCount}` : ''}
-        </span>
+        </button>
       )}
       <span className="sb-item sb-right sb-mono">
         {running} agent(s) running

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Ellipsis, PanelLeft, RefreshCw, Settings, Server } from 'lucide-react'
+import { Ellipsis, GitBranch, PanelLeft, RefreshCw, Settings, Server } from 'lucide-react'
 import type { NewAgentInput, Template, WorkspaceSummary } from '@shared/types'
 import AddProjectDialog from './AddProjectDialog'
 import AddAgentDialog from './AddAgentDialog'
@@ -19,12 +19,13 @@ interface Props {
   onOpenTerminal: (path: string) => void
   onOpenSettings: () => void
   onOpenModelRouter: () => void
+  onOpenGit: (path: string) => void
   onCheckUpdate: () => void
   updateChecking: boolean
 }
 
 export default function Sidebar({
-  workspaces, templates, activePath, onOpen, onRemove, onRefresh, onOpenTerminal, onOpenSettings, onOpenModelRouter, onCheckUpdate, updateChecking
+  workspaces, templates, activePath, onOpen, onRemove, onRefresh, onOpenTerminal, onOpenSettings, onOpenModelRouter, onOpenGit, onCheckUpdate, updateChecking
 }: Props) {
   const [showAddProject, setShowAddProject] = useState(false)
   const [addAgentPath, setAddAgentPath] = useState<string | null>(null)
@@ -185,6 +186,13 @@ export default function Sidebar({
                       onClick={() => { setOpenProjectMenu(null); void window.api.openInEditor(ws.projectPath) }}
                     >
                       Open in VS Code
+                    </button>
+                    <button
+                      className="menu-item"
+                      onClick={() => { setOpenProjectMenu(null); onOpenGit(ws.projectPath) }}
+                    >
+                      <GitBranch size={14} aria-hidden="true" />
+                      Git
                     </button>
                     <button
                       className="menu-item"
