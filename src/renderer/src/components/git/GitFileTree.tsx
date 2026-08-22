@@ -65,7 +65,7 @@ export default function GitFileTree({ root, selectedPath, onSelect }: Props) {
           onClick={() => { toggle(entry.path); onSelect(entry.path, true) }}
         >
           <span className="git-tree-chevron"><ChevronIcon open={node.expanded} /></span>
-          <Folder size={13} aria-hidden="true" className="git-tree-folder" />
+          <Folder size={13} fill="currentColor" aria-hidden="true" className="git-tree-folder" />
           <span className="git-tree-name">{entry.name}</span>
         </div>
         {node.expanded && node.children.map(c => renderEntry(c, depth + 1))}
