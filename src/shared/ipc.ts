@@ -1,7 +1,8 @@
 import type {
   AgentConfig, AgentState, ArtifactEntry, CatalogProviderSummary, ChatEvent, ChatMessage, ChatTranscriptItem, Command,
   ContextChangedEvent, ContextInfo, DirEntry, FileContentResult, FileSuggestion, FileViewerPayload,
-  GitStatus, ImageAttachment, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PromptResponse,
+  GitActionResult, GitBlameLine, GitBranch, GitCommit, GitDiffResult, GitStatus, GitStatusDetail,
+  ImageAttachment, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PromptResponse,
   SessionSummary, StatsSummary, Template, TerminalInfo, TodoItem, TraceEvent, TraceSummary, UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from './types'
 import type { BrowserStatusInfo, PairingInfo } from './browser-types'
@@ -18,6 +19,19 @@ export const Channels = {
   FileViewerGetContent: 'file-viewer:get-content',
   FileViewerOpenInEditor: 'file-viewer:open-in-editor',
   FileViewerShowInFolder: 'file-viewer:show-in-folder',
+  GitOpenViewer: 'git:open-viewer',
+  GitGetBranches: 'git:get-branches',
+  GitCreateBranch: 'git:create-branch',
+  GitCheckout: 'git:checkout',
+  GitStash: 'git:stash',
+  GitStashPop: 'git:stash-pop',
+  GitStatusDetail: 'git:status-detail',
+  GitGetDiff: 'git:get-diff',
+  GitGetCommits: 'git:get-commits',
+  GitGetCommitDiff: 'git:get-commit-diff',
+  GitCompareCommits: 'git:compare-commits',
+  GitGetBlame: 'git:get-blame',
+  GitGetFileHistory: 'git:get-file-history',
   AgentAdd: 'agent:add',
   AgentRemove: 'agent:remove',
   AgentSetMode: 'agent:set-mode',
@@ -143,6 +157,19 @@ export interface AgentApi {
   getFileContent(path: string): Promise<FileContentResult>
   openFileInEditor(path: string): Promise<void>
   showFileInFolder(path: string): Promise<void>
+  gitOpenViewer(projectPath: string): Promise<void>
+  gitGetBranches(projectPath: string): Promise<GitBranch[]>
+  gitCreateBranch(projectPath: string, name: string, base: string): Promise<GitActionResult>
+  gitCheckout(projectPath: string, branch: string): Promise<GitActionResult>
+  gitStash(projectPath: string): Promise<GitActionResult>
+  gitStashPop(projectPath: string): Promise<GitActionResult>
+  gitGetStatusDetail(projectPath: string): Promise<GitStatusDetail | null>
+  gitGetDiff(projectPath: string, file?: string, staged?: boolean): Promise<string>
+  gitGetCommits(projectPath: string, file?: string, count?: number): Promise<GitCommit[]>
+  gitGetCommitDiff(projectPath: string, sha: string): Promise<GitDiffResult>
+  gitCompareCommits(projectPath: string, a: string, b: string): Promise<GitDiffResult>
+  gitGetBlame(projectPath: string, file: string): Promise<GitBlameLine[]>
+  gitGetFileHistory(projectPath: string, file: string): Promise<GitCommit[]>
   listDir(absPath: string): Promise<DirEntry[]>
   listArtifacts(projectPath: string): Promise<ArtifactEntry[]>
   clearArtifacts(projectPath: string): Promise<void>

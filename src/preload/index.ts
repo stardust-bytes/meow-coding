@@ -32,6 +32,32 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.FileViewerOpenInEditor, path),
   showFileInFolder: (path: string) =>
     ipcRenderer.invoke(Channels.FileViewerShowInFolder, path),
+  gitOpenViewer: (projectPath: string) =>
+    ipcRenderer.invoke(Channels.GitOpenViewer, projectPath),
+  gitGetBranches: (projectPath: string) =>
+    ipcRenderer.invoke(Channels.GitGetBranches, projectPath),
+  gitCreateBranch: (projectPath: string, name: string, base: string) =>
+    ipcRenderer.invoke(Channels.GitCreateBranch, projectPath, name, base),
+  gitCheckout: (projectPath: string, branch: string) =>
+    ipcRenderer.invoke(Channels.GitCheckout, projectPath, branch),
+  gitStash: (projectPath: string) =>
+    ipcRenderer.invoke(Channels.GitStash, projectPath),
+  gitStashPop: (projectPath: string) =>
+    ipcRenderer.invoke(Channels.GitStashPop, projectPath),
+  gitGetStatusDetail: (projectPath: string) =>
+    ipcRenderer.invoke(Channels.GitStatusDetail, projectPath),
+  gitGetDiff: (projectPath: string, file?: string, staged?: boolean) =>
+    ipcRenderer.invoke(Channels.GitGetDiff, projectPath, file, staged),
+  gitGetCommits: (projectPath: string, file?: string, count?: number) =>
+    ipcRenderer.invoke(Channels.GitGetCommits, projectPath, file, count),
+  gitGetCommitDiff: (projectPath: string, sha: string) =>
+    ipcRenderer.invoke(Channels.GitGetCommitDiff, projectPath, sha),
+  gitCompareCommits: (projectPath: string, a: string, b: string) =>
+    ipcRenderer.invoke(Channels.GitCompareCommits, projectPath, a, b),
+  gitGetBlame: (projectPath: string, file: string) =>
+    ipcRenderer.invoke(Channels.GitGetBlame, projectPath, file),
+  gitGetFileHistory: (projectPath: string, file: string) =>
+    ipcRenderer.invoke(Channels.GitGetFileHistory, projectPath, file),
   listDir: (absPath: string) =>
     ipcRenderer.invoke(Channels.DirList, absPath),
   listArtifacts: (projectPath: string) =>

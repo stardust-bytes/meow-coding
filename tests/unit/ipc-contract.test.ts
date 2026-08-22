@@ -9,6 +9,8 @@ describe('IPC contract', () => {
     const required: (keyof AgentApi)[] = [
       'listWorkspaces', 'addWorkspace', 'removeWorkspace', 'openWorkspace', 'openInEditor',
       'openFolder', 'openTerminal', 'closeTerminal',
+      'gitOpenViewer', 'gitGetBranches', 'gitCreateBranch', 'gitCheckout', 'gitStash', 'gitStashPop',
+      'gitGetStatusDetail', 'gitGetDiff', 'gitGetCommits', 'gitGetCommitDiff', 'gitCompareCommits', 'gitGetBlame', 'gitGetFileHistory',
       'addAgent', 'removeAgent', 'setAgentMode', 'setAgentVariant', 'getAgentVariants', 'setAgentModel', 'getAgentModel', 'getContextInfo', 'getProviderModels', 'fetchProviderModels',
       'listProviderCatalog', 'connectProvider', 'disconnectProvider',
       'listTemplates', 'saveTemplate', 'removeTemplate',
@@ -35,6 +37,19 @@ describe('IPC contract', () => {
       openWorkspace: async () => ({ workspace: { projectPath: '', name: '', agents: [] }, agents: [], git: null }),
       openInEditor: async () => {},
       openFolder: async () => {},
+      gitOpenViewer: async () => {},
+      gitGetBranches: async () => [],
+      gitCreateBranch: async () => ({ ok: true }),
+      gitCheckout: async () => ({ ok: true }),
+      gitStash: async () => ({ ok: true }),
+      gitStashPop: async () => ({ ok: true }),
+      gitGetStatusDetail: async () => null,
+      gitGetDiff: async () => '',
+      gitGetCommits: async () => [],
+      gitGetCommitDiff: async () => ({ files: [] }),
+      gitCompareCommits: async () => ({ files: [] }),
+      gitGetBlame: async () => [],
+      gitGetFileHistory: async () => [],
       openTerminal: async () => ({ id: '', cwd: '', name: '', status: 'running' }),
       closeTerminal: async () => {},
       addAgent: async () => ({ workspace: { projectPath: '', name: '', agents: [] }, agents: [], git: null }),
@@ -200,6 +215,19 @@ describe('IPC contract', () => {
     expect(Channels.TerminalOpen).toBe('terminal:open')
     expect(Channels.TerminalClose).toBe('terminal:close')
     expect(Channels.EventTerminalExit).toBe('terminal:exit')
+    expect(Channels.GitOpenViewer).toBe('git:open-viewer')
+    expect(Channels.GitGetBranches).toBe('git:get-branches')
+    expect(Channels.GitCreateBranch).toBe('git:create-branch')
+    expect(Channels.GitCheckout).toBe('git:checkout')
+    expect(Channels.GitStash).toBe('git:stash')
+    expect(Channels.GitStashPop).toBe('git:stash-pop')
+    expect(Channels.GitStatusDetail).toBe('git:status-detail')
+    expect(Channels.GitGetDiff).toBe('git:get-diff')
+    expect(Channels.GitGetCommits).toBe('git:get-commits')
+    expect(Channels.GitGetCommitDiff).toBe('git:get-commit-diff')
+    expect(Channels.GitCompareCommits).toBe('git:compare-commits')
+    expect(Channels.GitGetBlame).toBe('git:get-blame')
+    expect(Channels.GitGetFileHistory).toBe('git:get-file-history')
   })
 
   it('types event payloads without runtime error', () => {

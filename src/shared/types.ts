@@ -43,6 +43,60 @@ export interface GitStatus {
   dirtyCount: number
 }
 
+export interface GitBranch {
+  name: string
+  isRemote: boolean
+  isCurrent: boolean
+}
+
+export interface GitFileChange {
+  path: string
+  status: 'added' | 'modified' | 'deleted' | 'renamed' | 'untracked' | 'typechange'
+  staged: boolean
+  unstaged: boolean
+}
+
+export interface GitStatusDetail {
+  branch: string | null
+  headOid: string | null
+  files: GitFileChange[]
+}
+
+export interface GitCommit {
+  hash: string
+  shortHash: string
+  author: string
+  authorEmail: string
+  date: number
+  subject: string
+  message: string
+}
+
+export interface GitDiffFile {
+  path: string
+  status: string
+  additions: number
+  deletions: number
+  raw: string
+}
+
+export interface GitDiffResult {
+  files: GitDiffFile[]
+}
+
+export interface GitBlameLine {
+  finalLine: number
+  origLine: number
+  sha: string
+  shortSha: string
+  author: string
+  authorTime: number
+  summary: string
+  code: string
+}
+
+export type GitActionResult = { ok: true } | { ok: false; error: string; command: string }
+
 export interface AgentState {
   agentId: string
   status: AgentStatus
