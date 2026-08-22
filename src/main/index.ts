@@ -12,6 +12,8 @@ import { PtyManager } from './pty-manager'
 import { resolveShell } from './terminal-shell'
 import { LogManager } from './log-manager'
 import { GitStatusService } from './git-status-service'
+import { GitService } from './git-service'
+import { openGitViewer } from './git-viewer'
 import { AlertService } from './alert-service'
 import { NotificationService } from './notification-service'
 import { Updater } from './updater'
@@ -93,6 +95,7 @@ class MainApp {
   pty = new PtyManager()
   logs = new LogManager(path.join(app.getPath('userData'), 'logs'))
   git = new GitStatusService()
+  gitSvc = new GitService()
   alerts = new AlertService()
   builtinSkillsDir = app.isPackaged
     ? path.join(process.resourcesPath, 'skills')
@@ -633,6 +636,27 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.FileViewerShowInFolder, (_e, absPath: string) => {
     shell.showItemInFolder(absPath)
   })
+  ipcMain.handle(Channels.GitOpenViewer, (_e, projectPath: string) => openGitViewer(projectPath, () => win))
+  ipcMain.handle(Channels.GitGetBranches, (_e, projectPath: string) => mainApp.gitSvc.getBranches(projectPath))
+  ipcMain.handle(Channels.GitCreateBranch, (_e, projectPath: string, name: string, base: string) =>
+    mainApp.gitSvc.createBranch(projectPath, name, base))
+  ipcMain.handle(Channels.GitCheckout, (_e, projectPath: string, branch: string) =>
+    mainApp.gitSvc.checkout(projectPath, branch))
+  ipcMain.handle(Channels.GitStash, (_e, projectPath: string) => mainApp.gitSvc.stashPush(projectPath))
+  ipcMain.handle(Channels.GitStashPop, (_e, projectPath: string) => mainApp.gitSvc.stashPop(projectPath))
+  ipcMain.handle(Channels.GitStatusDetail, (_e, projectPath: string) => mainApp.gitSvc.getStatusDetail(projectPath))
+  ipcMain.handle(Channels.GitGetDiff, (_e, projectPath: string, file?: string, staged?: boolean) =>
+    mainApp.gitSvc.getDiff(projectPath, file, staged))
+  ipcMain.handle(Channels.GitGetCommits, (_e, projectPath: string, file?: string, count?: number) =>
+    mainApp.gitSvc.getCommits(projectPath, file, count))
+  ipcMain.handle(Channels.GitGetCommitDiff, (_e, projectPath: string, sha: string) =>
+    mainApp.gitSvc.getCommitDiff(projectPath, sha))
+  ipcMain.handle(Channels.GitCompareCommits, (_e, projectPath: string, a: string, b: string) =>
+    mainApp.gitSvc.compareCommits(projectPath, a, b))
+  ipcMain.handle(Channels.GitGetBlame, (_e, projectPath: string, file: string) =>
+    mainApp.gitSvc.getBlame(projectPath, file))
+  ipcMain.handle(Channels.GitGetFileHistory, (_e, projectPath: string, file: string) =>
+    mainApp.gitSvc.getFileHistory(projectPath, file))
   ipcMain.handle(Channels.DirList, (_e, absPath: string) => mainApp.dirList(absPath))
   ipcMain.handle(Channels.ArtifactsList, (_e, projectPath: string) =>
     mainApp.artifacts.list(projectPath))
