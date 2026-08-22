@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { CatalogProviderSummary, MeowSettings } from '@shared/types'
+import type { CatalogProviderSummary, MeowSettings, ProviderSettings } from '@shared/types'
 import Modal from './Modal'
 
 interface Props {
@@ -11,6 +11,7 @@ interface Props {
 type ConnectModal =
   | { kind: 'catalog'; id: string; name: string }
   | { kind: 'manual' }
+  | { kind: 'edit'; id: string; name: string }
   | null
 
 export default function ProvidersTab({ settings, catalog, onChange }: Props) {
@@ -45,17 +46,33 @@ export default function ProvidersTab({ settings, catalog, onChange }: Props) {
     setModal({ kind: 'manual' })
   }
 
+  const openEdit = (p: ProviderSettings) => {
+    setProviderId(p.id)
+    setApiKey('')
+    setBaseUrl(p.baseUrl ?? '')
+    setModal({ kind: 'edit', id: p.id, name: p.id })
+  }
+
   const connect = async () => {
     const id = providerId.trim()
-    if (!id || !apiKey.trim()) return
+    if (!id) return
+    const isEdit = modal?.kind === 'edit'
+    // Connect requires a key; edit keeps the current key when left blank.
+    if (!isEdit && !apiKey.trim()) return
     setStatus('')
     const result = await window.api.connectProvider(id, apiKey.trim(), baseUrl.trim() || undefined)
     setModal(null)
     onChange({ providers: result.providers, defaultProvider: result.defaultProvider })
-    const provider = result.providers.find(p => p.id === id)
-    setStatus(provider && provider.models.length > 0
-      ? `Connected ${id}. ${provider.models.length} model(s) synced.`
-      : `Connected ${id}. Models will sync when models.dev is reachable.`)
+    if (isEdit) {
+      setStatus(apiKey.trim()
+        ? `Saved ${id}. API key updated.`
+        : `Saved ${id}. API key kept.`)
+    } else {
+      const provider = result.providers.find(p => p.id === id)
+      setStatus(provider && provider.models.length > 0
+        ? `Connected ${id}. ${provider.models.length} model(s) synced.`
+        : `Connected ${id}. Models will sync when models.dev is reachable.`)
+    }
   }
 
   const disconnect = async (id: string) => {
@@ -143,6 +160,7 @@ export default function ProvidersTab({ settings, catalog, onChange }: Props) {
                   ? <span className="provider-connected-secure" title="Key stored in settings (not encrypted)">key {maskKey(p.apiKey)}</span>
                   : null}
               {p.baseUrl && <span className="provider-connected-baseurl">{p.baseUrl}</span>}
+              <button className="btn small" onClick={() => openEdit(p)}>Edit</button>
               <button className="btn small" onClick={() => void setDefault(p.id)}>
                 {settings.defaultProvider === p.id ? 'default' : 'set default'}
               </button>
@@ -162,17 +180,25 @@ export default function ProvidersTab({ settings, catalog, onChange }: Props) {
 
       {modal && (
         <Modal
-          title={modal.kind === 'catalog' ? `Connect ${modal.name}` : 'Connect provider'}
+          title={modal.kind === 'catalog' ? `Connect ${modal.name}` : modal.kind === 'edit' ? `Edit ${modal.name}` : 'Connect provider'}
           onClose={() => setModal(null)}
           onSubmit={() => void connect()}
-          submitLabel="Connect"
-          submitDisabled={!providerId.trim() || !apiKey.trim()}
+          submitLabel={modal.kind === 'edit' ? 'Save changes' : 'Connect'}
+          submitDisabled={!providerId.trim() || (modal.kind !== 'edit' && !apiKey.trim())}
         >
           {modal.kind === 'catalog' ? (
             <p className="settings-hint">
               Provider <code>{modal.id}</code> — enter your API key below. It will be stored encrypted
               in the OS keychain.
             </p>
+          ) : modal.kind === 'edit' ? (
+            <>
+              <input className="input" value={providerId} disabled />
+              <p className="settings-hint">
+                Leave the API key blank to keep the current key. It is stored encrypted in the OS
+                keychain and never shown again.
+              </p>
+            </>
           ) : (
             <input
               className="input"
@@ -184,7 +210,7 @@ export default function ProvidersTab({ settings, catalog, onChange }: Props) {
           <input
             className="input provider-key"
             type="password"
-            placeholder="api key"
+            placeholder={modal.kind === 'edit' ? 'api key (leave blank to keep current)' : 'api key'}
             value={apiKey}
             onChange={e => setApiKey(e.target.value)}
           />

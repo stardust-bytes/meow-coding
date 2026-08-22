@@ -551,22 +551,29 @@ export class MeowAgentManager {
 
   async connectProvider(providerId: string, apiKey: string, baseUrl?: string): Promise<MeowSettings> {
     const catalog = await this.deps.catalog?.fetch() ?? {}
-    const models = catalog[providerId]?.models ?? []
+    const catalogModels = catalog[providerId]?.models ?? []
     const settings = this.getSettings()
-    // Store the key in the encrypted vault and keep only a keyRef in settings;
-    // fall back to plaintext apiKey when safeStorage is unavailable (e.g.
-    // Linux without a keyring) so connecting still works.
-    let keyRef: string | undefined
-    let plainKey = ''
-    if (this.deps.vault?.isAvailable()) {
-      keyRef = `provider:${providerId}`
-      this.deps.vault.saveSecret(keyRef, apiKey)
-    } else {
-      plainKey = apiKey
+    const existing = settings.providers.find(p => p.id === providerId)
+    // Empty apiKey on an existing provider keeps the stored secret, so edits
+    // that only change baseUrl don't require re-entering the key.
+    let keyRef = existing?.keyRef
+    let plainKey = existing ? existing.apiKey : ''
+    if (apiKey) {
+      if (this.deps.vault?.isAvailable()) {
+        keyRef = `provider:${providerId}`
+        this.deps.vault.saveSecret(keyRef, apiKey)
+        plainKey = ''
+      } else {
+        keyRef = undefined
+        plainKey = apiKey
+      }
     }
+    // Providers absent from the catalog (manual ones, or providers renamed in
+    // models.dev) keep the previously synced model list instead of wiping it.
+    const models = catalogModels.length > 0 ? catalogModels : (existing?.models ?? [])
     const nextProviders = [
       ...settings.providers.filter(p => p.id !== providerId),
-      { id: providerId, apiKey: plainKey, keyRef, baseUrl: baseUrl || catalog[providerId]?.api, models }
+      { id: providerId, apiKey: plainKey, keyRef, baseUrl: baseUrl || catalog[providerId]?.api || existing?.baseUrl, models }
     ]
     const defaultProvider = settings.providers.some(p => p.id === settings.defaultProvider)
       ? settings.defaultProvider

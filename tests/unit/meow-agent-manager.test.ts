@@ -562,6 +562,65 @@ describe('MeowAgentManager', () => {
     }
   })
 
+  it('connectProvider keeps the stored key when apiKey is empty (edit baseUrl only)', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-edit-'))
+    try {
+      const catalog = new ModelsCatalog(path.join(dir, 'models.json'), async () =>
+        ({ ok: true, json: async () => ({
+          deepseek: { name: 'DeepSeek', api: 'https://api.deepseek.com', models: { a: {}, b: {} } }
+        }) }) as unknown as Response)
+      const { manager } = await makeManager({ configPath: path.join(dir, 'meow.json'), catalog })
+      await manager.connectProvider('deepseek', 'sk-ds')
+      const settings = await manager.connectProvider('deepseek', '', 'https://custom.example')
+      expect(settings.providers).toHaveLength(1)
+      expect(settings.providers[0]).toMatchObject({
+        id: 'deepseek', apiKey: 'sk-ds', baseUrl: 'https://custom.example',
+        models: ['a', 'b']
+      })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('connectProvider replaces the key when a new one is provided', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-key-'))
+    try {
+      const catalog = new ModelsCatalog(path.join(dir, 'models.json'), async () =>
+        ({ ok: true, json: async () => ({
+          deepseek: { name: 'DeepSeek', api: 'https://api.deepseek.com', models: { a: {} } }
+        }) }) as unknown as Response)
+      const { manager } = await makeManager({ configPath: path.join(dir, 'meow.json'), catalog })
+      await manager.connectProvider('deepseek', 'sk-old')
+      const settings = await manager.connectProvider('deepseek', 'sk-new', 'https://custom.example')
+      expect(settings.providers[0].apiKey).toBe('sk-new')
+      expect(settings.providers[0].baseUrl).toBe('https://custom.example')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('connectProvider preserves models when the provider is missing from the catalog', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-manual-'))
+    try {
+      const catalog = new ModelsCatalog(path.join(dir, 'models.json'), async () =>
+        ({ ok: true, json: async () => ({
+          deepseek: { name: 'DeepSeek', api: 'https://api.deepseek.com', models: { a: {}, b: {} } }
+        }) }) as unknown as Response)
+      const { manager } = await makeManager({ configPath: path.join(dir, 'meow.json'), catalog })
+      // Connected while the provider existed in the catalog...
+      await manager.connectProvider('deepseek', 'sk-ds')
+      // ...then the provider disappears from models.dev; re-saving must keep models.
+      const catalogNow = new ModelsCatalog(path.join(dir, 'models.json'), async () =>
+        ({ ok: true, json: async () => ({}) }) as unknown as Response)
+      const { manager: manager2 } = await makeManager({ configPath: path.join(dir, 'meow.json'), catalog: catalogNow })
+      const settings = await manager2.connectProvider('deepseek', 'sk-ds2')
+      expect(settings.providers[0].apiKey).toBe('sk-ds2')
+      expect(settings.providers[0].models).toEqual(['a', 'b'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('executes multiple allow tool calls in a turn in parallel', async () => {
     const { manager, events } = await makeManager({
       partsQueue: [

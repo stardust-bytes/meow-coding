@@ -1218,7 +1218,8 @@ select.input { width: 100%; }
 .project-menu { position: relative; flex: 0 0 auto; }
 .project-menu-dropdown { min-width: 150px; }
 .menu-item.danger { color: var(--red); }
-.sidebar-footer-menu { display: flex; align-items: center; gap: 6px; width: 100%; }
+.sidebar-footer-menu { display: flex; align-items: center; gap: 6px; width: fit-content; }
+.sidebar:not(.collapsed) .sidebar-footer-menu { margin-left: auto; }
 .sidebar-menu-dropdown .menu-item { display: flex; align-items: center; gap: 8px; }
 .sidebar-update-block {
   border-top: 1px solid var(--hairline);
