@@ -1,9 +1,10 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import type { AgentMode, ChatEvent, ChatMessage, Command, ImageAttachment, QuestionOption, QueuedMessage, SessionSummary, TodoItem, TodoStatus, ToolCallData } from '@shared/types'
 import { appendStreamDelta } from '@shared/text'
 import { contextTokens } from '@shared/usage'
 import ChatInput from './ChatInput'
+import { useChatScroll } from './useChatScroll'
 import { buildQuestionAnswer } from './questionAnswer'
 import ToolCallCard from './ToolCallCard'
 import MarkdownText from './MarkdownText'
@@ -55,17 +56,18 @@ function MentionText({ text, commands }: { text: string; commands: Command[] }) 
 // Owns the per-message subtree so streamed deltas only re-render the message
 // that changed, not the whole feed. Props are primitives or stable state
 // references (commands), so React.memo works.
-const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, commands, onOpenImage, onOpenFile }: {
+const FeedMessage = memo(function FeedMessage({ role, text, reasoning, images, commands, messageId, onOpenImage, onOpenFile }: {
   role: ChatMessage['role']
   text: string
   reasoning?: string
   images?: ImageAttachment[]
   commands: Command[]
+  messageId: string
   onOpenImage?: (dataUrl: string) => void
   onOpenFile?: (path: string) => void
 }) {
   return (
-    <div className={`chat-msg ${role}`}>
+    <div className={`chat-msg ${role}`} data-chat-message-id={messageId}>
       {role === 'assistant' ? (
         <>
           {reasoning ? (
@@ -138,19 +140,13 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const queueRef = useRef<QueuedMessage[]>([])
   const [editTarget, setEditTarget] = useState<QueuedMessage | null>(null)
   const [liveTaskId, setLiveTaskId] = useState<string | null>(null)
-  const endRef = useRef<HTMLDivElement>(null)
-  const feedRef = useRef<HTMLDivElement>(null)
   const promptRef = useRef<HTMLDivElement>(null)
-  const shouldJumpToEnd = useRef(true)
+  const scroll = useChatScroll()
   // Stream deltas are accumulated per animation frame: one setItems per frame
   // bounds markdown parsing and feed re-renders, which otherwise saturate the
   // UI thread on every token and make typing in the input lag.
   const deltaBufRef = useRef<{ text: string; reasoning: string }>({ text: '', reasoning: '' })
   const rafRef = useRef<number | null>(null)
-  const pinRafRef = useRef<number | null>(null)
-  const prevLastIdRef = useRef<string | null>(null)
-  const stuckRef = useRef(true)
-  const [showJumpToEnd, setShowJumpToEnd] = useState(false)
 
   const refreshVariants = useCallback(() => {
     void window.api.getAgentVariants(agentId).then(list => {
@@ -210,9 +206,9 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
         if (it.message.role === 'assistant' && t && t.output > 0) { used = contextTokens(t); break }
       }
       setContextUsed(used)
-      shouldJumpToEnd.current = true
+      scroll.pinSessionToEnd()
     })
-  }, [agentId])
+  }, [agentId, scroll.pinSessionToEnd])
 
   const reloadSessions = useCallback(() => {
     void window.api.listSessions(agentId).then(list => {
@@ -263,60 +259,6 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     void window.api.openFile({ path: p, root: cwd })
   }, [cwd])
 
-  const onFeedScroll = useCallback(() => {
-    const el = feedRef.current
-    if (!el) return
-    // Stay glued to the bottom unless the user scrolls up to read history.
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80
-    stuckRef.current = atBottom
-    setShowJumpToEnd(!atBottom)
-  }, [])
-
-  const jumpToEnd = useCallback(() => {
-    const feed = feedRef.current
-    if (!feed) return
-    feed.scrollTop = feed.scrollHeight
-    stuckRef.current = true
-    setShowJumpToEnd(false)
-  }, [])
-
-  useEffect(() => {
-    // Reopening a session should land at the latest message instantly; only a
-    // brand-new feed item gets a smooth scroll. Streaming deltas scroll
-    // instantly: a smooth scroll per token animates on the UI thread and is a
-    // big part of the input-lag jank.
-    const el = endRef.current
-    if (!el) return
-    if (!stuckRef.current) return
-    const last = items[items.length - 1]
-    const lastId = last ? (last.kind === 'subagent' ? last.taskId : last.id) : null
-    const isNewMessage = lastId !== prevLastIdRef.current
-    prevLastIdRef.current = lastId
-    if (shouldJumpToEnd.current) {
-      shouldJumpToEnd.current = false
-      const feed = feedRef.current
-      if (!feed) return
-      // content-visibility rows are laid out with estimated sizes on the first
-      // paint and settle to their real heights over several frames, so a single
-      // scrollIntoView can land short of the true bottom. Re-assert scrollTop
-      // every frame for a while (or until the user scrolls up) to land at the
-      // real end of the feed when opening a project/session.
-      let frames = 0
-      const pin = () => {
-        if (!stuckRef.current) return
-        feed.scrollTop = feed.scrollHeight
-        if (frames++ < 60) pinRafRef.current = requestAnimationFrame(pin)
-      }
-      pin()
-      pinRafRef.current = requestAnimationFrame(pin)
-      return
-    } else if (isNewMessage) {
-      el.scrollIntoView({ behavior: 'smooth' })
-    } else {
-      el.scrollIntoView()
-    }
-  }, [items])
-
   // Applies deltas accumulated during one animation frame. Copy-on-write keeps
   // the updater pure and gives memoized rows a fresh object with new text.
   const flushDeltas = useCallback(() => {
@@ -351,8 +293,13 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
 
   useEffect(() => () => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current)
-    if (pinRafRef.current != null) cancelAnimationFrame(pinRafRef.current)
   }, [])
+
+  // Reconcile the feed scroll after committed layout changes: keeps the active
+  // anchor pinned while streaming and follows the tail otherwise.
+  useLayoutEffect(() => {
+    scroll.reconcile()
+  }, [items, running, queue, scroll.reconcile])
 
   // Close the subagent live popup on Escape only (backdrop click no longer closes).
   useEffect(() => {
@@ -399,14 +346,17 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
       setQueue(e.queue)
       const started = prev.find(p => !e.queue.some(q => q.id === p.id))
       if (started) {
+        const optimisticId = 'u-' + started.id
+        scroll.startTurnAnchor(optimisticId)
         setItems(prevItems => [...prevItems, {
-          kind: 'message', id: 'u-' + started.id, role: 'user',
+          kind: 'message', id: optimisticId, role: 'user',
           text: started.displayText ?? started.text, images: started.images
         }])
       }
       return
     }
     if (e.type === 'user-message') {
+      scroll.replaceActiveAnchorId(e.message.id)
       setItems(prev => {
         // The desktop UI adds user rows optimistically (local send, 'u-' ids)
         // and via queue-updated. The echo is the truth for that send: replace
@@ -440,7 +390,6 @@ if (e.type === 'usage') {
     }
     if (e.type === 'compaction-start') {
       setItems(prev => [...prev, { kind: 'compaction', id: 'c-' + Date.now(), running: true }])
-      shouldJumpToEnd.current = true
       return
     }
     if (e.type === 'compacted' || e.type === 'compaction-failed') {
@@ -459,7 +408,6 @@ if (e.type === 'usage') {
         }
         return [...prev, { kind: 'compaction', id: 'c-' + Date.now(), failed: e.type === 'compaction-failed' }]
       })
-      shouldJumpToEnd.current = true
       return
     }
     if (e.type === 'message-removed') {
@@ -525,7 +473,7 @@ if (e.type === 'usage') {
       }
       return next
     })
-  }, [agentId, flushDeltas, resetView, reloadSessions])
+  }, [agentId, flushDeltas, resetView, reloadSessions, scroll.replaceActiveAnchorId, scroll.startTurnAnchor])
 
   const send = useCallback((text: string, images?: ImageAttachment[]) => {
     const trimmed = text.trim()
@@ -533,8 +481,10 @@ if (e.type === 'usage') {
     // When a turn is already running the message is queued in main; the
     // user message row appears only once the queue drains and the turn starts.
     if (!running) {
+      const optimisticId = 'u-' + Date.now()
+      scroll.startTurnAnchor(optimisticId)
       setItems(prev => [...prev, {
-        kind: 'message', id: 'u-' + Date.now(), role: 'user', text: trimmed, images
+        kind: 'message', id: optimisticId, role: 'user', text: trimmed, images
       }])
       setRunning(true)
     }
@@ -545,7 +495,7 @@ if (e.type === 'usage') {
       void window.api.sendChat(agentId, trimmed, images)
     }
     reloadSessions()
-  }, [agentId, commands, running, reloadSessions])
+  }, [agentId, commands, running, reloadSessions, scroll.startTurnAnchor])
 
   const handleStop = useCallback(() => {
     void window.api.stopChat(agentId)
@@ -786,7 +736,18 @@ if (e.type === 'usage') {
         </div>
       )}
       <div className="chat-feed-wrap">
-        <div className="chat-feed" ref={feedRef} onScroll={onFeedScroll}>
+        <div
+          className="chat-feed"
+          ref={scroll.feedRef}
+          tabIndex={0}
+          onScroll={scroll.onScroll}
+          onWheel={scroll.onWheel}
+          onTouchMove={scroll.onTouchMove}
+          onPointerDown={scroll.onPointerDown}
+          onPointerUp={scroll.onPointerUp}
+          onKeyDown={scroll.onKeyDown}
+        >
+        <div className="chat-feed-content" ref={scroll.contentRef}>
         {items.map(item => {
           if (item.kind === 'compaction') {
             return (
@@ -800,6 +761,7 @@ if (e.type === 'usage') {
             return (
               <FeedMessage
                 key={item.id}
+                messageId={item.id}
                 role={item.role}
                 text={item.text}
                 reasoning={item.reasoning}
@@ -856,14 +818,17 @@ if (e.type === 'usage') {
             ))}
           </div>
         )}
-        <div ref={endRef} />
+        <div className="chat-latest-boundary" ref={scroll.latestRef} aria-hidden="true" />
+        <div className="chat-turn-tail" ref={scroll.tailRef} aria-hidden="true" />
+        <div ref={scroll.endRef} aria-hidden="true" />
         </div>
-        {showJumpToEnd && (
-          <button className="chat-jump-to-end" onClick={jumpToEnd} title="Scroll to end">
-            <ChevronDown size={14} aria-hidden="true" />
-            <span>Scroll to end</span>
-          </button>
-        )}
+      </div>
+      {scroll.showJumpToEnd && (
+        <button className="chat-jump-to-end" onClick={scroll.jumpToEnd} title="Scroll to end" aria-label="Scroll to end">
+          <ChevronDown size={14} aria-hidden="true" />
+          <span>Scroll to end</span>
+        </button>
+      )}
       </div>
       <div className="chat-composer">
         {pendingPrompt && (

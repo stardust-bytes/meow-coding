@@ -682,8 +682,12 @@ select.input { width: 100%; }
   position: relative; flex: 1; min-height: 0;
   display: flex; flex-direction: column;
 }
-.chat-feed { flex: 1; min-height: 0; overflow-y: auto; padding: 14px; }
-.chat-feed > * + * { margin-top: 10px; }
+.chat-feed { flex: 1; min-height: 0; overflow-y: auto; padding: 14px; overflow-anchor: none; }
+.chat-feed:focus { outline: none; }
+.chat-feed-content { min-height: 100%; }
+.chat-feed-content > * + * { margin-top: 10px; }
+.chat-latest-boundary, .chat-turn-tail { height: 0; margin: 0 !important; pointer-events: none; }
+.chat-turn-tail { min-height: 0; }
 .chat-jump-to-end {
   position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%);
   display: inline-flex; align-items: center; gap: 6px;
