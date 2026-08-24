@@ -458,6 +458,78 @@ describe('SessionRunner', () => {
     expect(h.events.some(e => e.type === 'compacted')).toBe(true)
   })
 
+  it('compacts when a tool output appended since the last provider usage trips the budget', async () => {
+    // Provider reports 320 tokens (below the 480 usable budget), but the tool
+    // result appended after that response is huge. The threshold check must not
+    // trust the stale provider count alone — the transcript estimate trips it.
+    const replaced: TranscriptItem[][] = []
+    const h = makeHarness({
+      tools: new Map([['read', stubTool('read', async () => ({ output: 'x'.repeat(5000) }))]]),
+      maxContextTokens: 500,
+      compaction: { auto: true, buffer: 20, keepTokens: 100, tailTurns: 2, toolOutputMaxChars: 2000 },
+      replaceItems: (items) => replaced.push(items),
+      maxSteps: 5,
+      llm: {
+        async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
+          h.llm.calls.push(opts)
+          if (opts.tools.length === 0) {
+            // compaction call
+            yield { kind: 'text', text: '## Objective\n- compacted' }
+            yield { kind: 'finish' }
+          } else if (h.llm.calls.length === 1) {
+            yield { kind: 'tool-call', toolCallId: 'tc1', toolName: 'read', toolInput: { file_path: 'a.ts' } }
+            yield { kind: 'finish', tokens: { input: 300, output: 20, total: 320 } }
+          } else {
+            yield { kind: 'text', text: 'done' }
+            yield { kind: 'finish' }
+          }
+        }
+      } as unknown as LlmClient
+    })
+    h.items.push({ kind: 'message', message: { id: 'old', role: 'user', text: 'some earlier prompt', createdAt: 1 } })
+    h.items.push({ kind: 'message', message: { id: 'recent', role: 'user', text: 'latest prompt', createdAt: 2 } })
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+
+    expect(replaced.length).toBe(1)
+    const events = h.events.map(e => e.type)
+    expect(events.indexOf('compaction-start')).toBeGreaterThanOrEqual(0)
+    expect(events.indexOf('compacted')).toBeGreaterThan(events.indexOf('compaction-start'))
+  })
+
+  it('emits compaction-start before the summary and compaction-failed when the call fails', async () => {
+    const replaced: TranscriptItem[][] = []
+    const h = makeHarness({
+      tools: new Map<string, ToolDefinition>(),
+      maxContextTokens: 200,
+      compaction: { auto: true, buffer: 20, keepTokens: 100, tailTurns: 2, toolOutputMaxChars: 2000 },
+      maxSteps: 1,
+      replaceItems: (items) => replaced.push(items),
+      llm: {
+        async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
+          h.llm.calls.push(opts)
+          if (h.llm.calls.length === 1) {
+            // compaction call
+            yield { kind: 'error', error: 'summary failed' }
+          } else {
+            yield { kind: 'text', text: 'ok' }
+            yield { kind: 'finish' }
+          }
+        }
+      } as unknown as LlmClient
+    })
+    h.items.push({ kind: 'message', message: { id: 'old', role: 'user', text: 'old '.repeat(5000), createdAt: 1 } })
+    h.items.push({ kind: 'message', message: { id: 'recent', role: 'user', text: 'latest prompt', createdAt: 2 } })
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+
+    expect(replaced.length).toBe(0)
+    const events = h.events.map(e => e.type)
+    expect(events.indexOf('compaction-start')).toBeGreaterThanOrEqual(0)
+    expect(events.indexOf('compaction-failed')).toBeGreaterThan(events.indexOf('compaction-start'))
+    expect(events).not.toContain('compacted')
+  })
+
   it('truncates tool output to toolOutputMaxChars when sending to the model', async () => {
     const h = makeHarness({
       tools: new Map([['bash', stubTool('bash', async () => ({ output: 'o'.repeat(5000) }))]]),

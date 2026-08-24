@@ -320,23 +320,26 @@ export class SessionRunner {
     const opts = { toolOutputMaxChars: compaction.toolOutputMaxChars, ...this.truncationOpts() }
     // Trust the provider-reported usage when available (mirrors opencode's
     // overflow check): it covers the system prompt + tool definitions, which
-    // the transcript char estimate never counts. Fall back to the estimate
-    // only before the first response arrives.
-    const usedTokens = this.lastTokens
+    // the transcript char estimate never counts. But it lags behind tool
+    // outputs appended after the last response — take the max with a fresh
+    // estimate of the current transcript so a big tool result still trips the
+    // threshold at the next step boundary instead of being counted late.
+    const estimate = estimateUsage(toLlmMessages(items, opts))
+    const providerTokens = this.lastTokens
       ? this.lastTokens.total ||
         this.lastTokens.input + this.lastTokens.output +
         (this.lastTokens.cacheRead ?? 0) + (this.lastTokens.cacheWrite ?? 0)
-      : estimateUsage(toLlmMessages(items, opts))
+      : 0
+    const usedTokens = Math.max(estimate, providerTokens)
     if (usedTokens < usable) return
 
     // Prune old tool outputs first (cheap) before spending an LLM compact call.
+    // The provider-reported count still includes the pruned bytes, so re-check
+    // against a fresh estimate of the smaller transcript.
     const pruned = pruneToolOutputs(items, compaction)
     if (pruned) {
       replaceItems(items)
-      const afterPrune = this.lastTokens
-        ? usedTokens
-        : estimateUsage(toLlmMessages(items, opts))
-      if (afterPrune < usable) return
+      if (estimateUsage(toLlmMessages(items, opts)) < usable) return
     }
 
     const { head, tail } = selectHeadTail(items, compaction.keepTokens, compaction.tailTurns)
@@ -344,6 +347,9 @@ export class SessionRunner {
     if (this.compactedThisRun >= MAX_COMPACT_PER_RUN) return
     const previousSummary = this.findPreviousSummary(items)
     const prompt = buildCompactionPrompt(previousSummary, serializeItems(head, compaction.toolOutputMaxChars))
+    // Let the UI show a "compacting…" line before the (possibly slow) summary
+    // call, instead of only learning about it after the fact.
+    this.deps.onEvent({ type: 'compaction-start', agentId: this.deps.agentId })
     const summary = await compactTranscript({ llm: this.deps.llm, model: this.deps.model, prompt, signal })
     if (signal?.aborted) return
     if (!summary) {

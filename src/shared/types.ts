@@ -190,6 +190,7 @@ export type ChatEvent =
   | { type: 'turn-started'; agentId: string }
   | { type: 'done'; agentId: string; reason: string; tokens?: TokenUsage; cost?: number }
   | { type: 'error'; agentId: string; message: string }
+  | { type: 'compaction-start'; agentId: string }
   | { type: 'compacted'; agentId: string; summary: string }
   | { type: 'compaction-failed'; agentId: string }
   | { type: 'usage'; agentId: string; tokens: MessageTokens; sessionCost: number; sessionTokens: { input: number; output: number } }

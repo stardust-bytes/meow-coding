@@ -16,7 +16,7 @@ type FeedItem =
   | { kind: 'message'; id: string; role: ChatMessage['role']; text: string; reasoning?: string; images?: ImageAttachment[] }
   | { kind: 'tool'; id: string; call: ToolCallData }
   | { kind: 'error'; id: string; text: string }
-  | { kind: 'compaction'; id: string; failed?: boolean }
+  | { kind: 'compaction'; id: string; running?: boolean; failed?: boolean }
   | { kind: 'subagent'; taskId: string; subagentType?: string; text: string; reasoning?: string; result?: string; background?: boolean; tools: string[]; state: 'running' | 'completed' | 'cancelled' | 'error' }
 
 interface PendingPrompt {
@@ -438,13 +438,27 @@ if (e.type === 'usage') {
       setSessionTokens(e.sessionTokens)
       return
     }
-    if (e.type === 'compacted') {
-      setItems(prev => [...prev, { kind: 'compaction', id: 'c-' + Date.now() }])
+    if (e.type === 'compaction-start') {
+      setItems(prev => [...prev, { kind: 'compaction', id: 'c-' + Date.now(), running: true }])
       shouldJumpToEnd.current = true
       return
     }
-    if (e.type === 'compaction-failed') {
-      setItems(prev => [...prev, { kind: 'compaction', id: 'c-' + Date.now(), failed: true }])
+    if (e.type === 'compacted' || e.type === 'compaction-failed') {
+      setItems(prev => {
+        // Turn the in-progress line into its final state; if none is pending
+        // (e.g. older sessions), just append the result line.
+        const running = [...prev].reverse().find(
+          (i): i is FeedItem & { kind: 'compaction'; running: boolean } => i.kind === 'compaction' && i.running === true
+        )
+        if (running) {
+          return prev.map(i =>
+            i === running
+              ? { kind: 'compaction', id: running.id, running: false, failed: e.type === 'compaction-failed' }
+              : i
+          )
+        }
+        return [...prev, { kind: 'compaction', id: 'c-' + Date.now(), failed: e.type === 'compaction-failed' }]
+      })
       shouldJumpToEnd.current = true
       return
     }
@@ -776,8 +790,8 @@ if (e.type === 'usage') {
         {items.map(item => {
           if (item.kind === 'compaction') {
             return (
-              <div key={item.id} className={`chat-compacted ${item.failed ? 'failed' : ''}`}>
-                {item.failed ? 'Context compaction failed' : 'Context compacted'}
+              <div key={item.id} className={`chat-compacted ${item.failed ? 'failed' : ''} ${item.running ? 'running' : ''}`}>
+                {item.running ? 'Compacting context…' : (item.failed ? 'Context compaction failed' : 'Context compacted')}
               </div>
             )
           }
