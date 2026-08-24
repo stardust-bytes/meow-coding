@@ -5,7 +5,7 @@ describe('getWindowChromeOptions', () => {
   it('uses a hidden title bar with a colored overlay on Windows', () => {
     const opts = getWindowChromeOptions('win32')
     expect(opts.titleBarStyle).toBe('hidden')
-    expect(opts.titleBarOverlay).toEqual({ color: '#252526', symbolColor: '#cccccc', height: 32 })
+    expect(opts.titleBarOverlay).toEqual({ color: '#10141b', symbolColor: '#cdd3de', height: 32 })
     expect(opts.frame).toBeUndefined()
   })
 
