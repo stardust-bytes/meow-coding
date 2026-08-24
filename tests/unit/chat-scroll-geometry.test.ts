@@ -3,6 +3,7 @@ import {
   CHAT_BOTTOM_FOLLOW_ZONE,
   CHAT_TURN_TOP_INSET,
   anchorScrollTop,
+  followScrollDelta,
   isInBottomFollowZone,
   nextChatScrollMode,
   tailSpacerHeight
@@ -34,6 +35,11 @@ describe('chat scroll geometry', () => {
   it('shrinks turn tail space as rendered output grows', () => {
     expect(tailSpacerHeight({ clientHeight: 600, anchorTop: 20, latestBottom: 220 })).toBe(380)
     expect(tailSpacerHeight({ clientHeight: 600, anchorTop: 20, latestBottom: 760 })).toBe(0)
+  })
+
+  it('does not move until current turn content crosses the lower reading boundary', () => {
+    expect(followScrollDelta({ feedBottom: 700, latestBottom: 680 })).toBe(0)
+    expect(followScrollDelta({ feedBottom: 700, latestBottom: 701 })).toBe(15)
   })
 
   it('transitions only through explicit scroll intent', () => {

@@ -44,6 +44,10 @@ export function tailSpacerHeight(input: {
   return Math.max(0, input.clientHeight - CHAT_TURN_TOP_INSET - turnExtent)
 }
 
+export function followScrollDelta(input: { feedBottom: number; latestBottom: number }): number {
+  return Math.max(0, input.latestBottom - (input.feedBottom - CHAT_FOLLOW_BOTTOM_INSET))
+}
+
 export function nextChatScrollMode(mode: ChatScrollMode, event: ChatScrollEvent): ChatScrollMode {
   if (event === 'session-load' || event === 'jump-end' || event === 'user-bottom') return 'following'
   if (event === 'start-turn') return 'anchoring-turn'
