@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent, PointerEvent, RefObject, WheelEvent } from 'react'
 import {
+  CHAT_TURN_TOP_INSET,
   anchorScrollTop,
   followScrollDelta,
   isInBottomFollowZone,
@@ -42,6 +43,9 @@ export function useChatScroll(): ChatScrollController {
   const scrollbarDragRef = useRef(false)
   const reconcileRafRef = useRef<number | null>(null)
   const pinRafRef = useRef<number | null>(null)
+  // The anchor is re-applied until the layout settles; this bounds the loop in
+  // case the turn never fits the viewport.
+  const anchorRetriesRef = useRef(0)
   const [showJumpToEnd, setShowJumpToEnd] = useState(false)
 
   const writeScrollTop = useCallback((top: number) => {
@@ -91,13 +95,29 @@ export function useChatScroll(): ChatScrollController {
       const pendingId = pendingAnchorIdRef.current
       if (pendingId != null) {
         if (!anchorRect) return
-        writeScrollTop(anchorScrollTop({
+        const target = anchorScrollTop({
           currentScrollTop: feed.scrollTop,
           feedTop: feedRect.top,
           rowTop: anchorRect.top,
           scrollHeight: feed.scrollHeight,
           clientHeight: feed.clientHeight
-        }))
+        })
+        writeScrollTop(target)
+        const anchorTop = anchorRect.top - feedRect.top
+        const turnExtent = latestRect ? latestRect.bottom - anchorRect.top : 0
+        // Layout settles a few frames after the write (content-visibility rows,
+        // the running indicator, echo replacement), and the browser can clamp
+        // scrollTop when the content shrinks — undoing the anchor. Hold the
+        // anchor until the row actually sits at the inset and the turn still
+        // fits the viewport; once it grows past the viewport, follow normally.
+        if (Math.abs(anchorTop - CHAT_TURN_TOP_INSET) > 2
+          && turnExtent <= feed.clientHeight - CHAT_TURN_TOP_INSET
+          && anchorRetriesRef.current < 60) {
+          anchorRetriesRef.current += 1
+          reconcile()
+          return
+        }
+        anchorRetriesRef.current = 0
         pendingAnchorIdRef.current = null
         modeRef.current = nextChatScrollMode(modeRef.current, 'anchor-applied')
       } else if (latestRect) {
@@ -112,6 +132,7 @@ export function useChatScroll(): ChatScrollController {
     pinRafRef.current = null
     activeAnchorIdRef.current = messageId
     pendingAnchorIdRef.current = messageId
+    anchorRetriesRef.current = 0
     if (tailRef.current) tailRef.current.style.height = '0px'
     modeRef.current = nextChatScrollMode(modeRef.current, 'start-turn')
     setShowJumpToEnd(false)
@@ -121,6 +142,7 @@ export function useChatScroll(): ChatScrollController {
   const replaceActiveAnchorId = useCallback((messageId: string) => {
     activeAnchorIdRef.current = messageId
     pendingAnchorIdRef.current = messageId
+    anchorRetriesRef.current = 0
   }, [])
 
   const pinSessionToEnd = useCallback(() => {
@@ -148,6 +170,10 @@ export function useChatScroll(): ChatScrollController {
   const jumpToEnd = useCallback(() => {
     if (pinRafRef.current !== null) cancelAnimationFrame(pinRafRef.current)
     pinRafRef.current = null
+    activeAnchorIdRef.current = null
+    pendingAnchorIdRef.current = null
+    anchorRetriesRef.current = 0
+    if (tailRef.current) tailRef.current.style.height = '0px'
     const feed = feedRef.current
     if (feed) writeScrollTop(feed.scrollHeight)
     modeRef.current = nextChatScrollMode(modeRef.current, 'jump-end')
@@ -215,6 +241,7 @@ export function useChatScroll(): ChatScrollController {
       if (pinRafRef.current !== null) cancelAnimationFrame(pinRafRef.current)
       pinRafRef.current = null
       programmaticRef.current = false
+      anchorRetriesRef.current = 0
     }
   }, [reconcile])
 
