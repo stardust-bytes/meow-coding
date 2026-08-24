@@ -43,8 +43,9 @@ export function useChatScroll(): ChatScrollController {
   const scrollbarDragRef = useRef(false)
   const reconcileRafRef = useRef<number | null>(null)
   const pinRafRef = useRef<number | null>(null)
-  // The anchor is re-applied until the layout settles; this bounds the loop in
-  // case the turn never fits the viewport.
+  // The anchor is re-applied until the layout settles (content-visibility rows
+  // can keep shifting the row's document position for a couple of seconds);
+  // the turnExtent condition below is the real terminator, this is a safety cap.
   const anchorRetriesRef = useRef(0)
   const [showJumpToEnd, setShowJumpToEnd] = useState(false)
 
@@ -112,7 +113,7 @@ export function useChatScroll(): ChatScrollController {
         // fits the viewport; once it grows past the viewport, follow normally.
         if (Math.abs(anchorTop - CHAT_TURN_TOP_INSET) > 2
           && turnExtent <= feed.clientHeight - CHAT_TURN_TOP_INSET
-          && anchorRetriesRef.current < 60) {
+          && anchorRetriesRef.current < 300) {
           anchorRetriesRef.current += 1
           reconcile()
           return
@@ -121,6 +122,11 @@ export function useChatScroll(): ChatScrollController {
         pendingAnchorIdRef.current = null
         modeRef.current = nextChatScrollMode(modeRef.current, 'anchor-applied')
       } else if (latestRect) {
+        if (!anchorRect && tailRef.current && tailRef.current.style.height !== '0px') {
+          // No turn anchor: dissolve any leftover tail spacer so the transcript
+          // ends at the boundary instead of leaving blank space after resume.
+          tailRef.current.style.height = '0px'
+        }
         const delta = followScrollDelta({ feedBottom: feedRect.bottom, latestBottom: latestRect.bottom })
         if (delta > 0) writeScrollTop(feed.scrollTop + delta)
       }
@@ -184,6 +190,12 @@ export function useChatScroll(): ChatScrollController {
   const enterManual = useCallback(() => {
     if (pinRafRef.current !== null) cancelAnimationFrame(pinRafRef.current)
     pinRafRef.current = null
+    // The user took ownership: the turn anchor is done. Clearing it prevents a
+    // stale anchor/tail from shrinking the content (and jumping the viewport)
+    // when following resumes from the bottom zone, and stops the re-anchor loop.
+    activeAnchorIdRef.current = null
+    pendingAnchorIdRef.current = null
+    anchorRetriesRef.current = 0
     modeRef.current = nextChatScrollMode(modeRef.current, 'user-away')
     setShowJumpToEnd(true)
   }, [])
@@ -214,10 +226,13 @@ export function useChatScroll(): ChatScrollController {
 
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return
-    if (!['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', 'Space'].includes(event.key)) return
-    if (event.key === 'Space') event.preventDefault()
+    const key = event.key
+    if (!['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', 'Space'].includes(key)) return
+    // Keys that scroll toward the bottom do not leave the follow zone when the
+    // feed is already there; keep following instead of showing the jump button.
+    if (['ArrowDown', 'PageDown', 'End', 'Space'].includes(key) && isAtBottom()) return
     enterManual()
-  }, [enterManual])
+  }, [enterManual, isAtBottom])
 
   const onScroll = useCallback(() => {
     if (programmaticRef.current) return
