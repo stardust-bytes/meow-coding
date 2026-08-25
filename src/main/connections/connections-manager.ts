@@ -117,7 +117,7 @@ export class ConnectionsManager {
     const endpoint = this.deps.proxy.getEndpoint(active.id)
     if (!endpoint) return []
     const models = await this.fetchModels(endpoint)
-    const label = active.email ?? active.displayName
+    const label = active.displayName ?? active.email ?? 'Codex'
     return models.map(model => ({ provider: 'codex', accountId: active.id, accountLabel: label, model }))
   }
 
