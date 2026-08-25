@@ -4,15 +4,26 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 test('app launches and shows the main window', async () => {
-  const app = await electron.launch({ args: ['.'] })
-  const window = await app.firstWindow()
-  await expect(window).toHaveTitle(/Meow Coding/)
-  await expect(window.locator('.sidebar')).toBeVisible()
-  // Version loads asynchronously via IPC; auto-wait for it to appear.
-  const version = window.locator('.status-bar .sb-mono').last()
-  await expect(version).toHaveText(/^v\d+\.\d+\.\d+$/)
-  expect(await version.textContent()).not.toBe('v0.1.0')
-  await app.close()
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  try {
+    const app = await electron.launch({
+      args: ['.'],
+      env: { ...process.env as Record<string, string>, MEOW_USER_DATA: userData }
+    })
+    try {
+      const window = await app.firstWindow()
+      await expect(window).toHaveTitle(/Meow Coding/)
+      await expect(window.locator('.sidebar')).toBeVisible()
+      // Version loads asynchronously via IPC; auto-wait for it to appear.
+      const version = window.locator('.status-bar .sb-mono').last()
+      await expect(version).toHaveText(/^v\d+\.\d+\.\d+$/)
+      expect(await version.textContent()).not.toBe('v0.1.0')
+    } finally {
+      await app.close()
+    }
+  } finally {
+    rmSync(userData, { recursive: true, force: true })
+  }
 })
 
 test('settings opens below the title bar and returns to the app', async () => {
