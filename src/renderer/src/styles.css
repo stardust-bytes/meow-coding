@@ -1017,6 +1017,18 @@ select.input { width: 100%; }
 .provider-connect-form { display: flex; gap: 4px; align-items: center; flex: 1; min-width: 0; }
 .provider-connect-form .provider-key { flex: 1; min-width: 0; }
 .provider-connect-form .provider-baseurl { flex: 1.2; min-width: 0; }
+.provider-codex { border-top: 1px solid var(--hairline); padding-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.provider-codex h4 { margin: 0; font-size: var(--fs-md); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); font-family: var(--font-display); }
+.codex-account-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.codex-account-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; border: 1px solid var(--hairline); border-radius: var(--radius); }
+.codex-account-identity { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.codex-account-email { color: var(--text-faint); font-size: var(--fs-base); font-family: var(--font-mono); }
+.codex-status { font-size: var(--fs-base); text-transform: capitalize; }
+.codex-status-active, .codex-status-ready { color: var(--green); }
+.codex-status-refreshing { color: var(--accent); }
+.codex-status-expired { color: var(--attention); }
+.codex-status-error { color: var(--red); }
+.codex-account-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .provider-connected { border-top: 1px solid var(--hairline); padding-top: 8px; display: flex; flex-direction: column; gap: 4px; }
 .provider-connected h4 { margin: 0 0 4px; font-size: var(--fs-md); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); font-family: var(--font-display); }
 .provider-connected-row { display: flex; align-items: center; gap: 8px; }
@@ -1213,6 +1225,7 @@ select.input { width: 100%; }
 .model-item:hover { background: var(--bg-hover); }
 .model-item.active { background: var(--bg-active); color: var(--accent); border-left-color: var(--accent); }
 .model-empty { padding: 6px 10px; color: var(--text-faint); font-size: var(--fs-base); }
+.model-error { color: var(--red); font-size: var(--fs-base); padding: 8px; }
 .chat-mode-hint { font-size: var(--fs-base); color: var(--yellow); margin-left: 6px; }
 .chat-prompt-actions button.always { color: var(--accent); }
 .chat-prompt-actions button.selected { outline: 1px solid var(--accent); outline-offset: -1px; }

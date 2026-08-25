@@ -222,7 +222,7 @@ test('providers screen connects a provider and returns to the app', async () => 
     })
     const window = await app.firstWindow()
     try {
-      await window.getByRole('button', { name: 'Menu' }).click()
+      await window.getByRole('button', { name: 'Menu', exact: true }).click()
       await window.getByRole('button', { name: 'Providers' }).click()
       const backToApp = window.getByRole('button', { name: 'Back to app' })
       await expect(backToApp).toBeVisible()
@@ -267,6 +267,53 @@ test('providers screen connects a provider and returns to the app', async () => 
       await expect(window.getByRole('button', { name: 'default', exact: true })).toBeVisible()
       await window.getByRole('button', { name: 'Back to app' }).click()
       await expect(window.getByRole('button', { name: 'Back to app' })).toHaveCount(0)
+    } finally {
+      await app.close()
+    }
+  } finally {
+    rmSync(userData, { recursive: true, force: true })
+    rmSync(project, { recursive: true, force: true })
+  }
+})
+
+test('providers connects a Codex account and selects its model in chat', async () => {
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  try {
+    writeFileSync(path.join(userData, 'workspaces.json'), JSON.stringify([{
+      projectPath: project,
+      name: 'E2E Project',
+      agents: [
+        { id: 'e2e-meow', name: 'meow', templateId: 'meow', cwd: project, kind: 'native' }
+      ]
+    }]))
+
+    const app = await electron.launch({
+      args: ['.'],
+      env: {
+        ...process.env as Record<string, string>,
+        MEOW_USER_DATA: userData,
+        MEOW_E2E_MOCK_CONNECTIONS: '1'
+      }
+    })
+    const window = await app.firstWindow()
+    try {
+      // Codex section starts empty: Connect Codex is available.
+      await window.getByRole('button', { name: 'Menu', exact: true }).click()
+      await window.getByRole('button', { name: 'Providers' }).click()
+      await expect(window.getByRole('button', { name: 'Connect Codex' })).toBeVisible()
+      await window.getByRole('button', { name: 'Connect Codex' }).click()
+      await expect(window.locator('.codex-account-row')).toContainText('E2E Account')
+      await expect(window.locator('.codex-status-active')).toBeVisible()
+      await window.getByRole('button', { name: 'Back to app' }).click()
+
+      // ModelPicker groups the active account's models under its label.
+      await window.locator('.project-row').click()
+      await expect(window.locator('.chat-panel')).toBeVisible()
+      await window.locator('.model-trigger').click()
+      await expect(window.locator('.model-group-head', { hasText: 'E2E Account' })).toBeVisible()
+      await window.getByRole('button', { name: /gpt-5\.3-codex/ }).first().click()
+      await expect(window.locator('.model-trigger')).toContainText('gpt-5.3-codex')
     } finally {
       await app.close()
     }

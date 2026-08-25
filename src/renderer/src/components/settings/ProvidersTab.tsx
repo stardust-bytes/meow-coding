@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import type { CatalogProviderSummary, MeowSettings, ProviderSettings } from '@shared/types'
+import { useCallback, useEffect, useState } from 'react'
+import type { CatalogProviderSummary, ConnectionAccount, MeowSettings, ProviderSettings } from '@shared/types'
 import Modal from './Modal'
 
 interface Props {
@@ -23,6 +23,53 @@ export default function ProvidersTab({ settings, catalog, onChange }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [models, setModels] = useState<string[]>([])
   const [status, setStatus] = useState('')
+  const [connections, setConnections] = useState<ConnectionAccount[]>([])
+  const [codexBusy, setCodexBusy] = useState(false)
+  const [codexError, setCodexError] = useState('')
+
+  const loadConnections = useCallback(async () => {
+    try {
+      setConnections(await window.api.listConnections())
+    } catch (err) {
+      setCodexError(String(err))
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadConnections()
+  }, [loadConnections])
+
+  const connectCodex = async () => {
+    setCodexBusy(true)
+    setCodexError('')
+    try {
+      await window.api.connectCodex()
+      await loadConnections()
+    } catch (err) {
+      setCodexError(String(err))
+    } finally {
+      setCodexBusy(false)
+    }
+  }
+
+  const setActiveCodex = async (id: string) => {
+    setCodexError('')
+    try {
+      await window.api.setActiveConnection(id)
+      await loadConnections()
+    } catch (err) {
+      setCodexError(String(err))
+    }
+  }
+
+  const disconnectCodex = async (id: string) => {
+    setCodexError('')
+    try {
+      setConnections(await window.api.disconnectConnection(id))
+    } catch (err) {
+      setCodexError(String(err))
+    }
+  }
 
   const connected = settings.providers
 
@@ -143,6 +190,45 @@ export default function ProvidersTab({ settings, catalog, onChange }: Props) {
           })}
           {filtered.length === 0 && <p className="settings-hint">No providers match.</p>}
         </div>
+      </div>
+
+      <div className="provider-codex">
+        <h4>Codex (ChatGPT OAuth)</h4>
+        <p className="settings-hint">
+          Connect ChatGPT/Codex accounts to chat with Codex models. Account credentials are stored
+          encrypted in the OS keychain and chat is routed through a local account-scoped proxy.
+        </p>
+        {connections.length === 0 ? (
+          <button className="btn" onClick={() => void connectCodex()} disabled={codexBusy}>
+            {codexBusy ? 'Connecting…' : 'Connect Codex'}
+          </button>
+        ) : (
+          <ul className="codex-account-list">
+            {connections.map(a => (
+              <li key={a.id} className="codex-account-row">
+                <span className="codex-account-identity">
+                  <span className="provider-connected-name">{a.displayName}</span>
+                  {a.email && <span className="codex-account-email">{a.email}</span>}
+                  <span className={`codex-status codex-status-${a.status}${a.active ? ' codex-status-active' : ''}`} title={a.error ?? ''}>
+                    {a.active ? 'active' : a.status}
+                  </span>
+                </span>
+                <span className="codex-account-actions">
+                  {a.status === 'ready' && !a.active && (
+                    <button className="btn small" onClick={() => void setActiveCodex(a.id)}>set active</button>
+                  )}
+                  {(a.status === 'error' || a.status === 'expired') && (
+                    <button className="btn small" onClick={() => void connectCodex()} title={a.error ?? ''}>
+                      reconnect
+                    </button>
+                  )}
+                  <button className="btn small" onClick={() => void disconnectCodex(a.id)}>Disconnect</button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {codexError && <p className="settings-error">{codexError}</p>}
       </div>
 
       <div className="provider-connected">

@@ -41,6 +41,7 @@ import { ConnectionsManager } from './connections/connections-manager'
 import { CodexOAuth } from './connections/codex-oauth'
 import { CodexProxyManager } from './connections/codex-proxy-manager'
 import { ConnectionStore } from './connections/connection-store'
+import { E2EConnectionFixtures } from './connections/e2e-fixtures'
 import { TrayManager } from './tray-manager'
 import { BrowserBridge } from './browser/bridge'
 import { createChromeLauncher, ensureExtensionInstalled } from './browser/chrome-launcher'
@@ -732,17 +733,21 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.ProviderDisconnect, (_e, providerId: string) =>
     mainApp.meowAgent.disconnectProvider(providerId))
 
-  ipcMain.handle(Channels.ConnectionList, () => mainApp.connections.listAccounts())
-  ipcMain.handle(Channels.ConnectionConnectCodex, () => mainApp.connections.connectCodex())
+  const connectionBackend = process.env.MEOW_E2E_MOCK_CONNECTIONS === '1'
+    ? new E2EConnectionFixtures()
+    : mainApp.connections
+
+  ipcMain.handle(Channels.ConnectionList, () => connectionBackend.listAccounts())
+  ipcMain.handle(Channels.ConnectionConnectCodex, () => connectionBackend.connectCodex())
   ipcMain.handle(Channels.ConnectionDisconnect, (_e, accountId: string) => {
     if (typeof accountId !== 'string' || accountId === '') throw new Error('invalid account id')
-    return mainApp.connections.disconnect(accountId)
+    return connectionBackend.disconnect(accountId)
   })
   ipcMain.handle(Channels.ConnectionSetActive, (_e, accountId: string) => {
     if (typeof accountId !== 'string' || accountId === '') throw new Error('invalid account id')
-    return mainApp.connections.setActive(accountId)
+    return connectionBackend.setActive(accountId)
   })
-  ipcMain.handle(Channels.ConnectionGetModels, () => mainApp.connections.getActiveCodexModels())
+  ipcMain.handle(Channels.ConnectionGetModels, () => connectionBackend.getActiveCodexModels())
 
   ipcMain.handle(Channels.TemplateList, () => mainApp.templates.list())
   ipcMain.handle(Channels.TemplateSave, (_e, t: Template) => mainApp.templates.save(t))
