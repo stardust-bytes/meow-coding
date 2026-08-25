@@ -70,8 +70,7 @@ function makeManager(overrides: { oauth?: Partial<{ authorize: typeof vi.fn; ref
     store,
     vault,
     oauth,
-    proxy,
-    openExternal: vi.fn(async () => {})
+    proxy
   })
   return { manager, oauth, proxy }
 }

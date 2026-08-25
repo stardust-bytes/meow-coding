@@ -27,7 +27,6 @@ export interface ConnectionsManagerDeps {
   vault: Vault
   oauth: Pick<CodexOAuth, 'authorize' | 'refreshTokens'>
   proxy: Pick<CodexProxyManager, 'start' | 'getEndpoint' | 'refreshAccounts' | 'stop'>
-  openExternal: (url: string) => Promise<void>
   fetchFn?: typeof fetch
 }
 
