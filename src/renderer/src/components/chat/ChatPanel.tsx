@@ -798,7 +798,18 @@ if (e.type === 'usage') {
               </div>
             )
           }
-          return <div key={item.id} className="chat-error">{item.text}</div>
+          return (
+            <div key={item.id} className="chat-error">
+              <div className="chat-error-text">{item.text}</div>
+              <button
+                className="btn small chat-error-copy"
+                onClick={() => void navigator.clipboard.writeText(item.text)}
+                title="Copy error text"
+              >
+                Copy
+              </button>
+            </div>
+          )
         })}
         {running && <div className="chat-running">Meow is working…</div>}
         {queue.length > 0 && (

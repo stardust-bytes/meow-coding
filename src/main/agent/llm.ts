@@ -160,6 +160,15 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string): L
 
   return {
     async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
+      // The SDK puts the key into the Authorization header, which undici
+      // converts to a ByteString: non-ASCII keys fail with a cryptic
+      // "Cannot convert argument to a ByteString" TypeError. Guard keys that
+      // were stored before connectProvider validated them (hand-edited
+      // meow.json, older vault entries) and surface a readable error instead.
+      if (apiKey && !/^[\x21-\x7E]+$/.test(apiKey)) {
+        yield { kind: 'error', error: 'Invalid API key: it contains non-ASCII characters. API keys must be ASCII — re-enter the key in Providers.' }
+        return
+      }
       const tools = Object.fromEntries(opts.tools.map(def => [def.name, toToolDefinition(def)]))
       // Anthropic: top-level cacheControl caches the system prompt (sent on
       // every request); message breakpoints cache the growing history prefix.

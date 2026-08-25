@@ -606,6 +606,118 @@ describe('MeowAgentManager', () => {
     }
   })
 
+  it('connectProvider syncs ollama-cloud models from the server, not the catalog', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-ollama-'))
+    try {
+      // Catalog lists bare `deepseek-v4-flash` / `kimi-k2.5` (404 on the
+      // server); the live /models endpoint returns the actual tags.
+      const catalog = new ModelsCatalog(path.join(dir, 'models.json'), async url => {
+        if (String(url).endsWith('/models')) {
+          return { ok: true, json: async () => ({
+            data: [
+              { id: 'glm-5.1' },
+              { id: 'deepseek-v4-flash:0731' },
+              { id: 'deepseek-v4-flash:preview' }
+            ]
+          }) } as unknown as Response
+        }
+        return { ok: true, json: async () => ({
+          'ollama-cloud': {
+            name: 'Ollama Cloud',
+            api: 'https://ollama.com/v1',
+            models: { 'kimi-k2.5': {}, 'deepseek-v4-flash': {} }
+          }
+        }) } as unknown as Response
+      })
+      const { manager } = await makeManager({ configPath: path.join(dir, 'meow.json'), catalog })
+      const settings = await manager.connectProvider('ollama-cloud', 'ollama_abc')
+      const provider = settings.providers.find(p => p.id === 'ollama-cloud')
+      expect(provider?.baseUrl).toBe('https://ollama.com/v1')
+      expect(provider?.models).toEqual(['glm-5.1', 'deepseek-v4-flash:0731', 'deepseek-v4-flash:preview'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('connectProvider normalizes an ollama-cloud baseUrl missing /v1', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-ollama-'))
+    try {
+      const catalog = new ModelsCatalog(path.join(dir, 'models.json'), async url => {
+        if (String(url).endsWith('/models')) {
+          return { ok: true, json: async () => ({ data: [{ id: 'glm-5.1' }] }) } as unknown as Response
+        }
+        return { ok: true, json: async () => ({
+          'ollama-cloud': { name: 'Ollama Cloud', api: 'https://ollama.com/v1', models: {} }
+        }) } as unknown as Response
+      })
+      const { manager } = await makeManager({ configPath: path.join(dir, 'meow.json'), catalog })
+      // A baseUrl of https://ollama.com/api 404s on /chat/completions; it must
+      // be normalized to the /v1 endpoint before saving and syncing models.
+      const settings = await manager.connectProvider('ollama-cloud', 'ollama_abc', 'https://ollama.com/api')
+      const provider = settings.providers.find(p => p.id === 'ollama-cloud')
+      expect(provider?.baseUrl).toBe('https://ollama.com/v1')
+      expect(provider?.models).toEqual(['glm-5.1'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('connectProvider falls back to the catalog when ollama-cloud /models fails', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-ollama-'))
+    try {
+      // The /models call resolves without `data`, so fetchLiveModels returns
+      // null and the static catalog list is kept.
+      const catalog = new ModelsCatalog(path.join(dir, 'models.json'), async () =>
+        ({ ok: true, json: async () => ({
+          'ollama-cloud': {
+            name: 'Ollama Cloud',
+            api: 'https://ollama.com/v1',
+            models: { 'kimi-k2.5': {}, 'glm-5.1': {} }
+          }
+        }) }) as unknown as Response)
+      const { manager } = await makeManager({ configPath: path.join(dir, 'meow.json'), catalog })
+      const settings = await manager.connectProvider('ollama-cloud', 'ollama_abc')
+      expect(settings.providers.find(p => p.id === 'ollama-cloud')?.models).toEqual(['kimi-k2.5', 'glm-5.1'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('fetchProviderModels returns the live ollama-cloud list using the stored key', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-ollama-'))
+    try {
+      const catalog = new ModelsCatalog(path.join(dir, 'models.json'), async url => {
+        if (String(url).endsWith('/models')) {
+          return { ok: true, json: async () => ({ data: [{ id: 'glm-5.1' }, { id: 'qwen3.5:397b' }] }) } as unknown as Response
+        }
+        return { ok: true, json: async () => ({
+          'ollama-cloud': { name: 'Ollama Cloud', api: 'https://ollama.com/v1', models: { 'kimi-k2.5': {} } }
+        }) } as unknown as Response
+      })
+      const { manager } = await makeManager({ configPath: path.join(dir, 'meow.json'), catalog })
+      await manager.connectProvider('ollama-cloud', 'ollama_abc')
+      expect(await manager.fetchProviderModels('ollama-cloud')).toEqual(['glm-5.1', 'qwen3.5:397b'])
+      // Non-live providers still resolve from the catalog.
+      expect(await manager.fetchProviderModels('no-such-provider')).toEqual([])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects provider API keys with non-ASCII characters (ByteString guard)', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-conn-'))
+    try {
+      const { manager } = await makeManager({ configPath: path.join(dir, 'meow.json') })
+      await expect(manager.connectProvider('openrouter', 'sk-or-v1-ểabc'))
+        .rejects.toThrow(/ASCII/)
+      // A valid printable-ASCII key still connects.
+      const settings = await manager.connectProvider('openrouter', 'sk-or-v1-abc123')
+      expect(settings.providers.find(p => p.id === 'openrouter')?.apiKey).toBe('sk-or-v1-abc123')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('disconnectProvider removes a provider and fixes the default', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'meow-conn-'))
     try {

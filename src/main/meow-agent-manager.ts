@@ -3,7 +3,8 @@ import { writeFileSync } from 'node:fs'
 import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, NotificationsSettings, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TraceEvent, UsageSummary } from '../shared/types'
 import type { AgentConfig, AgentMode, ArtifactEntry, CatalogProviderSummary, Command, ModelRef, SubagentType } from '../shared/types'
 import {
-  configToSettings, loadMeowConfig, resolveAgentConfig, settingsToConfig, writeMeowConfig,
+  configToSettings, loadMeowConfig, resolveAgentConfig, resolveApiKey, settingsToConfig, writeMeowConfig,
+  OLLAMA_CLOUD_BASE_URL,
   type MeowConfig, type ResolvedAgentConfig
 } from './agent/config'
 import { SessionRunner } from './agent/loop'
@@ -608,6 +609,15 @@ export class MeowAgentManager {
   async fetchProviderModels(providerId: string): Promise<string[]> {
     if (!this.deps.catalog) return []
     const providers = await this.deps.catalog.fetch()
+    if (providerId === 'ollama-cloud') {
+      const p = this.getSettings().providers.find(x => x.id === providerId)
+      const key = p ? resolveApiKey(p, this.deps.env, this.deps.vault ? ref => this.deps.vault!.getSecret(ref) : undefined) : null
+      const base = p?.baseUrl || providers[providerId]?.api
+      if (key && base) {
+        const live = await this.deps.catalog.fetchLiveModels(base, key)
+        if (live) return live
+      }
+    }
     return providers[providerId]?.models ?? []
   }
 
@@ -621,6 +631,14 @@ export class MeowAgentManager {
     const catalogModels = catalog[providerId]?.models ?? []
     const settings = this.getSettings()
     const existing = settings.providers.find(p => p.id === providerId)
+    // API keys are sent as the Authorization header value, which the HTTP
+    // stack converts to a Latin-1 byte string: a stray non-ASCII character
+    // (e.g. Vietnamese text pasted by accident) blows up at request time with
+    // a cryptic "Cannot convert argument to a ByteString" TypeError. Reject it
+    // here so the user gets an actionable message instead.
+    if (apiKey && !/^[\x21-\x7E]+$/.test(apiKey)) {
+      throw new Error('[meow] API key không hợp lệ: key chỉ được chứa ký tự ASCII (a-z, A-Z, 0-9 và ký hiệu). Vui lòng dán lại key chính xác.')
+    }
     // Empty apiKey on an existing provider keeps the stored secret, so edits
     // that only change baseUrl don't require re-entering the key.
     let keyRef = existing?.keyRef
@@ -637,10 +655,24 @@ export class MeowAgentManager {
     }
     // Providers absent from the catalog (manual ones, or providers renamed in
     // models.dev) keep the previously synced model list instead of wiping it.
-    const models = catalogModels.length > 0 ? catalogModels : (existing?.models ?? [])
+    let base = baseUrl || catalog[providerId]?.api || existing?.baseUrl
+    // ollama-cloud serves the OpenAI-compatible API under /v1; a baseUrl like
+    // https://ollama.com/api (native REST root, from Ollama's docs) or
+    // https://ollama.com 404s on /chat/completions, so normalize it.
+    if (providerId === 'ollama-cloud' && base && /ollama\.com/.test(base) && !/\/v\d+\/?$/.test(base)) {
+      base = catalog[providerId]?.api || OLLAMA_CLOUD_BASE_URL
+    }
+    let models = catalogModels.length > 0 ? catalogModels : (existing?.models ?? [])
+    // Ollama Cloud's server-side model tags differ from the models.dev catalog
+    // (bare tags 404 "model not found"); sync the account's actual list so
+    // every listed model is usable. Fall back to the catalog when unreachable.
+    if (providerId === 'ollama-cloud' && apiKey && base && this.deps.catalog) {
+      const live = await this.deps.catalog.fetchLiveModels(base, apiKey)
+      if (live) models = live
+    }
     const nextProviders = [
       ...settings.providers.filter(p => p.id !== providerId),
-      { id: providerId, apiKey: plainKey, keyRef, baseUrl: baseUrl || catalog[providerId]?.api || existing?.baseUrl, models }
+      { id: providerId, apiKey: plainKey, keyRef, baseUrl: base, models }
     ]
     const defaultProvider = settings.providers.some(p => p.id === settings.defaultProvider)
       ? settings.defaultProvider

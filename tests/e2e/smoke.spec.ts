@@ -241,7 +241,7 @@ test('providers screen connects a provider and returns to the app', async () => 
       await expect.poll(() => backToApp.evaluate(element => getComputedStyle(element).borderTopLeftRadius)).toBe('6px')
       await expect(backToApp.locator('svg')).toBeVisible()
       const [providersBox, titleBarBox] = await Promise.all([
-        window.locator('.providers-screen').boundingBox(),
+        window.locator('.settings-screen').boundingBox(),
         window.locator('.title-bar').boundingBox()
       ])
       expect(providersBox?.y).toBeGreaterThanOrEqual((titleBarBox?.y ?? 0) + (titleBarBox?.height ?? 0))

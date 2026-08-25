@@ -8,8 +8,8 @@ main process config.
 
 | File | Responsibility |
 |---|---|
-| `SettingsDialog.tsx` | Full-screen shell: loads settings/MCP status, tab switching, `patch()` draft state, save flow. |
-| `ProvidersTab.tsx` | Provider list content reused by the full-screen `ProvidersScreen`: add/connect (API key + base URL), fetch models from catalog, default provider. |
+| `SettingsDialog.tsx` | Full-screen shell: loads settings/MCP status/provider catalog, tab switching, `patch()` draft state, save flow. |
+| `ProvidersTab.tsx` | Provider management tab (opened from the sidebar Providers menu item): add/connect (API key + base URL), fetch models from catalog, default provider. |
 | `AgentsTab.tsx` | Per-agent config (name, system prompt, provider/model). |
 | `PermissionsTab.tsx` | Tool permission rules (allow/ask/deny). |
 | `McpTab.tsx` | MCP server configs + connection status. |

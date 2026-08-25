@@ -12,8 +12,7 @@ import EmptyState from './components/EmptyState'
 import StatusBar from './components/StatusBar'
 import TitleBar from './components/TitleBar'
 import RightPanel from './components/RightPanel'
-import SettingsDialog from './components/settings/SettingsDialog'
-import ProvidersScreen from './components/ProvidersScreen'
+import SettingsDialog, { type TabId } from './components/settings/SettingsDialog'
 import BrowserDialog from './components/BrowserDialog'
 import InstallGuideDialog from './components/InstallGuideDialog'
 import UpdateDialog from './components/UpdateDialog'
@@ -28,7 +27,7 @@ export default function App() {
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
   const [templates, setTemplates] = useState<Template[]>([])
   const [showSettings, setShowSettings] = useState(false)
-  const [showProviders, setShowProviders] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<TabId>('agents')
   const [runtime, setRuntime] = useState<WorkspaceRuntime | null>(null)
   const [backgrounds, setBackgrounds] = useState<Record<string, boolean>>({})
   const [browser, setBrowser] = useState<BrowserStatusInfo | null>(null)
@@ -262,8 +261,8 @@ export default function App() {
           onRemove={removeWorkspace}
           onRefresh={refreshWorkspaces}
           onOpenTerminal={addTerminal}
-          onOpenSettings={() => setShowSettings(true)}
-          onOpenProviders={() => setShowProviders(true)}
+          onOpenSettings={() => { setSettingsTab('agents'); setShowSettings(true) }}
+          onOpenProviders={() => { setSettingsTab('providers'); setShowSettings(true) }}
           onOpenGit={path => void window.api.gitOpenViewer(path)}
           onCheckUpdate={handleCheckUpdate}
           updateChecking={updateChecking}
@@ -339,10 +338,8 @@ export default function App() {
           projectPath={runtime?.workspace.projectPath ?? undefined}
           templates={templates}
           onTemplatesChange={setTemplates}
+          initialTab={settingsTab}
         />
-      )}
-      {showProviders && (
-        <ProvidersScreen onClose={() => setShowProviders(false)} />
       )}
     </div>
   )

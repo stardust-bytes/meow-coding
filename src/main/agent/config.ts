@@ -138,6 +138,15 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
 
 type RawProvider = Partial<MeowProviderConfig> & Record<string, unknown>
 
+/**
+ * ollama-cloud serves the OpenAI-compatible API under /v1. Ollama's docs list
+ * https://ollama.com/api as the cloud base URL, but that is the native REST API
+ * (/api/chat, /api/generate) which has no /chat/completions endpoint — requests
+ * to /api/chat/completions 404. Meow connects via the OpenAI-compatible SDK, so
+ * the base URL is normalized to /v1.
+ */
+export const OLLAMA_CLOUD_BASE_URL = 'https://ollama.com/v1'
+
 function normalizeProvider(raw: RawProvider): MeowProviderConfig {
   const models = Array.isArray(raw.models)
     ? (raw.models as string[]).filter(m => typeof m === 'string' && m.trim() !== '')
@@ -147,6 +156,7 @@ function normalizeProvider(raw: RawProvider): MeowProviderConfig {
   return {
     apiKeyEnv: raw.apiKeyEnv,
     apiKey: raw.apiKey,
+    keyRef: raw.keyRef,
     baseUrl: raw.baseUrl,
     models
   }
@@ -254,7 +264,14 @@ function normalizeSubagentModels(
 function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
   const providers: Record<string, MeowProviderConfig> = {}
   for (const [id, p] of Object.entries(raw.provider ?? {})) {
-    providers[id] = normalizeProvider(p as RawProvider)
+    const normalized = normalizeProvider(p as RawProvider)
+    // Normalize on read so hand-edited meow.json (or a baseUrl saved before
+    // this rule existed) can't 404 on /api/chat/completions. Self-hosted
+    // Ollama under a different host is preserved.
+    if (id === 'ollama-cloud' && (!normalized.baseUrl || /ollama\.com/.test(normalized.baseUrl))) {
+      normalized.baseUrl = OLLAMA_CLOUD_BASE_URL
+    }
+    providers[id] = normalized
   }
   return {
     provider: providers,

@@ -23,6 +23,7 @@ export default function ProvidersTab({ settings, catalog, onChange }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [models, setModels] = useState<string[]>([])
   const [status, setStatus] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const connected = settings.providers
 
@@ -55,11 +56,12 @@ export default function ProvidersTab({ settings, catalog, onChange }: Props) {
 
   const connect = async () => {
     const id = providerId.trim()
-    if (!id) return
+    if (!id || saving) return
     const isEdit = modal?.kind === 'edit'
     // Connect requires a key; edit keeps the current key when left blank.
     if (!isEdit && !apiKey.trim()) return
     setStatus('')
+    setSaving(true)
     try {
       const result = await window.api.connectProvider(id, apiKey.trim(), baseUrl.trim() || undefined)
       setModal(null)
@@ -76,6 +78,8 @@ export default function ProvidersTab({ settings, catalog, onChange }: Props) {
       }
     } catch (err) {
       setStatus(String(err))
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -187,8 +191,8 @@ export default function ProvidersTab({ settings, catalog, onChange }: Props) {
           title={modal.kind === 'catalog' ? `Connect ${modal.name}` : modal.kind === 'edit' ? `Edit ${modal.name}` : 'Connect provider'}
           onClose={() => setModal(null)}
           onSubmit={() => void connect()}
-          submitLabel={modal.kind === 'edit' ? 'Save changes' : 'Connect'}
-          submitDisabled={!providerId.trim() || (modal.kind !== 'edit' && !apiKey.trim())}
+          submitLabel={saving ? 'Saving…' : modal.kind === 'edit' ? 'Save changes' : 'Connect'}
+          submitDisabled={saving || !providerId.trim() || (modal.kind !== 'edit' && !apiKey.trim())}
         >
           {modal.kind === 'catalog' ? (
             <p className="settings-hint">
@@ -208,6 +212,7 @@ export default function ProvidersTab({ settings, catalog, onChange }: Props) {
               className="input"
               placeholder="provider id (e.g. deepseek)"
               value={providerId}
+              disabled={saving}
               onChange={e => setProviderId(e.target.value)}
             />
           )}
@@ -216,12 +221,14 @@ export default function ProvidersTab({ settings, catalog, onChange }: Props) {
             type="password"
             placeholder={modal.kind === 'edit' ? 'api key (leave blank to keep current)' : 'api key'}
             value={apiKey}
+            disabled={saving}
             onChange={e => setApiKey(e.target.value)}
           />
           <input
             className="input provider-baseurl"
             placeholder="baseUrl (optional)"
             value={baseUrl}
+            disabled={saving}
             onChange={e => setBaseUrl(e.target.value)}
           />
         </Modal>

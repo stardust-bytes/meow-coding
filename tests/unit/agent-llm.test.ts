@@ -238,6 +238,18 @@ describe('createOpenAICompatibleLlm', () => {
     expect(opts.apiKey).toBe('k')
     expect(opts.includeUsage).toBeUndefined()
   })
+
+  it('yields a readable error instead of streaming with a non-ASCII API key', async () => {
+    const llm = createOpenAICompatibleLlm({ apiKey: 'sk-or-v1-ểabc' })
+    const out: LlmStreamPart[] = []
+    for await (const p of llm.stream({ model: 'llama3', system: 's', messages: [], tools: [] })) {
+      out.push(p)
+    }
+    expect(out).toHaveLength(1)
+    expect(out[0].kind).toBe('error')
+    expect((out[0] as { error?: string }).error).toMatch(/non-ASCII/)
+    expect(streamTextMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('DeepSeek usage capture', () => {

@@ -154,6 +154,28 @@ export class ModelsCatalog {
     }))
   }
 
+  /**
+   * Fetch the live model list from an OpenAI-compatible /models endpoint.
+   * Used for providers like Ollama Cloud whose server-side model tags drift
+   * from the models.dev catalog (e.g. bare `deepseek-v4-flash` 404s while the
+   * server only serves `deepseek-v4-flash:0731` / `:preview`). Returns null on
+   * any failure so callers can fall back to the static catalog.
+   */
+  async fetchLiveModels(baseUrl: string, apiKey: string): Promise<string[] | null> {
+    try {
+      const res = await this.fetchFn(`${baseUrl.replace(/\/+$/, '')}/models`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(10_000)
+      })
+      if (!res.ok) return null
+      const body = (await res.json()) as { data?: Array<{ id?: unknown }> }
+      const ids = (body.data ?? []).map(m => m.id).filter((id): id is string => typeof id === 'string')
+      return ids.length > 0 ? ids : null
+    } catch {
+      return null
+    }
+  }
+
   async getModelLimit(providerId: string, modelId: string): Promise<ModelLimit | undefined> {
     const providers = await this.fetch()
     return providers[providerId]?.limits?.[modelId]

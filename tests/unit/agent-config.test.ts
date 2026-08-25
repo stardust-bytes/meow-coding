@@ -67,6 +67,36 @@ describe('loadMeowConfig', () => {
     const cfg = loadMeowConfig(file)
     expect(cfg.provider.anthropic.models).toEqual(['claude-opus-4-1'])
   })
+
+  it('normalizes ollama-cloud baseUrl to /v1 on read (native REST /api has no chat/completions)', () => {
+    writeFileSync(file, JSON.stringify({
+      provider: {
+        'ollama-cloud': { apiKey: 'ollama_abc', baseUrl: 'https://ollama.com/api', models: ['glm-5.1'] },
+        'ollama-local': { baseUrl: 'http://localhost:11434', models: ['llama3'] }
+      },
+      model: 'ollama-cloud'
+    }))
+    const cfg = loadMeowConfig(file)
+    expect(cfg.provider['ollama-cloud'].baseUrl).toBe('https://ollama.com/v1')
+    // Self-hosted Ollama under a non-ollama.com host is preserved.
+    expect(cfg.provider['ollama-local'].baseUrl).toBe('http://localhost:11434')
+  })
+
+  it('preserves keyRef through loadMeowConfig so vaulted keys resolve after reload', () => {
+    writeFileSync(file, JSON.stringify({
+      provider: {
+        deepseek: { keyRef: 'provider:deepseek', models: ['deepseek-chat'] }
+      },
+      model: 'deepseek'
+    }))
+    const cfg = loadMeowConfig(file)
+    expect(cfg.provider.deepseek.keyRef).toBe('provider:deepseek')
+    // The vaulted secret is resolved through getSecret when no inline key exists.
+    expect(resolveApiKey(cfg.provider.deepseek, {}, ref => ref === 'provider:deepseek' ? 'vault-secret' : null)).toBe('vault-secret')
+    // settingsToConfig keeps the ref so it survives a save cycle.
+    const cfg2 = settingsToConfig(configToSettings(cfg), cfg)
+    expect(cfg2.provider.deepseek.keyRef).toBe('provider:deepseek')
+  })
 })
 
 describe('resolveApiKey', () => {
