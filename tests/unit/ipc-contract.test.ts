@@ -13,6 +13,7 @@ describe('IPC contract', () => {
       'gitGetStatusDetail', 'gitGetDiff', 'gitGetCommits', 'gitGetCommitDiff', 'gitCompareCommits', 'gitGetBlame', 'gitGetFileHistory', 'gitDiscard',
       'addAgent', 'removeAgent', 'setAgentMode', 'setAgentVariant', 'getAgentVariants', 'setAgentModel', 'getAgentModel', 'getContextInfo', 'getProviderModels', 'fetchProviderModels',
       'listProviderCatalog', 'connectProvider', 'disconnectProvider',
+      'listConnections', 'connectCodex', 'disconnectConnection', 'setActiveConnection', 'getConnectionModels',
       'listTemplates', 'saveTemplate', 'removeTemplate',
       'pickFolder', 'startAgent', 'stopAgent', 'restartAgent',
       'writeInput', 'injectPrompt', 'resizePty', 'openLog', 'getLogPath', 'quit', 'getAppVersion',
@@ -66,6 +67,11 @@ describe('IPC contract', () => {
       listProviderCatalog: async () => [],
       connectProvider: async () => ({ providers: [], defaultProvider: '' }),
       disconnectProvider: async () => ({ providers: [], defaultProvider: '' }),
+      listConnections: async () => [],
+      connectCodex: async () => ({ id: '', provider: 'codex', displayName: '', active: false, createdAt: '', status: 'ready' }),
+      disconnectConnection: async () => [],
+      setActiveConnection: async () => [],
+      getConnectionModels: async () => [],
       listTemplates: async () => [],
       saveTemplate: async (t) => t,
       removeTemplate: async () => {},
@@ -191,6 +197,11 @@ describe('IPC contract', () => {
     expect(Channels.ProviderCatalog).toBe('provider:catalog')
     expect(Channels.ProviderConnect).toBe('provider:connect')
     expect(Channels.ProviderDisconnect).toBe('provider:disconnect')
+    expect(Channels.ConnectionList).toBe('connections:list')
+    expect(Channels.ConnectionConnectCodex).toBe('connections:connect-codex')
+    expect(Channels.ConnectionDisconnect).toBe('connections:disconnect')
+    expect(Channels.ConnectionSetActive).toBe('connections:set-active')
+    expect(Channels.ConnectionGetModels).toBe('connections:get-models')
     expect(Channels.McpStatus).toBe('mcp:status')
     expect(Channels.WindowMinimize).toBe('window:minimize')
     expect(Channels.WindowToggleMaximize).toBe('window:toggle-maximize')

@@ -331,6 +331,24 @@ export type SubagentType = 'research' | 'general' | 'reviewer'
 export interface ModelRef {
   provider: string
   model: string
+  /** Codex (or future provider) OAuth account the model belongs to. */
+  accountId?: string
+  /** Non-secret label of the owning account, for UI display. */
+  accountLabel?: string
+}
+
+export type ConnectionProviderId = 'codex'
+
+export interface ConnectionAccount {
+  id: string
+  provider: ConnectionProviderId
+  email?: string
+  displayName: string
+  active: boolean
+  createdAt: string
+  lastUsedAt?: string
+  status: 'ready' | 'refreshing' | 'expired' | 'error'
+  error?: string
 }
 
 export interface CatalogProviderSummary {

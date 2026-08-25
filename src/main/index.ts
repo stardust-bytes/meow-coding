@@ -44,7 +44,7 @@ import { RemoteManager } from './remote/remote-manager'
 import { RemoteSettingsStore } from './remote/remote-settings'
 import { RemotePairing } from './remote/remote-pairing'
 import { Channels } from '../shared/ipc'
-import type { AgentState, Command, FileViewerPayload, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, TerminalInfo, Workspace, WorkspaceRuntime } from '../shared/types'
+import type { AgentState, Command, FileViewerPayload, ImageAttachment, MeowSettings, ModelRef, NewAgentInput, PromptResponse, Template, TerminalInfo, Workspace, WorkspaceRuntime } from '../shared/types'
 
 let win: BrowserWindow | null = null
 let isQuitting = false
@@ -481,11 +481,11 @@ class MainApp {
     }
   }
 
-  setAgentModel(agentId: string, provider: string, model: string): void {
-    this.meowAgent.setModel(agentId, provider, model)
+  setAgentModel(agentId: string, model: ModelRef): void {
+    this.meowAgent.setModel(agentId, model.provider, model.model)
     const ws = this.findWorkspaceByAgent(agentId)
     if (ws) {
-      const updated = this.workspaces.updateAgent(ws.projectPath, agentId, { model: `${provider}/${model}` })
+      const updated = this.workspaces.updateAgent(ws.projectPath, agentId, { model: `${model.provider}/${model.model}` })
       this.pushAgentConfig(updated, agentId)
     }
   }
@@ -692,8 +692,8 @@ function registerIpcHandlers(): void {
     mainApp.setAgentVariant(agentId, variant))
   ipcMain.handle(Channels.AgentGetVariants, (_e, agentId: string) =>
     mainApp.meowAgent.getAvailableVariants(agentId))
-  ipcMain.handle(Channels.AgentSetModel, (_e, agentId: string, provider: string, model: string) =>
-    mainApp.setAgentModel(agentId, provider, model))
+  ipcMain.handle(Channels.AgentSetModel, (_e, agentId: string, model: ModelRef) =>
+    mainApp.setAgentModel(agentId, model))
   ipcMain.handle(Channels.AgentGetModel, (_e, agentId: string) => mainApp.meowAgent.getAgentModel(agentId))
   ipcMain.handle(Channels.AgentGetContext, (_e, agentId: string) => mainApp.meowAgent.getContextInfo(agentId))
   ipcMain.handle(Channels.AgentSetBackground, (_e, agentId: string, background: boolean) =>

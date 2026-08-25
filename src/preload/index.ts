@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
 import type { ArtifactsChangedEvent } from '../shared/ipc'
-import type { ChatEvent, Command, ContextChangedEvent, FileViewerPayload, ImageAttachment, MeowSettings, NewAgentInput, PromptResponse, Template, TraceEvent, UpdaterStatusEvent } from '../shared/types'
+import type { ChatEvent, Command, ContextChangedEvent, FileViewerPayload, ImageAttachment, MeowSettings, ModelRef, NewAgentInput, PromptResponse, Template, TraceEvent, UpdaterStatusEvent } from '../shared/types'
 import type { AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, GitStatusEvent, PtyDataEvent, TerminalExitEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
 import type { BrowserStatusInfo } from '../shared/browser-types'
 import type { RemoteStatus } from '../shared/remote-types'
@@ -82,8 +82,8 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.AgentSetVariant, agentId, variant),
   getAgentVariants: (agentId: string) =>
     ipcRenderer.invoke(Channels.AgentGetVariants, agentId),
-  setAgentModel: (agentId: string, provider: string, model: string) =>
-    ipcRenderer.invoke(Channels.AgentSetModel, agentId, provider, model),
+  setAgentModel: (agentId: string, model: ModelRef) =>
+    ipcRenderer.invoke(Channels.AgentSetModel, agentId, model),
   getAgentModel: (agentId: string) => ipcRenderer.invoke(Channels.AgentGetModel, agentId),
   getContextInfo: (agentId: string) => ipcRenderer.invoke(Channels.AgentGetContext, agentId),
   getProviderModels: () => ipcRenderer.invoke(Channels.ProviderModels),
@@ -92,6 +92,13 @@ const api: AgentApi = {
   connectProvider: (providerId: string, apiKey: string, baseUrl?: string) =>
     ipcRenderer.invoke(Channels.ProviderConnect, providerId, apiKey, baseUrl),
   disconnectProvider: (providerId: string) => ipcRenderer.invoke(Channels.ProviderDisconnect, providerId),
+  listConnections: () => ipcRenderer.invoke(Channels.ConnectionList),
+  connectCodex: () => ipcRenderer.invoke(Channels.ConnectionConnectCodex),
+  disconnectConnection: (accountId: string) =>
+    ipcRenderer.invoke(Channels.ConnectionDisconnect, accountId),
+  setActiveConnection: (accountId: string) =>
+    ipcRenderer.invoke(Channels.ConnectionSetActive, accountId),
+  getConnectionModels: () => ipcRenderer.invoke(Channels.ConnectionGetModels),
   listTemplates: () => ipcRenderer.invoke(Channels.TemplateList),
   saveTemplate: (template: Template) => ipcRenderer.invoke(Channels.TemplateSave, template),
   removeTemplate: (id: string) => ipcRenderer.invoke(Channels.TemplateRemove, id),

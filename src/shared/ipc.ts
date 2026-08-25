@@ -1,6 +1,6 @@
 import type {
   AgentConfig, AgentState, ArtifactEntry, CatalogProviderSummary, ChatEvent, ChatMessage, ChatTranscriptItem, Command,
-  ContextChangedEvent, ContextInfo, DirEntry, FileContentResult, FileSuggestion, FileViewerPayload,
+  ConnectionAccount, ContextChangedEvent, ContextInfo, DirEntry, FileContentResult, FileSuggestion, FileViewerPayload,
   GitActionResult, GitBlameLine, GitBranch, GitCommit, GitDiffResult, GitStatus, GitStatusDetail,
   ImageAttachment, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PromptResponse,
   SessionSummary, StatsSummary, Template, TerminalInfo, TodoItem, TraceEvent, TraceSummary, UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
@@ -46,6 +46,11 @@ export const Channels = {
   ProviderCatalog: 'provider:catalog',
   ProviderConnect: 'provider:connect',
   ProviderDisconnect: 'provider:disconnect',
+  ConnectionList: 'connections:list',
+  ConnectionConnectCodex: 'connections:connect-codex',
+  ConnectionDisconnect: 'connections:disconnect',
+  ConnectionSetActive: 'connections:set-active',
+  ConnectionGetModels: 'connections:get-models',
   TemplateList: 'template:list',
   TemplateSave: 'template:save',
   TemplateRemove: 'template:remove',
@@ -183,7 +188,7 @@ export interface AgentApi {
   setAgentMode(agentId: string, mode: 'build' | 'plan'): Promise<void>
   setAgentVariant(agentId: string, variant: string | null): Promise<void>
   getAgentVariants(agentId: string): Promise<string[]>
-  setAgentModel(agentId: string, provider: string, model: string): Promise<void>
+  setAgentModel(agentId: string, model: ModelRef): Promise<void>
   getAgentModel(agentId: string): Promise<ModelRef | null>
   getContextInfo(agentId: string): Promise<ContextInfo>
   getProviderModels(): Promise<ModelRef[]>
@@ -191,6 +196,11 @@ export interface AgentApi {
   listProviderCatalog(): Promise<CatalogProviderSummary[]>
   connectProvider(providerId: string, apiKey: string, baseUrl?: string): Promise<MeowSettings>
   disconnectProvider(providerId: string): Promise<MeowSettings>
+  listConnections(): Promise<ConnectionAccount[]>
+  connectCodex(): Promise<ConnectionAccount>
+  disconnectConnection(accountId: string): Promise<ConnectionAccount[]>
+  setActiveConnection(accountId: string): Promise<ConnectionAccount[]>
+  getConnectionModels(): Promise<ModelRef[]>
   listTemplates(): Promise<Template[]>
   saveTemplate(template: Template): Promise<Template>
   removeTemplate(id: string): Promise<void>
