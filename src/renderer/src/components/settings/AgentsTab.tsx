@@ -85,36 +85,38 @@ export default function AgentsTab({ agents, providers, subagentModels, onChangeA
         <p className="settings-hint">
           Models used when the main agent dispatches sub-agents. Leave a role empty to inherit the main agent model.
         </p>
-        {SUBMODEL_ROLES.map(role => {
-          const ref = subagentModels?.[role]
-          const provider = providers.find(p => p.id === ref?.provider)
-          return (
-            <div className="settings-row agents-row" key={role}>
-              <div className="agents-row-head">
-                <span className="agent-name">{role}</span>
-                <button className="btn small" onClick={() => setRole(role, undefined)}>Use main agent model</button>
+        <div className="subagents-grid">
+          {SUBMODEL_ROLES.map(role => {
+            const ref = subagentModels?.[role]
+            const provider = providers.find(p => p.id === ref?.provider)
+            return (
+              <div className="settings-row agents-row" key={role}>
+                <div className="agents-row-head">
+                  <span className="agent-name">{role}</span>
+                  <button className="btn small" onClick={() => setRole(role, undefined)}>Use main agent model</button>
+                </div>
+                <div className="submodel-fields">
+                  <select
+                    className="input"
+                    value={ref?.provider ?? ''}
+                    onChange={e => setRole(role, e.target.value ? { provider: e.target.value, model: providers.find(p => p.id === e.target.value)?.models[0] ?? '' } : undefined)}
+                  >
+                    <option value="">(inherit main agent model)</option>
+                    {providers.map(p => <option key={p.id} value={p.id}>{p.id}</option>)}
+                  </select>
+                  <select
+                    className="input"
+                    value={ref?.model ?? ''}
+                    disabled={!ref?.provider}
+                    onChange={e => setRole(role, { provider: ref!.provider, model: e.target.value })}
+                  >
+                    {(provider?.models ?? []).map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
               </div>
-              <div className="submodel-fields">
-                <select
-                  className="input"
-                  value={ref?.provider ?? ''}
-                  onChange={e => setRole(role, e.target.value ? { provider: e.target.value, model: providers.find(p => p.id === e.target.value)?.models[0] ?? '' } : undefined)}
-                >
-                  <option value="">(inherit main agent model)</option>
-                  {providers.map(p => <option key={p.id} value={p.id}>{p.id}</option>)}
-                </select>
-                <select
-                  className="input"
-                  value={ref?.model ?? ''}
-                  disabled={!ref?.provider}
-                  onChange={e => setRole(role, { provider: ref!.provider, model: e.target.value })}
-                >
-                  {(provider?.models ?? []).map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
       {adding && (
         <Modal

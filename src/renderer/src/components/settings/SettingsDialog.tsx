@@ -170,6 +170,17 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
     setDraft(prev => (prev ? { ...prev, ...patch } : prev))
   }, [])
 
+  /** Provider actions (connect/disconnect/setDefault) persist meow.json
+   *  directly via their own IPC; record the result so the debounced auto-save
+   *  doesn't immediately re-save a stale draft and the save pill reflects the
+   *  real write. */
+  const onPersisted = useCallback((result: MeowSettings) => {
+    draftRef.current = result
+    lastPersistedRef.current = JSON.stringify(result)
+    setDraft(result)
+    setSaveState('saved')
+  }, [])
+
   return createPortal(
     <section ref={screenRef} className="settings-screen" role="dialog" aria-modal="true" aria-label="Settings">
       <div className="settings-screen-body">
@@ -209,6 +220,11 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
                 mcp={draft.mcp}
                 status={mcpStatus}
                 onChange={mcp => patch({ mcp })}
+                onReconnect={async () => {
+                  const result = await window.api.reconnectMcp()
+                  setMcpStatus(result)
+                  return result
+                }}
               />
             )}
             {draft && tab === 'providers' && (
@@ -216,6 +232,8 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
                 settings={draft}
                 catalog={catalog}
                 onChange={patch}
+                onPersisted={onPersisted}
+                onRefresh={() => void refresh()}
               />
             )}
             {draft && tab === 'context' && (

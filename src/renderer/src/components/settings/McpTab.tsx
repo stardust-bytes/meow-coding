@@ -6,14 +6,16 @@ interface Props {
   mcp: Record<string, McpServerConfig>
   status: McpServerStatus[]
   onChange: (mcp: Record<string, McpServerConfig>) => void
+  onReconnect: () => Promise<McpServerStatus[]>
 }
 
-export default function McpTab({ mcp, status, onChange }: Props) {
+export default function McpTab({ mcp, status, onChange, onReconnect }: Props) {
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [newUrl, setNewUrl] = useState('')
   const [newCommand, setNewCommand] = useState('')
   const [newArgs, setNewArgs] = useState('')
+  const [testing, setTesting] = useState(false)
 
   const splitCommand = (value: string): Partial<McpServerConfig> => {
     const parts = value.trim().split(/\s+/).filter(Boolean)
@@ -57,52 +59,71 @@ export default function McpTab({ mcp, status, onChange }: Props) {
 
   const statusFor = (name: string): McpServerStatus | undefined => status.find(s => s.name === name)
 
+  const testConnections = async () => {
+    if (testing) return
+    setTesting(true)
+    try {
+      await onReconnect()
+    } finally {
+      setTesting(false)
+    }
+  }
+
   return (
     <div className="settings-tab mcp-tab">
       <div className="mcp-head">
         <p className="settings-hint">
           MCP servers. Each server is a stdio command or an HTTP URL. Changes apply after Save.
         </p>
-        <button className="btn primary small" onClick={openAdd}>+ Add server</button>
+        <div className="mcp-head-actions">
+          <button className="btn small" onClick={() => void testConnections()} disabled={testing || Object.keys(mcp).length === 0}>
+            {testing ? 'Testing…' : 'Test connection'}
+          </button>
+          <button className="btn primary small" onClick={openAdd}>+ Add server</button>
+        </div>
       </div>
-      {Object.entries(mcp).map(([name, cfg]) => {
-        const st = statusFor(name)
-        return (
-          <div className="settings-row mcp-row" key={name}>
-            <div className="mcp-row-head">
-              <span className={`mcp-dot ${st?.status ?? 'error'}`} />
-              <span className="mcp-name">{name}</span>
-              {st && (
-                <span className="mcp-tools">
-                  {st.status === 'connected' ? `${st.tools.length} tool(s)` : 'failed'}
-                </span>
-              )}
-              {st?.error && <span className="mcp-error">{st.error}</span>}
-              <button className="btn small" onClick={() => removeServer(name)}>Remove</button>
-            </div>
-            <div className="mcp-fields">
-              <input
-                className="input"
-                placeholder="url (e.g. http://localhost:3000/mcp)"
-                value={cfg.url ?? ''}
-                onChange={e => updateServer(name, { url: e.target.value })}
-              />
-              <input
-                className="input"
-                placeholder="command (e.g. npx @playwright/mcp)"
-                value={cfg.command ?? ''}
-                onChange={e => updateServer(name, splitCommand(e.target.value))}
-              />
-              <input
-                className="input"
-                placeholder="args (space separated)"
-                value={cfg.args?.join(' ') ?? ''}
-                onChange={e => updateServer(name, { args: e.target.value.split(' ').filter(Boolean) })}
-              />
-            </div>
-          </div>
-        )
-      })}
+      {Object.keys(mcp).length > 0 && (
+        <div className="mcp-grid">
+          {Object.entries(mcp).map(([name, cfg]) => {
+            const st = statusFor(name)
+            return (
+              <div className="mcp-row" key={name}>
+                <div className="mcp-row-head">
+                  <span className={`mcp-dot ${st?.status ?? 'error'}`} />
+                  <span className="mcp-name">{name}</span>
+                  {st && (
+                    <span className="mcp-tools">
+                      {st.status === 'connected' ? `${st.tools.length} tool(s)` : 'failed'}
+                    </span>
+                  )}
+                  <button className="btn small" onClick={() => removeServer(name)}>Remove</button>
+                </div>
+                {st?.error && <div className="mcp-error">{st.error}</div>}
+                <div className="mcp-fields">
+                  <input
+                    className="input"
+                    placeholder="url (e.g. http://localhost:3000/mcp)"
+                    value={cfg.url ?? ''}
+                    onChange={e => updateServer(name, { url: e.target.value })}
+                  />
+                  <input
+                    className="input"
+                    placeholder="command (e.g. npx @playwright/mcp)"
+                    value={cfg.command ?? ''}
+                    onChange={e => updateServer(name, splitCommand(e.target.value))}
+                  />
+                  <input
+                    className="input"
+                    placeholder="args (space separated)"
+                    value={cfg.args?.join(' ') ?? ''}
+                    onChange={e => updateServer(name, { args: e.target.value.split(' ').filter(Boolean) })}
+                  />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
       {adding && (
         <Modal
           title="Add MCP server"

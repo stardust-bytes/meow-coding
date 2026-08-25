@@ -814,6 +814,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.SettingsSave, (_e, settings: MeowSettings) =>
     mainApp.meowAgent.saveSettings(settings))
   ipcMain.handle(Channels.McpStatus, () => mainApp.meowAgent.getMcpStatus())
+  ipcMain.handle(Channels.McpReconnect, async () => mainApp.meowAgent.reconnectMcp())
   ipcMain.handle(Channels.CommandList, (_e, projectPath: string) => mainApp.meowAgent.listCommands(projectPath))
   ipcMain.handle(Channels.CommandSave, (_e, command: Command) => mainApp.meowAgent.saveCommand(command))
   ipcMain.handle(Channels.CommandRemove, (_e, name: string) => mainApp.meowAgent.removeCommand(name))

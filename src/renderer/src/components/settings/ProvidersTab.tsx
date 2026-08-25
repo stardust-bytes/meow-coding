@@ -6,6 +6,15 @@ interface Props {
   settings: MeowSettings
   catalog: CatalogProviderSummary[]
   onChange: (patch: Partial<MeowSettings>) => void
+  /** Notify the shell that a provider action persisted settings directly
+   *  (connect/disconnect/setDefault call IPC that writes meow.json), so it
+   *  can update lastPersistedRef and show the save pill instead of racing
+   *  with the debounced auto-save. */
+  onPersisted: (result: MeowSettings) => void
+  /** Refresh the provider catalog + settings from main (called after
+   *  connect/disconnect so model counts and the Connected badge update
+   *  without closing/reopening the settings page). */
+  onRefresh: () => void
 }
 
 type ConnectModal =
@@ -14,7 +23,7 @@ type ConnectModal =
   | { kind: 'edit'; id: string; name: string }
   | null
 
-export default function ProvidersTab({ settings, catalog, onChange }: Props) {
+export default function ProvidersTab({ settings, catalog, onChange, onPersisted, onRefresh }: Props) {
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState<ConnectModal>(null)
   const [providerId, setProviderId] = useState('')
@@ -65,7 +74,9 @@ export default function ProvidersTab({ settings, catalog, onChange }: Props) {
     try {
       const result = await window.api.connectProvider(id, apiKey.trim(), baseUrl.trim() || undefined)
       setModal(null)
+      onPersisted(result)
       onChange({ providers: result.providers, defaultProvider: result.defaultProvider })
+      onRefresh()
       if (isEdit) {
         setStatus(apiKey.trim()
           ? `Saved ${id}. API key updated.`
@@ -84,13 +95,24 @@ export default function ProvidersTab({ settings, catalog, onChange }: Props) {
   }
 
   const disconnect = async (id: string) => {
-    const result = await window.api.disconnectProvider(id)
-    if (expandedId === id) {
-      setExpandedId(null)
-      setModels([])
+    if (saving) return
+    setSaving(true)
+    setStatus('')
+    try {
+      const result = await window.api.disconnectProvider(id)
+      if (expandedId === id) {
+        setExpandedId(null)
+        setModels([])
+      }
+      onPersisted(result)
+      onChange({ providers: result.providers, defaultProvider: result.defaultProvider })
+      setStatus(`Disconnected ${id}.`)
+      onRefresh()
+    } catch (err) {
+      setStatus(String(err))
+    } finally {
+      setSaving(false)
     }
-    onChange({ providers: result.providers, defaultProvider: result.defaultProvider })
-    setStatus(`Disconnected ${id}.`)
   }
 
   const maskKey = (key: string): string =>
@@ -109,7 +131,8 @@ export default function ProvidersTab({ settings, catalog, onChange }: Props) {
   const setDefault = async (id: string) => {
     // Persist immediately (like connect/disconnect) instead of patching the
     // draft: onRefresh would re-fetch the unsaved value and clobber the change.
-    await window.api.saveSettings({ ...settings, defaultProvider: id })
+    const result = await window.api.saveSettings({ ...settings, defaultProvider: id })
+    onPersisted(result)
     onChange({ defaultProvider: id })
   }
 

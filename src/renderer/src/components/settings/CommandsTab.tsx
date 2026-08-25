@@ -66,10 +66,13 @@ export default function CommandsTab({ projectPath }: Props) {
 
   return (
     <div className="settings-tab commands-tab">
-      <p className="settings-hint">
-        Slash commands expand into a prompt sent to the agent. Template variables: <code>$1</code>…<code>$N</code>,
-        <code>$ARGUMENTS</code>, <code>@path</code> file refs, and <code>{'!`cmd`'}</code> shell output.
-      </p>
+      <div className="agents-head">
+        <p className="settings-hint">
+          Slash commands expand into a prompt sent to the agent. Template variables: <code>$1</code>…<code>$N</code>,
+          <code>$ARGUMENTS</code>, <code>@path</code> file refs, and <code>{'!`cmd`'}</code> shell output.
+        </p>
+        <button className="btn primary small" onClick={openAdd}>+ Add command</button>
+      </div>
       {commands.map(c => (
         <div className="permission-row" key={c.name}>
           <span className="permission-tool">/{c.name}</span>
@@ -78,7 +81,6 @@ export default function CommandsTab({ projectPath }: Props) {
           <button className="btn small" onClick={() => void remove(c.name)}>Remove</button>
         </div>
       ))}
-      <button className="btn" onClick={openAdd}>+ Add command</button>
       {status && <div className="settings-status">{status}</div>}
       {error && <div className="settings-error">{error}</div>}
 

@@ -68,3 +68,24 @@ Alias `@shared` → `src/shared` (đã cấu hình trong electron.vite.config.ts
 - `docs/superpowers/specs` — design specs; `docs/superpowers/plans` — kế hoạch triển khai.
 - `docs/changelog-format.md` — format viết changelog giữa các version (tái sử dụng mỗi release).
 - Workflow: brainstorm → spec → plan → thực thi (chi tiết trong docs hiện có).
+
+## AGENTS.md — Documentation Sync Rule
+
+Each module directory has an `AGENTS.md` file describing its purpose, status, key files, API endpoints, dependencies, and TODOs. A sibling `CLAUDE.md` only contains `@AGENTS.md` (Claude Code import syntax).
+
+**ALWAYS** update `AGENTS.md` when any of the following changes occur:
+- New or changed business logic (endpoints, service methods, DTOs)
+- File structure changes (adding/removing/renaming key files)
+- Status changes (SKELETON → PARTIAL → IMPLEMENTED)
+- New or changed dependencies (entities, modules, packages)
+- TODOs completed or new TODOs to add
+
+Principle: **Code changes → AGENTS.md updated before commit.**
+
+When updating any `AGENTS.md` file:
+- **ONLY** modify the entries that reflect the code, structure, status, dependency, endpoint, or TODO items that were actually changed or newly added.
+- **DO NOT** rewrite the whole file, **DO NOT** "clean up" unrelated sections, and **DO NOT** change wording just because you prefer different phrasing when the current meaning is still correct.
+- **DO NOT** change the existing file format on your own, including heading levels, section order, bullet style, checkbox style, tables, label conventions, indentation, line spacing, and the presentation conventions already used in that specific file.
+- If new information must be added, insert it into the correct section using the existing format instead of restructuring the whole file.
+- If an existing entry is not affected by the code change, leave it unchanged.
+- If the current format seems imperfect but is still consistent, **prefer preserving it**; only adjust formatting when the user explicitly asks for that specific file.

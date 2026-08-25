@@ -677,7 +677,7 @@ export class MeowAgentManager {
     const defaultProvider = settings.providers.some(p => p.id === settings.defaultProvider)
       ? settings.defaultProvider
       : providerId
-    return this.saveSettings({ ...settings, providers: nextProviders, defaultProvider })
+    return this.writeSettingsAndReload({ ...settings, providers: nextProviders, defaultProvider })
   }
 
   async disconnectProvider(providerId: string): Promise<MeowSettings> {
@@ -687,7 +687,7 @@ export class MeowAgentManager {
     const defaultProvider = nextProviders.some(p => p.id === settings.defaultProvider)
       ? settings.defaultProvider
       : (nextProviders[0]?.id ?? '')
-    return this.saveSettings({ ...settings, providers: nextProviders, defaultProvider })
+    return this.writeSettingsAndReload({ ...settings, providers: nextProviders, defaultProvider })
   }
 
   getSettings(): MeowSettings {
@@ -695,6 +695,11 @@ export class MeowAgentManager {
   }
 
   getMcpStatus(): McpServerStatus[] {
+    return this.mcp.status()
+  }
+
+  async reconnectMcp(): Promise<McpServerStatus[]> {
+    await this.syncTools()
     return this.mcp.status()
   }
 
@@ -765,12 +770,28 @@ export class MeowAgentManager {
   }
 
   async saveSettings(settings: MeowSettings): Promise<MeowSettings> {
+    this.writeSettings(settings)
+    await this.reload()
+    return configToSettings(settingsToConfig(settings, loadMeowConfig(this.deps.configPath)))
+  }
+
+  /**
+   * Write settings to disk and kick off reload() in the background without
+   * awaiting it. Used by provider connect/disconnect so the IPC call returns
+   * immediately (closing the UI modal) instead of blocking on MCP server
+   * reconnection inside reload(), which can take up to 60s per server.
+   */
+  private writeSettingsAndReload(settings: MeowSettings): MeowSettings {
+    this.writeSettings(settings)
+    void this.reload()
+    return configToSettings(settingsToConfig(settings, loadMeowConfig(this.deps.configPath)))
+  }
+
+  private writeSettings(settings: MeowSettings): void {
     const current = loadMeowConfig(this.deps.configPath)
     const cfg = settingsToConfig(settings, current)
     writeMeowConfig(this.deps.configPath, cfg)
     this.deps = { ...this.deps, notifications: cfg.notifications }
-    await this.reload()
-    return configToSettings(cfg)
   }
 
   async reload(): Promise<void> {

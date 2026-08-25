@@ -155,6 +155,7 @@ const api: AgentApi = {
   removeCommand: (name: string) => ipcRenderer.invoke(Channels.CommandRemove, name),
   getStats: () => ipcRenderer.invoke(Channels.StatsGet),
   getMcpStatus: () => ipcRenderer.invoke(Channels.McpStatus),
+  reconnectMcp: () => ipcRenderer.invoke(Channels.McpReconnect),
   platform: process.platform,
   minimizeWindow: () => ipcRenderer.invoke(Channels.WindowMinimize),
   toggleMaximizeWindow: () => ipcRenderer.invoke(Channels.WindowToggleMaximize),

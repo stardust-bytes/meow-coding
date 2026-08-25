@@ -93,6 +93,7 @@ export const Channels = {
   CommandRemove: 'commands:remove',
   StatsGet: 'stats:get',
   McpStatus: 'mcp:status',
+  McpReconnect: 'mcp:reconnect',
   WindowMinimize: 'window:minimize',
   WindowToggleMaximize: 'window:toggle-maximize',
   WindowClose: 'window:close',
@@ -249,6 +250,7 @@ export interface AgentApi {
   removeCommand(name: string): Promise<void>
   getStats(): Promise<StatsSummary>
   getMcpStatus(): Promise<McpServerStatus[]>
+  reconnectMcp(): Promise<McpServerStatus[]>
   platform: string
   minimizeWindow(): Promise<void>
   toggleMaximizeWindow(): Promise<void>
