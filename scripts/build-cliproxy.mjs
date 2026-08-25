@@ -9,8 +9,10 @@ import { fileURLToPath } from 'node:url'
 const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const sidecarDir = path.join(rootDir, 'sidecars', 'meow-cliproxy')
 
-const goos = process.env.GOOS ?? process.platform
-const goarch = process.env.GOARCH ?? process.arch
+// CLIPROXY_PLATFORM/CLIPROXY_ARCH mirror what electron-builder.ts consumes so a
+// cross-compiled dist packages the artifact it actually built.
+const goos = process.env.CLIPROXY_PLATFORM ?? process.env.GOOS ?? process.platform
+const goarch = process.env.CLIPROXY_ARCH ?? process.env.GOARCH ?? process.arch
 const exe = goos === 'win32' ? '.exe' : ''
 const outDir = path.join(rootDir, 'out', 'cliproxy', `${goos}-${goarch}`)
 const outFile = path.join(outDir, `meow-cliproxy${exe}`)
@@ -30,3 +32,10 @@ execFileSync(goCmd, ['build', '-trimpath', '-o', outFile, '.'], {
   env,
   stdio: 'inherit'
 })
+
+// Unit-test the wrapper on host builds only; cross-compiled binaries cannot
+// execute on the build machine.
+const isHostBuild = !process.env.GOOS && !process.env.GOARCH && !process.env.CLIPROXY_PLATFORM
+if (isHostBuild) {
+  execFileSync(goCmd, ['test', './...'], { cwd: sidecarDir, env, stdio: 'inherit' })
+}

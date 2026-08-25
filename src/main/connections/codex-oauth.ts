@@ -100,6 +100,15 @@ export class CodexOAuth {
         reject(new CodexOAuthError('OAuth callback timed out'))
       }, this.deps.callbackTimeoutMs)
       let settled = false
+      const fail = (err: Error) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeout)
+        reject(err)
+      }
+      // Forward post-listen errors (e.g. reset connections) so authorize()
+      // does not hang until the callback timeout.
+      server.on('error', fail)
       server.on('request', (req, res) => {
         const url = new URL(req.url ?? '/', `http://${this.deps.host}`)
         const receivedState = url.searchParams.get('state')

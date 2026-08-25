@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { createServer } from 'node:net'
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import treeKill from 'tree-kill'
 import { randomBytes as nodeRandomBytes } from 'node:crypto'
 import path from 'node:path'
 import type { OAuthTokens } from './types'
@@ -30,20 +31,51 @@ export interface CodexProxyManagerDeps {
   binaryPath: string
   host?: string
   spawnFn?: (cmd: string, args: string[], opts: { cwd?: string }) => ChildProcess
-  portAllocator?: () => Promise<number>
+  portAllocator?: (count: number) => Promise<number>
   randomBytes?: (n: number) => Buffer
   fetchFn?: typeof fetch
+  readStatusFile?: (path: string) => Promise<Record<string, { port: number }>>
   healthTimeoutMs?: number
   pollDelayMs?: number
 }
 
-function maskError(err: unknown, secrets: string[]): Error {
+function maskError(err: unknown, secrets: string[], paths: string[] = []): Error {
   let message = err instanceof Error ? err.message : String(err)
   for (const secret of secrets) {
     if (secret && secret.length >= 4) message = message.split(secret).join('[redacted]')
   }
-  // Never leak filesystem paths of the runtime directory.
+  // Never leak runtime directory paths (they are random per launch).
+  for (const p of paths) {
+    if (p) message = message.split(p).join('[redacted]')
+  }
   return new Error(`[meow] Không thể khởi động proxy Codex: ${message}`)
+}
+
+function isPortFree(port: number): Promise<boolean> {
+  return new Promise(resolve => {
+    const server = createServer()
+    server.once('error', () => resolve(false))
+    server.listen(port, '127.0.0.1', () => {
+      server.close(() => resolve(true))
+    })
+  })
+}
+
+async function findFreePorts(count: number): Promise<number> {
+  for (let attempt = 0; attempt < 32; attempt++) {
+    // Ask the OS for an ephemeral port, then verify the contiguous range the
+    // sidecar will bind (port + i per account).
+    const base = await findFreePort()
+    let allFree = true
+    for (let i = 0; i < count; i++) {
+      if (!(await isPortFree(base + i))) {
+        allFree = false
+        break
+      }
+    }
+    if (allFree) return base
+  }
+  throw new Error('no contiguous free port range available')
 }
 
 async function findFreePort(): Promise<number> {
@@ -63,7 +95,7 @@ async function findFreePort(): Promise<number> {
 }
 
 export class CodexProxyManager {
-  private readonly deps: Required<Pick<CodexProxyManagerDeps, 'host' | 'spawnFn' | 'portAllocator' | 'randomBytes' | 'fetchFn' | 'healthTimeoutMs' | 'pollDelayMs'>> & CodexProxyManagerDeps
+  private readonly deps: Required<Pick<CodexProxyManagerDeps, 'host' | 'spawnFn' | 'portAllocator' | 'randomBytes' | 'fetchFn' | 'readStatusFile' | 'healthTimeoutMs' | 'pollDelayMs'>> & CodexProxyManagerDeps
   private child: ChildProcess | null = null
   private runDir: string | null = null
   private readonly endpoints = new Map<string, CodexProxyEndpoint>()
@@ -74,9 +106,11 @@ export class CodexProxyManager {
     this.deps = {
       host: deps.host ?? '127.0.0.1',
       spawnFn: deps.spawnFn ?? spawn,
-      portAllocator: deps.portAllocator ?? findFreePort,
+      portAllocator: deps.portAllocator ?? findFreePorts,
       randomBytes: deps.randomBytes ?? nodeRandomBytes,
       fetchFn: deps.fetchFn ?? fetch.bind(globalThis),
+      readStatusFile: deps.readStatusFile ?? (async (p) =>
+        JSON.parse(readFileSync(p, 'utf8')) as Record<string, { port: number }>),
       healthTimeoutMs: deps.healthTimeoutMs ?? 15_000,
       pollDelayMs: deps.pollDelayMs ?? 200,
       ...deps
@@ -90,11 +124,16 @@ export class CodexProxyManager {
       await this.stop()
     }
 
+    if (!existsSync(this.deps.binaryPath)) {
+      throw new Error('[meow] Không tìm thấy proxy Codex. Trong môi trường dev, chạy `npm run build:cliproxy`; bản cài đặt chính thức đã kèm sẵn.')
+    }
+
     const runDir = path.join(this.deps.runtimeDir, `run-${this.deps.randomBytes(8).toString('hex')}`)
     mkdirSync(runDir, { recursive: true })
     if (process.platform !== 'win32') chmodSync(runDir, 0o700)
 
-    const port = await this.deps.portAllocator()
+    // The sidecar binds port + i per account, so reserve a contiguous range.
+    const port = await this.deps.portAllocator(accounts.length)
     const sidecarAccounts: SidecarAccount[] = accounts.map((account, i) => ({
       id: account.accountId,
       credential: this.deps.randomBytes(32).toString('base64url'),
@@ -108,14 +147,15 @@ export class CodexProxyManager {
     const config: SidecarConfig = { host: this.deps.host, port, accounts: sidecarAccounts }
     const configPath = path.join(runDir, 'config.json')
     writeFileSync(configPath, JSON.stringify(config, null, 2), { mode: 0o600 })
+    const statusPath = path.join(runDir, 'status.json')
 
-    const args = ['--host', this.deps.host, '--port', String(port), '--config', configPath]
+    const args = ['--host', this.deps.host, '--port', String(port), '--config', configPath, '--status', statusPath]
     let child: ChildProcess
     try {
       child = this.deps.spawnFn(this.deps.binaryPath, args, { cwd: runDir })
     } catch (err) {
       this.removeRunDir(runDir)
-      throw maskError(err, this.secrets)
+      throw maskError(err, this.secrets, [runDir, configPath])
     }
     this.child = child
     this.runDir = runDir
@@ -125,21 +165,28 @@ export class CodexProxyManager {
       child.once('error', () => resolve())
     })
 
-    // Wait for all account ports to become healthy, or fail fast on exit.
     const healthTimeout = setTimeout(() => {
       child.kill()
     }, this.deps.healthTimeoutMs)
 
     try {
+      // The sidecar writes status.json only after every account is healthy; the
+      // reported ports are the ones it actually bound, so we never route to a
+      // port owned by another process.
+      const status = await Promise.race([
+        this.waitForStatusFile(statusPath),
+        exited.then(() => { throw new Error('proxy sidecar exited during startup') })
+      ])
       for (const acc of sidecarAccounts) {
-        const accountPort = port + sidecarAccounts.indexOf(acc)
+        const reported = status[acc.id]
+        if (!reported) throw new Error(`proxy did not report a port for account ${acc.id}`)
         await Promise.race([
-          this.waitHealthy(accountPort),
+          this.waitHealthy(reported.port),
           exited.then(() => { throw new Error('proxy sidecar exited during startup') })
         ])
         this.endpoints.set(acc.id, {
           accountId: acc.id,
-          baseUrl: `http://${this.deps.host}:${accountPort}/v1`,
+          baseUrl: `http://${this.deps.host}:${reported.port}/v1`,
           apiKey: acc.credential
         })
       }
@@ -147,11 +194,26 @@ export class CodexProxyManager {
       clearTimeout(healthTimeout)
       child.kill()
       await this.stop()
-      throw maskError(err, this.secrets)
+      throw maskError(err, this.secrets, [runDir, configPath, statusPath])
     }
     clearTimeout(healthTimeout)
 
     return accounts.map(a => this.endpoints.get(a.accountId)!)
+  }
+
+  private async waitForStatusFile(statusPath: string): Promise<Record<string, { port: number }>> {
+    const deadline = Date.now() + this.deps.healthTimeoutMs
+    let lastError: unknown
+    while (Date.now() < deadline) {
+      try {
+        const status = await this.deps.readStatusFile(statusPath)
+        if (status && Object.keys(status).length > 0) return status
+      } catch (err) {
+        lastError = err
+      }
+      await new Promise(r => setTimeout(r, this.deps.pollDelayMs))
+    }
+    throw lastError ?? new Error('proxy status file was not written in time')
   }
 
   getEndpoint(accountId: string): CodexProxyEndpoint | null {
@@ -167,15 +229,30 @@ export class CodexProxyManager {
   async stop(): Promise<void> {
     const child = this.child
     this.child = null
-    if (child) {
+    if (child && child.pid) {
       this.stopping = true
-      child.kill()
       await new Promise<void>(resolve => {
-        const done = () => resolve()
-        if (child.exitCode !== null || child.signalCode !== null) return resolve()
+        let settled = false
+        const done = () => {
+          if (settled) return
+          settled = true
+          child.removeListener('exit', done)
+          child.removeListener('error', done)
+          resolve()
+        }
+        if (child.exitCode !== null || child.signalCode !== null) return done()
         child.once('exit', done)
         child.once('error', done)
-        setTimeout(done, 2000).unref()
+        const timer = setTimeout(done, 2000)
+        timer.unref()
+        // On Windows a plain kill() does not terminate the process tree; match
+        // the repo-wide tree-kill convention used by pty-manager.
+        const pid = child.pid
+        if (process.platform === 'win32' && pid) {
+          treeKill(pid, () => {})
+        } else {
+          child.kill('SIGTERM')
+        }
       })
       this.stopping = false
     }

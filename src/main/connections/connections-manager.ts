@@ -33,6 +33,7 @@ export interface ConnectionsManagerDeps {
 export class ConnectionsManager {
   private readonly deps: Required<Pick<ConnectionsManagerDeps, 'fetchFn'>> & ConnectionsManagerDeps
   private started = false
+  private readonly refreshInFlight = new Map<string, Promise<void>>()
 
   constructor(deps: ConnectionsManagerDeps) {
     this.deps = { fetchFn: deps.fetchFn ?? fetch.bind(globalThis), ...deps }
@@ -137,6 +138,16 @@ export class ConnectionsManager {
 
   /** Refreshes the access token when it expires within the conservative window. */
   async ensureFresh(accountId: string): Promise<void> {
+    const existing = this.refreshInFlight.get(accountId)
+    if (existing) return existing
+    const run = this.doEnsureFresh(accountId).finally(() => {
+      this.refreshInFlight.delete(accountId)
+    })
+    this.refreshInFlight.set(accountId, run)
+    return run
+  }
+
+  private async doEnsureFresh(accountId: string): Promise<void> {
     const account = this.deps.store.get('codex', accountId)
     if (!account) return
     const tokens = this.readTokens(accountId)

@@ -27,6 +27,9 @@ async function signWindows(configuration: { path: string }): Promise<void> {
   )
 }
 
+const cliproxyPlatform = process.env.CLIPROXY_PLATFORM ?? process.platform
+const cliproxyArch = process.env.CLIPROXY_ARCH ?? process.arch
+
 const config: Configuration = {
   appId: 'com.meow.coding',
   productName: 'Meow Coding',
@@ -48,7 +51,7 @@ const config: Configuration = {
     { from: 'out/browser-extension', to: 'browser-extension' },
     { from: 'resources/tray-icon.png', to: 'tray-icon.png' },
     {
-      from: `out/cliproxy/${process.platform}-${process.arch}/`,
+      from: `out/cliproxy/${cliproxyPlatform}-${cliproxyArch}/`,
       to: 'cliproxy',
       filter: ['meow-cliproxy*']
     },

@@ -152,11 +152,16 @@ func writeYAML(path string, host string, port int, authDir string, credential st
 	return nil
 }
 
-func waitHealthy(host string, port int, timeout time.Duration) error {
+func waitHealthy(ctx context.Context, host string, port int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	url := fmt.Sprintf("http://%s:%d/healthz", host, port)
 	client := &http.Client{Timeout: 2 * time.Second}
 	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
 		resp, err := client.Get(url)
 		if err == nil {
 			_ = resp.Body.Close()
@@ -248,7 +253,7 @@ func run() error {
 	}
 
 	for _, entry := range status {
-		if err := waitHealthy(cfg.Host, entry.Port, 15*time.Second); err != nil {
+		if err := waitHealthy(ctx, cfg.Host, entry.Port, 15*time.Second); err != nil {
 			cancel()
 			return err
 		}

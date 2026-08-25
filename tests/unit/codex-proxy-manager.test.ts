@@ -1,8 +1,12 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { EventEmitter } from 'node:events'
-import { mkdtempSync, rmSync, readFileSync, existsSync, readdirSync } from 'node:fs'
+import { mkdtempSync, rmSync, readFileSync, existsSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+
+const treeKillMock = vi.hoisted(() => vi.fn())
+vi.mock('tree-kill', () => ({ default: treeKillMock }))
+
 import { CodexProxyManager } from '../../src/main/connections/codex-proxy-manager'
 import type { OAuthTokens } from '../../src/main/connections/types'
 
@@ -19,6 +23,8 @@ function tokens(overrides: Partial<OAuthTokens> = {}): OAuthTokens {
 interface FakeChild extends EventEmitter {
   pid: number
   killed: boolean
+  exitCode: number | null
+  signalCode: NodeJS.Signals | null
   kill: ReturnType<typeof vi.fn>
   stdout: EventEmitter
   stderr: EventEmitter
@@ -33,18 +39,37 @@ function makeChild(): FakeChild {
   const c = new EventEmitter() as FakeChild
   c.pid = 12345
   c.killed = false
-  c.kill = vi.fn(() => { c.killed = true; return true })
+  c.exitCode = null
+  c.signalCode = null
+  c.kill = vi.fn(() => {
+    c.killed = true
+    setImmediate(() => c.emit('exit', 0, null))
+    return true
+  })
   c.stdout = new EventEmitter()
   c.stderr = new EventEmitter()
   return c
 }
 
 function makeManager(overrides: Partial<ConstructorParameters<typeof CodexProxyManager>[0]> = {}) {
+  const binaryPath = path.join(dir, 'meow-cliproxy' + (process.platform === 'win32' ? '.exe' : ''))
+  writeFileSync(binaryPath, 'fake-binary')
   return new CodexProxyManager({
     runtimeDir: path.join(dir, 'runtime'),
-    binaryPath: path.join('sidecars', 'meow-cliproxy', 'bin', 'meow-cliproxy.exe'),
+    binaryPath,
     spawnFn: spawnFn as unknown as (cmd: string, args: string[], opts: { cwd?: string }) => unknown,
-    portAllocator: async () => portSeq++,
+    portAllocator: async (count: number) => {
+      const base = portSeq
+      portSeq += Math.max(count, 1)
+      return base
+    },
+    readStatusFile: async (p) => {
+      // status.json lives next to config.json; derive ports from the config.
+      const cfg = JSON.parse(readFileSync(path.join(path.dirname(p), 'config.json'), 'utf8'))
+      const out: Record<string, { port: number }> = {}
+      cfg.accounts.forEach((a: { id: string }, i: number) => { out[a.id] = { port: cfg.port + i } })
+      return out
+    },
     fetchFn: async () => new Response('{"status":"ok"}', { status: 200 }) as unknown as Response,
     ...overrides
   })
@@ -56,6 +81,11 @@ beforeEach(() => {
   spawnFn = vi.fn(() => {
     child = makeChild()
     return child
+  })
+  treeKillMock.mockReset()
+  treeKillMock.mockImplementation((pid: number, cb?: () => void) => {
+    child?.emit('exit', 0, null)
+    cb?.()
   })
   portSeq = 40000
 })
@@ -194,12 +224,17 @@ describe('CodexProxyManager', () => {
     await expect(pending).rejects.toThrow()
   })
 
-  it('gracefully stops: kills the child and removes the runtime directory', async () => {
+  it('gracefully stops: terminates the child and removes the runtime directory', async () => {
     const manager = makeManager()
     await manager.start([{ accountId: 'acct-a', tokens: tokens() }])
     expect(child).not.toBeNull()
+    treeKillMock.mockClear()
     await manager.stop()
-    expect(child!.kill).toHaveBeenCalled()
+    if (process.platform === 'win32') {
+      expect(treeKillMock).toHaveBeenCalledWith(child!.pid, expect.any(Function))
+    } else {
+      expect(child!.kill).toHaveBeenCalled()
+    }
     const configArgIndex = spawnFn.mock.calls[0][1].indexOf('--config')
     const runDir = path.dirname(spawnFn.mock.calls[0][1][configArgIndex + 1])
     expect(existsSync(runDir)).toBe(false)

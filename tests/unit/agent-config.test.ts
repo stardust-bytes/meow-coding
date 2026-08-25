@@ -133,7 +133,7 @@ describe('resolveAgentConfig', () => {
     const cfg = loadMeowConfig(file)
     cfg.provider = { codex: { models: ['gpt-5.3-codex'] } }
     cfg.model = 'codex'
-    const resolved = resolveAgentConfig(cfg, 'meow', {}, undefined, undefined, {
+    const resolved = resolveAgentConfig(cfg, 'meow', {}, 'codex/gpt-5.3-codex', undefined, {
       accountId: 'acct-a',
       resolveEndpoint: (id) => {
         expect(id).toBe('acct-a')
@@ -158,6 +158,37 @@ describe('resolveAgentConfig', () => {
     })
     expect(resolved.provider).toBe('codex')
     expect(resolved.apiKey).toBeNull()
+  })
+
+  it('resolves a codex account even without a meow.json provider entry (fresh install)', () => {
+    // Fresh profile: DEFAULT provider map is empty and the user only connected
+    // the account via OAuth (no API-key connectProvider flow ran).
+    const cfg = loadMeowConfig(file)
+    expect(Object.keys(cfg.provider)).toHaveLength(0)
+    const resolved = resolveAgentConfig(cfg, 'meow', {}, 'codex/gpt-5.3-codex', undefined, {
+      accountId: 'acct-a',
+      resolveEndpoint: () => ({ baseUrl: 'http://127.0.0.1:43123/v1', apiKey: 'local-account-scoped-key' })
+    })
+    expect(resolved).toMatchObject({
+      provider: 'codex',
+      model: 'gpt-5.3-codex',
+      apiKey: 'local-account-scoped-key',
+      baseUrl: 'http://127.0.0.1:43123/v1'
+    })
+  })
+
+  it('preserves accountId on subagent model refs through normalization', () => {
+    writeFileSync(file, JSON.stringify({
+      subagentModels: {
+        research: { provider: 'codex', accountId: 'acct-a', model: 'gpt-5.3-codex' }
+      }
+    }))
+    const reloaded = loadMeowConfig(file)
+    expect(reloaded.subagentModels?.research).toEqual({
+      provider: 'codex',
+      accountId: 'acct-a',
+      model: 'gpt-5.3-codex'
+    })
   })
 
   it('exposes defaults exported for reuse', () => {

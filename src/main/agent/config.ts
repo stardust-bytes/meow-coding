@@ -236,9 +236,17 @@ function normalizeSubagentModels(
   for (const type of SUBAGENT_ROLES) {
     const ref = raw[type]
     if (!ref || !ref.provider || !ref.model) continue
-    const provider = providers[ref.provider]
-    if (!provider || !provider.models.includes(ref.model)) continue
-    out[type] = { provider: ref.provider, model: ref.model }
+    // Account-scoped providers resolve through the connection subsystem and do
+    // not require a meow.json provider entry.
+    if (!ref.accountId) {
+      const provider = providers[ref.provider]
+      if (!provider || !provider.models.includes(ref.model)) continue
+    }
+    out[type] = {
+      provider: ref.provider,
+      model: ref.model,
+      ...(ref.accountId ? { accountId: ref.accountId } : {})
+    }
   }
   return Object.keys(out).length > 0 ? out : undefined
 }
@@ -318,21 +326,23 @@ export function resolveAgentConfig(
       providerName = agent.model
     }
   }
+  // Account-scoped providers (Codex OAuth) route through the connection
+  // subsystem: the api key is the local proxy credential, the base URL is the
+  // account-scoped loopback proxy. This branch runs before the meow.json
+  // provider lookup so a connected account works even when no `codex` provider
+  // entry exists in the config.
+  if (providerName === 'codex' && opts?.accountId) {
+    const endpoint = opts.resolveEndpoint?.(opts.accountId) ?? null
+    if (endpoint) {
+      return { provider: providerName, model: modelName ?? '', apiKey: endpoint.apiKey, baseUrl: endpoint.baseUrl, systemPrompt: agent.systemPrompt }
+    }
+    return { provider: providerName, model: modelName ?? '', apiKey: null, systemPrompt: agent.systemPrompt }
+  }
   const provider = cfg.provider[providerName]
   if (!provider) {
     return { provider: '', model: '', apiKey: null, systemPrompt: agent.systemPrompt }
   }
   const model = modelName && provider.models.includes(modelName) ? modelName : (provider.models[0] ?? '')
-  // Account-scoped providers (Codex OAuth) route through the connection
-  // subsystem: the api key is the local proxy credential, the base URL is the
-  // account-scoped loopback proxy.
-  if (providerName === 'codex' && opts?.accountId) {
-    const endpoint = opts.resolveEndpoint?.(opts.accountId) ?? null
-    if (endpoint) {
-      return { provider: providerName, model, apiKey: endpoint.apiKey, baseUrl: endpoint.baseUrl, systemPrompt: agent.systemPrompt }
-    }
-    return { provider: providerName, model, apiKey: null, systemPrompt: agent.systemPrompt }
-  }
   return {
     provider: providerName,
     model,
