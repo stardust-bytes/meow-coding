@@ -965,8 +965,8 @@ select.input { width: 100%; }
   display: flex; align-items: center; justify-content: flex-start; gap: 6px;
   margin: 4px 4px 8px;
   width: calc(100% - 8px);
-  min-height: 48px;
-  padding: 0 14px;
+  min-height: 40px;
+  padding: 4px 14px;
   font-size: var(--fs-md);
   background: linear-gradient(180deg, var(--bg-raised), var(--bg-panel));
   border-color: var(--hairline);
