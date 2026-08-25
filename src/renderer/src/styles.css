@@ -729,7 +729,23 @@ select.input { width: 100%; }
 .chat-thumb:hover { border-color: var(--accent); }
 .chat-lightbox { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.75); cursor: zoom-out; backdrop-filter: blur(2px); }
 .chat-lightbox img { max-width: 90vw; max-height: 90vh; border-radius: var(--radius-lg); }
-.chat-error { color: var(--red); white-space: pre-wrap; padding: 4px 0; }
+.chat-error {
+  color: var(--red);
+  padding: 4px 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.chat-error-text { flex: 1; min-width: 0; white-space: pre-wrap; word-break: break-word; }
+.chat-error-copy {
+  flex: 0 0 auto;
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dim);
+  padding: 1px 6px;
+  font-size: var(--fs-sm);
+}
+.chat-error-copy:hover { background: var(--bg-hover); border-color: var(--accent-dim); color: var(--text-strong); }
 .subagent {
   margin-right: auto; width: 100%; max-width: 92%;
   background: var(--bg-raised); border: 1px solid var(--hairline); border-left: 2px solid var(--blue);
@@ -917,34 +933,6 @@ select.input { width: 100%; }
 .context-footer-cost { color: var(--green); }
 .context-footer.warn .context-footer-cost, .context-footer.danger .context-footer-cost { color: inherit; }
 
-/* Providers screen */
-.providers-screen {
-  position: fixed; inset: 34px 0 0; z-index: 100;
-  display: flex; flex-direction: column;
-  background: var(--bg-panel); color: var(--text);
-}
-.providers-screen * { border-radius: 0; }
-.providers-screen .btn,
-.providers-screen .input,
-.providers-screen .provider-catalog-row,
-.providers-screen .provider-connected-toggle,
-.providers-screen .provider-models code { border-radius: var(--radius); }
-.providers-screen .dialog { border-radius: var(--radius-lg); }
-.providers-screen-header {
-  display: flex; align-items: center; gap: 14px; min-height: 52px;
-  padding: 0 18px; border-bottom: 1px solid var(--hairline);
-  background: linear-gradient(180deg, var(--bg-raised), var(--bg-panel));
-}
-.providers-screen-header h2 {
-  margin: 0; font-family: var(--font-display); font-size: var(--fs-lg);
-  font-weight: var(--fw-semibold); color: var(--text-strong);
-}
-.providers-screen-back { display: inline-flex; align-items: center; gap: 6px; }
-.providers-screen-content {
-  width: min(940px, 100%); margin: 0 auto; padding: 24px;
-  overflow-y: auto; flex: 1; min-height: 0;
-}
-
 /* Settings screen */
 .settings-screen {
   position: fixed; inset: 34px 0 0; z-index: 100;
@@ -955,35 +943,39 @@ select.input { width: 100%; }
 .settings-screen .btn,
 .settings-screen .input,
 .settings-screen .settings-nav-item,
-.settings-screen .settings-row { border-radius: var(--radius); }
+.settings-screen .settings-row,
+.settings-screen .provider-catalog-row,
+.settings-screen .provider-connected-toggle,
+.settings-screen .provider-models code { border-radius: var(--radius); }
 .settings-screen .dialog { border-radius: var(--radius-lg); }
-.settings-screen-header {
-  display: flex; align-items: center; gap: 14px; min-height: 52px;
-  padding: 0 18px; border-bottom: 1px solid var(--hairline);
-  background: linear-gradient(180deg, var(--bg-raised), var(--bg-panel));
-}
-.settings-screen-header h2 {
-  margin: 0; font-family: var(--font-display); font-size: var(--fs-lg);
-  font-weight: var(--fw-semibold); color: var(--text-strong);
-}
-.settings-screen-back { display: inline-flex; align-items: center; gap: 6px; }
 .settings-screen-body { flex: 1; min-height: 0; overflow: hidden; }
 .settings-screen-body .settings-body { width: 100%; height: 100%; margin: 0; }
-.settings-screen-footer {
-  display: flex; align-items: center; gap: 12px; min-height: 58px;
-  padding: 10px 18px; border-top: 1px solid var(--hairline); background: var(--bg-raised);
-}
-.settings-screen-status { flex: 1; min-width: 0; }
 
 /* Settings dialog */
 .settings-dialog { width: 760px; max-width: 92vw; height: 80vh; max-height: 80vh; overflow: hidden; }
-.settings-body { display: flex; gap: 12px; flex: 1; min-height: 0; }
-.settings-nav {
-  display: flex; flex-direction: column; gap: 2px; flex: 0 0 150px;
-  border-right: 1px solid var(--hairline); padding-right: 8px;
-  border-radius: 0; /* keep the right border a clean straight line, not rounded ends */
+.settings-body { display: flex; flex: 1; min-height: 0; }
+.settings-sidebar {
+  flex: 0 0 268px; /* same width as the project sidebar */
+  display: flex; flex-direction: column; min-height: 0;
+  border-right: 1px solid var(--hairline);
+  background: var(--bg-panel);
 }
-.settings-screen .settings-nav { padding: 0.25rem; }
+.settings-screen-back {
+  flex: 0 0 auto; width: 100%;
+  display: flex; align-items: center; gap: 8px;
+  min-height: 44px; padding: 0 14px;
+  background: transparent; border: none;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-medium);
+  cursor: pointer; text-align: left; border-radius: 0;
+}
+.settings-screen-back:hover { color: var(--text-strong); background: var(--bg-hover); }
+.settings-nav {
+  display: flex; flex-direction: column; gap: 2px; flex: 1;
+  padding: 0.25rem;
+  overflow-y: auto;
+  border-radius: 0;
+}
 .settings-screen .settings-content { padding: 0.75rem 12px 0.75rem 0; }
 .settings-nav-item {
   text-align: left; padding: 7px 10px; border: none; background: transparent; color: var(--text);
@@ -994,6 +986,17 @@ select.input { width: 100%; }
 .settings-nav-item:hover { background: var(--bg-hover); }
 .settings-nav-item.active { background: var(--bg-active); color: var(--accent); border-left-color: var(--accent); }
 .settings-content { flex: 1; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.settings-save-pill {
+  position: fixed; right: 18px; bottom: 18px; z-index: 110;
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: var(--radius-lg);
+  background: var(--bg-raised); border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-2);
+  font-size: var(--fs-sm); color: var(--text-dim);
+}
+.settings-save-pill.saved { color: var(--green); border-color: rgba(74, 222, 159, 0.35); }
+.settings-save-pill.error { color: var(--red); border-color: rgba(255, 95, 86, 0.35); }
+
 .settings-tab { display: flex; flex-direction: column; gap: 10px; }
 .settings-row { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: var(--bg-panel); border: 1px solid var(--hairline); border-radius: var(--radius); }
 .settings-field { display: flex; flex-direction: column; gap: 4px; }
