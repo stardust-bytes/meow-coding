@@ -28,7 +28,7 @@ import { LspManager } from './agent/lsp/manager'
 import { createLspTool } from './agent/tools/lsp'
 import { SavedPermissions } from './agent/saved-permissions'
 import { ModelsCatalog } from './models-catalog'
-import type { VariantBody } from './model-variants'
+import type { VariantBody, VariantDescriptor } from './model-variants'
 import { revertTool } from './agent/tools/revert'
 import { createTaskTool } from './agent/tools/task'
 import type { ResolvedSubagentModel } from './agent/tools/task'
@@ -54,7 +54,10 @@ export interface MeowAgentManagerDeps {
   snapshots: SnapshotStore
   savedPermissions: SavedPermissions
   catalog?: ModelsCatalog
-  connections?: AccountEndpointResolver
+  connections?: AccountEndpointResolver & Partial<{
+    getActiveCodexModels(): Promise<ModelRef[]>
+    getCodexVariantOptions(accountId: string, model: string, selectedVariant: string | undefined): Promise<VariantDescriptor | undefined>
+  }>
   truncation: TruncationStore
   commands?: CommandStore
   prices?: Record<string, { input?: number; output?: number; cacheRead?: number; cacheWrite?: number }>
@@ -63,6 +66,7 @@ export interface MeowAgentManagerDeps {
   notify?: NotificationService
   onActivateAgent?: (agentId: string) => void
   onBackgroundChange?: (agentId: string, background: boolean) => void
+  onVariantInvalidated?: (agentId: string) => void
   onArtifact?: (entry: Omit<ArtifactEntry, 'id' | 'ts'>) => void
   notifications?: NotificationsSettings
 }
@@ -91,6 +95,7 @@ export class MeowAgentManager {
   private lastUsageByAgent = new Map<string, MessageTokens>()
   private compacting = new Set<string>()
   private lastCompactionAt = new Map<string, number>()
+  private registrationVersion = new Map<string, number>()
   private idleCompactTimer: ReturnType<typeof setInterval> | null = null
 
   constructor(private deps: MeowAgentManagerDeps) {
@@ -163,12 +168,12 @@ export class MeowAgentManager {
     await this.syncTools()
     await this.refreshModelLimits()
     for (const agent of agents) {
-      if (agent.kind === 'native') this.register(agent, true)
+      if (agent.kind === 'native') await this.register(agent, true)
     }
   }
 
   addAgent(agent: AgentConfig): void {
-    if (agent.kind === 'native') this.register(agent)
+    if (agent.kind === 'native') void this.register(agent)
   }
 
   listAgents(): AgentConfig[] {
@@ -176,6 +181,7 @@ export class MeowAgentManager {
   }
 
   removeAgent(agentId: string): void {
+    this.registrationVersion.set(agentId, (this.registrationVersion.get(agentId) ?? 0) + 1)
     this.stop(agentId)
     this.runners.delete(agentId)
     this.agents.delete(agentId)
@@ -332,7 +338,11 @@ export class MeowAgentManager {
       return
     }
 
-    const runner = this.runners.get(agentId)
+    let runner = this.runners.get(agentId)
+    if (!runner) {
+      await this.register(agent)
+      runner = this.runners.get(agentId)
+    }
     if (!runner) return
     const controller = new AbortController()
     this.controllers.set(agentId, controller)
@@ -461,20 +471,21 @@ export class MeowAgentManager {
       // prompt instead of the one baked when the session's first turn ran.
       this.runners.delete(agentId)
       this.resolved.delete(agentId)
-      this.register(agent)
+      void this.register(agent)
     }
   }
 
   setVariant(agentId: string, variant: string | undefined): void {
     const agent = this.agents.get(agentId)
     if (!agent) return
-    const allowed = this.allowedVariantsFor(agent)
-    const valid = variant && allowed.includes(variant) ? variant : undefined
-    agent.variant = valid
+    const resolved = this.resolveAgentConfig(loadMeowConfig(this.deps.configPath), agent.name, agent.model, agent.accountId)
+    agent.variant = resolved.provider === 'codex' && agent.accountId
+      ? variant
+      : variant && this.allowedVariantsFor(agent).includes(variant) ? variant : undefined
     this.agents.set(agentId, agent)
     this.runners.delete(agentId)
     this.resolved.delete(agentId)
-    this.register(agent)
+    void this.register(agent)
   }
 
   setModel(agentId: string, model: ModelRef): void {
@@ -485,7 +496,7 @@ export class MeowAgentManager {
     this.agents.set(agentId, agent)
     this.runners.delete(agentId)
     this.resolved.delete(agentId)
-    this.register(agent)
+    void this.register(agent)
   }
 
   getAgentModel(agentId: string): ModelRef | null {
@@ -529,7 +540,13 @@ export class MeowAgentManager {
 
   async getAvailableVariants(agentId: string): Promise<string[]> {
     const agent = this.agents.get(agentId)
-    if (!agent || !this.deps.catalog) return []
+    if (!agent) return []
+    const resolved = this.resolveAgentConfig(loadMeowConfig(this.deps.configPath), agent.name, agent.model, agent.accountId)
+    if (resolved.provider === 'codex' && agent.accountId) {
+      const models = await this.deps.connections?.getActiveCodexModels?.() ?? []
+      const variants = models.find(model => model.provider === 'codex' && model.accountId === agent.accountId && model.model === resolved.model)?.variants ?? []
+      return variants
+    }
     return this.allowedVariantsFor(agent)
   }
 
@@ -691,7 +708,7 @@ export class MeowAgentManager {
     await this.syncTools()
     await this.refreshModelLimits()
     this.traceEnabled = loadMeowConfig(this.deps.configPath).trace?.enabled ?? false
-    for (const agent of agents) this.register(agent)
+    for (const agent of agents) await this.register(agent)
   }
 
   async dispose(): Promise<void> {
@@ -772,7 +789,9 @@ export class MeowAgentManager {
     ])
   }
 
-  private register(agent: AgentConfig, force = false): void {
+  private async register(agent: AgentConfig, force = false): Promise<void> {
+    const registrationVersion = (this.registrationVersion.get(agent.id) ?? 0) + 1
+    this.registrationVersion.set(agent.id, registrationVersion)
     this.agents.set(agent.id, agent)
     if (agent.background !== undefined) this.backgrounds.set(agent.id, agent.background)
     if (this.runners.has(agent.id)) {
@@ -838,15 +857,21 @@ export class MeowAgentManager {
         'write/edit/apply-patch/revert/git/todowrite tools are unavailable, and do NOT use the bash tool ' +
         'to modify the filesystem either. Produce a plan or analysis instead.'
       : ''
-    const allowed = this.allowedVariantsFor(agent)
-    const validVariant =
-      agent.variant && allowed.includes(agent.variant) ? agent.variant : undefined
-    if (validVariant !== agent.variant) {
-      agent.variant = validVariant
+    const isCodex = resolved.provider === 'codex' && Boolean(agent.accountId)
+    const modelKey = `${resolved.provider}/${resolved.model}`
+    const variantOptions = isCodex
+      ? await this.deps.connections?.getCodexVariantOptions?.(agent.accountId!, resolved.model, agent.variant)
+      : agent.variant ? this.modelVariants.get(modelKey)?.[agent.variant] : undefined
+    if (this.registrationVersion.get(agent.id) !== registrationVersion) return
+    if (isCodex && agent.variant && !variantOptions) {
+      agent.variant = undefined
+      this.agents.set(agent.id, agent)
+      this.deps.onVariantInvalidated?.(agent.id)
+    }
+    if (!isCodex && agent.variant && !variantOptions) {
+      agent.variant = undefined
       this.agents.set(agent.id, agent)
     }
-    const modelKey = `${resolved.provider}/${resolved.model}`
-    const variantOptions = validVariant ? this.modelVariants.get(modelKey)?.[validVariant] : undefined
     const runner = new SessionRunner({
       agentId: agent.id,
       turn: this.turnCounters.get(this.activeSessionId(agent.id)) ?? 1,

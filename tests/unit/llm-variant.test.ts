@@ -44,13 +44,13 @@ describe('llm variantOptions merging', () => {
     await new Promise<void>(r => server.listen(0, r))
     const port = (server.address() as AddressInfo).port
     const llm = createLlm('deepseek', 'sk-test', `http://127.0.0.1:${port}/v1`)
-    for (const v of ['low', 'medium', 'high', 'xhigh', 'max']) {
+    for (const v of ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']) {
       const stream = llm.stream(opts({ variantOptions: { openaiCompatible: { reasoningEffort: v } } }))
       for await (const part of stream) { if (part.kind === 'error') throw new Error(part.error) }
     }
     server.close()
     const efforts = bodies.map(b => (JSON.parse(b) as { reasoning_effort?: string }).reasoning_effort)
-    expect(efforts).toEqual(['low', 'medium', 'high', 'xhigh', 'max'])
+    expect(efforts).toEqual(['low', 'medium', 'high', 'xhigh', 'max', 'ultra'])
   })
 
   it('google: merges thinkingConfig under google key', async () => {

@@ -161,6 +161,12 @@ export class MainApp {
     onBackgroundChange: (agentId, background) => {
       win?.webContents.send(Channels.EventAgentBackground, { agentId, background })
     },
+    onVariantInvalidated: (agentId) => {
+      const ws = this.findWorkspaceByAgent(agentId)
+      if (!ws) return
+      const updated = this.workspaces.updateAgent(ws.projectPath, agentId, { variant: undefined })
+      this.pushAgentConfig(updated, agentId)
+    },
     onArtifact: (entry) => {
       const projectPath = this.activeProject
       if (!projectPath || !isPathInside(projectPath, entry.absPath)) return

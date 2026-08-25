@@ -30,8 +30,16 @@ interface StubLlmOptions {
   partsQueue?: LlmStreamPart[][]
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>(r => { resolve = r })
+  return { promise, resolve }
+}
+
 export interface StubConnections {
   getChatEndpoint: (accountId: string) => { baseUrl: string; apiKey: string } | null
+  getActiveCodexModels?: () => Promise<import('../../src/shared/types').ModelRef[]>
+  getCodexVariantOptions?: (accountId: string, model: string, selectedVariant: string | undefined) => Promise<Record<string, Record<string, unknown>> | undefined>
 }
 
 async function makeManager(opts: StubLlmOptions & {
@@ -910,6 +918,116 @@ describe('MeowAgentManager', () => {
         'http://127.0.0.1:43123/v1'
       )
       expect(createLlm.mock.calls.some(c => c[0] === 'codex' && c[1] === 'local-account-scoped-key')).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('uses only provider-synced Codex variants and revalidates the runner selection', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-codex-variants-'))
+    try {
+      const configPath = path.join(dir, 'meow.json')
+      writeFileSync(configPath, JSON.stringify({ provider: { codex: { models: ['gpt-5.6'] } }, model: 'codex' }))
+      const connections: StubConnections = {
+        getChatEndpoint: () => ({ baseUrl: 'http://127.0.0.1:43123/v1', apiKey: 'local-key' }),
+        getActiveCodexModels: vi.fn(async () => [{ provider: 'codex', accountId: 'acct-a', model: 'gpt-5.6', variants: ['low', 'ultra'] }]),
+        getCodexVariantOptions: vi.fn(async (_accountId, _model, selected) =>
+          selected === 'ultra' ? { openaiCompatible: { reasoningEffort: 'ultra' } } : undefined)
+      }
+      const { manager, llmVariants } = await makeManager({ configPath, connections })
+      manager.addAgent({
+        id: 'codex-variants', name: 'meow', templateId: 'meow', cwd: '/proj', kind: 'native',
+        model: 'codex/gpt-5.6', accountId: 'acct-a'
+      })
+      expect(await manager.getAvailableVariants('codex-variants')).toEqual(['low', 'ultra'])
+      manager.setVariant('codex-variants', 'ultra')
+      await manager.send('codex-variants', 'use ultra')
+      expect(llmVariants.at(-1)).toEqual({ openaiCompatible: { reasoningEffort: 'ultra' } })
+
+      manager.setVariant('codex-variants', 'stale')
+      await manager.send('codex-variants', 'validate stale effort')
+      expect(manager.getVariant('codex-variants')).toBeUndefined()
+      await manager.send('codex-variants', 'stale effort')
+      expect(llmVariants.at(-1)).toBeUndefined()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not let an obsolete Codex registration restore a stale effort', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-codex-race-'))
+    try {
+      const configPath = path.join(dir, 'meow.json')
+      writeFileSync(configPath, JSON.stringify({ provider: { codex: { models: ['gpt-5.6'] } }, model: 'codex' }))
+      const ultra = deferred<Record<string, Record<string, unknown>> | undefined>()
+      const getCodexVariantOptions = vi.fn(async (_accountId: string, _model: string, selected: string | undefined) =>
+        selected === 'ultra' ? ultra.promise : undefined)
+      const { manager, llmVariants } = await makeManager({
+        configPath,
+        connections: {
+          getChatEndpoint: () => ({ baseUrl: 'http://127.0.0.1:43123/v1', apiKey: 'local-key' }),
+          getActiveCodexModels: async () => [],
+          getCodexVariantOptions
+        }
+      })
+      manager.addAgent({
+        id: 'codex-race', name: 'meow', templateId: 'meow', cwd: '/proj', kind: 'native',
+        model: 'codex/gpt-5.6', accountId: 'acct-a'
+      })
+      await Promise.resolve()
+      manager.setVariant('codex-race', 'ultra')
+      await new Promise<void>(resolve => {
+        const check = () => {
+          if (getCodexVariantOptions.mock.calls.some(call => call[2] === 'ultra')) resolve()
+          else queueMicrotask(check)
+        }
+        check()
+      })
+      manager.setVariant('codex-race', 'stale')
+      ultra.resolve({ openaiCompatible: { reasoningEffort: 'ultra' } })
+      await Promise.resolve()
+      await manager.send('codex-race', 'do not use stale ultra')
+      expect(manager.getVariant('codex-race')).toBeUndefined()
+      expect(llmVariants.at(-1)).toBeUndefined()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not recreate an agent removed while Codex variant validation is pending', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-codex-remove-race-'))
+    try {
+      const configPath = path.join(dir, 'meow.json')
+      writeFileSync(configPath, JSON.stringify({ provider: { codex: { models: ['gpt-5.6'] } }, model: 'codex' }))
+      const ultra = deferred<Record<string, Record<string, unknown>> | undefined>()
+      const getCodexVariantOptions = vi.fn(async (_accountId: string, _model: string, selected: string | undefined) =>
+        selected === 'ultra' ? ultra.promise : undefined)
+      const { manager } = await makeManager({
+        configPath,
+        connections: {
+          getChatEndpoint: () => ({ baseUrl: 'http://127.0.0.1:43123/v1', apiKey: 'local-key' }),
+          getActiveCodexModels: async () => [],
+          getCodexVariantOptions
+        }
+      })
+      manager.addAgent({
+        id: 'codex-remove-race', name: 'meow', templateId: 'meow', cwd: '/proj', kind: 'native',
+        model: 'codex/gpt-5.6', accountId: 'acct-a'
+      })
+      await Promise.resolve()
+      manager.setVariant('codex-remove-race', 'ultra')
+      await new Promise<void>(resolve => {
+        const check = () => {
+          if (getCodexVariantOptions.mock.calls.some(call => call[2] === 'ultra')) resolve()
+          else queueMicrotask(check)
+        }
+        check()
+      })
+      manager.removeAgent('codex-remove-race')
+      ultra.resolve({ openaiCompatible: { reasoningEffort: 'ultra' } })
+      await Promise.resolve()
+      expect(manager.isNative('codex-remove-race')).toBe(false)
+      expect((manager as unknown as { runners: Map<string, unknown> }).runners.has('codex-remove-race')).toBe(false)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
