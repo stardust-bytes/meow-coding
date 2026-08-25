@@ -964,19 +964,26 @@ select.input { width: 100%; }
   flex: 0 0 auto; width: 100%;
   display: flex; align-items: center; gap: 8px;
   min-height: 44px; padding: 0 14px;
-  background: transparent; border: none;
+  background: transparent;
+  border: 1px solid transparent;
   border-bottom: 1px solid var(--hairline);
   color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-medium);
   cursor: pointer; text-align: left; border-radius: 0;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
-.settings-screen-back:hover { color: var(--text-strong); background: var(--bg-hover); }
+.settings-screen-back:hover {
+  color: var(--text-strong);
+  background: var(--bg-input-hover);
+  border-color: var(--accent-border);
+  border-bottom-color: var(--hairline);
+}
 .settings-nav {
   display: flex; flex-direction: column; gap: 2px; flex: 1;
   padding: 0.25rem;
   overflow-y: auto;
   border-radius: 0;
 }
-.settings-screen .settings-content { padding: 0.75rem 12px 0.75rem 0; }
+.settings-screen .settings-content { padding: 0.75rem 12px; }
 .settings-nav-item {
   text-align: left; padding: 7px 10px; border: none; background: transparent; color: var(--text);
   cursor: pointer; font-size: var(--fs-md); border-radius: var(--radius);
