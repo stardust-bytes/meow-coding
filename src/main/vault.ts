@@ -25,6 +25,10 @@ export class Vault {
     this.save(map)
   }
 
+  saveSecretObject(ref: string, secret: unknown): void {
+    this.saveSecret(ref, JSON.stringify(secret))
+  }
+
   getSecret(ref: string): string | null {
     const entry = this.load()[ref]
     if (!entry) return null
@@ -33,6 +37,20 @@ export class Vault {
     } catch {
       return null
     }
+  }
+
+  getSecretObject<T>(ref: string): T | null {
+    const raw = this.getSecret(ref)
+    if (raw === null) return null
+    try {
+      return JSON.parse(raw) as T
+    } catch {
+      return null
+    }
+  }
+
+  hasSecret(ref: string): boolean {
+    return ref in this.load()
   }
 
   deleteSecret(ref: string): void {
