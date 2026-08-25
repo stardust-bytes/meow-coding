@@ -4,11 +4,18 @@ import type { AddressInfo } from 'node:net'
 import type { OAuthTokens } from './types'
 
 // Documented Codex OAuth client identity and endpoints (same as the Codex CLI
-// and CLIProxyAPI v7.1.22). Tokens are exchanged only over loopback callbacks.
+// and CLIProxyAPI v7.1.22). auth.openai.com only accepts the redirect URIs
+// registered for this client: http://localhost:1455/auth/callback (primary)
+// and http://localhost:1457/auth/callback (fallback). A random port or a
+// different path is rejected with invalid_authorize_request.
 const CODEX_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann'
 const CODEX_AUTH_URL = 'https://auth.openai.com/oauth/authorize'
 const CODEX_TOKEN_URL = 'https://auth.openai.com/oauth/token'
-const CODEX_SCOPES = 'openid email profile offline_access'
+const CODEX_SCOPES = 'openid profile email offline_access'
+const CODEX_ORIGINATOR = 'codex_vscode'
+const CODEX_AUTH_USER_AGENT = 'codex_vscode/0.146.0'
+const CODEX_CALLBACK_PORTS = [1455, 1457]
+const CODEX_CALLBACK_PATH = '/auth/callback'
 const DEFAULT_CALLBACK_TIMEOUT_MS = 5 * 60 * 1000
 
 export class CodexOAuthError extends Error {}
@@ -21,6 +28,8 @@ export interface CodexOAuthDeps {
   /** Loopback bind host; never expose the callback on LAN interfaces. */
   host?: string
   callbackTimeoutMs?: number
+  /** Registered callback ports accepted by auth.openai.com (1455 + 1457). */
+  callbackPorts?: number[]
   oauth?: {
     clientId: string
     authUrl: string
@@ -69,7 +78,7 @@ function extractProfile(idToken: string | undefined): { email?: string; displayN
 }
 
 export class CodexOAuth {
-  private readonly deps: Required<Pick<CodexOAuthDeps, 'fetchFn' | 'randomBytes' | 'now' | 'host' | 'callbackTimeoutMs'>> & CodexOAuthDeps
+  private readonly deps: Required<Pick<CodexOAuthDeps, 'fetchFn' | 'randomBytes' | 'now' | 'host' | 'callbackTimeoutMs' | 'callbackPorts'>> & CodexOAuthDeps
   private readonly clientId: string
   private readonly authUrl: string
   private readonly tokenUrl: string
@@ -81,6 +90,7 @@ export class CodexOAuth {
       now: deps.now ?? Date.now,
       host: deps.host ?? '127.0.0.1',
       callbackTimeoutMs: deps.callbackTimeoutMs ?? DEFAULT_CALLBACK_TIMEOUT_MS,
+      callbackPorts: deps.callbackPorts ?? CODEX_CALLBACK_PORTS,
       ...deps
     }
     this.clientId = deps.oauth?.clientId ?? CODEX_CLIENT_ID
@@ -93,7 +103,10 @@ export class CodexOAuth {
     const challenge = createHash('sha256').update(verifier).digest('base64url')
     const state = base64Url(this.deps.randomBytes(16))
 
-    const server = http.createServer()
+    // Bind the registered callback port (1455, fallback 1457). auth.openai.com
+    // validates the exact redirect_uri, so a random port would be rejected.
+    const { server, port } = await this.bindCallbackServer()
+    const redirectUri = `http://localhost:${port}${CODEX_CALLBACK_PATH}`
 
     const callback = new Promise<{ code: string }>((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -139,22 +152,19 @@ export class CodexOAuth {
     // (openExternal failure) while the callback timer is still pending.
     callback.catch(() => {})
 
-    await new Promise<void>((resolve, reject) => {
-      server.once('error', reject)
-      server.listen(0, this.deps.host, resolve)
-    })
-
-    const port = (server.address() as AddressInfo).port
-    const redirectUri = `http://${this.deps.host}:${port}/callback`
+    // Parameter set mirrors the official Codex CLI / cockpit-tools: no
+    // prompt, originator + org/scoped flags are required by auth.openai.com.
     const params = new URLSearchParams({
-      client_id: this.clientId,
       response_type: 'code',
+      client_id: this.clientId,
       redirect_uri: redirectUri,
       scope: CODEX_SCOPES,
-      state,
       code_challenge: challenge,
       code_challenge_method: 'S256',
-      prompt: 'login'
+      id_token_add_organizations: 'true',
+      codex_cli_simplified_flow: 'true',
+      state,
+      originator: CODEX_ORIGINATOR
     })
 
     try {
@@ -169,6 +179,29 @@ export class CodexOAuth {
     }
   }
 
+  private async bindCallbackServer(): Promise<{ server: http.Server; port: number }> {
+    let lastError: unknown
+    for (const requested of this.deps.callbackPorts) {
+      const server = http.createServer()
+      try {
+        await new Promise<void>((resolve, reject) => {
+          server.once('error', reject)
+          server.listen(requested, this.deps.host, resolve)
+        })
+        // With port 0 the OS assigns an ephemeral port; always read the actual
+        // bound port so the redirect_uri matches the listener.
+        const bound = (server.address() as AddressInfo).port
+        return { server, port: bound }
+      } catch (err) {
+        lastError = err
+        server.close()
+      }
+    }
+    throw new CodexOAuthError(
+      `Không thể mở callback OAuth (port ${this.deps.callbackPorts.join(', ')} đang bận). Đóng ứng dụng khác đang chiếm port rồi thử lại.`
+    )
+  }
+
   async refreshTokens(tokens: OAuthTokens): Promise<OAuthTokens> {
     if (!tokens.refreshToken) {
       throw new CodexOAuthError('Cannot refresh: refresh token is missing')
@@ -181,7 +214,12 @@ export class CodexOAuth {
     })
     const raw = await this.deps.fetchFn(this.tokenUrl, {
       method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        accept: 'application/json',
+        'user-agent': CODEX_AUTH_USER_AGENT,
+        originator: CODEX_ORIGINATOR
+      },
       body: body.toString()
     })
     if (!raw.ok) throw new CodexOAuthError(`Token refresh failed (HTTP ${raw.status})`)
@@ -206,7 +244,12 @@ export class CodexOAuth {
     })
     const raw = await this.deps.fetchFn(this.tokenUrl, {
       method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        accept: 'application/json',
+        'user-agent': CODEX_AUTH_USER_AGENT,
+        originator: CODEX_ORIGINATOR
+      },
       body: body.toString()
     })
     if (!raw.ok) throw new CodexOAuthError(`Token exchange failed (HTTP ${raw.status})`)

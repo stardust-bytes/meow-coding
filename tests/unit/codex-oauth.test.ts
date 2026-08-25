@@ -40,6 +40,13 @@ async function waitForAuthUrl(openExternal: ReturnType<typeof vi.fn>): Promise<U
   return new URL(openExternal.mock.calls[0][0])
 }
 
+function callbackUrl(authUrl: URL): URL {
+  const redirect = authUrl.searchParams.get('redirect_uri')!
+  // The callback server binds 127.0.0.1; fetch the IPv4 form so Node's fetch
+  // does not try ::1 first (browsers fall back to IPv4 automatically).
+  return new URL(redirect.replace('localhost', '127.0.0.1'))
+}
+
 describe('CodexOAuth', () => {
   it('authorizes with PKCE and returns profile plus tokens', async () => {
     const openExternal = vi.fn(async () => {})
@@ -47,7 +54,7 @@ describe('CodexOAuth', () => {
       expect(url).toBe(TOKEN_URL)
       return fetchJson(tokenResponse())
     })
-    const oauth = new CodexOAuth({ openExternal, fetchFn })
+    const oauth = new CodexOAuth({ openExternal, fetchFn, callbackPorts: [0] })
 
     const pending = oauth.authorize(); pending.catch(() => {})
     const authUrl = await waitForAuthUrl(openExternal)
@@ -55,10 +62,17 @@ describe('CodexOAuth', () => {
     expect(authUrl.searchParams.get('code_challenge_method')).toBe('S256')
     expect(authUrl.searchParams.get('code_challenge')).toBeTruthy()
     expect(authUrl.searchParams.get('code_challenge')).not.toBe(authUrl.searchParams.get('state'))
+    // auth.openai.com requires these identity/flow params and the registered
+    // loopback redirect_uri (localhost:<registered port>/auth/callback).
+    expect(authUrl.searchParams.get('originator')).toBe('codex_vscode')
+    expect(authUrl.searchParams.get('id_token_add_organizations')).toBe('true')
+    expect(authUrl.searchParams.get('codex_cli_simplified_flow')).toBe('true')
+    expect(authUrl.searchParams.get('prompt')).toBeNull()
+    const redirectUri = authUrl.searchParams.get('redirect_uri')!
+    expect(redirectUri).toMatch(/^http:\/\/localhost:\d+\/auth\/callback$/)
     const state = authUrl.searchParams.get('state')!
 
-    const redirect = authUrl.searchParams.get('redirect_uri')!
-    const redirectUrl = new URL(redirect)
+    const redirectUrl = callbackUrl(authUrl)
     redirectUrl.searchParams.set('code', 'auth-code')
     redirectUrl.searchParams.set('state', state)
     await fetch(redirectUrl.toString())
@@ -79,11 +93,11 @@ describe('CodexOAuth', () => {
   it('rejects a callback with a mismatched state', async () => {
     const openExternal = vi.fn(async () => {})
     const fetchFn = makeFetch(() => fetchJson(tokenResponse()))
-    const oauth = new CodexOAuth({ openExternal, fetchFn })
+    const oauth = new CodexOAuth({ openExternal, fetchFn, callbackPorts: [0] })
 
     const pending = oauth.authorize(); pending.catch(() => {})
     const authUrl = await waitForAuthUrl(openExternal)
-    const redirectUrl = new URL(authUrl.searchParams.get('redirect_uri')!)
+    const redirectUrl = callbackUrl(authUrl)
     redirectUrl.searchParams.set('code', 'auth-code')
     redirectUrl.searchParams.set('state', 'wrong-state')
     await fetch(redirectUrl.toString())
@@ -95,7 +109,7 @@ describe('CodexOAuth', () => {
   it('times out the callback and cleans up', async () => {
     const openExternal = vi.fn(async () => {})
     const fetchFn = makeFetch(() => fetchJson(tokenResponse()))
-    const oauth = new CodexOAuth({ openExternal, fetchFn, callbackTimeoutMs: 30 })
+    const oauth = new CodexOAuth({ openExternal, fetchFn, callbackTimeoutMs: 30, callbackPorts: [0] })
 
     await expect(oauth.authorize()).rejects.toThrow(CodexOAuthError)
   })
@@ -106,7 +120,7 @@ describe('CodexOAuth', () => {
       expect(url).toBe(TOKEN_URL)
       return fetchJson(tokenResponse({ accessToken: 'new-access', refreshToken: 'new-refresh', expiresIn: 7200 }))
     })
-    const oauth = new CodexOAuth({ openExternal, fetchFn })
+    const oauth = new CodexOAuth({ openExternal, fetchFn, callbackPorts: [0] })
     const tokens: OAuthTokens = {
       accessToken: 'old-access',
       refreshToken: 'old-refresh',
@@ -133,10 +147,10 @@ describe('CodexOAuth', () => {
   it('fails when the token exchange returns an error status', async () => {
     const openExternal = vi.fn(async () => {})
     const fetchFn = makeFetch(() => new Response('{"error":"invalid_grant"}', { status: 400 }))
-    const oauth = new CodexOAuth({ openExternal, fetchFn })
+    const oauth = new CodexOAuth({ openExternal, fetchFn, callbackPorts: [0] })
     const pending = oauth.authorize(); pending.catch(() => {})
     const authUrl = await waitForAuthUrl(openExternal)
-    const redirectUrl = new URL(authUrl.searchParams.get('redirect_uri')!)
+    const redirectUrl = callbackUrl(authUrl)
     redirectUrl.searchParams.set('code', 'bad-code')
     redirectUrl.searchParams.set('state', authUrl.searchParams.get('state')!)
     await fetch(redirectUrl.toString())
@@ -150,6 +164,7 @@ describe('CodexOAuth', () => {
     const oauth = new CodexOAuth({
       openExternal,
       fetchFn,
+      callbackPorts: [0],
       randomBytes: (n) => fixed.subarray(0, n)
     })
     const pending = oauth.authorize(); pending.catch(() => {})
@@ -157,7 +172,7 @@ describe('CodexOAuth', () => {
     const verifier = Buffer.from(fixed).toString('base64url')
     const challenge = createHash('sha256').update(verifier).digest('base64url')
     expect(authUrl.searchParams.get('code_challenge')).toBe(challenge)
-    const redirectUrl = new URL(authUrl.searchParams.get('redirect_uri')!)
+    const redirectUrl = callbackUrl(authUrl)
     redirectUrl.searchParams.set('code', 'c')
     redirectUrl.searchParams.set('state', authUrl.searchParams.get('state')!)
     await fetch(redirectUrl.toString())
