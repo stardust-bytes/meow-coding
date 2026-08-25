@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
-import type { CatalogProviderSummary, McpServerStatus, MeowSettings, Template } from '@shared/types'
-import ProvidersTab from './ProvidersTab'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { ArrowLeft } from 'lucide-react'
+import type { McpServerStatus, MeowSettings, Template } from '@shared/types'
 import AgentsTab from './AgentsTab'
 import PermissionsTab from './PermissionsTab'
 import McpTab from './McpTab'
@@ -10,10 +11,9 @@ import RemoteTab from './RemoteTab'
 import TemplatesTab from './TemplatesTab'
 import UpdatesTab from './UpdatesTab'
 
-type TabId = 'providers' | 'agents' | 'permissions' | 'mcp' | 'context' | 'commands' | 'remote' | 'templates' | 'updates'
+type TabId = 'agents' | 'permissions' | 'mcp' | 'context' | 'commands' | 'remote' | 'templates' | 'updates'
 
 const TABS: Array<{ id: TabId; label: string }> = [
-  { id: 'providers', label: 'Providers' },
   { id: 'agents', label: 'Agents' },
   { id: 'permissions', label: 'Permissions' },
   { id: 'mcp', label: 'MCP' },
@@ -30,25 +30,25 @@ interface Props {
 }
 
 export default function SettingsDialog({ onClose, projectPath, templates, onTemplatesChange }: Props) {
-  const [tab, setTab] = useState<TabId>('providers')
+  const [tab, setTab] = useState<TabId>('agents')
   const [draft, setDraft] = useState<MeowSettings | null>(null)
   const [saved, setSaved] = useState<MeowSettings | null>(null)
-  const [catalog, setCatalog] = useState<CatalogProviderSummary[]>([])
   const [mcpStatus, setMcpStatus] = useState<McpServerStatus[]>([])
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const screenRef = useRef<HTMLElement>(null)
+  const backButtonRef = useRef<HTMLButtonElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
 
   const refresh = useCallback(async () => {
     try {
-      const [settings, cat, mcps] = await Promise.all([
+      const [settings, mcps] = await Promise.all([
         window.api.getSettings(),
-        window.api.listProviderCatalog(),
         window.api.getMcpStatus()
       ])
       setDraft(settings)
       setSaved(settings)
-      setCatalog(cat)
       setMcpStatus(mcps)
     } catch (err) {
       setError(String(err))
@@ -68,10 +68,40 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
     onClose()
   }, [isDirty, onClose])
 
-  // Close on Escape only — the backdrop no longer closes on outside click.
+  useEffect(() => {
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const app = document.querySelector('.app')
+    const previousAriaHidden = app ? app.getAttribute('aria-hidden') : null
+    app?.setAttribute('aria-hidden', 'true')
+    const frame = window.requestAnimationFrame(() => backButtonRef.current?.focus())
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      if (previousAriaHidden === null) app?.removeAttribute('aria-hidden')
+      else if (app) app.setAttribute('aria-hidden', previousAriaHidden)
+      previousFocusRef.current?.focus()
+    }
+  }, [])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeGuarded()
+      if (e.key === 'Escape' && !document.querySelector('.settings-screen .dialog-backdrop')) closeGuarded()
+      if (e.key !== 'Tab' || document.querySelector('.settings-screen .dialog-backdrop')) return
+
+      const focusable = [...(screenRef.current?.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [href], [tabindex]:not([tabindex="-1"])'
+      ) ?? [])].filter(element => element.getClientRects().length > 0)
+      if (focusable.length === 0) return
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -99,11 +129,16 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
     }
   }
 
-  return (
-    <div className="dialog-backdrop">
-      <div className="dialog settings-dialog">
-        <h3>Settings</h3>
-        <button className="dialog-close" aria-label="Close" onClick={closeGuarded}>✕</button>
+  return createPortal(
+    <section ref={screenRef} className="settings-screen" role="dialog" aria-modal="true" aria-label="Settings">
+      <header className="settings-screen-header">
+        <button ref={backButtonRef} className="btn settings-screen-back" onClick={closeGuarded}>
+          <ArrowLeft size={15} aria-hidden="true" />
+          Back to app
+        </button>
+        <h2>Settings</h2>
+      </header>
+      <div className="settings-screen-body">
         <div className="settings-body">
           <nav className="settings-nav">
             {TABS.map(t => (
@@ -117,9 +152,6 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
             ))}
           </nav>
           <div className="settings-content">
-            {draft && tab === 'providers' && (
-              <ProvidersTab settings={draft} catalog={catalog} onChange={patch} />
-            )}
             {draft && tab === 'agents' && (
               <AgentsTab
                 agents={draft.agents}
@@ -155,15 +187,20 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
             {tab === 'updates' && <UpdatesTab />}
           </div>
         </div>
-        {status && <div className="settings-status">{status}</div>}
-        {error && <div className="settings-error">{error}</div>}
+      </div>
+      <footer className="settings-screen-footer">
+        <div className="settings-screen-status">
+          {status && <div className="settings-status">{status}</div>}
+          {error && <div className="settings-error">{error}</div>}
+        </div>
         <div className="dialog-actions">
           <button className="btn" onClick={closeGuarded}>Cancel</button>
           <button className="btn primary" disabled={!draft || saving} onClick={() => void save()}>
             {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
-      </div>
-    </div>
+      </footer>
+    </section>,
+    document.body
   )
 }

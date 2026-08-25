@@ -20,6 +20,7 @@ terminal/chat, sidebar, status bar, title bar, and dialogs. All data flows throu
 | `UpdateDialog.tsx` | Auto-update status + install prompt. |
 | `BrowserDialog.tsx` | Chrome bridge pairing + status UI. |
 | `InstallGuideDialog.tsx` | Extension install steps for the browser bridge. |
+| `ProvidersScreen.tsx` | Full-screen provider management overlay, opened from the sidebar menu. |
 | `ChallengeToast.tsx` | ChatGPT web challenge toast. |
 | `AddAgentDialog.tsx` / `AddProjectDialog.tsx` | Creation dialogs. |
 | `chat/` | The native-agent chat UI — see its own AGENTS.md. |

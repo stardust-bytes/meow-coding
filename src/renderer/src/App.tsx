@@ -13,6 +13,7 @@ import StatusBar from './components/StatusBar'
 import TitleBar from './components/TitleBar'
 import RightPanel from './components/RightPanel'
 import SettingsDialog from './components/settings/SettingsDialog'
+import ProvidersScreen from './components/ProvidersScreen'
 import BrowserDialog from './components/BrowserDialog'
 import InstallGuideDialog from './components/InstallGuideDialog'
 import UpdateDialog from './components/UpdateDialog'
@@ -27,7 +28,7 @@ export default function App() {
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
   const [templates, setTemplates] = useState<Template[]>([])
   const [showSettings, setShowSettings] = useState(false)
-  const [showModelRouter, setShowModelRouter] = useState(false)
+  const [showProviders, setShowProviders] = useState(false)
   const [runtime, setRuntime] = useState<WorkspaceRuntime | null>(null)
   const [backgrounds, setBackgrounds] = useState<Record<string, boolean>>({})
   const [browser, setBrowser] = useState<BrowserStatusInfo | null>(null)
@@ -262,7 +263,7 @@ export default function App() {
           onRefresh={refreshWorkspaces}
           onOpenTerminal={addTerminal}
           onOpenSettings={() => setShowSettings(true)}
-          onOpenModelRouter={() => setShowModelRouter(true)}
+          onOpenProviders={() => setShowProviders(true)}
           onOpenGit={path => void window.api.gitOpenViewer(path)}
           onCheckUpdate={handleCheckUpdate}
           updateChecking={updateChecking}
@@ -340,8 +341,8 @@ export default function App() {
           onTemplatesChange={setTemplates}
         />
       )}
-      {showModelRouter && (
-        <ModelRouterComingSoon onClose={() => setShowModelRouter(false)} />
+      {showProviders && (
+        <ProvidersScreen onClose={() => setShowProviders(false)} />
       )}
     </div>
   )
@@ -364,29 +365,6 @@ function UpToDateDialog({ version, onClose }: { version?: string; onClose: () =>
         <p className="settings-hint">
           Đây là phiên bản mới nhất{version ? ` (v${version})` : ''}.
         </p>
-        <div className="dialog-actions">
-          <button className="btn" onClick={onClose}>Close</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ModelRouterComingSoon({ onClose }: { onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
-  return (
-    <div className="dialog-backdrop">
-      <div className="dialog">
-        <h3>Model Router</h3>
-        <button className="dialog-close" aria-label="Close" onClick={onClose}>✕</button>
-        <p className="settings-hint">Coming soon.</p>
         <div className="dialog-actions">
           <button className="btn" onClick={onClose}>Close</button>
         </div>

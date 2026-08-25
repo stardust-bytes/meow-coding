@@ -18,14 +18,14 @@ interface Props {
   onRefresh: () => void
   onOpenTerminal: (path: string) => void
   onOpenSettings: () => void
-  onOpenModelRouter: () => void
+  onOpenProviders: () => void
   onOpenGit: (path: string) => void
   onCheckUpdate: () => void
   updateChecking: boolean
 }
 
 export default function Sidebar({
-  workspaces, templates, activePath, onOpen, onRemove, onRefresh, onOpenTerminal, onOpenSettings, onOpenModelRouter, onOpenGit, onCheckUpdate, updateChecking
+  workspaces, templates, activePath, onOpen, onRemove, onRefresh, onOpenTerminal, onOpenSettings, onOpenProviders, onOpenGit, onCheckUpdate, updateChecking
 }: Props) {
   const [showAddProject, setShowAddProject] = useState(false)
   const [addAgentPath, setAddAgentPath] = useState<string | null>(null)
@@ -265,10 +265,10 @@ export default function Sidebar({
             </button>
             <button
               className="menu-item"
-              onClick={() => { setFooterMenuOpen(false); setFooterMenuPos(null); onOpenModelRouter() }}
+              onClick={() => { setFooterMenuOpen(false); setFooterMenuPos(null); onOpenProviders() }}
             >
               <Server size={14} aria-hidden="true" />
-              Model Router
+              Providers
             </button>
             <div className="sidebar-update-block">
               <span className="sidebar-update-version">v{version || '…'}</span>

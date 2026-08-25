@@ -15,6 +15,61 @@ test('app launches and shows the main window', async () => {
   await app.close()
 })
 
+test('settings opens below the title bar and returns to the app', async () => {
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  try {
+    const app = await electron.launch({
+      args: ['.'],
+      env: { ...process.env as Record<string, string>, MEOW_USER_DATA: userData }
+    })
+    const window = await app.firstWindow()
+    try {
+      await window.getByRole('button', { name: 'Menu' }).click()
+      await window.getByRole('button', { name: 'Settings' }).click()
+      const backToApp = window.getByRole('button', { name: 'Back to app' })
+      await expect(backToApp).toBeVisible()
+      await expect(backToApp).toBeFocused()
+      await expect.poll(() => backToApp.evaluate(element => getComputedStyle(element).borderTopLeftRadius)).toBe('6px')
+      const [settingsBox, titleBarBox] = await Promise.all([
+        window.locator('.settings-screen').boundingBox(),
+        window.locator('.title-bar').boundingBox()
+      ])
+      expect(settingsBox?.y).toBeGreaterThanOrEqual((titleBarBox?.y ?? 0) + (titleBarBox?.height ?? 0))
+      const [navBox, contentBox, tabBox] = await Promise.all([
+        window.locator('.settings-nav').boundingBox(),
+        window.locator('.settings-content').boundingBox(),
+        window.locator('.settings-content .settings-tab').first().boundingBox()
+      ])
+      expect(navBox?.x).toBeLessThanOrEqual((settingsBox?.x ?? 0) + 1)
+      expect((contentBox?.x ?? 0) + (contentBox?.width ?? 0)).toBeGreaterThanOrEqual((settingsBox?.x ?? 0) + (settingsBox?.width ?? 0) - 1)
+      expect((settingsBox?.x ?? 0) + (settingsBox?.width ?? 0) - ((tabBox?.x ?? 0) + (tabBox?.width ?? 0))).toBeCloseTo(
+        (contentBox?.x ?? 0) - ((navBox?.x ?? 0) + (navBox?.width ?? 0)),
+        0
+      )
+      await expect.poll(() => window.locator('.settings-nav').evaluate(element => getComputedStyle(element).paddingTop)).toBe('3.5px')
+      await expect.poll(() => window.locator('.settings-content').evaluate(element => ({
+        top: getComputedStyle(element).paddingTop,
+        bottom: getComputedStyle(element).paddingBottom
+      }))).toEqual({ top: '10.5px', bottom: '10.5px' })
+
+      await window.getByRole('button', { name: 'MCP' }).click()
+      await window.getByRole('button', { name: '+ Add server' }).click()
+      const serverPopup = window.locator('.settings-screen .dialog')
+      await expect(serverPopup).toBeVisible()
+      await expect.poll(() => serverPopup.evaluate(element => getComputedStyle(element).borderTopLeftRadius)).toBe('10px')
+      await window.keyboard.press('Escape')
+      await expect(serverPopup).toHaveCount(0)
+
+      await backToApp.click()
+      await expect(backToApp).toHaveCount(0)
+    } finally {
+      await app.close()
+    }
+  } finally {
+    rmSync(userData, { recursive: true, force: true })
+  }
+})
+
 test('native meow agent renders a chat panel and sends a message', async () => {
   const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
   const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
@@ -144,7 +199,7 @@ test('pasted/attached image previews render in input, feed, and lightbox', async
   }
 })
 
-test('settings screen connects a provider and syncs models', async () => {
+test('providers screen connects a provider and returns to the app', async () => {
   const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
   const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
   try {
@@ -167,14 +222,24 @@ test('settings screen connects a provider and syncs models', async () => {
     })
     const window = await app.firstWindow()
     try {
-      await window.getByRole('button', { name: /settings/i }).click()
-      await expect(window.locator('.settings-dialog')).toBeVisible()
-      await expect(window.locator('.settings-nav-item', { hasText: 'Providers' })).toBeVisible()
+      await window.getByRole('button', { name: 'Menu' }).click()
+      await window.getByRole('button', { name: 'Providers' }).click()
+      const backToApp = window.getByRole('button', { name: 'Back to app' })
+      await expect(backToApp).toBeVisible()
+      await expect(backToApp).toBeFocused()
+      await expect.poll(() => backToApp.evaluate(element => getComputedStyle(element).borderTopLeftRadius)).toBe('6px')
+      await expect(backToApp.locator('svg')).toBeVisible()
+      const [providersBox, titleBarBox] = await Promise.all([
+        window.locator('.providers-screen').boundingBox(),
+        window.locator('.title-bar').boundingBox()
+      ])
+      expect(providersBox?.y).toBeGreaterThanOrEqual((titleBarBox?.y ?? 0) + (titleBarBox?.height ?? 0))
 
       await window.locator('.provider-search').fill('deepseek')
       await window.locator('.provider-catalog-row', { hasText: 'deepseek' }).getByRole('button', { name: 'connect' }).click()
-      const popup = window.locator('.dialog:not(.settings-dialog)')
+      const popup = window.locator('.dialog')
       await expect(popup).toBeVisible()
+      await expect.poll(() => popup.evaluate(element => getComputedStyle(element).borderTopLeftRadius)).toBe('10px')
       await popup.locator('.provider-key').fill('sk-test')
       await popup.locator('.submit').click()
 
@@ -184,7 +249,13 @@ test('settings screen connects a provider and syncs models', async () => {
       await expect(window.getByRole('button', { name: 'default', exact: true })).toBeVisible()
       // Add a second provider so 'set default' is exercised on deepseek.
       await window.getByRole('button', { name: '+ Connect provider' }).click()
-      const manualPopup = window.locator('.dialog:not(.settings-dialog)')
+      let manualPopup = window.locator('.dialog:not(.settings-dialog)')
+      await window.keyboard.press('Escape')
+      await expect(manualPopup).toHaveCount(0)
+      await expect(window.getByRole('button', { name: 'Back to app' })).toBeVisible()
+
+      await window.getByRole('button', { name: '+ Connect provider' }).click()
+      manualPopup = window.locator('.dialog:not(.settings-dialog)')
       await manualPopup.getByPlaceholder('provider id (e.g. deepseek)').fill('other')
       await manualPopup.getByPlaceholder('api key').fill('sk-other')
       await manualPopup.locator('.submit').click()
@@ -194,10 +265,8 @@ test('settings screen connects a provider and syncs models', async () => {
       await window.getByRole('button', { name: 'set default' }).click()
       // Clicking persists immediately and flips the label.
       await expect(window.getByRole('button', { name: 'default', exact: true })).toBeVisible()
-      await window.getByRole('button', { name: 'Save' }).click()
-      await expect(window.locator('.settings-status').last()).toContainText('saved')
-      await window.getByRole('button', { name: 'Cancel' }).click()
-      await expect(window.locator('.settings-dialog')).toHaveCount(0)
+      await window.getByRole('button', { name: 'Back to app' }).click()
+      await expect(window.getByRole('button', { name: 'Back to app' })).toHaveCount(0)
     } finally {
       await app.close()
     }

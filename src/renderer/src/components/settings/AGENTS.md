@@ -1,6 +1,6 @@
 # AGENTS.md — src/renderer/src/components/settings
 
-The Settings dialog: a tabbed screen editing the whole `meow.json`-backed `MeowSettings` object.
+The Settings screen: a full-screen, tabbed overlay editing the non-provider parts of the `meow.json`-backed `MeowSettings` object.
 Reads via `window.api.getSettings()`, saves via `saveSettings(settings)`; changes propagate to the
 main process config.
 
@@ -8,8 +8,8 @@ main process config.
 
 | File | Responsibility |
 |---|---|
-| `SettingsDialog.tsx` | Dialog shell: loads settings/catalog/MCP status, tab switching, `patch()` draft state, save flow. |
-| `ProvidersTab.tsx` | Provider list: add/connect (API key + base URL), fetch models from catalog, default provider. |
+| `SettingsDialog.tsx` | Full-screen shell: loads settings/MCP status, tab switching, `patch()` draft state, save flow. |
+| `ProvidersTab.tsx` | Provider list content reused by the full-screen `ProvidersScreen`: add/connect (API key + base URL), fetch models from catalog, default provider. |
 | `AgentsTab.tsx` | Per-agent config (name, system prompt, provider/model). |
 | `PermissionsTab.tsx` | Tool permission rules (allow/ask/deny). |
 | `McpTab.tsx` | MCP server configs + connection status. |
