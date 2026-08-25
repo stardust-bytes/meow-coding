@@ -121,7 +121,7 @@ describe('OfficeCliBinary.resolveBinaryPath', () => {
     mkdirSync(binDir, { recursive: true })
     writeFileSync(localPath, 'local')
     const fetchFn = () => { throw new Error('should not fetch') }
-    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', fetchFn: fetchFn as never })
+    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', env: { PATH: '' }, fetchFn: fetchFn as never })
     expect(await bin.resolveBinaryPath()).toBe(localPath)
   })
 
@@ -132,7 +132,7 @@ describe('OfficeCliBinary.resolveBinaryPath', () => {
       [ASSET_URL]: () => res(ASSET_URL, BINARY_BYTES),
       [SUMS_URL]: () => res(SUMS_URL, SUMS_LINE(BINARY_BYTES, ASSET_NAME))
     })
-    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', fetchFn })
+    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', env: { PATH: '' }, fetchFn })
     const resolved = await bin.resolveBinaryPath()
     const localPath = path.join(dir, 'officecli', 'officecli.exe')
     expect(resolved).toBe(localPath)
@@ -148,7 +148,7 @@ describe('OfficeCliBinary.resolveBinaryPath', () => {
       [ASSET_URL]: () => res(ASSET_URL, BINARY_BYTES),
       [SUMS_URL]: () => res(SUMS_URL, '0000000000000000000000000000000000000000000000000000000000000000  officecli-win-x64.exe\n')
     })
-    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', fetchFn })
+    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', env: { PATH: '' }, fetchFn })
     await expect(bin.resolveBinaryPath()).rejects.toThrow(/checksum mismatch/)
     expect(existsSync(path.join(dir, 'officecli', 'officecli.exe'))).toBe(false)
   })
@@ -160,7 +160,7 @@ describe('OfficeCliBinary.resolveBinaryPath', () => {
       [ASSET_URL]: () => res(ASSET_URL, BINARY_BYTES),
       [SUMS_URL]: () => res(SUMS_URL, SUMS_LINE(BINARY_BYTES, 'some-other-file.txt'))
     })
-    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', fetchFn })
+    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', env: { PATH: '' }, fetchFn })
     await expect(bin.resolveBinaryPath()).rejects.toThrow(/checksum file does not list officecli-win-x64\.exe/)
     expect(existsSync(path.join(dir, 'officecli', 'officecli.exe'))).toBe(false)
   })
@@ -173,7 +173,7 @@ describe('OfficeCliBinary.resolveBinaryPath', () => {
       [ASSET_URL]: () => res(ASSET_URL, BINARY_BYTES),
       [SUMS_URL]: () => res(SUMS_URL, `${hex}  *${ASSET_NAME}\n`)
     })
-    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', fetchFn })
+    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', env: { PATH: '' }, fetchFn })
     const localPath = path.join(dir, 'officecli', 'officecli.exe')
     expect(await bin.resolveBinaryPath()).toBe(localPath)
     expect(existsSync(localPath)).toBe(true)
@@ -186,7 +186,7 @@ describe('OfficeCliBinary.resolveBinaryPath', () => {
       [ASSET_URL]: () => res(ASSET_URL, BINARY_BYTES),
       [SUMS_URL]: () => res(SUMS_URL, 'unreachable', false, 404)
     })
-    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', fetchFn })
+    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', env: { PATH: '' }, fetchFn })
     const localPath = path.join(dir, 'officecli', 'officecli.exe')
     expect(await bin.resolveBinaryPath()).toBe(localPath)
     expect(existsSync(localPath)).toBe(true)
@@ -199,7 +199,7 @@ describe('OfficeCliBinary.resolveBinaryPath', () => {
       [GITHUB_ASSET_URL]: () => res(GITHUB_ASSET_URL, BINARY_BYTES),
       [GITHUB_SUMS_URL]: () => res(GITHUB_SUMS_URL, SUMS_LINE(BINARY_BYTES, ASSET_NAME))
     })
-    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', fetchFn })
+    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', env: { PATH: '' }, fetchFn })
     const localPath = path.join(dir, 'officecli', 'officecli.exe')
     expect(await bin.resolveBinaryPath()).toBe(localPath)
     expect(existsSync(localPath)).toBe(true)
@@ -213,7 +213,7 @@ describe('OfficeCliBinary.resolveBinaryPath', () => {
       [ASSET_URL]: () => res(ASSET_URL, BINARY_BYTES),
       [SUMS_URL]: () => res(SUMS_URL, SUMS_LINE(BINARY_BYTES, ASSET_NAME))
     })
-    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', fetchFn })
+    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', env: { PATH: '' }, fetchFn })
     await expect(bin.resolveBinaryPath()).rejects.toThrow(/downloaded binary failed smoke test/)
     const binDir = path.join(dir, 'officecli')
     expect(existsSync(binDir)).toBe(true)
@@ -228,7 +228,7 @@ describe('OfficeCliBinary.resolveBinaryPath', () => {
       init?.signal?.throwIfAborted()
       throw new Error('unreachable')
     }
-    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', fetchFn })
+    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', env: { PATH: '' }, fetchFn })
     await expect(bin.resolveBinaryPath(ac.signal)).rejects.toThrow(/aborted/)
   })
 
@@ -238,7 +238,7 @@ describe('OfficeCliBinary.resolveBinaryPath', () => {
       if (url === VERSION_URL) return res('https://d.officecli.ai/somewhere', '', false, 404)
       throw new Error(`unexpected fetch: ${url}`)
     }
-    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', fetchFn })
+    const bin = new OfficeCliBinary({ userDataDir: dir, platform: 'win32', arch: 'x64', env: { PATH: '' }, fetchFn })
     await expect(bin.resolveBinaryPath()).rejects.toThrow(/version/)
   })
 })

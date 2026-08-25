@@ -4,27 +4,22 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { ConnectionsManager } from '../../src/main/connections/connections-manager'
 import { ConnectionStore } from '../../src/main/connections/connection-store'
+import { Vault } from '../../src/main/vault'
 import type { OAuthTokens } from '../../src/main/connections/types'
 import type { CodexAuthorizeResult } from '../../src/main/connections/codex-oauth'
 import type { ConnectionAccount } from '../../src/shared/types'
 
-const { encryptMock, decryptMock, availableMock, Vault } = (() => {
-  const encrypt = vi.fn((s: string) => Buffer.from(`enc:${s}`))
-  const decrypt = vi.fn((b: Buffer) => {
-    const t = b.toString('utf8')
-    if (!t.startsWith('enc:')) throw new Error('bad ciphertext')
-    return t.slice(4)
-  })
-  const available = vi.fn(() => true)
-  vi.mock('electron', () => ({
-    safeStorage: {
-      isEncryptionAvailable: () => available(),
-      encryptString: (s: string) => encrypt(s),
-      decryptString: (b: Buffer) => decrypt(b)
+vi.mock('electron', () => ({
+  safeStorage: {
+    isEncryptionAvailable: () => true,
+    encryptString: (s: string) => Buffer.from(`enc:${s}`),
+    decryptString: (b: Buffer) => {
+      const t = b.toString('utf8')
+      if (!t.startsWith('enc:')) throw new Error('bad ciphertext')
+      return t.slice(4)
     }
-  }))
-  return { encryptMock: encrypt, decryptMock: decrypt, availableMock: available, Vault: require('../../src/main/vault').Vault }
-})()
+  }
+}))
 
 let dir = ''
 let store: ConnectionStore
@@ -102,7 +97,10 @@ describe('ConnectionsManager', () => {
   })
 
   it('sets the first account active and switches the active account', async () => {
-    const { manager } = makeManager()
+    const { manager, oauth } = makeManager()
+    oauth.authorize
+      .mockResolvedValueOnce(makeAuthorizeResult({ email: 'one@example.com', displayName: 'One', accountId: 'u1' }))
+      .mockResolvedValueOnce(makeAuthorizeResult({ email: 'two@example.com', displayName: 'Two', accountId: 'u2' }))
     const first = await manager.connectCodex()
     const second = await manager.connectCodex()
     expect(first.active).toBe(true)
