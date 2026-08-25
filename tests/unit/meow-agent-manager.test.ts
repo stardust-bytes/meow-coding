@@ -30,9 +30,14 @@ interface StubLlmOptions {
   partsQueue?: LlmStreamPart[][]
 }
 
+export interface StubConnections {
+  getChatEndpoint: (accountId: string) => { baseUrl: string; apiKey: string } | null
+}
+
 async function makeManager(opts: StubLlmOptions & {
   configPath?: string
   catalog?: ModelsCatalog
+  connections?: StubConnections
 } = {}) {
   const cfgDir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-cfg-'))
   const defaultCfg = path.join(cfgDir, 'meow.json')
@@ -86,6 +91,7 @@ async function makeManager(opts: StubLlmOptions & {
     }
     return llmClient
   })
+  const connections = opts.connections
   const manager = new MeowAgentManager({
     configPath: opts.configPath ?? defaultCfg,
     store,
@@ -97,6 +103,7 @@ async function makeManager(opts: StubLlmOptions & {
     truncation: new TruncationStore(path.join(cfgDir, 'truncation')),
     commands: new CommandStore(path.join(cfgDir, 'commands.json')),
     prices: { 'test/test-model': { input: 1, output: 2 } },
+    connections,
     env: { ANTHROPIC_API_KEY: 'sk-test' } as NodeJS.ProcessEnv
   })
   manager.setOnEvent(e => events.push(e))
@@ -873,6 +880,57 @@ describe('MeowAgentManager', () => {
       // The subagent ran on a dedicated p1 client using the configured m2 model.
       expect(createLlm.mock.calls.some(c => c[0] === 'p1' && c[1] === 'sk-p1')).toBe(true)
       expect(llmModels).toContain('m2')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('routes a codex account agent through the account-scoped local endpoint', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-codex-'))
+    try {
+      const configPath = path.join(dir, 'meow.json')
+      writeFileSync(configPath, JSON.stringify({
+        provider: {
+          codex: { models: ['gpt-5.3-codex'] }
+        },
+        model: 'codex'
+      }))
+      const connections: StubConnections = {
+        getChatEndpoint: () => ({ baseUrl: 'http://127.0.0.1:43123/v1', apiKey: 'local-account-scoped-key' })
+      }
+      const { manager, createLlm } = await makeManager({ configPath, connections })
+      manager.addAgent({
+        id: 'codex-1', name: 'meow', templateId: 'meow', cwd: '/proj', kind: 'native',
+        model: 'codex/gpt-5.3-codex', accountId: 'acct-a'
+      })
+      manager.setModel('codex-1', { provider: 'codex', accountId: 'acct-a', model: 'gpt-5.3-codex' })
+      expect(createLlm).toHaveBeenCalledWith(
+        'codex',
+        'local-account-scoped-key',
+        'http://127.0.0.1:43123/v1'
+      )
+      expect(createLlm.mock.calls.some(c => c[0] === 'codex' && c[1] === 'local-account-scoped-key')).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('never requires an api key for a codex account agent', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-codex-'))
+    try {
+      const configPath = path.join(dir, 'meow.json')
+      writeFileSync(configPath, JSON.stringify({
+        provider: { codex: { models: ['gpt-5.3-codex'] } },
+        model: 'codex'
+      }))
+      const { manager, createLlm } = await makeManager({ configPath, connections: { getChatEndpoint: () => null } })
+      manager.addAgent({
+        id: 'codex-2', name: 'meow', templateId: 'meow', cwd: '/proj', kind: 'native',
+        model: 'codex/gpt-5.3-codex', accountId: 'acct-a'
+      })
+      manager.setModel('codex-2', { provider: 'codex', accountId: 'acct-a', model: 'gpt-5.3-codex' })
+      const config = (manager as unknown as { resolved: Map<string, unknown> }).resolved.get('codex-2') as { apiKey: string | null }
+      expect(config.apiKey).toBeNull()
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

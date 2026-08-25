@@ -482,10 +482,13 @@ class MainApp {
   }
 
   setAgentModel(agentId: string, model: ModelRef): void {
-    this.meowAgent.setModel(agentId, model.provider, model.model)
+    this.meowAgent.setModel(agentId, model)
     const ws = this.findWorkspaceByAgent(agentId)
     if (ws) {
-      const updated = this.workspaces.updateAgent(ws.projectPath, agentId, { model: `${model.provider}/${model.model}` })
+      const updated = this.workspaces.updateAgent(ws.projectPath, agentId, {
+        model: `${model.provider}/${model.model}`,
+        accountId: model.accountId
+      })
       this.pushAgentConfig(updated, agentId)
     }
   }

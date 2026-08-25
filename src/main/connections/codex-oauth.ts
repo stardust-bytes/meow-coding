@@ -31,6 +31,8 @@ export interface CodexOAuthDeps {
 export interface CodexAuthorizeResult {
   email?: string
   displayName: string
+  /** Stable account identifier from the ID token subject claim. */
+  accountId?: string
   tokens: OAuthTokens
 }
 
@@ -56,14 +58,14 @@ function decodeIdToken(idToken: string): Record<string, unknown> | null {
   }
 }
 
-function extractProfile(idToken: string | undefined): { email?: string; displayName: string } {
+function extractProfile(idToken: string | undefined): { email?: string; displayName: string; accountId?: string } {
   if (!idToken) return { displayName: 'Codex account' }
   const claims = decodeIdToken(idToken)
   const email = typeof claims?.email === 'string' ? claims.email : undefined
   const name = typeof claims?.name === 'string' ? claims.name : undefined
   const sub = typeof claims?.sub === 'string' ? claims.sub : undefined
   const displayName = name || email || (sub ? `Codex account ${sub.slice(0, 8)}` : 'Codex account')
-  return { email, displayName }
+  return { email, displayName, accountId: sub }
 }
 
 export class CodexOAuth {

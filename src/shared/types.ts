@@ -23,6 +23,8 @@ export interface AgentConfig {
   mode?: AgentMode
   variant?: ModelVariant
   model?: string
+  /** OAuth connection account for account-scoped providers (e.g. codex). */
+  accountId?: string
   background?: boolean
 }
 
@@ -307,6 +309,7 @@ export interface AgentSettings {
   systemPrompt: string
   provider?: string
   model?: string
+  accountId?: string
 }
 
 export interface MeowSettings {

@@ -158,6 +158,12 @@ export class CodexProxyManager {
     return this.endpoints.get(accountId) ?? null
   }
 
+  /** Controlled restart with updated tokens for the given account set. */
+  async refreshAccounts(accounts: Array<{ accountId: string; tokens: OAuthTokens }>): Promise<CodexProxyEndpoint[]> {
+    await this.stop()
+    return this.start(accounts)
+  }
+
   async stop(): Promise<void> {
     const child = this.child
     this.child = null

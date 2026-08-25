@@ -32,6 +32,7 @@ import type { VariantBody } from './model-variants'
 import { revertTool } from './agent/tools/revert'
 import { createTaskTool } from './agent/tools/task'
 import type { ResolvedSubagentModel } from './agent/tools/task'
+import type { AccountEndpointResolver } from './agent/config'
 import type { ToolDefinition } from './agent/tools/types'
 import type { NotificationService } from './notification-service'
 import type { Vault } from './vault'
@@ -53,6 +54,7 @@ export interface MeowAgentManagerDeps {
   snapshots: SnapshotStore
   savedPermissions: SavedPermissions
   catalog?: ModelsCatalog
+  connections?: AccountEndpointResolver
   truncation: TruncationStore
   commands?: CommandStore
   prices?: Record<string, { input?: number; output?: number; cacheRead?: number; cacheWrite?: number }>
@@ -475,10 +477,11 @@ export class MeowAgentManager {
     this.register(agent)
   }
 
-  setModel(agentId: string, provider: string, model: string): void {
+  setModel(agentId: string, model: ModelRef): void {
     const agent = this.agents.get(agentId)
     if (!agent) return
-    agent.model = `${provider}/${model}`
+    agent.model = `${model.provider}/${model.model}`
+    agent.accountId = model.accountId
     this.agents.set(agentId, agent)
     this.runners.delete(agentId)
     this.resolved.delete(agentId)
@@ -489,16 +492,20 @@ export class MeowAgentManager {
     const agent = this.agents.get(agentId)
     if (!agent) return null
     const cfg = loadMeowConfig(this.deps.configPath)
-    const resolved = this.resolveAgentConfig(cfg, agent.name, agent.model)
+    const resolved = this.resolveAgentConfig(cfg, agent.name, agent.model, agent.accountId)
     if (!resolved.provider || !resolved.model) return null
-    return { provider: resolved.provider, model: resolved.model }
+    return {
+      provider: resolved.provider,
+      model: resolved.model,
+      ...(agent.accountId ? { accountId: agent.accountId } : {})
+    }
   }
 
   getContextInfo(agentId: string): ContextInfo {
     const agent = this.agents.get(agentId)
     if (!agent) return { limit: null, compactThreshold: null, sessionCost: 0 }
     const cfg = loadMeowConfig(this.deps.configPath)
-    const resolved = this.resolveAgentConfig(cfg, agent.name, agent.model)
+    const resolved = this.resolveAgentConfig(cfg, agent.name, agent.model, agent.accountId)
     const modelLimit = resolved.provider && resolved.model
       ? this.modelLimits.get(`${resolved.provider}/${resolved.model}`)
       : undefined
@@ -533,7 +540,7 @@ export class MeowAgentManager {
   private allowedVariantsFor(agent: AgentConfig): string[] {
     if (!this.deps.catalog) return []
     const cfg = loadMeowConfig(this.deps.configPath)
-    const resolved = this.resolveAgentConfig(cfg, agent.name, agent.model)
+    const resolved = this.resolveAgentConfig(cfg, agent.name, agent.model, agent.accountId)
     if (!resolved.provider || !resolved.model) return []
     return Object.keys(this.modelVariants.get(`${resolved.provider}/${resolved.model}`) ?? {})
   }
@@ -775,7 +782,7 @@ export class MeowAgentManager {
       this.resolved.delete(agent.id)
     }
     const cfg = loadMeowConfig(this.deps.configPath)
-    const resolved = this.resolveAgentConfig(cfg, agent.name, agent.model)
+    const resolved = this.resolveAgentConfig(cfg, agent.name, agent.model, agent.accountId)
     this.resolved.set(agent.id, resolved)
     const modelLimit = resolved.provider && resolved.model
       ? this.modelLimits.get(`${resolved.provider}/${resolved.model}`)
@@ -790,7 +797,7 @@ export class MeowAgentManager {
     const resolveSubagent = (type: SubagentType): ResolvedSubagentModel | undefined => {
       const ref = cfg.subagentModels?.[type]
       if (!ref) return undefined
-      const subResolved = this.resolveAgentConfig(cfg, agent.name, `${ref.provider}/${ref.model}`)
+      const subResolved = this.resolveAgentConfig(cfg, agent.name, `${ref.provider}/${ref.model}`, ref.accountId)
       if (!subResolved.provider || !subResolved.model || !subResolved.apiKey) return undefined // fallback main
       const subLlm = (this.deps.createLlm ?? createLlm)(subResolved.provider, subResolved.apiKey, subResolved.baseUrl)
       return { provider: subResolved.provider, model: subResolved.model, llm: subLlm }
@@ -922,13 +929,14 @@ export class MeowAgentManager {
     this.runners.set(agent.id, runner)
   }
 
-  private resolveAgentConfig(cfg: MeowConfig, agentName: string, agentModel?: string): ResolvedAgentConfig {
+  private resolveAgentConfig(cfg: MeowConfig, agentName: string, agentModel?: string, accountId?: string): ResolvedAgentConfig {
     return resolveAgentConfig(
       cfg,
       agentName,
       this.deps.env,
       agentModel,
-      this.deps.vault ? (ref: string) => this.deps.vault!.getSecret(ref) : undefined
+      this.deps.vault ? (ref: string) => this.deps.vault!.getSecret(ref) : undefined,
+      { accountId, resolveEndpoint: (id) => this.deps.connections?.getChatEndpoint(id) ?? null }
     )
   }
 

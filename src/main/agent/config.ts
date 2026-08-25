@@ -18,6 +18,7 @@ export interface MeowProviderConfig {
 export interface MeowAgentConfig {
   provider?: string
   model?: string
+  accountId?: string
   systemPrompt: string
 }
 
@@ -61,6 +62,10 @@ export interface ResolvedAgentConfig {
   apiKey: string | null
   baseUrl?: string
   systemPrompt: string
+}
+
+export interface AccountEndpointResolver {
+  getChatEndpoint(accountId: string): { baseUrl: string; apiKey: string } | null
 }
 
 // Fallback only when the model is absent from the models.dev catalog; most
@@ -149,7 +154,7 @@ function normalizeProvider(raw: RawProvider): MeowProviderConfig {
 
 function normalizeAgents(raw: Record<string, unknown> | undefined): Record<string, MeowAgentConfig> {
   const base = DEFAULT_MEOW_CONFIG.agents
-  if (!raw) return base
+  if (!raw) return { ...base }
   const out: Record<string, MeowAgentConfig> = {}
   for (const [name, value] of Object.entries(raw)) {
     if (typeof value !== 'object' || value === null) continue
@@ -159,6 +164,7 @@ function normalizeAgents(raw: Record<string, unknown> | undefined): Record<strin
     out[name] = {
       provider: typeof v.provider === 'string' ? v.provider : (isProviderRef ? legacyModel : undefined),
       model: typeof v.model === 'string' && !isProviderRef ? v.model : undefined,
+      accountId: typeof v.accountId === 'string' ? v.accountId : undefined,
       systemPrompt: typeof v.systemPrompt === 'string' ? v.systemPrompt : (base[name]?.systemPrompt ?? base.meow.systemPrompt)
     }
   }
@@ -289,7 +295,8 @@ export function resolveAgentConfig(
   agentName: string,
   env: NodeJS.ProcessEnv = process.env,
   agentModel?: string,
-  getSecret?: (ref: string) => string | null
+  getSecret?: (ref: string) => string | null,
+  opts?: { accountId?: string; resolveEndpoint?: AccountEndpointResolver['getChatEndpoint'] }
 ): ResolvedAgentConfig {
   const agent = cfg.agents[agentName] ?? cfg.agents.meow
   let providerName = agent.provider ?? cfg.model
@@ -316,6 +323,16 @@ export function resolveAgentConfig(
     return { provider: '', model: '', apiKey: null, systemPrompt: agent.systemPrompt }
   }
   const model = modelName && provider.models.includes(modelName) ? modelName : (provider.models[0] ?? '')
+  // Account-scoped providers (Codex OAuth) route through the connection
+  // subsystem: the api key is the local proxy credential, the base URL is the
+  // account-scoped loopback proxy.
+  if (providerName === 'codex' && opts?.accountId) {
+    const endpoint = opts.resolveEndpoint?.(opts.accountId) ?? null
+    if (endpoint) {
+      return { provider: providerName, model, apiKey: endpoint.apiKey, baseUrl: endpoint.baseUrl, systemPrompt: agent.systemPrompt }
+    }
+    return { provider: providerName, model, apiKey: null, systemPrompt: agent.systemPrompt }
+  }
   return {
     provider: providerName,
     model,
@@ -339,7 +356,8 @@ export function configToSettings(cfg: MeowConfig): MeowSettings {
       name,
       systemPrompt: a.systemPrompt,
       provider: a.provider,
-      model: a.model
+      model: a.model,
+      ...(a.accountId ? { accountId: a.accountId } : {})
     })),
     permission: cfg.permission,
     mcp: cfg.mcp,
@@ -374,6 +392,7 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
     agents[a.name.trim()] = {
       provider: a.provider,
       model: a.model,
+      accountId: a.accountId,
       systemPrompt: a.systemPrompt
     }
   }

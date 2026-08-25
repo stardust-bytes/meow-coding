@@ -129,6 +129,37 @@ describe('resolveAgentConfig', () => {
     expect(resolved.apiKey).toBeNull()
   })
 
+  it('resolves a codex account through the connection endpoint', () => {
+    const cfg = loadMeowConfig(file)
+    cfg.provider = { codex: { models: ['gpt-5.3-codex'] } }
+    cfg.model = 'codex'
+    const resolved = resolveAgentConfig(cfg, 'meow', {}, undefined, undefined, {
+      accountId: 'acct-a',
+      resolveEndpoint: (id) => {
+        expect(id).toBe('acct-a')
+        return { baseUrl: 'http://127.0.0.1:43123/v1', apiKey: 'local-account-scoped-key' }
+      }
+    })
+    expect(resolved).toMatchObject({
+      provider: 'codex',
+      model: 'gpt-5.3-codex',
+      apiKey: 'local-account-scoped-key',
+      baseUrl: 'http://127.0.0.1:43123/v1'
+    })
+  })
+
+  it('keeps the api key empty when a codex account has no endpoint', () => {
+    const cfg = loadMeowConfig(file)
+    cfg.provider = { codex: { models: ['gpt-5.3-codex'] } }
+    cfg.model = 'codex'
+    const resolved = resolveAgentConfig(cfg, 'meow', {}, undefined, undefined, {
+      accountId: 'acct-missing',
+      resolveEndpoint: () => null
+    })
+    expect(resolved.provider).toBe('codex')
+    expect(resolved.apiKey).toBeNull()
+  })
+
   it('exposes defaults exported for reuse', () => {
     expect(DEFAULT_MEOW_CONFIG.agents.meow).toBeDefined()
     expect(DEFAULT_MEOW_CONFIG.provider).toEqual({})
