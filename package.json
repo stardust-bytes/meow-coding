@@ -7,12 +7,12 @@
     "build:extension": "node scripts/build-extension.mjs",
     "predev": "npm run build:extension",
     "prebuild": "npm run build:extension",
-    "predist": "npm run build:extension",
-    "predist:dir": "npm run build:extension",
-    "predist:linux": "npm run build:extension",
-    "predist:linux:dir": "npm run build:extension",
-    "predist:mac": "npm run build:extension",
-    "predist:mac:dir": "npm run build:extension",
+    "predist": "npm run build:extension && npm run build:cliproxy",
+    "predist:dir": "npm run build:extension && npm run build:cliproxy",
+    "predist:linux": "npm run build:extension && npm run build:cliproxy",
+    "predist:linux:dir": "npm run build:extension && npm run build:cliproxy",
+    "predist:mac": "npm run build:extension && npm run build:cliproxy",
+    "predist:mac:dir": "npm run build:extension && npm run build:cliproxy",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
@@ -27,7 +27,8 @@
     "dist:linux": "electron-vite build && electron-builder --linux",
     "dist:linux:dir": "electron-vite build && electron-builder --linux dir",
     "dist:mac": "electron-vite build && electron-builder --mac",
-    "dist:mac:dir": "electron-vite build && electron-builder --mac dir"
+    "dist:mac:dir": "electron-vite build && electron-builder --mac dir",
+    "build:cliproxy": "node scripts/build-cliproxy.mjs"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.7.2",

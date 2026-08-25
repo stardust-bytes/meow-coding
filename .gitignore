@@ -9,3 +9,4 @@ release/
 .DS_Store
 test-results/
 playwright-report/
+sidecars/meow-cliproxy/meow-cliproxy*

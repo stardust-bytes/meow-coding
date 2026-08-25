@@ -46,7 +46,13 @@ const config: Configuration = {
   extraResources: [
     { from: 'resources/skills', to: 'skills' },
     { from: 'out/browser-extension', to: 'browser-extension' },
-    { from: 'resources/tray-icon.png', to: 'tray-icon.png' }
+    { from: 'resources/tray-icon.png', to: 'tray-icon.png' },
+    {
+      from: `out/cliproxy/${process.platform}-${process.arch}/`,
+      to: 'cliproxy',
+      filter: ['meow-cliproxy*']
+    },
+    { from: 'resources/third-party/CLIProxyAPI-LICENSE', to: 'third-party/CLIProxyAPI-LICENSE' }
   ],
   asar: true,
   win: {
