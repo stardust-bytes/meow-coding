@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
 	sdkapi "github.com/router-for-me/CLIProxyAPI/v7/sdk/api"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy"
 	sdkconfig "github.com/router-for-me/CLIProxyAPI/v7/sdk/config"
@@ -49,8 +50,34 @@ type runtimeConfig struct {
 	Accounts []accountConfig `json:"accounts"`
 }
 
+const modelsPathStatusKey = "modelsPath"
+
 type statusEntry struct {
 	Port int `json:"port"`
+}
+
+type modelCatalogEntry struct {
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	Variants []string `json:"variants"`
+}
+
+type modelCatalogResponse struct {
+	Data []modelCatalogEntry `json:"data"`
+}
+
+type codexRegistryPayload struct {
+	Models []json.RawMessage `json:"models"`
+}
+
+type codexRegistryModel struct {
+	Slug                     any             `json:"slug"`
+	DisplayName              any             `json:"display_name"`
+	SupportedReasoningLevels json.RawMessage `json:"supported_reasoning_levels"`
+}
+
+type codexReasoningLevel struct {
+	Effort any `json:"effort"`
 }
 
 func fail(format string, args ...any) {
@@ -82,6 +109,9 @@ func validate(cfg *runtimeConfig) error {
 	for i, acc := range cfg.Accounts {
 		if strings.TrimSpace(acc.ID) == "" {
 			return fmt.Errorf("account %d has no id", i)
+		}
+		if acc.ID == modelsPathStatusKey {
+			return fmt.Errorf("account id %q is reserved", acc.ID)
 		}
 		if strings.TrimSpace(acc.Credential) == "" {
 			return fmt.Errorf("account %q has no local credential", acc.ID)
@@ -156,6 +186,90 @@ func writeYAML(path string, host string, port int, authDir string, credential st
 	return nil
 }
 
+func projectCodexModelCatalog(raw []byte) (modelCatalogResponse, error) {
+	if len(strings.TrimSpace(string(raw))) == 0 {
+		return modelCatalogResponse{Data: []modelCatalogEntry{}}, nil
+	}
+
+	var payload codexRegistryPayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return modelCatalogResponse{}, fmt.Errorf("decode Codex model registry: %w", err)
+	}
+
+	catalog := modelCatalogResponse{Data: make([]modelCatalogEntry, 0, len(payload.Models))}
+	for _, rawModel := range payload.Models {
+		var model codexRegistryModel
+		if err := json.Unmarshal(rawModel, &model); err != nil {
+			continue
+		}
+		id, ok := model.Slug.(string)
+		id = strings.TrimSpace(id)
+		if !ok || id == "" {
+			continue
+		}
+
+		name, _ := model.DisplayName.(string)
+		name = strings.TrimSpace(name)
+		if name == "" {
+			name = id
+		}
+
+		var levels []json.RawMessage
+		_ = json.Unmarshal(model.SupportedReasoningLevels, &levels)
+		variants := make([]string, 0, len(levels))
+		seen := make(map[string]struct{}, len(levels))
+		for _, rawLevel := range levels {
+			var level codexReasoningLevel
+			if err := json.Unmarshal(rawLevel, &level); err != nil {
+				continue
+			}
+			effort, ok := level.Effort.(string)
+			effort = strings.TrimSpace(effort)
+			if !ok || effort == "" {
+				continue
+			}
+			if _, exists := seen[effort]; exists {
+				continue
+			}
+			seen[effort] = struct{}{}
+			variants = append(variants, effort)
+		}
+		catalog.Data = append(catalog.Data, modelCatalogEntry{ID: id, Name: name, Variants: variants})
+	}
+	return catalog, nil
+}
+
+func writeModelCatalog(runDir string, catalog modelCatalogResponse) (string, error) {
+	raw, err := json.MarshalIndent(catalog, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	modelsPath := filepath.Join(runDir, "models.json")
+	if err := os.WriteFile(modelsPath, raw, 0o600); err != nil {
+		return "", err
+	}
+	if err := os.Chmod(modelsPath, 0o600); err != nil {
+		return "", err
+	}
+	return modelsPath, nil
+}
+
+func writeStatusFile(statusPath string, accounts map[string]statusEntry, modelsPath string) error {
+	status := make(map[string]any, len(accounts)+1)
+	for accountID, entry := range accounts {
+		status[accountID] = entry
+	}
+	status[modelsPathStatusKey] = modelsPath
+	raw, err := json.MarshalIndent(status, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(statusPath, raw, 0o600); err != nil {
+		return err
+	}
+	return os.Chmod(statusPath, 0o600)
+}
+
 func waitHealthy(ctx context.Context, host string, port int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	url := fmt.Sprintf("http://%s:%d/healthz", host, port)
@@ -214,6 +328,15 @@ func run() error {
 	if err := os.MkdirAll(authRoot, 0o700); err != nil {
 		return err
 	}
+	registryJSON, _ := registry.GetCodexClientModelsSnapshot()
+	catalog, err := projectCodexModelCatalog(registryJSON)
+	if err != nil {
+		return err
+	}
+	modelsPath, err := writeModelCatalog(runDir, catalog)
+	if err != nil {
+		return fmt.Errorf("write model catalog: %w", err)
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -264,8 +387,7 @@ func run() error {
 	}
 
 	if *statusPath != "" {
-		rawStatus, _ := json.MarshalIndent(status, "", "  ")
-		if err := os.WriteFile(*statusPath, rawStatus, 0o600); err != nil {
+		if err := writeStatusFile(*statusPath, status, modelsPath); err != nil {
 			return fmt.Errorf("write status: %w", err)
 		}
 	}
