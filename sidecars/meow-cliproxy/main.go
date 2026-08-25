@@ -23,6 +23,10 @@ import (
 	sdkapi "github.com/router-for-me/CLIProxyAPI/v7/sdk/api"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy"
 	sdkconfig "github.com/router-for-me/CLIProxyAPI/v7/sdk/config"
+	// Register the request/response translators (chat-completions -> codex
+	// Responses, etc.). Without this the proxy forwards the raw chat-completions
+	// body to the Codex backend, which rejects it with HTTP 400 for every model.
+	_ "github.com/router-for-me/CLIProxyAPI/v7/internal/translator"
 	log "github.com/sirupsen/logrus"
 )
 

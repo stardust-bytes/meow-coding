@@ -1,4 +1,4 @@
-module github.com/meow-coding/meow-cliproxy
+module github.com/router-for-me/CLIProxyAPI/v7/meow-cliproxy
 
 go 1.26.0
 

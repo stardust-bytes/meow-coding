@@ -5,6 +5,12 @@ OAuth account. It is a thin Go wrapper around
 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) (MIT, pinned at
 `v7.1.22`; license notice in `resources/third-party/CLIProxyAPI-LICENSE`).
 
+The module lives under the CLIProxyAPI module path
+(`github.com/router-for-me/CLIProxyAPI/v7/meow-cliproxy`) so it can blank-import
+the `internal/translator` package — without those translator registrations the
+proxy forwards raw chat-completions bodies to the Codex backend, which answers
+HTTP 400 (`{"detail":"Store must be set to false"}`) for every model.
+
 ## Why
 
 Meow Coding lets users connect multiple ChatGPT/Codex accounts via OAuth and pick
