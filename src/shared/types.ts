@@ -338,6 +338,8 @@ export interface ModelRef {
   accountId?: string
   /** Non-secret label of the owning account, for UI display. */
   accountLabel?: string
+  /** Non-secret provider-declared model variant IDs. */
+  variants?: string[]
 }
 
 export type ConnectionProviderId = 'codex'
