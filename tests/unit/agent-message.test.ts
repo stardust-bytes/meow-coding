@@ -119,6 +119,45 @@ describe('toLlmMessages', () => {
       .toEqual(['t1', 't2'])
   })
 
+  it('drops orphan tool items that have no preceding assistant message', () => {
+    // A tool item can end up orphaned when an aborted tool's result is
+    // appended after the next turn's user message. Replaying it as a "tool"
+    // message with no preceding assistant tool_calls makes providers reject
+    // the whole conversation with a 400, so it must be skipped.
+    const items = [
+      { kind: 'message' as const, message: msg('user', 'first') },
+      { kind: 'message' as const, message: msg('assistant', '') },
+      { kind: 'tool' as const, tool: toolCall('bash', { command: 'x' }, 't1') },
+      { kind: 'message' as const, message: msg('user', 'second') },
+      { kind: 'tool' as const, tool: toolCall('bash', { command: 'y' }, 't2') },
+      { kind: 'message' as const, message: msg('assistant', 'done') },
+      { kind: 'tool' as const, tool: toolCall('read', {}, 't3') }
+    ]
+    const llm = toLlmMessages(items)
+    const toolMsgs = llm.filter(m => m.role === 'tool')
+    // t1 and t3 pair with their assistant messages; the orphan t2 is dropped.
+    expect(toolMsgs).toHaveLength(2)
+    const ids = toolMsgs.map(m => (m.content as { toolCallId: string }[])[0].toolCallId)
+    expect(ids).toEqual(['t1', 't3'])
+    // Every tool message must follow an assistant message carrying tool_calls.
+    for (let i = 0; i < llm.length; i++) {
+      if (llm[i].role !== 'tool') continue
+      const prev = llm[i - 1]
+      expect(prev && prev.role === 'assistant').toBe(true)
+      expect((prev as { content: { type: string }[] }).content.some(p => p.type === 'tool-call')).toBe(true)
+    }
+  })
+
+  it('drops a tool item that leads the transcript (no assistant at all)', () => {
+    const items = [
+      { kind: 'tool' as const, tool: toolCall('bash', { command: 'x' }, 't0') },
+      { kind: 'message' as const, message: msg('user', 'hi') }
+    ]
+    const llm = toLlmMessages(items)
+    expect(llm).toHaveLength(1)
+    expect(llm[0]).toEqual({ role: 'user', content: 'hi' })
+  })
+
   it('emits image parts for user message with images', () => {
     const items: TranscriptItem[] = [{
       kind: 'message',

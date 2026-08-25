@@ -17,6 +17,7 @@ import { SavedPermissions } from '../../src/main/agent/saved-permissions'
 import type { SavedPermission } from '../../src/main/agent/saved-permissions'
 import type { LlmClient, LlmStreamOptions, LlmStreamPart } from '../../src/main/agent/llm'
 import type { AgentConfig, ChatEvent, PromptResponse } from '../../src/shared/types'
+import type { ToolDefinition } from '../../src/main/agent/tools/types'
 
 const MEOW_AGENT: AgentConfig = {
   id: 'a1', name: 'meow', templateId: 'meow', cwd: '/proj', kind: 'native'
@@ -46,6 +47,7 @@ async function makeManager(opts: StubLlmOptions & {
   configPath?: string
   catalog?: ModelsCatalog
   connections?: StubConnections
+  tools?: ToolDefinition[]
 } = {}) {
   const cfgDir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-cfg-'))
   const defaultCfg = path.join(cfgDir, 'meow.json')
@@ -105,7 +107,7 @@ async function makeManager(opts: StubLlmOptions & {
     store,
     snapshots,
     savedPermissions,
-    tools: createDefaultTools(),
+    tools: opts.tools ? new Map(opts.tools.map(t => [t.name, t])) : createDefaultTools(),
     createLlm,
     catalog: opts.catalog,
     truncation: new TruncationStore(path.join(cfgDir, 'truncation')),
@@ -167,6 +169,52 @@ describe('MeowAgentManager', () => {
     expect(manager.isRunning('a1')).toBe(true)
     manager.stop('a1')
     await first
+  })
+
+  it('stopAndDrain appends an aborted tool result before the next queued user message', async () => {
+    // Tool that hangs until the turn is aborted, then settles like bash does
+    // (process-tree kill takes a few ms) so its result is appended late.
+    const hangTool: ToolDefinition = {
+      name: 'hangtool',
+      description: 'hangs until aborted',
+      schema: { type: 'object' },
+      run: async (_input, ctx) => {
+        await new Promise<void>(resolve => {
+          if (ctx.signal?.aborted) return resolve()
+          ctx.signal?.addEventListener('abort', () => setTimeout(resolve, 40), { once: true })
+        })
+        return { error: 'hangtool: aborted by user' }
+      }
+    }
+    const cfgDir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-race-'))
+    const cfgPath = path.join(cfgDir, 'meow.json')
+    writeFileSync(cfgPath, JSON.stringify({
+      provider: { test: { apiKey: 'sk-test', models: ['test-model'] } },
+      model: 'test',
+      permission: { hangtool: 'allow' }
+    }))
+    const { manager } = await makeManager({
+      configPath: cfgPath,
+      tools: [hangTool],
+      partsQueue: [
+        [{ kind: 'tool-call', toolCallId: 'tc1', toolName: 'hangtool', toolInput: {} }, { kind: 'finish' }],
+        [{ kind: 'text', text: 'second reply' }, { kind: 'finish' }]
+      ]
+    })
+    const first = manager.send('a1', 'first')
+    await new Promise(r => setTimeout(r, 30)) // turn 1 is now hanging inside hangtool
+    void manager.send('a1', 'second') // queued while running
+    await manager.stopAndDrain('a1')
+    await first
+
+    const roles = manager.listTranscript('a1').map(t => t.kind === 'message' ? t.message.role : 'tool')
+    const userIdx = roles.map((r, i) => r === 'user' ? i : -1).filter(i => i >= 0)
+    const toolIdx = roles.map((r, i) => r === 'tool' ? i : -1).filter(i => i >= 0)
+    expect(userIdx).toHaveLength(2)
+    expect(toolIdx).toHaveLength(1)
+    // The aborted tool result must land before the queued user message — an
+    // orphan tool item after it breaks every subsequent LLM request (400).
+    expect(toolIdx[0]).toBeLessThan(userIdx[1])
   })
 
   it('send() stores images on the user message', async () => {
@@ -370,21 +418,21 @@ describe('MeowAgentManager', () => {
 
     await manager.send('a1', 'first')
     expect(manager.listMessages('a1').map(m => m.role)).toEqual(['user', 'assistant'])
-    expect(manager.undo('a1')).toBe(true)
+    expect(await manager.undo('a1')).toBe(true)
     expect(manager.listMessages('a1')).toEqual([])
     expect(readFileSync(file, 'utf-8')).toBe('original')
     expect(manager.redo('a1')).toBe(true)
     expect(manager.listMessages('a1').map(m => m.role)).toEqual(['user', 'assistant'])
     // redo re-inserts the turn, so another undo works
     expect(manager.redo('a1')).toBe(false)
-    expect(manager.undo('a1')).toBe(true)
+    expect(await manager.undo('a1')).toBe(true)
     rmSync(file, { force: true })
   })
 
   it('undo returns false when there is no snapshot history', async () => {
     const { manager } = await makeManager()
     manager.newSession('a1')
-    expect(manager.undo('a1')).toBe(false)
+    expect(await manager.undo('a1')).toBe(false)
   })
 
   it('renameSession updates the title', async () => {

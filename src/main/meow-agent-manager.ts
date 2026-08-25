@@ -87,6 +87,11 @@ export class MeowAgentManager {
   private redoStacks = new Map<string, Array<{ items: ChatTranscriptItem[]; turn: SnapshotTurn }>>()
   private backgrounds = new Map<string, boolean>()
   private queues = new Map<string, QueuedMessage[]>()
+  // In-flight turn per agent. A turn aborted mid-tool is still winding down
+  // after `running` is cleared (process-tree kill takes time, and its tool
+  // result is appended to the transcript only when the kill settles), so the
+  // next turn must wait for it — see runTurn.
+  private turnPromises = new Map<string, Promise<void>>()
   private onEvent: (e: ChatEvent) => void = () => {}
   private turnCounters = new Map<string, number>()
   private toolStartTs = new Map<string, number>()
@@ -284,18 +289,22 @@ export class MeowAgentManager {
     this.emitQueue(agentId)
   }
 
+  private enqueueMessage(agentId: string, text: string, images?: ImageAttachment[], displayText?: string): void {
+    const q = this.queues.get(agentId) ?? []
+    if (q.length >= this.MAX_QUEUE) {
+      this.emit({ type: 'error', agentId, message: '[meow] Hàng đợi đã đầy (tối đa 5 tin). Hãy chờ turn hiện tại xong hoặc xóa tin đang chờ.' })
+      return
+    }
+    q.push({ id: randomUUID(), text, images, displayText })
+    this.queues.set(agentId, q)
+    this.emitQueue(agentId)
+  }
+
   async send(agentId: string, text: string, images?: ImageAttachment[], displayText?: string): Promise<void> {
     const agent = this.agents.get(agentId)
     if (!agent) return
     if (this.running.has(agentId)) {
-      const q = this.queues.get(agentId) ?? []
-      if (q.length >= this.MAX_QUEUE) {
-        this.emit({ type: 'error', agentId, message: '[meow] Hàng đợi đã đầy (tối đa 5 tin). Hãy chờ turn hiện tại xong hoặc xóa tin đang chờ.' })
-        return
-      }
-      q.push({ id: randomUUID(), text, images, displayText })
-      this.queues.set(agentId, q)
-      this.emitQueue(agentId)
+      this.enqueueMessage(agentId, text, images, displayText)
       return
     }
     await this.runTurn(agentId, text, images, displayText)
@@ -315,6 +324,35 @@ export class MeowAgentManager {
   }
 
   private async runTurn(agentId: string, text: string, images?: ImageAttachment[], displayText?: string): Promise<void> {
+    const agent = this.agents.get(agentId)
+    if (!agent) return
+    // A turn aborted mid-tool is still winding down after `running` was
+    // cleared: killing the process tree takes time, and the tool's result is
+    // appended to the transcript only when the kill settles. If this turn's
+    // user message is appended first, the transcript gets an orphan tool item
+    // and the LLM rejects the whole conversation (400 "tool message without a
+    // preceding tool_calls"). Wait for the previous turn to finish before
+    // starting this one.
+    const prev = this.turnPromises.get(agentId)
+    if (prev) {
+      await prev
+      // A concurrent send() grabbed the slot while we waited — queue instead
+      // so the caller's drainQueue picks it up once the current turn ends.
+      if (this.running.has(agentId)) {
+        this.enqueueMessage(agentId, text, images, displayText)
+        return
+      }
+    }
+    const turn = this.runTurnInner(agentId, text, images, displayText)
+    this.turnPromises.set(agentId, turn)
+    try {
+      await turn
+    } finally {
+      if (this.turnPromises.get(agentId) === turn) this.turnPromises.delete(agentId)
+    }
+  }
+
+  private async runTurnInner(agentId: string, text: string, images?: ImageAttachment[], displayText?: string): Promise<void> {
     const agent = this.agents.get(agentId)
     if (!agent) return
     const message: ChatMessage = {
@@ -363,10 +401,15 @@ export class MeowAgentManager {
 
   // Undoes the last completed turn: restores pre-turn file contents and drops
   // the turn's transcript items. Returns true if a turn was undone.
-  undo(agentId: string): boolean {
+  async undo(agentId: string): Promise<boolean> {
     const agent = this.agents.get(agentId)
     if (!agent) return false
     this.stop(agentId)
+    // Wait for the aborted turn to fully wind down (its tool results are
+    // appended asynchronously) so truncation doesn't leave an orphan tool
+    // item behind.
+    const prev = this.turnPromises.get(agentId)
+    if (prev) await prev
     const turn = this.deps.snapshots.undo(agentId)
     if (!turn) return false
     const sessionId = this.activeSessionId(agentId)

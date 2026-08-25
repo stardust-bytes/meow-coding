@@ -84,7 +84,13 @@ export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): Mod
         pendingAssistant = { text: item.message.text, calls: [] }
       }
     } else {
-      if (pendingAssistant) pendingAssistant.calls.push(item.tool)
+      // A tool item must follow the assistant message that made the call. An
+      // orphan tool item (e.g. an aborted tool appended after the next turn's
+      // user message) would serialize as a "tool" message with no preceding
+      // assistant tool_calls, which providers reject with a 400 — drop it so
+      // the conversation stays replayable.
+      if (!pendingAssistant) continue
+      pendingAssistant.calls.push(item.tool)
       let value = item.tool.output ?? 'ok'
       if (maxOutput !== undefined) value = truncateToolOutput(value, maxOutput)
       if (truncate) value = truncate(item.tool.id, value)
