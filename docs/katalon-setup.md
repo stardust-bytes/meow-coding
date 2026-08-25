@@ -1,64 +1,65 @@
 # Setup Katalon Studio automation with Meow Coding
 
-Hướng dẫn dành cho **người dùng mới** muốn dùng native Meow agent để viết và chạy
-test script tự động trên Katalon Studio (Web UI, API, Mobile) qua MCP.
+Guide for **new users** who want to use the native Meow agent to write and run
+automated test scripts on Katalon Studio (Web UI, API, Mobile) via MCP.
 
-## Yêu cầu tối thiểu
+## Minimum requirements
 
-| Thứ | Điều kiện |
+| Item | Requirement |
 |---|---|
-| Meow Coding | Đã cài đặt, cấu hình **LLM provider + API key** (Settings → Providers) |
-| Katalon Studio | **≥ 11.1.0** (bản có MCP server; bản Free license là đủ) |
-| Project Katalon | Một project thật (Test Cases, Object Repository, ...) |
+| Meow Coding | Installed, configured **LLM provider + API key** (Settings → Providers) |
+| Katalon Studio | **≥ 11.1.0** (version with MCP server; Free license is sufficient) |
+| Katalon Project | A real project (Test Cases, Object Repository, ...) |
 
-## Các bước cài đặt
+## Setup steps
 
-### 1. Cài & mở Katalon Studio
+### 1. Install & open Katalon Studio
 
-Cài Katalon Studio ≥ 11.1.0, mở project cần làm test. Giữ cửa sổ Studio mở trong
-khi dùng Meow agent (hoặc host MCP standalone qua CLI nếu muốn đóng GUI).
+Install Katalon Studio ≥ 11.1.0, open the project you want to test. Keep the
+Studio window open while using the Meow agent (or host MCP standalone via CLI
+if you want to close the GUI).
 
-### 2. Bật MCP server trong Katalon Studio
+### 2. Enable MCP server in Katalon Studio
 
 1. **Preferences → Katalon → AI Configuration → Katalon Studio MCP**.
-2. Đảm bảo status **Running** (mặc định port `33699`, không auth, tất cả tools bật).
-3. Bấm **Copy** để lấy JSON cấu hình kết nối (dạng
-   `{"url": "http://localhost:33699/..."}`) — đây là nguồn chính xác duy nhất,
-   path endpoint có thể khác giữa các phiên bản.
+2. Ensure status is **Running** (default port `33699`, no auth, all tools enabled).
+3. Click **Copy** to get the connection config JSON (in the form
+   `{"url": "http://localhost:33699/..."}`) — this is the only accurate source,
+   the endpoint path may differ between versions.
 
-### 3. Thêm MCP server vào Meow Coding
+### 3. Add MCP server to Meow Coding
 
 1. Meow Coding → **Settings → MCP tab**.
-2. Thêm server:
-   - Tên: `katalon-studio`
-   - URL: giá trị từ nút **Copy** ở bước 2 (mặc định `http://localhost:33699/mcp`)
-3. (Khuyến nghị) Thêm server `katalon-docs` với URL `https://mcp.katalon.com/mcp`
-   để agent tra cứu tài liệu Katalon khi cần.
-4. **Save**. Vào lại Settings → MCP tab: `katalon-studio` phải hiện **connected**
-   và danh sách tools hiện ra.
+2. Add server:
+   - Name: `katalon-studio`
+   - URL: the value from the **Copy** button in step 2 (default `http://localhost:33699/mcp`)
+3. (Recommended) Add the `katalon-docs` server with URL `https://mcp.katalon.com/mcp`
+   so the agent can look up Katalon documentation when needed.
+4. **Save**. Go back to Settings → MCP tab: `katalon-studio` should show **connected**
+   and the list of tools should appear.
 
-> Không cần cài skill thủ công — `katalon-studio` đã là builtin skill của app,
-> agent tự biết dùng khi bạn nhắc tới Katalon.
+> No need to install the skill manually — `katalon-studio` is already a builtin skill
+> of the app, the agent knows how to use it when you mention Katalon.
 
-### 4. Chạy thử
+### 4. Test run
 
-Hỏi agent (native Meow agent):
+Ask the agent (native Meow agent):
 
-- "Liệt kê các tools Katalon có sẵn" — xác nhận MCP connected.
-- "Tạo test case đăng nhập cho project Katalon và chạy thử" — kiểm tra luồng
-  tạo → chạy → phân tích kết quả.
+- "List the available Katalon tools" — confirm MCP is connected.
+- "Create a login test case for the Katalon project and run it" — check the
+  create → run → analyze results flow.
 
-## Lưu ý quan trọng
+## Important notes
 
-- **MCP server gắn với 1 project Katalon duy nhất.** Đổi project → khởi động lại
-  server (mở lại Studio hoặc chạy lại CLI standalone).
-- Studio phải mở (hoặc MCP host standalone) thì agent mới gọi được tools; nếu tool
-  trả về "Not connected", mở Studio và kiểm tra status MCP server.
-- Không paste mật khẩu/API token vào chat; dùng Profiles + GlobalVariable trong
+- **MCP server is tied to a single Katalon project.** Switching projects → restart
+  the server (reopen Studio or re-run the standalone CLI).
+- Studio must be open (or standalone MCP host) for the agent to call tools; if a tool
+  returns "Not connected", open Studio and check the MCP server status.
+- Don't paste passwords/API tokens into chat; use Profiles + GlobalVariable in
   Katalon.
 
-## Tài liệu tham khảo
+## References
 
 - Katalon Docs: *Connect to Katalon Studio MCP Server* (Studio ≥ 11.1.0)
   — docs.katalon.com → Katalon Studio → StudioAssist → MCP Servers.
-- Spec thiết kế: `docs/superpowers/specs/2026-08-21-katalon-mcp-skill-design.md`.
+- Design spec: `docs/superpowers/specs/2026-08-21-katalon-mcp-skill-design.md`.

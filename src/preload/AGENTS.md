@@ -1,10 +1,10 @@
 # AGENTS.md — src/preload
 
-- Expose `window.api` qua `contextBridge`; implement đúng interface `AgentApi` (`src/shared/ipc.ts`).
-- Method gọi: `ipcRenderer.invoke(Channels.X, ...args)`. Event đăng ký qua helper `subscribe`, trả về
-  hàm hủy để renderer gọi trong cleanup.
-- **KHÔNG** expose `ipcRenderer` ra window; chỉ expose đúng tập method trong `AgentApi`.
-- Không import thư viện Node ngoài `electron`.
-- Khi thêm method/channel: cập nhật `AgentApi` (shared), handler main, và file này. Renderer dùng
-  cùng kiểu `window.api` (khai báo trong `src/renderer/src/env.d.ts`) nên tự đồng bộ.
-- Kiểm thử: `npm run typecheck` (đảm bảo đúng contract).
+- Expose `window.api` via `contextBridge`; implement the `AgentApi` interface correctly (`src/shared/ipc.ts`).
+- Method calls: `ipcRenderer.invoke(Channels.X, ...args)`. Event subscriptions use the `subscribe` helper, which returns
+  a cleanup function for the renderer to call during teardown.
+- **DO NOT** expose `ipcRenderer` to the window; only expose the exact set of methods defined in `AgentApi`.
+- Do not import any Node libraries other than `electron`.
+- When adding a method/channel: update `AgentApi` (shared), the main handler, and this file. The renderer uses
+  the same `window.api` type (declared in `src/renderer/src/env.d.ts`) so it stays in sync automatically.
+- Testing: `npm run typecheck` (ensures the contract is correct).

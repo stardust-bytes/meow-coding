@@ -6,7 +6,7 @@
 - Footer dropdown now shows the current app version and a **Check update** button that stays
   open while checking (button shows a loading spinner + disabled until the check finishes).
 - When an update is available the existing **Update available** dialog opens; when already on the
-  latest version a dialog reports *"Đây là phiên bản mới nhất"* with a Close button.
+  latest version a dialog reports *"This is the latest version"* with a Close button.
 - Settings moved above Model Router in the footer dropdown.
 
 ### Settings cleanup

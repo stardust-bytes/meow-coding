@@ -1,16 +1,16 @@
 # AGENTS.md — docs
 
-Tài liệu theo workflow Superpowers.
+Documentation following the Superpowers workflow.
 
-- `superpowers/brainstorms/` — ghi chú phiên brainstorm.
-- `superpowers/specs/` — design specs: mục tiêu, quyết định, phạm vi, kiến trúc, luồng dữ liệu, xử lý
-  lỗi, kiểm thử, tiêu chí thành công. Viết **trước** khi code.
-- `superpowers/plans/` — kế hoạch triển khai từng bước, dẫn dắt từ spec đến thực thi.
-- `superpowers/notes/` — ghi chú kỹ thuật / quyết định rời rạc.
+- `superpowers/brainstorms/` — brainstorm session notes.
+- `superpowers/specs/` — design specs: goals, decisions, scope, architecture, data flow, error
+  handling, testing, success criteria. Written **before** code.
+- `superpowers/plans/` — step-by-step implementation plans, guiding from spec to execution.
+- `superpowers/notes/` — technical notes / ad-hoc decisions.
 
-## Quy ước
+## Conventions
 
-- Đặt tên file: `YYYY-MM-DD-slug.md` (VD: `2026-08-04-meow-coding-agent-console.md`).
-- Dòng đầu nêu trạng thái (VD: `Trạng thái: chờ duyệt`).
-- Quy trình: brainstorm → spec → plan → thực thi. Cập nhật spec/plan khi có thay đổi quyết định.
-- Khi viết spec/plan mới, tham khảo spec/plan hiện có để giữ nhất quán về format.
+- File naming: `YYYY-MM-DD-slug.md` (e.g. `2026-08-04-meow-coding-agent-console.md`).
+- First line states the status (e.g. `Status: pending review`).
+- Process: brainstorm → spec → plan → execute. Update spec/plan when decisions change.
+- When writing a new spec/plan, refer to existing specs/plans to keep the format consistent.

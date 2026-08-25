@@ -1,83 +1,86 @@
 # AGENTS.md — src/renderer
 
-React renderer (không có quyền truy cập Node/Electron trực tiếp).
+React renderer (no direct Node/Electron access).
 
-## Cấu trúc
+## Structure
 
-- `index.html` + `src/main.tsx` — entry; render `<App>`; nếu thiếu `window.api` hiện fallback hướng
-  dẫn (preload chưa nạp).
-- `src/App.tsx` — trung tâm state: workspaces, templates, runtime đang mở; định nghĩa `PaneModel`
-  (agent + state + git) cho từng pane.
+- `index.html` + `src/main.tsx` — entry; render `<App>`; if `window.api` is missing, show a guidance
+  fallback (preload not loaded).
+- `src/App.tsx` — state hub: workspaces, templates, open runtimes; defines `PaneModel`
+  (agent + state + git) for each pane.
 - `src/components/` — `Sidebar`, `PaneGrid`, `Pane`, `PaneHeader`, `XtermHost`, `EmptyState`,
   `StatusBar`, `TitleBar`, `BackgroundPanel`, `AddProjectDialog`, `AddAgentDialog`, `UpdateDialog`,
   `BrowserDialog`, `InstallGuideDialog`, `chat/`, `settings/`.
-- `src/styles.css` — dark theme coding (VSCode Dark+ palette: `#1e1e1e` editor, `#007acc` accent),
-  spacing theo thang 4px, controls dùng kích thước Tailwind default. Font: UI sans (Segoe UI
-  Variable/system-ui) cho mọi text, mono (JetBrains Mono) cho terminal/data/label code.
+- `src/styles.css` — dark coding theme (VSCode Dark+ palette: `#1e1e1e` editor, `#007acc` accent),
+  spacing on a 4px scale, controls use Tailwind default sizes. Font: UI sans (Segoe UI
+  Variable/system-ui) for all text, mono (JetBrains Mono) for terminal/data/code labels.
 
-## Quy ước
+## Conventions
 
-- Mọi truy cập main qua `window.api` (kiểu `AgentApi` từ shared). Không import Node/electron.
-- Output đến trước khi xterm mount → buffer trong `buffersRef` (App), flush khi `registerTerminal`
-  được gọi. Đừng xóa bỏ cơ chế này.
-- Input/resize: xterm `onData`/resize → `window.api.writeInput` / `window.api.resizePty` (qua props
-  trong `Pane`).
-- Grid + zoom: click pane để zoom full-window, `Esc` thoát (xử lý trong `PaneGrid`).
-- Component dạng functional + hooks; khai báo interface `Props` trong cùng file.
-- Label UI tiếng Anh. Dùng số liệu tabular-nums khi hiển thị.
+- All main access goes through `window.api` (typed `AgentApi` from shared). Do not import Node/electron.
+- Output arriving before xterm mounts → buffer in `buffersRef` (App), flush when `registerTerminal`
+  is called. Do not remove this mechanism.
+- Input/resize: xterm `onData`/resize → `window.api.writeInput` / `window.api.resizePty` (via props
+  in `Pane`).
+- Grid + zoom: click a pane to zoom full-window, `Esc` to exit (handled in `PaneGrid`).
+- Functional components + hooks; declare the `Props` interface in the same file.
+- UI labels in English. Use tabular-nums figures when displaying numbers.
 
-## CSS — border-radius & phạm vi style
+## CSS — border-radius & style scope
 
-Bài học rút ra từ màn hình Git viewer (đừng lặp lại):
+Lessons learned from the Git viewer screen (don't repeat them):
 
-- **`src/styles.css` có rule toàn cục `* { border-radius: var(--radius) }`** — nó bo góc MỌI element
-  trừ khi bị override rõ ràng. Khi muốn một khu vực "vuông" (không bo góc), đừng chỉ set
-  `border-radius: 0` lên từng rule — sẽ sót (tab, panel, cell) và dễ viết sai cú pháp.
-- **Pattern chuẩn cho một màn hình/popup muốn vuông góc:**
+- **`src/styles.css` has a global rule `* { border-radius: var(--radius) }`** — it rounds EVERY element
+  unless explicitly overridden. When you want a "square" area (no rounded corners), don't just set
+  `border-radius: 0` on each rule — you'll miss some (tab, panel, cell) and easily get the syntax wrong.
+- **Standard pattern for a screen/popup that wants square corners:**
   ```css
-  /* Đầu section: */
-  .git-viewer * { border-radius: 0; }          /* vuông toàn bộ */
+  /* Top of section: */
+  .git-viewer * { border-radius: 0; }          /* square everything */
   .git-viewer .btn,
-  .git-viewer .git-header-btn { border-radius: var(--radius-sm); }  /* chỉ giữ cho nút */
+  .git-viewer .git-header-btn { border-radius: var(--radius-sm); }  /* only keep for buttons */
   ```
-  Chỉ liệt kê những element THẬT SỰ cần bo góc (nút, input, dropdown content, option...).
-- Trước khi sửa: kiểm tra xem element có đang bị rule `*` làm tròn không (`grep "border-radius"` +
-  theo dõi class). Đừng giả định.
-- Sửa CSS bằng python khi file dùng CRLF (edit tool sẽ không khớp chuỗi) — xem `tests/*.test.ts`,
-  `styles.css` đều CRLF.
+  Only list the elements that ACTUALLY need rounded corners (buttons, inputs, dropdown content, options...).
+- Before editing: check whether the element is being rounded by the `*` rule (`grep "border-radius"` +
+  trace the class). Don't assume.
+- Edit CSS with python when the file uses CRLF (the edit tool won't match strings) — see `tests/*.test.ts`,
+  `styles.css` are all CRLF.
 
-## Hiệu năng
+## Performance
 
-Rút ra từ một buổi debug lag ô chat input thật (đo bằng Chromium trace qua CDP, không suy đoán):
+Lessons from a real chat input lag debugging session (measured with Chromium trace via CDP, no guessing):
 
-- **Hạn chế animation không cần thiết**, nhất là trên phần tử cập nhật thường xuyên (scroll theo mỗi
-  token stream, transition trên input đang gõ). Animation chạy trên UI thread; cộng dồn với re-render
-  dày đặc (streaming, gõ phím liên tục) sẽ gây giật rõ rệt. Với các cập nhật lặp lại nhanh, dùng scroll
-  tức thời (`scrollIntoView()` không `behavior: 'smooth'`); chỉ dùng smooth scroll cho hành động rời
-  rạc, một lần (VD: có message mới xuất hiện hẳn, không phải mỗi delta).
-- **List dài (chat feed, tool-call list) bắt buộc có `content-visibility: auto` trên từng row**
-  (`.chat-msg`, `.tool-call`) + `contain-intrinsic-size` ước lượng. Đã đo thực tế: project có lịch sử
-  ~250 item / ~3000 DOM node khiến MỖI keystroke trong ô chat kích hoạt một lần layout toàn trang
-  (~39ms) — trình duyệt cần layout đồng bộ để định vị con trỏ nhập liệu (`TypingCommand::InsertText`),
-  và layout đó lan ra toàn bộ DOM kể cả phần đã cuộn khỏi màn hình từ lâu nếu không được đánh dấu
-  content-visibility. Thêm thuộc tính này giảm ~6-7 lần chi phí (39ms → 5.7ms/keystroke).
-- **Input text field chính (chat input) dùng uncontrolled (ref) thay vì controlled
-  (`value` + `onChange` + `setState`)**. `setState` mỗi keystroke ép React re-render dù nội dung không
-  ảnh hưởng UI khác. Đọc `e.target.value` trực tiếp qua ref; chỉ `setState` khi có state phái sinh THỰC
-  SỰ đổi (VD: mở/đóng menu lệnh "/"), và bail-out bằng cách trả về cùng object reference khi giá trị
-  không đổi để React tự bỏ qua re-render.
-- **Đừng tối ưu khi chưa đo.** `requestAnimationFrame`/`cancelAnimationFrame` KHÔNG miễn phí — từng thử
-  dùng rAF để "tách" một phép check rẻ (so sánh string) ra khỏi input handler, kết quả CHẬM HƠN bản
-  đồng bộ cũ vì rAF là lời gọi API trình duyệt thật, không phải no-op. Trước khi thêm bất kỳ tối ưu perf
-  nào: đo bằng công cụ thật (CPU profile / Chromium trace qua CDP `Profiler`/`Tracing`, hoặc Event
-  Timing API `processingStart`/`processingEnd`) — không suy đoán từ pattern quen thuộc rồi coi là xong.
-- **Callback truyền xuống component đã `memo()`** (VD: `ChatPanel`, `FeedMessage`, `ToolCallCard`,
-  `CommandMenuItem`) phải ổn định qua `useCallback` với dependency đúng — nếu không, mọi re-render của
-  component cha (kể cả do state không liên quan, VD polling git status mỗi 5s) sẽ ép re-render lan
-  xuống toàn bộ cây con. Row/item component nên nhận props dạng primitive, tránh nhận nguyên object cha
-  đổi reference mỗi render, nếu không `memo()` mất tác dụng.
+- **Limit unnecessary animations**, especially on elements that update frequently (scrolling on every
+  token stream, transitions on an input being typed into). Animations run on the UI thread; combined
+  with dense re-renders (streaming, continuous keystrokes) this causes noticeable jank. For fast
+  repeated updates, use instant scrolling (`scrollIntoView()` without `behavior: 'smooth'`); only use
+  smooth scroll for discrete, one-time actions (e.g. a new message fully appearing, not every delta).
+- **Long lists (chat feed, tool-call list) must have `content-visibility: auto` on each row**
+  (`.chat-msg`, `.tool-call`) + an estimated `contain-intrinsic-size`. Measured in practice: a project
+  with ~250 items / ~3000 DOM nodes caused EVERY keystroke in the chat box to trigger a full-page
+  layout (~39ms) — the browser needs a synchronous layout to position the text caret
+  (`TypingCommand::InsertText`), and that layout spreads across the entire DOM including parts long
+  scrolled off-screen if not marked with content-visibility. Adding this property reduced the cost
+  ~6-7x (39ms → 5.7ms/keystroke).
+- **The main text input field (chat input) uses uncontrolled (ref) instead of controlled
+  (`value` + `onChange` + `setState`)**. `setState` on every keystroke forces React to re-render even
+  when the content doesn't affect other UI. Read `e.target.value` directly via ref; only `setState`
+  when a derived state ACTUALLY changes (e.g. opening/closing the "/" command menu), and bail out by
+  returning the same object reference when the value is unchanged so React skips the re-render.
+- **Don't optimize before measuring.** `requestAnimationFrame`/`cancelAnimationFrame` are NOT free —
+  once tried using rAF to "split" a cheap check (string comparison) out of the input handler, the result
+  was SLOWER than the old synchronous version because rAF is a real browser API call, not a no-op.
+  Before adding any perf optimization: measure with real tools (CPU profile / Chromium trace via CDP
+  `Profiler`/`Tracing`, or Event Timing API `processingStart`/`processingEnd`) — don't guess from a
+  familiar pattern and call it done.
+- **Callbacks passed down to `memo()`-ized components** (e.g. `ChatPanel`, `FeedMessage`,
+  `ToolCallCard`, `CommandMenuItem`) must be stable via `useCallback` with correct dependencies —
+  otherwise every re-render of the parent component (including from unrelated state, e.g. polling git
+  status every 5s) will force re-renders to cascade down the entire subtree. Row/item components should
+  take primitive props, avoiding receiving whole objects whose reference the parent changes every
+  render, otherwise `memo()` is ineffective.
 
-## Kiểm thử
+## Testing
 
-- Chưa có unit test renderer; đảm bảo `npm run typecheck` pass và e2e smoke
-  (`npm run build && npm run e2e`) không vỡ.
+- No renderer unit tests yet; ensure `npm run typecheck` passes and the e2e smoke test
+  (`npm run build && npm run e2e`) doesn't break.

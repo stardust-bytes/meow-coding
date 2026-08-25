@@ -1,45 +1,45 @@
 # Format Changelog
 
-Quy ước viết changelog giữa các version (VD: `v0.21.4 → v0.25.1`) để tái sử dụng.
+Convention for writing changelogs between versions (e.g., `v0.21.4 → v0.25.1`) for reuse.
 
-## Cấu trúc
+## Structure
 
 ```markdown
 # Changelog — Meow Coding v<old> → v<new>
 
 ## 🚀 New Features
 
-### <Tên tính năng lớn>
-- Mô tả từng thay đổi người dùng thấy được.
-- Viết bằng tiếng Anh, ngắn gọn, tập trung vào giá trị người dùng.
+### <Major feature name>
+- Describe each user-visible change.
+- Write in English, concisely, focusing on user value.
 
-### <Tên tính năng lớn khác>
+### <Other major feature name>
 - ...
 
 ## 📱 Mobile Remote Control — Coming Soon
-- Mô tả ngắn những gì đang được phát triển (WS relay, pairing code, đồng bộ chat...).
-- Kết thúc bằng dòng "Stay tuned — ... 🚧".
+- Brief description of what's being developed (WS relay, pairing code, chat sync...).
+- End with the line "Stay tuned — ... 🚧".
 
 ## 🐛 Bug Fixes
-- Từng fix một, ngắn gọn theo phạm vi (VD: "Chat: ...", "Remote: ...").
+- One fix per line, concise by scope (e.g., "Chat: ...", "Remote: ...").
 
 ## 🧹 Internal & Docs
 - Refactor, docs, specs, plans, chore.
 ```
 
-## Quy tắc
+## Rules
 
-- **Ngôn ngữ**: tiếng Anh (TA).
-- **Mobile**: LUÔN ghi `Coming Soon` — chưa quảng bá là đã có.
-- Gom commit theo nhóm tính năng (dùng `git log --oneline <range>` để liệt kê), không liệt kê từng commit.
-- Mỗi mục 1 dòng, không quá 2 câu; bắt đầu bằng động từ hoặc cụm người dùng thấy được.
-- Emoji ở header mục chính (`🚀`, `📱`, `🐛`, `🧹`).
+- **Language**: English.
+- **Mobile**: ALWAYS write `Coming Soon` — don't promote it as already available.
+- Group commits by feature group (use `git log --oneline <range>` to list), don't list each commit individually.
+- One line per item, no more than 2 sentences; start with a verb or a user-visible phrase.
+- Emoji in main section headers (`🚀`, `📱`, `🐛`, `🧹`).
 - Header: `# Changelog — Meow Coding v<old> → v<new>`.
 
-## Cách tạo
+## How to generate
 
 ```bash
 git log --oneline <old-tag>..<new-commit>
 ```
 
-Gom commit theo chủ đề (feat → fix → docs) rồi viết theo cấu trúc trên.
+Group commits by topic (feat → fix → docs) then write following the structure above.

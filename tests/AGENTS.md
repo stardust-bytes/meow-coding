@@ -1,17 +1,17 @@
 # AGENTS.md — tests
 
-- `unit/` — test logic thuần (Vitest, environment `node`). Một file cho một module: `<name>.test.ts`.
-- `integration/` — test tích hợp thật: `pty-manager.test.ts` (ConPTY), `agent-stream-overlap.test.ts`,
+- `unit/` — pure logic tests (Vitest, `node` environment). One file per module: `<name>.test.ts`.
+- `integration/` — real integration tests: `pty-manager.test.ts` (ConPTY), `agent-stream-overlap.test.ts`,
   `browser/bridge-flow.test.ts`.
-- `e2e/` — Playwright cho Electron, smoke test mở app.
-- `fixtures/` — fake CLI (`echo-agent.js`) spawn thay agent thật + `mock-lsp-server.js`.
+- `e2e/` — Playwright for Electron, smoke test that launches the app.
+- `fixtures/` — fake CLI (`echo-agent.js`) spawned in place of a real agent + `mock-lsp-server.js`.
 
-## Quy ước
+## Conventions
 
-- Unit/integration test **không** phụ thuộc agent thật (opencode/claude/aider); dùng fixture hoặc
-  lệnh `node` + fixture.
-- Integration test spawn PTY thật → phải stop/cleanup trong `afterEach`/`finally` để không để lại
-  process mồ côi. Ví dụ trong `tests/integration/pty-manager.test.ts`.
-- Alias `@shared` đã cấu hình trong `vitest.config.ts`; import code main bằng đường dẫn tương đối.
-- Chạy: `npm test` (unit + integration). E2E cần build trước: `npm run build && npm run e2e`
-  (Playwright config trong `playwright.config.ts`, workers = 1).
+- Unit/integration tests **do not** depend on a real agent (opencode/claude/aider); use a fixture or
+  a `node` command + fixture.
+- Integration tests spawn a real PTY → must stop/cleanup in `afterEach`/`finally` to avoid leaving
+  orphan processes. See `tests/integration/pty-manager.test.ts` for an example.
+- The `@shared` alias is configured in `vitest.config.ts`; import main code via relative paths.
+- Run: `npm test` (unit + integration). E2E requires a build first: `npm run build && npm run e2e`
+  (Playwright config in `playwright.config.ts`, workers = 1).
