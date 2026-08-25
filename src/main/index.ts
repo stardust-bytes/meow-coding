@@ -37,6 +37,10 @@ import { LspManager } from './agent/lsp/manager'
 import { ModelsCatalog } from './models-catalog'
 import { getWindowChromeOptions } from './window-chrome'
 import { Vault } from './vault'
+import { ConnectionsManager } from './connections/connections-manager'
+import { CodexOAuth } from './connections/codex-oauth'
+import { CodexProxyManager } from './connections/codex-proxy-manager'
+import { ConnectionStore } from './connections/connection-store'
 import { TrayManager } from './tray-manager'
 import { BrowserBridge } from './browser/bridge'
 import { createChromeLauncher, ensureExtensionInstalled } from './browser/chrome-launcher'
@@ -48,6 +52,10 @@ import type { AgentState, Command, FileViewerPayload, ImageAttachment, MeowSetti
 
 let win: BrowserWindow | null = null
 let isQuitting = false
+
+function binaryName(): string {
+  return process.platform === 'win32' ? 'meow-cliproxy.exe' : 'meow-cliproxy'
+}
 let tray: TrayManager | null = null
 
 if (process.env.MEOW_USER_DATA) app.setPath('userData', process.env.MEOW_USER_DATA)
@@ -84,7 +92,7 @@ function openInEditor(projectPath: string): Promise<void> {
   })
 }
 
-class MainApp {
+export class MainApp {
   templates = new TemplateManager(
     createJsonStore<Template>(path.join(app.getPath('userData'), 'templates.json')),
     DEFAULT_TEMPLATES
@@ -110,6 +118,17 @@ class MainApp {
   })
   traces = new TraceStore(path.join(app.getPath('userData'), 'traces'))
   vault = new Vault(path.join(app.getPath('userData'), 'connections', 'vault.json'))
+  connections = new ConnectionsManager({
+    store: new ConnectionStore(path.join(app.getPath('userData'), 'connections', 'index.json')),
+    vault: this.vault,
+    oauth: new CodexOAuth({ openExternal: (url) => shell.openExternal(url) }),
+    proxy: new CodexProxyManager({
+      runtimeDir: path.join(app.getPath('userData'), 'connections', 'runtime'),
+      binaryPath: app.isPackaged
+        ? path.join(process.resourcesPath, 'cliproxy', binaryName())
+        : path.join(app.getAppPath(), 'out', 'cliproxy', `${process.platform}-${process.arch}`, binaryName())
+    })
+  })
   meowAgent = new MeowAgentManager({
     configPath: path.join(app.getPath('userData'), 'meow.json'),
     vault: this.vault,
@@ -129,6 +148,7 @@ class MainApp {
     truncation: new TruncationStore(path.join(app.getPath('userData'), 'truncation')),
     catalog: new ModelsCatalog(path.join(app.getPath('userData'), 'models.json')),
     commands: new CommandStore(path.join(app.getPath('userData'), 'commands.json')),
+    connections: this.connections,
     lsp: new LspManager(),
     notify: new NotificationService(() => !win || !win.isFocused()),
     onActivateAgent: () => {
@@ -513,7 +533,7 @@ class MainApp {
   }
 }
 
-const mainApp = new MainApp()
+export const mainApp = new MainApp()
 
 function createWindow(): void {
   win = new BrowserWindow({
@@ -563,7 +583,7 @@ function isExternalUrl(url: string): boolean {
   return /^(https?|mailto):/i.test(url)
 }
 
-function registerIpcHandlers(): void {
+export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.WorkspaceList, () => mainApp.workspaces.list())
 
   ipcMain.handle(Channels.WorkspaceAdd, (_e, projectPath: string, name: string) => {
@@ -712,6 +732,18 @@ function registerIpcHandlers(): void {
   ipcMain.handle(Channels.ProviderDisconnect, (_e, providerId: string) =>
     mainApp.meowAgent.disconnectProvider(providerId))
 
+  ipcMain.handle(Channels.ConnectionList, () => mainApp.connections.listAccounts())
+  ipcMain.handle(Channels.ConnectionConnectCodex, () => mainApp.connections.connectCodex())
+  ipcMain.handle(Channels.ConnectionDisconnect, (_e, accountId: string) => {
+    if (typeof accountId !== 'string' || accountId === '') throw new Error('invalid account id')
+    return mainApp.connections.disconnect(accountId)
+  })
+  ipcMain.handle(Channels.ConnectionSetActive, (_e, accountId: string) => {
+    if (typeof accountId !== 'string' || accountId === '') throw new Error('invalid account id')
+    return mainApp.connections.setActive(accountId)
+  })
+  ipcMain.handle(Channels.ConnectionGetModels, () => mainApp.connections.getActiveCodexModels())
+
   ipcMain.handle(Channels.TemplateList, () => mainApp.templates.list())
   ipcMain.handle(Channels.TemplateSave, (_e, t: Template) => mainApp.templates.save(t))
   ipcMain.handle(Channels.TemplateRemove, (_e, id: string) => mainApp.templates.remove(id))
@@ -813,6 +845,9 @@ app.whenReady().then(async () => {
   mainApp.remote?.onStatusChange(info => {
     win?.webContents.send(Channels.EventRemoteStatus, info)
   })
+  await mainApp.connections.init().catch(err => {
+    console.error('[meow] connections init failed:', err)
+  })
   const extSource = app.isPackaged
     ? path.join(process.resourcesPath, 'browser-extension')
     : path.join(app.getAppPath(), 'out', 'browser-extension')
@@ -856,6 +891,8 @@ app.on('before-quit', (event) => {
   mainApp.stopGitPoll()
   void mainApp.meowAgent.dispose().then(() => {
     return mainApp.traces.flushAll()
+  }).then(() => {
+    return mainApp.connections.dispose()
   }).then(() => {
     return mainApp.browserBridge.close()
   }).then(() => {
