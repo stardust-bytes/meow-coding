@@ -2,15 +2,16 @@ import { randomUUID } from 'node:crypto'
 import type { ConnectionAccount, ModelRef } from '../../shared/types'
 import type { Vault } from '../vault'
 import type { CodexOAuth } from './codex-oauth'
-import type { CodexProxyEndpoint, CodexProxyManager } from './codex-proxy-manager'
+import type { CodexProxyManager } from './codex-proxy-manager'
+import { codexVariantOptions, parseCodexModelCatalog } from './codex-model-catalog'
 import { ConnectionStore } from './connection-store'
 import { connectionSecretRef } from './types'
 import type { OAuthTokens } from './types'
 
 const TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1000
 
-// Fallback list used when the sidecar models endpoint is unreachable. The proxy
-// is authoritative for what an account can actually call; this list keeps the
+// Fallback list used when the sidecar catalog is unavailable. The proxy is
+// authoritative for what an account can actually call; this list keeps the
 // picker usable while the sidecar is warming up. Names must match the current
 // CLIProxyAPI registry (gpt-5.3-codex/gpt-5.2 were removed upstream — the
 // ChatGPT backend rejects them with "model is not supported"); image/review-only
@@ -29,17 +30,16 @@ export interface ConnectionsManagerDeps {
   store: ConnectionStore
   vault: Vault
   oauth: Pick<CodexOAuth, 'authorize' | 'refreshTokens'>
-  proxy: Pick<CodexProxyManager, 'start' | 'getEndpoint' | 'refreshAccounts' | 'stop'>
-  fetchFn?: typeof fetch
+  proxy: Pick<CodexProxyManager, 'start' | 'getEndpoint' | 'getModelCatalog' | 'refreshAccounts' | 'stop'>
 }
 
 export class ConnectionsManager {
-  private readonly deps: Required<Pick<ConnectionsManagerDeps, 'fetchFn'>> & ConnectionsManagerDeps
+  private readonly deps: ConnectionsManagerDeps
   private started = false
   private readonly refreshInFlight = new Map<string, Promise<void>>()
 
   constructor(deps: ConnectionsManagerDeps) {
-    this.deps = { fetchFn: deps.fetchFn ?? fetch.bind(globalThis), ...deps }
+    this.deps = deps
   }
 
   async init(): Promise<void> {
@@ -117,12 +117,37 @@ export class ConnectionsManager {
 
   async getActiveCodexModels(): Promise<ModelRef[]> {
     const active = this.listAccounts().find(a => a.active && a.status === 'ready')
-    if (!active) return []
-    const endpoint = this.deps.proxy.getEndpoint(active.id)
-    if (!endpoint) return []
-    const models = await this.fetchModels(endpoint)
+    if (!active || !this.deps.proxy.getEndpoint(active.id)) return []
     const label = active.displayName ?? active.email ?? 'Codex'
-    return models.map(model => ({ provider: 'codex', accountId: active.id, accountLabel: label, model }))
+    const catalog = parseCodexModelCatalog(this.deps.proxy.getModelCatalog())
+    if (catalog.length > 0) {
+      return catalog.map(({ model, variants }) => ({
+        provider: 'codex',
+        accountId: active.id,
+        accountLabel: label,
+        model,
+        variants
+      }))
+    }
+    return CODEX_FALLBACK_MODELS.map(model => ({
+      provider: 'codex',
+      accountId: active.id,
+      accountLabel: label,
+      model,
+      variants: []
+    }))
+  }
+
+  async getCodexVariantOptions(
+    accountId: string,
+    model: string,
+    selectedVariant: string | undefined
+  ) {
+    const account = this.deps.store.get('codex', accountId)
+    if (!account || !account.active || account.status !== 'ready' || !this.deps.proxy.getEndpoint(accountId)) return undefined
+    const catalogModel = parseCodexModelCatalog(this.deps.proxy.getModelCatalog())
+      .find(entry => entry.model === model)
+    return catalogModel ? codexVariantOptions(catalogModel.variants, selectedVariant) : undefined
   }
 
   /** Returns the account-scoped endpoint synchronously for the chat runner. */
@@ -197,19 +222,4 @@ export class ConnectionsManager {
     this.deps.store.upsert({ ...account, status, error })
   }
 
-  private async fetchModels(endpoint: CodexProxyEndpoint): Promise<string[]> {
-    try {
-      const res = await this.deps.fetchFn(`${endpoint.baseUrl}/models`, {
-        headers: { authorization: `Bearer ${endpoint.apiKey}` }
-      })
-      if (res.ok) {
-        const data = await res.json() as { data?: Array<{ id?: string }> }
-        const ids = (data.data ?? []).map(m => m.id).filter((id): id is string => typeof id === 'string' && id !== '')
-        if (ids.length > 0) return ids
-      }
-    } catch {
-      // fall through to the curated list
-    }
-    return CODEX_FALLBACK_MODELS
-  }
 }

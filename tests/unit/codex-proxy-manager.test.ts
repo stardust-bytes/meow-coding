@@ -213,6 +213,69 @@ describe('CodexProxyManager', () => {
     expect(manager.getEndpoint('acct-a')!.apiKey).not.toContain('acct-b')
   })
 
+  it('loads the private catalog only after every account is healthy and clears it on stop', async () => {
+    let healthy = false
+    const readModelCatalogFile = vi.fn(async () => ({
+      data: [{ id: 'gpt-5.6', name: 'GPT-5.6', variants: ['low', 'ultra'] }]
+    }))
+    const manager = makeManager({
+      readStatusFile: async (p) => {
+        const cfg = JSON.parse(readFileSync(path.join(path.dirname(p), 'config.json'), 'utf8'))
+        return {
+          [cfg.accounts[0].id]: { port: cfg.port },
+          modelsPath: path.join(path.dirname(p), 'models.json')
+        }
+      },
+      fetchFn: async () => {
+        healthy = true
+        return new Response('', { status: 200 })
+      },
+      readModelCatalogFile
+    })
+    await manager.start([{ accountId: 'acct-a', tokens: tokens() }])
+    expect(healthy).toBe(true)
+    expect(readModelCatalogFile).toHaveBeenCalledWith(expect.stringMatching(/models\.json$/))
+    expect(manager.getModelCatalog()).toEqual({ data: [{ id: 'gpt-5.6', name: 'GPT-5.6', variants: ['low', 'ultra'] }] })
+    await manager.stop()
+    expect(manager.getModelCatalog()).toBeUndefined()
+  })
+
+  it('does not expose missing, malformed, or out-of-run-directory catalogs', async () => {
+    const outside = path.join(dir, 'outside.json')
+    const readModelCatalogFile = vi.fn(async () => ({ invalid: true }))
+    const manager = makeManager({
+      readStatusFile: async (p) => {
+        const cfg = JSON.parse(readFileSync(path.join(path.dirname(p), 'config.json'), 'utf8'))
+        return { [cfg.accounts[0].id]: { port: cfg.port }, modelsPath: outside }
+      },
+      readModelCatalogFile
+    })
+    await manager.start([{ accountId: 'acct-a', tokens: tokens() }])
+    expect(readModelCatalogFile).not.toHaveBeenCalled()
+    expect(manager.getModelCatalog()).toBeUndefined()
+  })
+
+  it('ignores malformed in-run catalog metadata and catalog reads', async () => {
+    const manager = makeManager({
+      readStatusFile: async (p) => {
+        const cfg = JSON.parse(readFileSync(path.join(path.dirname(p), 'config.json'), 'utf8'))
+        return { [cfg.accounts[0].id]: { port: cfg.port }, modelsPath: 42 }
+      }
+    })
+    await expect(manager.start([{ accountId: 'acct-a', tokens: tokens() }])).resolves.toHaveLength(1)
+    expect(manager.getModelCatalog()).toBeUndefined()
+
+    const malformedCatalogManager = makeManager({
+      readStatusFile: async (p) => {
+        const cfg = JSON.parse(readFileSync(path.join(path.dirname(p), 'config.json'), 'utf8'))
+        return { [cfg.accounts[0].id]: { port: cfg.port }, modelsPath: path.join(path.dirname(p), 'models.json') }
+      },
+      readModelCatalogFile: async () => { throw new Error('bad catalog') }
+    })
+    await expect(malformedCatalogManager.start([{ accountId: 'acct-a', tokens: tokens() }])).resolves.toHaveLength(1)
+    expect(malformedCatalogManager.getModelCatalog()).toBeUndefined()
+  })
+
   it('detects unexpected child exit and fails health checks', async () => {
     const refusingFetch = async () => {
       throw new Error('connect ECONNREFUSED 127.0.0.1')

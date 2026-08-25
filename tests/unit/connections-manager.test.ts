@@ -44,7 +44,7 @@ function makeAuthorizeResult(overrides: Partial<CodexAuthorizeResult> = {}): Cod
   }
 }
 
-function makeManager(overrides: { oauth?: Partial<{ authorize: typeof vi.fn; refreshTokens: typeof vi.fn }>; proxy?: Partial<{ start: typeof vi.fn; getEndpoint: typeof vi.fn; refreshAccounts: typeof vi.fn; stop: typeof vi.fn }> } = {}) {
+function makeManager(overrides: { oauth?: Partial<{ authorize: typeof vi.fn; refreshTokens: typeof vi.fn }>; proxy?: Partial<{ start: typeof vi.fn; getEndpoint: typeof vi.fn; getModelCatalog: typeof vi.fn; refreshAccounts: typeof vi.fn; stop: typeof vi.fn }> } = {}) {
   const oauth = {
     authorize: vi.fn(async () => makeAuthorizeResult()),
     refreshTokens: vi.fn(async (t: OAuthTokens) => ({
@@ -57,6 +57,7 @@ function makeManager(overrides: { oauth?: Partial<{ authorize: typeof vi.fn; ref
   const proxy = {
     start: vi.fn(async () => []),
     getEndpoint: vi.fn(() => ({ accountId: '', baseUrl: 'http://127.0.0.1:43123/v1', apiKey: 'local-account-scoped-key' })),
+    getModelCatalog: vi.fn(() => undefined),
     refreshAccounts: vi.fn(async () => []),
     stop: vi.fn(async () => {}),
     ...(overrides.proxy ?? {})
@@ -150,6 +151,52 @@ describe('ConnectionsManager', () => {
     expect(models[0]).toMatchObject({ provider: 'codex' })
     expect(models[0].accountId).toBeTruthy()
     expect(models[0].accountLabel).toBeTruthy()
+  })
+
+  it('maps the private provider catalog to active model refs and validates declared variants', async () => {
+    const { manager } = makeManager({
+      proxy: {
+        getModelCatalog: vi.fn(() => ({
+          data: [
+            { id: 'gpt-5.6', name: 'GPT-5.6', variants: ['low', 'ultra'] },
+            { id: 'gpt-plain', name: 'GPT Plain', variants: [] }
+          ]
+        }))
+      }
+    })
+    const account = await manager.connectCodex()
+    await expect(manager.getActiveCodexModels()).resolves.toEqual([
+      { provider: 'codex', accountId: account.id, accountLabel: 'Dev', model: 'gpt-5.6', variants: ['low', 'ultra'] },
+      { provider: 'codex', accountId: account.id, accountLabel: 'Dev', model: 'gpt-plain', variants: [] }
+    ])
+    await expect(manager.getCodexVariantOptions(account.id, 'gpt-5.6', 'ultra')).resolves.toEqual({
+      openaiCompatible: { reasoningEffort: 'ultra' }
+    })
+    await expect(manager.getCodexVariantOptions(account.id, 'gpt-5.6', 'high')).resolves.toBeUndefined()
+    await expect(manager.getCodexVariantOptions('unknown', 'gpt-5.6', 'ultra')).resolves.toBeUndefined()
+
+    const { manager: secondManager, oauth } = makeManager({
+      proxy: {
+        getModelCatalog: vi.fn(() => ({
+          data: [{ id: 'gpt-5.6', name: 'GPT-5.6', variants: ['ultra'] }]
+        }))
+      }
+    })
+    oauth.authorize
+      .mockResolvedValueOnce(makeAuthorizeResult({ email: 'one@example.com', accountId: 'one' }))
+      .mockResolvedValueOnce(makeAuthorizeResult({ email: 'two@example.com', accountId: 'two' }))
+    await secondManager.connectCodex()
+    const inactive = await secondManager.connectCodex()
+    expect(secondManager.listAccounts().find(account => account.id === inactive.id)?.active).toBe(false)
+    await expect(secondManager.getCodexVariantOptions(inactive.id, 'gpt-5.6', 'ultra')).resolves.toBeUndefined()
+  })
+
+  it('uses fallback model IDs without variants when the private catalog is unavailable', async () => {
+    const { manager } = makeManager()
+    await manager.connectCodex()
+    const models = await manager.getActiveCodexModels()
+    expect(models.length).toBeGreaterThan(0)
+    expect(models.every(model => Array.isArray(model.variants) && model.variants.length === 0)).toBe(true)
   })
 
   it('returns a user-safe error when no active ready account exists', async () => {

@@ -26,6 +26,20 @@ interface SidecarConfig {
   accounts: SidecarAccount[]
 }
 
+interface SidecarStatus {
+  modelsPath?: string
+  [key: string]: unknown
+}
+
+function isStatusEntry(value: unknown): value is { port: number } {
+  return typeof value === 'object' && value !== null &&
+    typeof (value as { port?: unknown }).port === 'number'
+}
+
+function isModelCatalog(value: unknown): value is { data: unknown[] } {
+  return typeof value === 'object' && value !== null && Array.isArray((value as { data?: unknown }).data)
+}
+
 export interface CodexProxyManagerDeps {
   runtimeDir: string
   binaryPath: string
@@ -34,7 +48,8 @@ export interface CodexProxyManagerDeps {
   portAllocator?: (count: number) => Promise<number>
   randomBytes?: (n: number) => Buffer
   fetchFn?: typeof fetch
-  readStatusFile?: (path: string) => Promise<Record<string, { port: number }>>
+  readStatusFile?: (path: string) => Promise<SidecarStatus>
+  readModelCatalogFile?: (path: string) => Promise<unknown>
   healthTimeoutMs?: number
   pollDelayMs?: number
 }
@@ -95,10 +110,11 @@ async function findFreePort(): Promise<number> {
 }
 
 export class CodexProxyManager {
-  private readonly deps: Required<Pick<CodexProxyManagerDeps, 'host' | 'spawnFn' | 'portAllocator' | 'randomBytes' | 'fetchFn' | 'readStatusFile' | 'healthTimeoutMs' | 'pollDelayMs'>> & CodexProxyManagerDeps
+  private readonly deps: Required<Pick<CodexProxyManagerDeps, 'host' | 'spawnFn' | 'portAllocator' | 'randomBytes' | 'fetchFn' | 'readStatusFile' | 'readModelCatalogFile' | 'healthTimeoutMs' | 'pollDelayMs'>> & CodexProxyManagerDeps
   private child: ChildProcess | null = null
   private runDir: string | null = null
   private readonly endpoints = new Map<string, CodexProxyEndpoint>()
+  private modelCatalog: unknown | undefined
   private readonly secrets: string[] = []
   private stopping = false
 
@@ -110,7 +126,8 @@ export class CodexProxyManager {
       randomBytes: deps.randomBytes ?? nodeRandomBytes,
       fetchFn: deps.fetchFn ?? fetch.bind(globalThis),
       readStatusFile: deps.readStatusFile ?? (async (p) =>
-        JSON.parse(readFileSync(p, 'utf8')) as Record<string, { port: number }>),
+        JSON.parse(readFileSync(p, 'utf8')) as SidecarStatus),
+      readModelCatalogFile: deps.readModelCatalogFile ?? (async (p) => JSON.parse(readFileSync(p, 'utf8')) as unknown),
       healthTimeoutMs: deps.healthTimeoutMs ?? 15_000,
       pollDelayMs: deps.pollDelayMs ?? 200,
       ...deps
@@ -119,6 +136,7 @@ export class CodexProxyManager {
 
   async start(accounts: Array<{ accountId: string; tokens: OAuthTokens }>): Promise<CodexProxyEndpoint[]> {
     this.cleanupStale()
+    this.modelCatalog = undefined
     if (accounts.length === 0) throw new Error('[meow] Không có tài khoản Codex để khởi động proxy')
     if (this.child) {
       await this.stop()
@@ -179,7 +197,7 @@ export class CodexProxyManager {
       ])
       for (const acc of sidecarAccounts) {
         const reported = status[acc.id]
-        if (!reported) throw new Error(`proxy did not report a port for account ${acc.id}`)
+        if (!isStatusEntry(reported)) throw new Error(`proxy did not report a port for account ${acc.id}`)
         await Promise.race([
           this.waitHealthy(reported.port),
           exited.then(() => { throw new Error('proxy sidecar exited during startup') })
@@ -190,6 +208,7 @@ export class CodexProxyManager {
           apiKey: acc.credential
         })
       }
+      await this.loadModelCatalog(status.modelsPath, runDir)
     } catch (err) {
       clearTimeout(healthTimeout)
       child.kill()
@@ -201,7 +220,22 @@ export class CodexProxyManager {
     return accounts.map(a => this.endpoints.get(a.accountId)!)
   }
 
-  private async waitForStatusFile(statusPath: string): Promise<Record<string, { port: number }>> {
+  private async loadModelCatalog(modelsPath: unknown, runDir: string): Promise<void> {
+    if (typeof modelsPath !== 'string' || !modelsPath || !this.isWithinRunDir(modelsPath, runDir)) return
+    try {
+      const catalog = await this.deps.readModelCatalogFile(modelsPath)
+      this.modelCatalog = isModelCatalog(catalog) ? catalog : undefined
+    } catch {
+      this.modelCatalog = undefined
+    }
+  }
+
+  private isWithinRunDir(candidate: string, runDir: string): boolean {
+    const relative = path.relative(path.resolve(runDir), path.resolve(candidate))
+    return relative !== '' && !relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative)
+  }
+
+  private async waitForStatusFile(statusPath: string): Promise<SidecarStatus> {
     const deadline = Date.now() + this.deps.healthTimeoutMs
     let lastError: unknown
     while (Date.now() < deadline) {
@@ -218,6 +252,10 @@ export class CodexProxyManager {
 
   getEndpoint(accountId: string): CodexProxyEndpoint | null {
     return this.endpoints.get(accountId) ?? null
+  }
+
+  getModelCatalog(): unknown | undefined {
+    return this.modelCatalog
   }
 
   /** Controlled restart with updated tokens for the given account set. */
@@ -261,6 +299,7 @@ export class CodexProxyManager {
       this.runDir = null
     }
     this.endpoints.clear()
+    this.modelCatalog = undefined
   }
 
   private async waitHealthy(port: number): Promise<void> {
