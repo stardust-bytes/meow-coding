@@ -83,13 +83,19 @@ Meow Coding is built on open-source technology and openly credits its design inf
 
 ### Model Connections (account management)
 
-- **Claude Code**: OAuth login (PKCE), multiple accounts, one-click switch, quota/plan view. Each
-  account gets its own `CLAUDE_CONFIG_DIR` so your real `~/.claude` is never touched.
-- **Codex**: OAuth login via local callback, switches by writing `~/.codex/auth.json` (atomic,
-  with backup/restore), quota view.
+- **Codex (ChatGPT OAuth)**: connect multiple Codex accounts with PKCE OAuth in the Providers
+  screen, pick the active account, and chat with its models. Chat requests run through an
+  account-scoped local OpenAI-compatible proxy (`meow-cliproxy`, built on the MIT-licensed
+  CLIProxyAPI), so a credential issued for one account can never route through another. Your real
+  `~/.codex/auth.json` is never read or written.
+- **Secrets**: OAuth access/refresh/ID tokens are stored only in the encrypted OS keychain
+  (safeStorage); the metadata index under `userData/connections` holds non-secret account
+  information only. Runtime proxy config is removed on shutdown and stale directories are cleaned
+  at the next launch.
 - **API key vault**: provider API keys stored encrypted in the OS keychain (safeStorage) instead of
   plaintext in settings; `keyRef` resolves at runtime.
-- Quota monitoring with `[meow]` alerts when usage crosses 90% (5-minute cooldown).
+- Claude Code and Antigravity OAuth are not enabled in this release; the provider/account
+  architecture is ready for their adapters.
 
 ### UI & desktop
 
