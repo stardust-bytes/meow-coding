@@ -175,9 +175,9 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
       <div className="settings-screen-body">
         <div className="settings-body">
           <aside className="settings-sidebar">
-            <button ref={backButtonRef} className="settings-screen-back" onClick={onClose}>
+            <button ref={backButtonRef} className="btn settings-screen-back" onClick={onClose}>
               <ArrowLeft size={15} aria-hidden="true" />
-              Back
+              Back to app
             </button>
             <nav className="settings-nav">
               {TABS.map(t => (

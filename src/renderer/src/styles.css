@@ -961,21 +961,9 @@ select.input { width: 100%; }
   background: var(--bg-panel);
 }
 .settings-screen-back {
-  flex: 0 0 auto; width: 100%;
-  display: flex; align-items: center; gap: 8px;
-  min-height: 44px; padding: 0 14px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-bottom: 1px solid var(--hairline);
-  color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-medium);
-  cursor: pointer; text-align: left; border-radius: 0;
-  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
-}
-.settings-screen-back:hover {
-  color: var(--text-strong);
-  background: var(--bg-input-hover);
-  border-color: var(--accent-border);
-  border-bottom-color: var(--hairline);
+  flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: flex-start; gap: 6px;
+  margin: 4px 4px 8px;
 }
 .settings-nav {
   display: flex; flex-direction: column; gap: 2px; flex: 1;
