@@ -11,16 +11,18 @@ const TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1000
 
 // Fallback list used when the sidecar models endpoint is unreachable. The proxy
 // is authoritative for what an account can actually call; this list keeps the
-// picker usable while the sidecar is warming up. Names must match the
-// CLIProxyAPI v7.1.22 registry (gpt-5.2-codex/gpt-5.1-codex/codex-mini no longer
-// exist there); image/review-only models are excluded.
+// picker usable while the sidecar is warming up. Names must match the current
+// CLIProxyAPI registry (gpt-5.3-codex/gpt-5.2 were removed upstream — the
+// ChatGPT backend rejects them with "model is not supported"); image/review-only
+// models (gpt-image-2, codex-auto-review) are excluded.
 const CODEX_FALLBACK_MODELS = [
-  'gpt-5.3-codex',
   'gpt-5.3-codex-spark',
   'gpt-5.4',
   'gpt-5.4-mini',
   'gpt-5.5',
-  'gpt-5.2'
+  'gpt-5.6-sol',
+  'gpt-5.6-terra',
+  'gpt-5.6-luna'
 ]
 
 export interface ConnectionsManagerDeps {

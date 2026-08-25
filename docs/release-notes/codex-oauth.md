@@ -26,7 +26,7 @@ This release adds multi-account Codex (ChatGPT) OAuth to Meow Coding.
 ## Attribution
 
 The bundled `meow-cliproxy` sidecar wraps [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)
-(pinned at `v7.1.22`), MIT licensed; the license notice ships in the app as
+(pinned at `v7.2.141`), MIT licensed; the license notice ships in the app as
 `resources/third-party/CLIProxyAPI-LICENSE` and is included in every release.
 
 ## Not in this release

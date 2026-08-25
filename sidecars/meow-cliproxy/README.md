@@ -3,7 +3,7 @@
 App-owned sidecar that runs one account-scoped, OpenAI-compatible proxy per Codex
 OAuth account. It is a thin Go wrapper around
 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) (MIT, pinned at
-`v7.1.22`; license notice in `resources/third-party/CLIProxyAPI-LICENSE`).
+`v7.2.141`; license notice in `resources/third-party/CLIProxyAPI-LICENSE`).
 
 The module lives under the CLIProxyAPI module path
 (`github.com/router-for-me/CLIProxyAPI/v7/meow-cliproxy`) so it can blank-import
