@@ -1424,24 +1424,112 @@ git commit -m "fix(task): give background subagents a cancel handle"
 
 Thêm vào `tests/unit/meow-agent-manager.test.ts` (dùng đúng helper dựng manager đã có trong file):
 
+Trước hết mở `makeManager` cho phép chỉnh giá — hiện `prices` bị hardcode ở dòng khởi tạo manager.
+Thêm `prices?: Record<string, { input: number; output: number }>` vào tham số `opts` của
+`makeManager` và đổi dòng truyền xuống thành:
+
 ```ts
-it('prices subagent usage with the subagent model, not the parent model', async () => {
-  // Cấu hình subagentModels trỏ research sang provider rẻ hơn, chạy một turn có
-  // task tool, rồi assert store.addUsage nhận cost tính theo giá model con.
-})
+    prices: opts.prices ?? { 'test/test-model': { input: 1, output: 2 } },
+```
 
-it('cancels a background subagent started in an earlier turn', async () => {
-  // Spawn background task ở turn 1, để turn 1 kết thúc, gọi stop(agentId),
-  // assert cancel đã chạy (subagent không còn append kết quả).
-})
+Rồi thêm khối test:
 
-it('delivers a background result to the session that spawned it', async () => {
-  // Spawn background, switchSession sang session mới, resolve subagent,
-  // assert appendMessage nhận sessionId cũ.
+```ts
+describe('MeowAgentManager subagents', () => {
+  function configWithSubagentModel(): string {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-sub-'))
+    const file = path.join(dir, 'meow.json')
+    writeFileSync(file, JSON.stringify({
+      provider: {
+        test: { apiKey: 'sk-test', models: ['test-model'] },
+        cheap: { apiKey: 'sk-cheap', models: ['cheap-model'] }
+      },
+      model: 'test',
+      permission: { task: 'allow', read: 'allow' },
+      subagentModels: { research: { provider: 'cheap', model: 'cheap-model' } }
+    }))
+    return file
+  }
+
+  const spawnResearch = (background: boolean): LlmStreamPart[] => ([
+    {
+      kind: 'tool-call',
+      toolCallId: 't1',
+      toolName: 'task',
+      toolInput: { prompt: 'look around', subagent_type: 'research', ...(background ? { background: true } : {}) }
+    },
+    { kind: 'finish' }
+  ])
+
+  it('prices subagent usage with the subagent model, not the parent model', async () => {
+    const { manager, events } = await makeManager({
+      configPath: configWithSubagentModel(),
+      prices: {
+        'test/test-model': { input: 1000, output: 1000 },
+        'cheap/cheap-model': { input: 1, output: 1 }
+      },
+      partsQueue: [
+        spawnResearch(false),
+        // The subagent's own call: cheap model, non-trivial usage.
+        [{ kind: 'text', text: 'sub answer' }, { kind: 'finish', tokens: { input: 1000, output: 1000 } }],
+        [{ kind: 'text', text: 'parent done' }, { kind: 'finish', tokens: { input: 0, output: 0 } }]
+      ]
+    })
+
+    await manager.send('a1', 'go')
+
+    const costs = events.filter(e => e.type === 'usage').map(e => e.sessionCost)
+    const total = costs[costs.length - 1] ?? 0
+    // Priced with the parent model this would be ~1000x larger.
+    expect(total).toBeLessThan(1)
+  })
+
+  it('cancels a background subagent started in an earlier turn', async () => {
+    const { manager, store } = await makeManager({
+      configPath: configWithSubagentModel(),
+      partsQueue: [
+        spawnResearch(true),
+        [{ kind: 'text', text: 'parent done' }, { kind: 'finish' }]
+      ],
+      hangUntilAbort: false
+    })
+
+    await manager.send('a1', 'go')
+    // Turn 1 is over; its controller is gone. Stop must still reach the task.
+    manager.stop('a1')
+    await new Promise(r => setTimeout(r, 30))
+
+    expect(store).toBeDefined()
+    expect(manager.isRunning('a1')).toBe(false)
+  })
+
+  it('delivers a background result to the session that spawned it', async () => {
+    const { manager } = await makeManager({
+      configPath: configWithSubagentModel(),
+      partsQueue: [
+        spawnResearch(true),
+        [{ kind: 'text', text: 'parent done' }, { kind: 'finish' }],
+        [{ kind: 'text', text: 'background answer' }, { kind: 'finish' }]
+      ]
+    })
+
+    await manager.send('a1', 'go')
+    const spawned = manager.listSessions('a1')[0]
+    manager.newSession('a1')
+    await new Promise(r => setTimeout(r, 30))
+
+    const spawnedText = manager.listMessages('a1', spawned.id).map(m => m.text).join('\n')
+    const currentText = manager.listMessages('a1').map(m => m.text).join('\n')
+    expect(spawnedText).toContain('background answer')
+    expect(currentText).not.toContain('background answer')
+  })
 })
 ```
 
-Viết phần thân theo đúng khuôn của các test manager sẵn có trong file. Nếu helper hiện tại không dựng nổi một turn có tool call, thêm helper mới trong cùng file thay vì sửa production code cho dễ test.
+**Nếu `listMessages` không nhận `sessionId`**, đọc trực tiếp qua `store.get(spawned.id)!.items` thay
+vì thêm tham số vào production API chỉ để test. Nếu ba test này lộ ra rằng manager chưa spawn được
+task tool trong môi trường test (ví dụ `createDefaultTools()` không có `task`), thêm helper dựng tool
+map trong chính file test — **không** nới production code cho dễ test.
 
 - [ ] **Step 2: Chạy test để chắc chắn nó fail**
 
@@ -1499,18 +1587,15 @@ Trong `task.ts`, `onUsage` đổi chữ ký:
   onUsage?: (tokens: MessageTokens, used?: { provider: string; model: string }) => void
 ```
 
-và trong `runSubagent`, truyền cho `SessionRunner`:
-
-```ts
-      onUsage: (tokens) => opts.onUsage?.(tokens, { provider: sub?.provider ?? '', model }),
-```
-
-Khi `sub` không có (role dùng model của cha), truyền `undefined` để manager rơi về giá của cha:
+và trong `runSubagent`, truyền cho `SessionRunner`. Khi role không có model riêng và
+`resolveSubagent` cũng không trả gì, truyền `undefined` để manager rơi về giá của cha:
 
 ```ts
       onUsage: (tokens) => opts.onUsage?.(
         tokens,
-        sub ? { provider: sub.provider, model } : (role.model ? { provider: role.model.provider, model } : undefined)
+        role.model
+          ? { provider: role.model.provider, model }
+          : sub ? { provider: sub.provider, model } : undefined
       ),
 ```
 
