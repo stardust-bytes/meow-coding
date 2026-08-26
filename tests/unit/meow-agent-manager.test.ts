@@ -972,9 +972,11 @@ describe('MeowAgentManager', () => {
   it('getContextInfo reports the config limit and the auto-compact threshold', async () => {
     const { manager } = await makeManager()
     const info = manager.getContextInfo('a1')
-    // config mặc định: maxContextTokens 128000, compaction.auto true, buffer 20000
+    // config mặc định: maxContextTokens 128000, compaction.auto true, buffer 20000.
+    // Ngưỡng còn trừ output reserve (32000) vì phần model sắp viết ra cũng
+    // chiếm context — bỏ qua nó thì prompt đầy cửa sổ rồi bị từ chối giữa chừng.
     expect(info.limit).toBe(128000)
-    expect(info.compactThreshold).toBe(108000)
+    expect(info.compactThreshold).toBe(76000)
     expect(info.sessionCost).toBe(0)
   })
 

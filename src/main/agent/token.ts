@@ -15,6 +15,12 @@ export function estimateTokens(text: string): number {
   return Math.max(0, Math.round(text.length / CHARS_PER_TOKEN))
 }
 
+// Inverse of estimateTokens, for budgets that are naturally expressed in
+// characters (raw tool output) but configured in tokens.
+export function charsForTokens(tokens: number): number {
+  return Math.round(tokens * CHARS_PER_TOKEN)
+}
+
 export function estimateUsage(value: unknown): number {
   return estimateTokens(JSON.stringify(value, replaceImageData) ?? '')
 }

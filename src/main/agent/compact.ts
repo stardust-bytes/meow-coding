@@ -1,6 +1,6 @@
 import type { TranscriptItem } from './message'
 import type { LlmClient, LlmStreamOptions } from './llm'
-import { estimateUsage } from './token'
+import { charsForTokens, estimateTokens, estimateUsage } from './token'
 
 // ---------------------------------------------------------------------------
 // Token-based compaction (modeled on opencode session/compaction.ts)
@@ -15,15 +15,26 @@ export interface CompactionSettings {
   prune?: boolean
 }
 
-const PRUNE_PROTECT = 40000
-const PRUNE_MINIMUM = 20000
+// Shares of the model's context that pruning leaves alone / must be able to
+// free before it is worth clearing anything. Fixed byte counts treated a 1M
+// model like a 128k one; these ratios reproduce the old numbers at 128k and
+// scale from there.
+const PRUNE_PROTECT_RATIO = 0.09
+const PRUNE_MINIMUM_RATIO = 0.045
+const DEFAULT_PRUNE_CONTEXT_TOKENS = 128000
 const PRUNE_PROTECTED_TOOLS = ['skill']
 
 // Clears the output of older completed tool calls (beyond the last two turns)
 // to free context, mirroring opencode compaction.prune. Returns true if any
 // output was cleared. Mutates items in place.
-export function pruneToolOutputs(items: TranscriptItem[], cfg: CompactionSettings): boolean {
+export function pruneToolOutputs(
+  items: TranscriptItem[],
+  cfg: CompactionSettings,
+  contextTokens = DEFAULT_PRUNE_CONTEXT_TOKENS
+): boolean {
   if (!cfg.prune) return false
+  const protectChars = charsForTokens(contextTokens * PRUNE_PROTECT_RATIO)
+  const minimumChars = charsForTokens(contextTokens * PRUNE_MINIMUM_RATIO)
   let turns = 0
   let total = 0
   let pruned = 0
@@ -38,11 +49,11 @@ export function pruneToolOutputs(items: TranscriptItem[], cfg: CompactionSetting
     if (PRUNE_PROTECTED_TOOLS.includes(call.tool)) continue
     const size = call.output.length
     total += size
-    if (total <= PRUNE_PROTECT) continue
+    if (total <= protectChars) continue
     pruned += size
     targets.push(item)
   }
-  if (pruned <= PRUNE_MINIMUM) return false
+  if (pruned <= minimumChars) return false
   for (const item of targets) {
     if (item.kind === 'tool') {
       item.tool.output = undefined
@@ -53,6 +64,17 @@ export function pruneToolOutputs(items: TranscriptItem[], cfg: CompactionSetting
 }
 
 export const CLEARED_OUTPUT = '[Old tool result content cleared]'
+
+/**
+ * How much of the model's context a prompt may occupy. The buffer covers what
+ * the transcript estimate never sees (system prompt, tool definitions); the
+ * output reserve covers what the model is still going to write. Leaving the
+ * output out let a prompt fill the window and then be rejected mid-answer.
+ * Single source of truth for the loop, the idle compactor and the UI footer.
+ */
+export function usableContextTokens(limit: number, buffer: number, outputReserve = 0): number {
+  return limit - buffer - outputReserve
+}
 
 /**
  * Last-resort shrink used when LLM compaction cannot help: the head is empty,
@@ -172,6 +194,28 @@ export function serializeItems(items: TranscriptItem[], toolOutputMaxChars = 200
     .map(item => serializeItem(item, toolOutputMaxChars))
     .filter((s): s is string => Boolean(s))
     .join('\n\n')
+}
+
+/**
+ * Keeps the summary prompt inside the compaction model's own context. The head
+ * is everything older than the tail, so on a long session it can be larger than
+ * the window it is being summarized into — that call then fails, and a failed
+ * compaction leaves the session over the limit. Drop the oldest turns until it
+ * fits; halve a single oversized turn so the loop always terminates.
+ */
+export function fitHeadToBudget(
+  head: TranscriptItem[],
+  maxTokens: number,
+  toolOutputMaxChars: number
+): TranscriptItem[] {
+  let items = head
+  while (items.length > 0 && estimateTokens(serializeItems(items, toolOutputMaxChars)) > maxTokens) {
+    const starts = turns(items).map(t => t.start)
+    const next = starts.length > 1 ? items.slice(starts[1]) : items.slice(Math.ceil(items.length / 2))
+    if (next.length === items.length) return items.slice(Math.ceil(items.length / 2))
+    items = next
+  }
+  return items
 }
 
 export const COMPACTION_SYSTEM =

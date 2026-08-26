@@ -819,3 +819,175 @@ describe('SessionRunner compaction fallback', () => {
     expect(replaced).toHaveLength(0)
   })
 })
+
+describe('SessionRunner finish reasons', () => {
+  it('reports a cut-off answer instead of calling it complete', async () => {
+    const h = makeHarness()
+    h.llm.queue = [[{ kind: 'text', text: 'half an ans' }, { kind: 'finish', finishReason: 'length' }]]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 20))
+    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
+    expect(done.reason).toBe('length')
+  })
+
+  it('still reports complete when the model stops on its own', async () => {
+    const h = makeHarness()
+    h.llm.queue = [[{ kind: 'text', text: 'all done' }, { kind: 'finish', finishReason: 'stop' }]]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 20))
+    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
+    expect(done.reason).toBe('complete')
+  })
+
+  it('keeps max-steps as the reason even if the last step also hit the output cap', async () => {
+    const h = makeHarness({ tools: new Map([['todowrite', stubTool('todowrite')]]), maxSteps: 1 })
+    h.llm.queue = [[
+      { kind: 'tool-call', toolCallId: 'tc1', toolName: 'todowrite', toolInput: {} },
+      { kind: 'finish', finishReason: 'length' }
+    ]]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
+    expect(done.reason).toBe('max-steps')
+  })
+})
+
+describe('SessionRunner output reserve', () => {
+  function harness(maxOutputTokens: number | undefined, replaced: TranscriptItem[][]) {
+    return makeHarness({
+      maxContextTokens: 1000,
+      maxOutputTokens,
+      compaction: { auto: true, buffer: 100, keepTokens: 100, tailTurns: 1, toolOutputMaxChars: 2000, prune: true },
+      maxSteps: 1,
+      replaceItems: (items) => replaced.push(items)
+    })
+  }
+
+  function seed(h: ReturnType<typeof makeHarness>) {
+    h.items.push(
+      { kind: 'message', message: { id: 'u1', role: 'user', text: 'question', createdAt: 1 } },
+      { kind: 'message', message: { id: 'a1', role: 'assistant', text: 'working', createdAt: 1 } },
+      { kind: 'tool', tool: { id: 't1', tool: 'bash', input: {}, permission: 'allowed', output: 'x'.repeat(1400) } }
+    )
+    h.llm.queue = [textParts('done')]
+  }
+
+  it('leaves a transcript alone when only the compaction buffer is reserved', async () => {
+    const replaced: TranscriptItem[][] = []
+    const h = harness(undefined, replaced)
+    seed(h)
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    expect(replaced).toHaveLength(0)
+  })
+
+  it('shrinks the same transcript once the model output budget is reserved too', async () => {
+    const replaced: TranscriptItem[][] = []
+    const h = harness(700, replaced)
+    seed(h)
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    expect(replaced.length).toBeGreaterThan(0)
+  })
+
+  it('asks the model for no more output than the reserved budget', async () => {
+    const h = makeHarness({ maxOutputTokens: 4096 })
+    h.llm.queue = [textParts('ok')]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 20))
+    expect(h.llm.calls[0].maxOutputTokens).toBe(4096)
+  })
+})
+
+describe('SessionRunner compaction prompt size', () => {
+  it('keeps the summary prompt inside the context budget', async () => {
+    const calls: LlmStreamOptions[] = []
+    const h = makeHarness({
+      maxContextTokens: 4000,
+      compaction: { auto: true, buffer: 200, keepTokens: 200, tailTurns: 1, toolOutputMaxChars: 500, prune: true },
+      maxSteps: 1,
+      replaceItems: () => {},
+      llm: {
+        async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
+          calls.push(opts)
+          yield { kind: 'text', text: calls.length === 1 ? 'summary' : 'done' }
+          yield { kind: 'finish' }
+        }
+      } as unknown as LlmClient
+    })
+    for (let i = 0; i < 6; i++) {
+      h.items.push({ kind: 'message', message: { id: `u${i}`, role: 'user', text: `turn ${i} ` + 'x'.repeat(4000), createdAt: i } })
+      h.items.push({ kind: 'message', message: { id: `a${i}`, role: 'assistant', text: 'ok', createdAt: i } })
+    }
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 40))
+
+    const compactionCall = calls[0]
+    expect(compactionCall).toBeDefined()
+    const promptChars = JSON.stringify(compactionCall.messages).length
+    expect(promptChars / 3.5).toBeLessThanOrEqual(4000)
+  })
+})
+
+describe('SessionRunner permission decisions', () => {
+  it('decides a tool call permission once instead of re-deciding per stage', async () => {
+    const h = makeHarness({ tools: new Map([['bash', stubTool('bash')]]) })
+    h.llm.queue = [
+      [{ kind: 'tool-call', toolCallId: 'tc1', toolName: 'bash', toolInput: { command: 'ls' } }, { kind: 'finish' }],
+      textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    const forThisCall = h.decide.mock.calls.filter(c => c[1] !== undefined)
+    expect(forThisCall).toHaveLength(1)
+  })
+
+  it('still reports the deny reason from the rule rather than the user', async () => {
+    const h = makeHarness({ tools: new Map([['bash', stubTool('bash')]]), decidePermission: vi.fn(() => 'deny' as const) })
+    h.llm.queue = [
+      [{ kind: 'tool-call', toolCallId: 'tc1', toolName: 'bash', toolInput: { command: 'ls' } }, { kind: 'finish' }],
+      textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    const result = h.events.find(e => e.type === 'tool-result') as Extract<ChatEvent, { type: 'tool-result' }>
+    expect(result.call.error).toMatch(/not permitted/)
+  })
+})
+
+describe('SessionRunner system prompt', () => {
+  it('re-resolves a dynamic system prompt at the start of each run', async () => {
+    let n = 0
+    const h = makeHarness({ system: () => `prompt ${++n}` })
+    h.llm.queue = [textParts('a')]
+    await h.runner.run()
+    h.llm.queue = [textParts('b')]
+    await h.runner.run()
+    expect(h.llm.calls[0].system).toBe('prompt 1')
+    expect(h.llm.calls[1].system).toBe('prompt 2')
+  })
+
+  it('resolves it once per run, not once per step', async () => {
+    let n = 0
+    const h = makeHarness({
+      system: () => `prompt ${++n}`,
+      tools: new Map([['todowrite', stubTool('todowrite')]]),
+      maxSteps: 3
+    })
+    h.llm.queue = [
+      [{ kind: 'tool-call', toolCallId: 'tc1', toolName: 'todowrite', toolInput: {} }, { kind: 'finish' }],
+      textParts('done')
+    ]
+    await h.runner.run()
+    expect(h.llm.calls).toHaveLength(2)
+    expect(h.llm.calls[0].system).toBe('prompt 1')
+    expect(h.llm.calls[1].system).toBe('prompt 1')
+  })
+
+  it('still accepts a plain string system prompt', async () => {
+    const h = makeHarness({ system: 'fixed prompt' })
+    h.llm.queue = [textParts('a')]
+    await h.runner.run()
+    expect(h.llm.calls[0].system).toBe('fixed prompt')
+  })
+})

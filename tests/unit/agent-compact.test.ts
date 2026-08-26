@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { selectHeadTail, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, truncateToolOutput, serializeItems, pruneToolOutputs, hardTruncate } from '../../src/main/agent/compact'
-import { estimateUsage } from '../../src/main/agent/token'
+import { usableContextTokens, fitHeadToBudget, selectHeadTail, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, truncateToolOutput, serializeItems, pruneToolOutputs, hardTruncate } from '../../src/main/agent/compact'
+import { estimateTokens, estimateUsage } from '../../src/main/agent/token'
 import type { TranscriptItem } from '../../src/main/agent/message'
 import type { ChatMessage, ToolCallData } from '../../src/shared/types'
 import type { LlmClient, LlmStreamPart } from '../../src/main/agent/llm'
@@ -237,5 +237,74 @@ describe('hardTruncate', () => {
     hardTruncate(items, 2000)
     const original = items.find(i => i.kind === 'tool')
     expect(original?.kind === 'tool' && original.tool.output).toBe('x'.repeat(20000))
+  })
+})
+
+describe('usableContextTokens', () => {
+  it('reserves both the compaction buffer and the output budget', () => {
+    expect(usableContextTokens(200000, 20000, 32000)).toBe(148000)
+  })
+
+  it('treats a missing output reserve as zero', () => {
+    expect(usableContextTokens(200000, 20000)).toBe(180000)
+  })
+})
+
+describe('fitHeadToBudget', () => {
+  it('leaves a head that already fits alone', () => {
+    const head = [msg('user', 'q'), msg('assistant', 'a')]
+    expect(fitHeadToBudget(head, 100000, 2000)).toEqual(head)
+  })
+
+  it('drops the oldest turns until the summary prompt fits', () => {
+    const head = [
+      msg('user', 'oldest ' + 'x'.repeat(20000)),
+      msg('assistant', 'a1'),
+      msg('user', 'middle ' + 'y'.repeat(20000)),
+      msg('assistant', 'a2'),
+      msg('user', 'newest'),
+      msg('assistant', 'a3')
+    ]
+    const out = fitHeadToBudget(head, 2000, 2000)
+    expect(out.some(i => i.kind === 'message' && i.message.text.startsWith('oldest'))).toBe(false)
+    expect(out.some(i => i.kind === 'message' && i.message.text === 'newest')).toBe(true)
+    expect(estimateTokens(serializeItems(out, 2000))).toBeLessThanOrEqual(2000)
+  })
+
+  it('still shrinks a head made of one oversized turn', () => {
+    const head = [msg('user', 'only turn'), msg('assistant', 'z'.repeat(80000))]
+    const out = fitHeadToBudget(head, 500, 2000)
+    expect(estimateTokens(serializeItems(out, 2000))).toBeLessThanOrEqual(500)
+  })
+
+  it('gives up on an empty head rather than looping', () => {
+    expect(fitHeadToBudget([], 10, 2000)).toEqual([])
+  })
+})
+
+describe('pruneToolOutputs context scaling', () => {
+  const cfg = { auto: true, buffer: 100, keepTokens: 100, tailTurns: 2, toolOutputMaxChars: 2000, prune: true }
+
+  function transcript() {
+    return [
+      msg('user', 'u0'),
+      msg('assistant', 'a0'),
+      tool('P'.repeat(120000)),
+      msg('user', 'u1'),
+      msg('assistant', 'a1'),
+      msg('user', 'u2')
+    ]
+  }
+
+  it('prunes that output on a 128k model', () => {
+    const items = transcript()
+    expect(pruneToolOutputs(items, cfg, 128000)).toBe(true)
+  })
+
+  it('leaves the same output alone on a million-token model', () => {
+    const items = transcript()
+    expect(pruneToolOutputs(items, cfg, 1_000_000)).toBe(false)
+    const toolItem = items.find(i => i.kind === 'tool')
+    expect(toolItem && toolItem.kind === 'tool' ? toolItem.tool.output : '').toContain('P')
   })
 })

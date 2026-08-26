@@ -8,8 +8,8 @@ commands, references, compaction and usage accounting. Orchestrated by `MeowAgen
 
 | File | Responsibility |
 |---|---|
-| `loop.ts` | `SessionRunner`: the agent turn loop — streams LLM output, executes tool calls, handles permissions/aborts, emits `ChatEvent`s. The heart of the agent. |
-| `llm.ts` | `LlmClient` interface + `createLlm` factory (Anthropic / OpenAI-compatible); `classifyLlmError` + `withRetry` retry a stream that failed before emitting anything. |
+| `loop.ts` | `SessionRunner`: the agent turn loop — streams LLM output, executes tool calls, handles permissions/aborts, emits `ChatEvent`s. `system` may be a function, re-resolved once per run. The heart of the agent. |
+| `llm.ts` | `LlmClient` interface + `createLlm` factory (Anthropic / OpenAI-compatible); `classifyLlmError` + `withRetry` retry a stream that failed before emitting anything; `withCacheBreakpoints` breaks after the anchored summary. |
 | `message.ts` | `toLlmMessages`: converts stored transcript (user/assistant/tool items, incl. image parts) into AI-SDK model messages; `keepFullTurns` exempts the recent tail from `toolOutputMaxChars`; `toToolDefinition` wraps tools. |
 | `config.ts` | Loads `meow.json` + env; `MeowConfig` / `ResolvedAgentConfig`; `loadMeowConfig`, `resolveAgentConfig`, `settingsToConfig`/`configToSettings`, `writeMeowConfig`; defaults (tokens, compaction, notifications, lsp). |
 | `session.ts` | `SessionStore`: persists sessions + transcript items to `sessions.json` (normalized once, then cached); `flush()` forces debounced writes; create/list/switch/delete/rename; title inference. |
@@ -18,10 +18,10 @@ commands, references, compaction and usage accounting. Orchestrated by `MeowAgen
 | `references.ts` | `expandReferences`: expands `@path` / `@"path with space"` mentions into file contents appended to the prompt. |
 | `snapshot.ts` | `SnapshotStore`: per-turn file snapshots for undo/redo. |
 | `saved-permissions.ts` | Persists "always allow" tool permissions (`permissions.json`). |
-| `compact.ts` | Context compaction: token-based thresholding, `truncateToolOutput`, `hardTruncate` (last-resort shrink when LLM compaction cannot help). |
+| `compact.ts` | Context compaction: `usableContextTokens` (buffer + output reserve), `truncateToolOutput`, `fitHeadToBudget` (keeps the summary prompt inside the window), `hardTruncate` (last-resort shrink when LLM compaction cannot help). |
 | `truncation.ts` | `TruncationStore`: truncation state per session. |
 | `usage.ts` | `calcCost` / `EMPTY_USAGE` / price-based cost accounting. |
-| `token.ts` | Token estimation/counting helpers; inline image data URLs are charged a flat cost, not their base64 length. |
+| `token.ts` | Token estimation/counting helpers (`estimateTokens`, `estimateUsage`, `charsForTokens`); inline image data URLs are charged a flat cost, not their base64 length. |
 | `trace-store.ts` | `TraceStore`: per-session trace event log (buffered + flushed async, seq per session). |
 | `apply-patch.ts` | Unified-diff parser + applier (the `apply-patch` tool backend). |
 | `plugin.ts` | Loads user tools from `userData/tools`. |

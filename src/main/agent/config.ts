@@ -76,6 +76,10 @@ export const DEFAULT_MAX_CONTEXT_TOKENS = 128000
 // burning tokens forever. The budget resets whenever steered messages are
 // promoted, so this bounds one uninterrupted run, not a whole session.
 export const DEFAULT_MAX_STEPS = 100
+// Reserved from the context budget and sent as the provider's output cap.
+// Kept well under the 64k some models allow: a coding answer never needs that
+// much, and reserving 64k would push compaction far too early.
+export const DEFAULT_MAX_OUTPUT_TOKENS = 32000
 export const DEFAULT_COMPACTION: MeowCompactionConfig = {
   auto: true,
   buffer: 20000,

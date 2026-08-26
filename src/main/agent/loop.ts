@@ -7,7 +7,7 @@ import { toLlmMessages } from './message'
 import type { ToLlmOptions, TranscriptItem } from './message'
 import type { ToolContext, ToolDefinition } from './tools/types'
 import type { PermissionDecision } from './permission'
-import { selectHeadTail, serializeItems, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, pruneToolOutputs, hardTruncate } from './compact'
+import { selectHeadTail, serializeItems, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, pruneToolOutputs, hardTruncate, usableContextTokens, fitHeadToBudget } from './compact'
 import { instructionFilesForFile } from './instructions'
 import type { CompactionSettings } from './compact'
 import { estimateUsage } from './token'
@@ -19,7 +19,13 @@ export interface LoopDeps {
   taskId?: string
   turn?: number
   model: string
-  system: string
+  /**
+   * A function is re-resolved at the start of every run, so skills added or an
+   * AGENTS.md edited mid-session take effect on the next turn instead of only
+   * after a reload. Resolved once per run, not per step, because building it
+   * reads instruction files off disk.
+   */
+  system: string | (() => string)
   systemInstructionPaths?: ReadonlySet<string>
   cwd: string
   llm: LlmClient
@@ -28,6 +34,12 @@ export interface LoopDeps {
   ask: (promptId: string, tool?: string) => Promise<PromptResponse | null>
   maxSteps?: number
   maxContextTokens?: number
+  /**
+   * Tokens the model may generate. Reserved from the context budget as well as
+   * sent to the provider: leaving it out let the prompt grow to the limit and
+   * then be rejected once the model started writing its answer.
+   */
+  maxOutputTokens?: number
   compaction?: CompactionSettings
   toolOutput?: { maxBytes: number; maxLines: number }
   truncation?: TruncationStore
@@ -70,6 +82,7 @@ export class SessionRunner {
 
   async run(signal?: AbortSignal): Promise<void> {
     const { agentId } = this.deps
+    const system = typeof this.deps.system === 'function' ? this.deps.system() : this.deps.system
     let steps = 0
     this.compactedThisRun = 0
     const runUsage = { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0 }
@@ -107,6 +120,7 @@ export class SessionRunner {
       let textBuffer = ''
       let reasoningBuffer = ''
       let tokens: MessageTokens | undefined
+      let finishReason: string | undefined
       const calls: ToolCallData[] = []
       const persistPartial = () => {
         if (!textBuffer && !reasoningBuffer) return
@@ -122,10 +136,11 @@ export class SessionRunner {
       try {
         const stream = this.deps.llm.stream({
           model: this.deps.model,
-          system: this.deps.system,
+          system,
           messages: llmMessages,
           tools: isLastStep ? [] : this.visibleToolDefs(),
           signal,
+          maxOutputTokens: this.deps.maxOutputTokens,
           variantOptions: this.deps.variantOptions
         })
         for await (const part of stream) {
@@ -156,6 +171,7 @@ export class SessionRunner {
             this.deps.onEvent({ type: 'tool-start', agentId, call })
           } else if (part.kind === 'finish') {
             tokens = part.tokens
+            finishReason = part.finishReason
             if (part.tokens) {
               this.lastTokens = part.tokens
               runUsage.input += part.tokens.input
@@ -203,13 +219,18 @@ export class SessionRunner {
       // Parallel tool execution like opencode: run auto-approved calls
       // concurrently; permission-asking calls run serially afterwards to avoid
       // two prompts at once.
-      const askCalls = calls.filter(c => this.deps.decidePermission(c.tool, c.input) === 'ask')
-      const autoCalls = calls.filter(c => this.deps.decidePermission(c.tool, c.input) !== 'ask')
-      await Promise.all(autoCalls.map(call => this.executeCall(call, signal)))
-      for (const call of askCalls) await this.executeCall(call, signal)
+      const decided = calls.map(call => ({ call, decision: this.deps.decidePermission(call.tool, call.input) }))
+      const autoCalls = decided.filter(d => d.decision !== 'ask')
+      const askCalls = decided.filter(d => d.decision === 'ask')
+      await Promise.all(autoCalls.map(d => this.executeCall(d.call, d.decision, signal)))
+      for (const d of askCalls) await this.executeCall(d.call, d.decision, signal)
 
       if (!hasToolCall) {
-        this.deps.onEvent({ type: 'done', agentId, reason: 'complete', tokens, cost: this.deps.computeCost?.(runUsage) })
+        // 'length' means the provider cut the answer off at the output cap.
+        // Reporting that as 'complete' left the user reading a truncated reply
+        // with nothing to say it was truncated.
+        const reason = finishReason === 'length' ? 'length' : 'complete'
+        this.deps.onEvent({ type: 'done', agentId, reason, tokens, cost: this.deps.computeCost?.(runUsage) })
         return
       }
       if (isLastStep) {
@@ -219,9 +240,8 @@ export class SessionRunner {
     }
   }
 
-  private async executeCall(call: ToolCallData, signal?: AbortSignal): Promise<void> {
+  private async executeCall(call: ToolCallData, decision: PermissionDecision, signal?: AbortSignal): Promise<void> {
     const { agentId } = this.deps
-    const decision = this.deps.decidePermission(call.tool, call.input)
     let allowed: boolean
     if (decision === 'allow') {
       allowed = true
@@ -236,8 +256,7 @@ export class SessionRunner {
 
     if (!allowed) {
       call.permission = 'denied'
-      const deniedReason = this.deps.decidePermission(call.tool, call.input)
-      call.error = deniedReason === 'deny'
+      call.error = decision === 'deny'
         ? `tool "${call.tool}" is not permitted in the current mode`
         : 'permission denied by user'
     } else {
@@ -315,7 +334,7 @@ export class SessionRunner {
   async compactIfOverThreshold(signal?: AbortSignal): Promise<void> {
     const { compaction, maxContextTokens, replaceItems } = this.deps
     if (!compaction?.auto || !maxContextTokens || maxContextTokens <= 0 || !replaceItems) return
-    const usable = maxContextTokens - compaction.buffer
+    const usable = usableContextTokens(maxContextTokens, compaction.buffer, this.deps.maxOutputTokens)
     if (usable <= 0) return
     let items = this.deps.getItems()
     const opts = this.toLlmOpts()
@@ -337,7 +356,7 @@ export class SessionRunner {
     // Prune old tool outputs first (cheap) before spending an LLM compact call.
     // The provider-reported count still includes the pruned bytes, so re-check
     // against a fresh estimate of the smaller transcript.
-    const pruned = pruneToolOutputs(items, compaction)
+    const pruned = pruneToolOutputs(items, compaction, maxContextTokens)
     if (pruned) {
       replaceItems(items)
       if (estimateUsage(toLlmMessages(items, opts)) < usable) return
@@ -358,7 +377,10 @@ export class SessionRunner {
       return
     }
     const previousSummary = this.findPreviousSummary(items)
-    const prompt = buildCompactionPrompt(previousSummary, serializeItems(head, compaction.toolOutputMaxChars))
+    // The head can be bigger than the window it is summarized into; trimming it
+    // here is what keeps the compaction call itself from being rejected.
+    const summarizable = fitHeadToBudget(head, usable, compaction.toolOutputMaxChars)
+    const prompt = buildCompactionPrompt(previousSummary, serializeItems(summarizable, compaction.toolOutputMaxChars))
     // Let the UI show a "compacting…" line before the (possibly slow) summary
     // call, instead of only learning about it after the fact.
     this.deps.onEvent({ type: 'compaction-start', agentId: this.deps.agentId })

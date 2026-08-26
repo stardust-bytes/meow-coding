@@ -5,6 +5,7 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { ModelMessage } from 'ai'
 import type { MessageTokens } from '../../shared/types'
 import { normalizeToolInput, toToolDefinition } from './message'
+import { COMPACTION_MARKER } from './compact'
 import type { ToolDefinition } from './tools/types'
 
 export interface LlmStreamPart {
@@ -29,6 +30,8 @@ export interface LlmStreamOptions {
   tools: ToolDefinition[]
   signal?: AbortSignal
   variantOptions?: Record<string, unknown>
+  /** Upper bound on generated tokens; also what the caller reserved from the context budget. */
+  maxOutputTokens?: number
 }
 
 export interface LlmClient {
@@ -112,19 +115,30 @@ function isDeepSeekEndpoint(baseUrl?: string): boolean {
 const ANTHROPIC_CACHE_BREAKPOINT = { anthropic: { cacheControl: { type: 'ephemeral' } } } as const
 
 // Anthropic needs explicit cache breakpoints to reuse the prompt prefix across
-// turns (0.1x input price instead of 1.0x). Tag the first message (long-lived
-// stable prefix) and the last message (cache grows one turn at a time), mirroring
-// opencode's applyCaching. Other providers cache automatically or reject unknown
-// cache_control fields, so they are left untouched.
+// turns (0.1x input price instead of 1.0x). Tag the end of the stable prefix
+// (the anchored summary when the session has been compacted, otherwise the first
+// message) and the last message, so the cache grows one turn at a time. Other
+// providers cache automatically or reject unknown cache_control fields, so they
+// are left untouched.
 export function withCacheBreakpoints(messages: ModelMessage[], provider: string): ModelMessage[] {
   if (provider !== 'anthropic' || messages.length === 0) return messages
   const tagged = messages.map(m => ({ ...m }))
-  tagged[0] = { ...tagged[0], providerOptions: { ...tagged[0].providerOptions, ...ANTHROPIC_CACHE_BREAKPOINT } }
-  const last = tagged.length - 1
-  if (last !== 0) {
-    tagged[last] = { ...tagged[last], providerOptions: { ...tagged[last].providerOptions, ...ANTHROPIC_CACHE_BREAKPOINT } }
+  const mark = (i: number): void => {
+    tagged[i] = { ...tagged[i], providerOptions: { ...tagged[i].providerOptions, ...ANTHROPIC_CACHE_BREAKPOINT } }
   }
+  // A compacted transcript opens with the marker plus the summary. Breaking on
+  // the marker alone cached a one-line message and threw away the summary, the
+  // most valuable stable prefix there is — break after the summary instead.
+  mark(summaryEnd(messages))
+  const last = tagged.length - 1
+  if (last !== 0) mark(last)
   return tagged
+}
+
+function summaryEnd(messages: ModelMessage[]): number {
+  const first = messages[0]
+  const isMarker = first.role === 'user' && typeof first.content === 'string' && first.content === COMPACTION_MARKER
+  return isMarker && messages[1]?.role === 'assistant' ? 1 : 0
 }
 
 export function createAnthropicLlm(apiKey: string): LlmClient {
@@ -193,6 +207,7 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string, re
       messages: withCacheBreakpoints(opts.messages, provider),
       tools,
       abortSignal: opts.signal,
+      ...(opts.maxOutputTokens !== undefined ? { maxOutputTokens: opts.maxOutputTokens } : {}),
       ...(providerOptions ? { providerOptions } : {})
     })
     for await (const part of result.fullStream) {

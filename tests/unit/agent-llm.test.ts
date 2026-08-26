@@ -18,7 +18,7 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
   }
 }))
 
-import { createAnthropicLlm, createLlm, createOpenAICompatibleLlm, formatLlmError, toMessageTokens } from '../../src/main/agent/llm'
+import { createAnthropicLlm, createLlm, createOpenAICompatibleLlm, formatLlmError, toMessageTokens, withCacheBreakpoints } from '../../src/main/agent/llm'
 import type { LlmStreamPart } from '../../src/main/agent/llm'
 
 function fakeFullStream(parts: Array<Record<string, unknown>>) {
@@ -380,5 +380,49 @@ describe('createLlm retry', () => {
     expect(streamTextMock).not.toHaveBeenCalled()
     expect(out).toHaveLength(1)
     expect(out[0].error).toMatch(/non-ASCII/)
+  })
+})
+
+describe('output token budget', () => {
+  it('passes maxOutputTokens through to streamText', async () => {
+    streamTextMock.mockReturnValue({ fullStream: fakeFullStream([{ type: 'finish', finishReason: 'stop' }]) })
+    const llm = createLlm('openai', 'sk-test')
+    for await (const _ of llm.stream({ model: 'm', system: 's', messages: [], tools: [], maxOutputTokens: 8000 })) { /* drain */ }
+    expect((streamTextMock.mock.calls[0][0] as { maxOutputTokens?: number }).maxOutputTokens).toBe(8000)
+  })
+
+  it('leaves maxOutputTokens unset when the caller does not ask for one', async () => {
+    streamTextMock.mockReturnValue({ fullStream: fakeFullStream([{ type: 'finish', finishReason: 'stop' }]) })
+    const llm = createLlm('openai', 'sk-test')
+    for await (const _ of llm.stream({ model: 'm', system: 's', messages: [], tools: [] })) { /* drain */ }
+    expect((streamTextMock.mock.calls[0][0] as Record<string, unknown>)).not.toHaveProperty('maxOutputTokens')
+  })
+})
+
+describe('cache breakpoints after compaction', () => {
+  const BREAK = { anthropic: { cacheControl: { type: 'ephemeral' } } }
+
+  it('caches through the anchored summary, not just the marker', () => {
+    const messages = [
+      { role: 'user' as const, content: 'What did we do so far?' },
+      { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'the summary' }] },
+      { role: 'user' as const, content: 'next question' },
+      { role: 'user' as const, content: 'latest' }
+    ]
+    const out = withCacheBreakpoints(messages, 'anthropic')
+    expect(out[1].providerOptions).toEqual(BREAK)
+    expect(out[3].providerOptions).toEqual(BREAK)
+  })
+
+  it('leaves the plain first/last breakpoints alone without a compaction pair', () => {
+    const messages = [
+      { role: 'user' as const, content: 'first' },
+      { role: 'user' as const, content: 'mid' },
+      { role: 'user' as const, content: 'last' }
+    ]
+    const out = withCacheBreakpoints(messages, 'anthropic')
+    expect(out[0].providerOptions).toEqual(BREAK)
+    expect(out[1].providerOptions).toBeUndefined()
+    expect(out[2].providerOptions).toEqual(BREAK)
   })
 })

@@ -422,6 +422,12 @@ if (e.type === 'usage') {
       setPendingPrompt(null)
       if (e.type === 'error') {
         setItems(prev => [...prev, { kind: 'error', id: 'err-' + Date.now(), text: e.message }])
+      } else if (e.reason === 'length') {
+        setItems(prev => [...prev, {
+          kind: 'error',
+          id: 'cut-' + Date.now(),
+          text: 'The model hit its output limit, so this answer is cut off. Ask it to continue where it stopped.'
+        }])
       }
       return
     }

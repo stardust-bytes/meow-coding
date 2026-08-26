@@ -4,10 +4,11 @@ import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSugge
 import type { AgentConfig, AgentMode, ArtifactEntry, CatalogProviderSummary, Command, ModelRef, SubagentType } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, resolveApiKey, settingsToConfig, writeMeowConfig,
-  OLLAMA_CLOUD_BASE_URL,
+  OLLAMA_CLOUD_BASE_URL, DEFAULT_MAX_OUTPUT_TOKENS,
   type MeowConfig, type ResolvedAgentConfig
 } from './agent/config'
 import { SessionRunner } from './agent/loop'
+import { usableContextTokens } from './agent/compact'
 import { createLlm } from './agent/llm'
 import type { LlmClient } from './agent/llm'
 import { decidePermission } from './agent/permission'
@@ -565,7 +566,10 @@ export class MeowAgentManager {
       ? this.modelLimits.get(`${resolved.provider}/${resolved.model}`)
       : undefined
     const limit = modelLimit?.context ?? cfg.maxContextTokens ?? null
-    const compactThreshold = cfg.compaction.auto && limit ? limit - cfg.compaction.buffer : null
+    const outputTokens = Math.min(modelLimit?.output ?? DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS)
+    const compactThreshold = cfg.compaction.auto && limit
+      ? usableContextTokens(limit, cfg.compaction.buffer, outputTokens)
+      : null
     return {
       limit,
       compactThreshold,
@@ -835,7 +839,8 @@ export class MeowAgentManager {
       const usedTokens = used.total > 0
         ? used.total
         : used.input + used.output + (used.cacheRead ?? 0) + (used.cacheWrite ?? 0)
-      if (usedTokens < limit - compaction.buffer) continue
+      const outputTokens = Math.min(modelLimit?.output ?? DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS)
+      if (usedTokens < usableContextTokens(limit, compaction.buffer, outputTokens)) continue
       const runner = this.runners.get(agentId)
       if (!runner) continue
       this.compacting.add(agentId)
@@ -904,6 +909,7 @@ export class MeowAgentManager {
       ? this.modelLimits.get(`${resolved.provider}/${resolved.model}`)
       : undefined
     const contextTokens = modelLimit?.context ?? cfg.maxContextTokens
+    const outputTokens = Math.min(modelLimit?.output ?? DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS)
     const skills = collectSkills(agent.cwd, this.deps.userSkillsDir, this.deps.builtinSkillsDir)
     // AGENTS.md/CLAUDE.md walking up from cwd are inlined into the system
     // prompt (opencode-style); module-level ones attach on read via loop.ts.
@@ -956,6 +962,7 @@ export class MeowAgentManager {
       tools: this.tools,
       resolveSubagent,
       maxContextTokens: contextTokens,
+      maxOutputTokens: outputTokens,
       compaction: cfg.compaction,
       toolOutput: cfg.toolOutput,
       truncation: this.deps.truncation,
@@ -1010,7 +1017,12 @@ export class MeowAgentManager {
       agentId: agent.id,
       turn: this.turnCounters.get(this.activeSessionId(agent.id)) ?? 1,
       model: resolved.model,
-      system: resolved.systemPrompt + modeNote + instructions + skillListText(skills),
+      // Rebuilt per turn so a skill added or an AGENTS.md edited mid-session
+      // takes effect without a reload. `instructions`/`skills` above are still
+      // used for the registration-time systemInstructionPaths set.
+      system: () => resolved.systemPrompt + modeNote +
+        instructionsText(loadInstructions(agent.cwd)) +
+        skillListText(collectSkills(agent.cwd, this.deps.userSkillsDir, this.deps.builtinSkillsDir)),
       systemInstructionPaths: new Set(instructionFiles.map(f => f.path)),
       cwd: agent.cwd,
       llm: llmClient,
@@ -1025,6 +1037,7 @@ export class MeowAgentManager {
       ask: (promptId, tool) => this.awaitPrompt(agent.id, promptId, tool),
       maxSteps: cfg.maxSteps,
       maxContextTokens: contextTokens,
+      maxOutputTokens: outputTokens,
       compaction: cfg.compaction,
       toolOutput: cfg.toolOutput,
       truncation: this.deps.truncation,

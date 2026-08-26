@@ -77,6 +77,7 @@ export function createTaskTool(opts: {
   // compacts and its tool output is never capped, so a few large greps push it
   // past the model limit and the provider rejects the whole task.
   maxContextTokens?: number
+  maxOutputTokens?: number
   compaction?: CompactionSettings
   toolOutput?: { maxBytes: number; maxLines: number }
   truncation?: TruncationStore
@@ -125,6 +126,7 @@ export function createTaskTool(opts: {
       ask: async () => null,
       maxSteps: 20,
       maxContextTokens: opts.maxContextTokens,
+      maxOutputTokens: opts.maxOutputTokens,
       compaction: opts.compaction,
       toolOutput: opts.toolOutput,
       truncation: opts.truncation,
