@@ -56,6 +56,11 @@
   --orange: #ffb454;
   --red: #ff5f56;
 
+  /* markdown — theme-aware tokens for content that renders over bg-bubble */
+  --md-mention: #ffd700;
+  --md-blockquote-border: rgba(255, 180, 84, 0.5);
+  --md-table-border: rgba(214, 240, 220, 0.14);
+
   /* misc */
   --radius-sm: 4px;
   --radius: 6px;
@@ -106,8 +111,13 @@
   --orange: #c4661e;
   --red: #d1242f;
 
-  --hairline: rgba(0, 0, 0, 0.12);
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.10);
+  --hairline: rgba(0, 0, 0, 0.12);
+
+  /* markdown — theme-aware tokens for content that renders over bg-bubble */
+  --md-mention: #a05a00;
+  --md-blockquote-border: rgba(196, 102, 30, 0.5);
+  --md-table-border: rgba(0, 0, 0, 0.15);
   --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.12);
   --shadow-3: 0 12px 40px rgba(0, 0, 0, 0.15);
   --git-diff-add: rgba(74, 222, 159, 0.15);
@@ -784,8 +794,8 @@ select.input { width: 100%; }
   box-shadow: var(--shadow-1);
 }
 .chat-msg.user .chat-text { background: var(--accent); border-color: var(--accent); color: #ffffff; }
-.chat-mention { color: #ffd700; font-family: var(--font-mono); font-size: 0.92em; }
-.chat-slash { color: #ffd700; font-family: var(--font-mono); font-size: 0.92em; }
+.chat-mention { color: var(--md-mention); font-family: var(--font-mono); font-size: 0.92em; }
+.chat-slash { color: var(--md-mention); font-family: var(--font-mono); font-size: 0.92em; }
 .chat-msg-images { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 .chat-thumb { max-width: 220px; max-height: 160px; border-radius: var(--radius); cursor: zoom-in; border: 1px solid var(--hairline); }
 .chat-thumb:hover { border-color: var(--accent); }
@@ -1219,10 +1229,10 @@ select.input { width: 100%; }
 .chat-md a { color: var(--accent); }
 .chat-md blockquote {
   margin: 6px 0; padding-left: 10px;
-  border-left: 2px solid rgba(255, 180, 84, 0.5); color: var(--text-dim);
+  border-left: 2px solid var(--md-blockquote-border); color: var(--text-dim);
 }
 .chat-md table { border-collapse: collapse; margin: 6px 0; }
-.chat-md th, .chat-md td { border: 1px solid rgba(214, 240, 220, 0.14); padding: 4px 8px; }
+.chat-md th, .chat-md td { border: 1px solid var(--md-table-border); padding: 4px 8px; }
 .chat-md th { color: var(--text-strong); }
 
 /* Diff view */
