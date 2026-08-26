@@ -3,10 +3,14 @@ import { z } from 'zod'
 import type { LlmClient } from '../llm'
 import { SessionRunner } from '../loop'
 import type { TranscriptItem } from '../message'
-import type { ChatMessage, SubagentType, ToolCallData } from '../../../shared/types'
+import type { ChatMessage, MessageTokens, SubagentType, ToolCallData } from '../../../shared/types'
+import type { CompactionSettings } from '../compact'
+import type { TruncationStore } from '../truncation'
 import type { ToolContext, ToolDefinition, ToolRunResult } from './types'
 
 export type { SubagentType } from '../../../shared/types'
+
+const DEFAULT_MAX_SESSIONS = 20
 
 export interface SubagentConfig {
   system: string
@@ -69,9 +73,30 @@ export function createTaskTool(opts: {
   // Called when a background subagent finishes so the manager can append the
   // result into the main transcript.
   onBackgroundResult?: (id: string, text: string, error?: string) => void
+  // Context budget for the subagent's own loop. Without these a subagent never
+  // compacts and its tool output is never capped, so a few large greps push it
+  // past the model limit and the provider rejects the whole task.
+  maxContextTokens?: number
+  compaction?: CompactionSettings
+  toolOutput?: { maxBytes: number; maxLines: number }
+  truncation?: TruncationStore
+  // Subagent spend is real spend; report it so session cost is not understated.
+  onUsage?: (tokens: MessageTokens) => void
+  maxSessions?: number
 }): ToolDefinition {
   // Resumable subagent sessions, keyed by task id (SDD fix loop reuses them).
+  // Bounded so a long-lived agent does not accumulate transcripts forever.
+  const maxSessions = opts.maxSessions ?? DEFAULT_MAX_SESSIONS
   const sessions = new Map<string, TranscriptItem[]>()
+  const remember = (id: string, items: TranscriptItem[]) => {
+    sessions.delete(id)
+    sessions.set(id, items)
+    while (sessions.size > maxSessions) {
+      const oldest = sessions.keys().next()
+      if (oldest.done) break
+      sessions.delete(oldest.value)
+    }
+  }
 
   const runSubagent = async (
     input: { description?: string; prompt: string; subagent_type: SubagentType },
@@ -99,6 +124,12 @@ export function createTaskTool(opts: {
       decidePermission: () => 'allow',
       ask: async () => null,
       maxSteps: 20,
+      maxContextTokens: opts.maxContextTokens,
+      compaction: opts.compaction,
+      toolOutput: opts.toolOutput,
+      truncation: opts.truncation,
+      replaceItems: (next) => { items.length = 0; items.push(...next) },
+      onUsage: opts.onUsage,
       onEvent: (e) => {
         if (e.type === 'text-delta') {
           ctx.emitSubagent?.(id, { sub: 'delta', text: e.delta, parentTaskId: ctx.taskId })
@@ -120,6 +151,7 @@ export function createTaskTool(opts: {
       appendMessage: (m: ChatMessage) => items.push({ kind: 'message', message: m }),
       appendTool: (t: ToolCallData) => items.push({ kind: 'tool', tool: t })
     })
+
     await runner.run(signal)
 
     let text = ''
@@ -163,11 +195,11 @@ export function createTaskTool(opts: {
         kind: 'message',
         message: { id: randomUUID(), role: 'user', text: prompt, createdAt: Date.now() }
       })
-      sessions.set(id, items)
+      remember(id, items)
 
       if (background) {
         ctx.emitSubagent?.(id, { sub: 'start', subagentType: subagent_type, background: true })
-        void runSubagent({ description, prompt, subagent_type }, ctx, id, items, undefined).then(
+        void runSubagent({ description, prompt, subagent_type }, ctx, id, items, ctx.signal).then(
           (result) => {
             if (result.text) {
               ctx.emitSubagent?.(id, { sub: 'done', state: 'completed', result: result.text })

@@ -16,6 +16,10 @@ export interface LlmStreamPart {
   finishReason?: string
   error?: string
   tokens?: MessageTokens
+  /** Set on error parts: whether the same request is worth sending again. */
+  retryable?: boolean
+  /** Set on error parts: the delay the provider asked us to wait. */
+  retryAfterMs?: number
 }
 
 export interface LlmStreamOptions {
@@ -131,7 +135,7 @@ export function createOpenAICompatibleLlm(opts: { apiKey: string; baseUrl?: stri
   return createLlm('openai', opts.apiKey, opts.baseUrl)
 }
 
-export function createLlm(provider: string, apiKey: string, baseUrl?: string): LlmClient {
+export function createLlm(provider: string, apiKey: string, baseUrl?: string, retry?: RetryOptions): LlmClient {
   const isDeepSeek = provider === 'deepseek' || isDeepSeekEndpoint(baseUrl)
   const model = (modelId: string) => {
     if (provider === 'anthropic') {
@@ -158,72 +162,181 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string): L
     }).chatModel(modelId)
   }
 
-  return {
-    async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
-      // The SDK puts the key into the Authorization header, which undici
-      // converts to a ByteString: non-ASCII keys fail with a cryptic
-      // "Cannot convert argument to a ByteString" TypeError. Guard keys that
-      // were stored before connectProvider validated them (hand-edited
-      // meow.json, older vault entries) and surface a readable error instead.
-      if (apiKey && !/^[\x21-\x7E]+$/.test(apiKey)) {
-        yield { kind: 'error', error: 'Invalid API key: it contains non-ASCII characters. API keys must be ASCII — re-enter the key in Providers.' }
-        return
+  async function* rawStream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
+    // The SDK puts the key into the Authorization header, which undici
+    // converts to a ByteString: non-ASCII keys fail with a cryptic
+    // "Cannot convert argument to a ByteString" TypeError. Guard keys that
+    // were stored before connectProvider validated them (hand-edited
+    // meow.json, older vault entries) and surface a readable error instead.
+    if (apiKey && !/^[\x21-\x7E]+$/.test(apiKey)) {
+      yield { kind: 'error', error: 'Invalid API key: it contains non-ASCII characters. API keys must be ASCII — re-enter the key in Providers.' }
+      return
+    }
+    const tools = Object.fromEntries(opts.tools.map(def => [def.name, toToolDefinition(def)]))
+    // Anthropic: top-level cacheControl caches the system prompt (sent on
+    // every request); message breakpoints cache the growing history prefix.
+    const variant = opts.variantOptions as StreamProviderOptions | undefined
+    let providerOptions: StreamProviderOptions | undefined
+    if (provider === 'anthropic') {
+      providerOptions = {
+        anthropic: {
+          cacheControl: { type: 'ephemeral' },
+          ...(variant?.anthropic as Record<string, unknown> | undefined)
+        }
       }
-      const tools = Object.fromEntries(opts.tools.map(def => [def.name, toToolDefinition(def)]))
-      // Anthropic: top-level cacheControl caches the system prompt (sent on
-      // every request); message breakpoints cache the growing history prefix.
-      const variant = opts.variantOptions as StreamProviderOptions | undefined
-      let providerOptions: StreamProviderOptions | undefined
-      if (provider === 'anthropic') {
-        providerOptions = {
-          anthropic: {
-            cacheControl: { type: 'ephemeral' },
-            ...(variant?.anthropic as Record<string, unknown> | undefined)
+    } else {
+      providerOptions = variant
+    }
+    const result = streamText({
+      model: model(opts.model),
+      system: opts.system,
+      messages: withCacheBreakpoints(opts.messages, provider),
+      tools,
+      abortSignal: opts.signal,
+      ...(providerOptions ? { providerOptions } : {})
+    })
+    for await (const part of result.fullStream) {
+      switch (part.type) {
+        case 'text-delta':
+          yield { kind: 'text', text: part.text }
+          break
+        case 'reasoning-delta':
+          yield { kind: 'reasoning', text: part.text }
+          break
+        case 'tool-call':
+          yield {
+            kind: 'tool-call',
+            toolName: part.toolName,
+            toolCallId: part.toolCallId,
+            toolInput: normalizeToolInput(part.input)
           }
-        }
-      } else {
-        providerOptions = variant
-      }
-      const result = streamText({
-        model: model(opts.model),
-        system: opts.system,
-        messages: withCacheBreakpoints(opts.messages, provider),
-        tools,
-        abortSignal: opts.signal,
-        ...(providerOptions ? { providerOptions } : {})
-      })
-      for await (const part of result.fullStream) {
-        switch (part.type) {
-          case 'text-delta':
-            yield { kind: 'text', text: part.text }
-            break
-          case 'reasoning-delta':
-            yield { kind: 'reasoning', text: part.text }
-            break
-          case 'tool-call':
-            yield {
-              kind: 'tool-call',
-              toolName: part.toolName,
-              toolCallId: part.toolCallId,
-              toolInput: normalizeToolInput(part.input)
-            }
-            break
-          case 'finish':
-            yield {
-              kind: 'finish',
-              finishReason: part.finishReason,
-              tokens: toMessageTokens(part.totalUsage)
-            }
-            break
-          case 'error':
-            yield { kind: 'error', error: formatLlmError(part.error) }
-            break
-          default:
-            break
-        }
+          break
+        case 'finish':
+          yield {
+            kind: 'finish',
+            finishReason: part.finishReason,
+            tokens: toMessageTokens(part.totalUsage)
+          }
+          break
+        case 'error':
+          yield { kind: 'error', error: formatLlmError(part.error), ...classifyLlmError(part.error) }
+          break
+        default:
+          break
       }
     }
   }
+
+  return {
+    stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
+      return withRetry(() => rawStream(opts), { ...retry, signal: opts.signal })
+    }
+  }
+}
+
+// Statuses where the identical request can succeed on a later attempt. 4xx
+// outside of these is a request the provider will reject just as hard next
+// time, so retrying only wastes the user's time.
+const RETRYABLE_STATUS = new Set([408, 409, 425, 429, 500, 502, 503, 504, 529])
+const RETRYABLE_CODES = new Set([
+  'ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'EPIPE', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_SOCKET'
+])
+
+export interface LlmErrorClass {
+  retryable: boolean
+  retryAfterMs?: number
+}
+
+export function classifyLlmError(err: unknown): LlmErrorClass {
+  if (!err || typeof err !== 'object') return { retryable: false }
+  const e = err as {
+    name?: string
+    code?: string
+    statusCode?: number
+    responseHeaders?: Record<string, string>
+    lastError?: unknown
+    errors?: unknown[]
+  }
+  // The SDK's own retry gave up and wrapped the real cause; classify that.
+  if (e.name === 'AI_RetryError') {
+    const inner = e.lastError ?? e.errors?.[0]
+    return inner === undefined ? { retryable: false } : classifyLlmError(inner)
+  }
+  if (e.name === 'AbortError') return { retryable: false }
+  if (typeof e.statusCode === 'number') {
+    if (!RETRYABLE_STATUS.has(e.statusCode)) return { retryable: false }
+    return { retryable: true, retryAfterMs: retryAfterMs(e.responseHeaders) }
+  }
+  if (e.code && RETRYABLE_CODES.has(e.code)) return { retryable: true }
+  return { retryable: false }
+}
+
+function retryAfterMs(headers: Record<string, string> | undefined): number | undefined {
+  const raw = headers?.['retry-after'] ?? headers?.['Retry-After']
+  if (!raw) return undefined
+  const seconds = Number(raw)
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : undefined
+}
+
+export interface RetryOptions {
+  maxAttempts?: number
+  baseDelayMs?: number
+  signal?: AbortSignal
+  sleep?: (ms: number) => Promise<void>
+}
+
+const DEFAULT_MAX_ATTEMPTS = 3
+const DEFAULT_BASE_DELAY_MS = 1000
+
+/**
+ * Re-runs a stream that failed before producing anything. A 429 or a dropped
+ * connection used to end the whole turn, losing the work in flight; the AI SDK
+ * only retries the initial request, not a failure mid-stream. Once any part has
+ * been yielded the attempt is not repeated — replaying would duplicate text the
+ * caller already consumed — so the error is surfaced instead.
+ */
+export async function* withRetry(
+  makeStream: () => AsyncGenerator<LlmStreamPart>,
+  opts: RetryOptions = {}
+): AsyncGenerator<LlmStreamPart> {
+  const maxAttempts = opts.maxAttempts ?? DEFAULT_MAX_ATTEMPTS
+  const baseDelayMs = opts.baseDelayMs ?? DEFAULT_BASE_DELAY_MS
+  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>(r => setTimeout(r, ms)))
+
+  for (let attempt = 1; ; attempt++) {
+    let emitted = false
+    let failure: LlmStreamPart | undefined
+    try {
+      for await (const part of makeStream()) {
+        if (part.kind === 'error' && !emitted) {
+          failure = part
+          break
+        }
+        emitted = true
+        yield part
+      }
+    } catch (err) {
+      if (emitted) throw err
+      const { retryable, retryAfterMs: after } = classifyLlmError(err)
+      if (!canRetry(retryable, attempt, maxAttempts, opts.signal)) throw err
+      await sleep(after ?? backoff(baseDelayMs, attempt))
+      continue
+    }
+    if (!failure) return
+    if (!canRetry(failure.retryable === true, attempt, maxAttempts, opts.signal)) {
+      yield failure
+      return
+    }
+    await sleep(failure.retryAfterMs ?? backoff(baseDelayMs, attempt))
+  }
+}
+
+function canRetry(retryable: boolean, attempt: number, maxAttempts: number, signal?: AbortSignal): boolean {
+  return retryable && attempt < maxAttempts && !signal?.aborted
+}
+
+function backoff(baseDelayMs: number, attempt: number): number {
+  return baseDelayMs * 2 ** (attempt - 1)
 }
 
 export function formatLlmError(err: unknown): string {

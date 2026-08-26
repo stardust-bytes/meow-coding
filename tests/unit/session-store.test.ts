@@ -167,3 +167,61 @@ describe('SessionStore', () => {
     expect(store.list('legacy1')[0].messageCount).toBe(1)
   })
 })
+
+describe('SessionStore caching', () => {
+  function countingStore() {
+    let data: unknown[] = []
+    const store = {
+      loads: 0,
+      saves: 0,
+      load() { store.loads++; return data },
+      save(items: unknown[]) { store.saves++; data = items }
+    }
+    return store
+  }
+
+  it('normalizes the backing data once instead of on every read', () => {
+    const backing = countingStore()
+    const store = new SessionStore(backing as never)
+    const session = store.create('agent1', '/proj')
+    const loadsAfterCreate = backing.loads
+
+    for (let i = 0; i < 20; i++) store.appendMessage(session.id, userMessage(`m${i}`))
+    store.transcript(session.id)
+    store.transcript(session.id)
+
+    expect(backing.loads).toBe(loadsAfterCreate)
+    expect(store.transcript(session.id)).toHaveLength(20)
+  })
+
+  it('still persists every mutation through the backing store', () => {
+    const backing = countingStore()
+    const store = new SessionStore(backing as never)
+    const session = store.create('agent1', '/proj')
+    const savesAfterCreate = backing.saves
+    store.appendMessage(session.id, userMessage('hello'))
+    expect(backing.saves).toBe(savesAfterCreate + 1)
+  })
+})
+
+describe('SessionStore flush', () => {
+  let dir: string
+  let file: string
+
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(tmpdir(), 'meow-sess-flush-'))
+    file = path.join(dir, 'sessions.json')
+  })
+
+  afterEach(() => rmSync(dir, { recursive: true, force: true }))
+
+  it('persists debounced writes to disk on demand', () => {
+    const store = new SessionStore(createJsonStore(file, { debounceMs: 60_000 }))
+    const session = store.create('agent1', '/proj')
+    store.appendMessage(session.id, userMessage('hi'))
+
+    store.flush()
+
+    expect(new SessionStore(createJsonStore(file)).transcript(session.id)).toHaveLength(1)
+  })
+})

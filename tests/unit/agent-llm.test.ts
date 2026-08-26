@@ -95,7 +95,7 @@ describe('createAnthropicLlm', () => {
     for await (const p of llm.stream({ model: 'm', system: 's', messages: [], tools: [] })) {
       out.push(p)
     }
-    expect(out).toEqual([{ kind: 'error', error: 'Error: boom' }])
+    expect(out).toEqual([{ kind: 'error', error: 'Error: boom', retryable: false }])
   })
 
   it('maps reasoning deltas and finish tokens', async () => {
@@ -346,5 +346,39 @@ describe('toMessageTokens', () => {
 
   it('returns undefined when the provider reports no usage', () => {
     expect(toMessageTokens(undefined)).toBeUndefined()
+  })
+})
+
+describe('createLlm retry', () => {
+  it('retries a 429 from the provider stream and yields the successful attempt', async () => {
+    streamTextMock
+      .mockReturnValueOnce({ fullStream: fakeFullStream([{ type: 'error', error: { statusCode: 429, message: 'rate limited' } }]) })
+      .mockReturnValueOnce({ fullStream: fakeFullStream([{ type: 'text-delta', id: '1', text: 'ok' }, { type: 'finish', finishReason: 'stop' }]) })
+    const llm = createLlm('openai', 'sk-test', undefined, { sleep: async () => {} })
+    const out: LlmStreamPart[] = []
+    for await (const p of llm.stream({ model: 'm', system: 's', messages: [], tools: [] })) out.push(p)
+    expect(streamTextMock).toHaveBeenCalledTimes(2)
+    expect(out.map(p => p.kind)).toEqual(['text', 'finish'])
+  })
+
+  it('does not retry a 401 and surfaces the error once', async () => {
+    streamTextMock.mockReturnValue({
+      fullStream: fakeFullStream([{ type: 'error', error: { statusCode: 401, message: 'bad key' } }])
+    })
+    const llm = createLlm('openai', 'sk-test', undefined, { sleep: async () => {} })
+    const out: LlmStreamPart[] = []
+    for await (const p of llm.stream({ model: 'm', system: 's', messages: [], tools: [] })) out.push(p)
+    expect(streamTextMock).toHaveBeenCalledTimes(1)
+    expect(out).toHaveLength(1)
+    expect(out[0].kind).toBe('error')
+  })
+
+  it('does not retry the non-ASCII api key guard', async () => {
+    const llm = createLlm('openai', 'sk-tęst', undefined, { sleep: async () => {} })
+    const out: LlmStreamPart[] = []
+    for await (const p of llm.stream({ model: 'm', system: 's', messages: [], tools: [] })) out.push(p)
+    expect(streamTextMock).not.toHaveBeenCalled()
+    expect(out).toHaveLength(1)
+    expect(out[0].error).toMatch(/non-ASCII/)
   })
 })

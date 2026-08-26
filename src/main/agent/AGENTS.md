@@ -9,10 +9,10 @@ commands, references, compaction and usage accounting. Orchestrated by `MeowAgen
 | File | Responsibility |
 |---|---|
 | `loop.ts` | `SessionRunner`: the agent turn loop — streams LLM output, executes tool calls, handles permissions/aborts, emits `ChatEvent`s. The heart of the agent. |
-| `llm.ts` | `LlmClient` interface + `createLlm` factory (Anthropic / OpenAI-compatible). |
+| `llm.ts` | `LlmClient` interface + `createLlm` factory (Anthropic / OpenAI-compatible); `classifyLlmError` + `withRetry` retry a stream that failed before emitting anything. |
 | `message.ts` | `toLlmMessages`: converts stored transcript (user/assistant/tool items, incl. image parts) into AI-SDK model messages; `keepFullTurns` exempts the recent tail from `toolOutputMaxChars`; `toToolDefinition` wraps tools. |
 | `config.ts` | Loads `meow.json` + env; `MeowConfig` / `ResolvedAgentConfig`; `loadMeowConfig`, `resolveAgentConfig`, `settingsToConfig`/`configToSettings`, `writeMeowConfig`; defaults (tokens, compaction, notifications, lsp). |
-| `session.ts` | `SessionStore`: persists sessions + transcript items to `sessions.json`; create/list/switch/delete/rename; title inference. |
+| `session.ts` | `SessionStore`: persists sessions + transcript items to `sessions.json` (normalized once, then cached); `flush()` forces debounced writes; create/list/switch/delete/rename; title inference. |
 | `permission.ts` | Permission rules (allow/ask/deny) + matcher used by `decidePermission`. |
 | `commands.ts` | Slash commands: built-ins (init/review/sp-*) + user store (`commands.json`) + `resolveCommand`/`expandReferences`-aware templates. |
 | `references.ts` | `expandReferences`: expands `@path` / `@"path with space"` mentions into file contents appended to the prompt. |

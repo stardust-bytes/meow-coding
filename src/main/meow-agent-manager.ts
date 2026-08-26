@@ -810,6 +810,7 @@ export class MeowAgentManager {
   async dispose(): Promise<void> {
     if (this.idleCompactTimer) { clearInterval(this.idleCompactTimer); this.idleCompactTimer = null }
     this.stopAll()
+    this.deps.store.flush()
     await this.mcp.closeAll()
     this.deps.lsp?.dispose()
   }
@@ -917,11 +918,48 @@ export class MeowAgentManager {
       const subLlm = (this.deps.createLlm ?? createLlm)(subResolved.provider, subResolved.apiKey, subResolved.baseUrl)
       return { provider: subResolved.provider, model: subResolved.model, llm: subLlm }
     }
+    // Subagents spend real tokens, so their usage is billed to the session too,
+    // but it must not overwrite lastUsageByAgent: that drives the parent's
+    // context-overflow check and a subagent runs in a separate context.
+    const reportUsage = (tokens: MessageTokens, isMainContext: boolean): void => {
+      const price = this.priceFor(resolved.provider, resolved.model)
+      const sessionId = this.activeSessionId(agent.id)
+      const usage: UsageSummary = {
+        input: tokens.input,
+        output: tokens.output,
+        cacheRead: tokens.cacheRead ?? 0,
+        cacheWrite: tokens.cacheWrite ?? 0,
+        cost: calcCost({
+          input: tokens.input,
+          output: tokens.output,
+          cacheRead: tokens.cacheRead ?? 0,
+          cacheWrite: tokens.cacheWrite ?? 0
+        }, price)
+      }
+      if (isMainContext) this.lastUsageByAgent.set(agent.id, tokens)
+      this.deps.store.addUsage(sessionId, usage)
+      const sessionUsage = this.deps.store.getUsage(sessionId)
+      this.emit({
+        type: 'usage',
+        agentId: agent.id,
+        tokens,
+        sessionCost: sessionUsage.cost,
+        // "in" counts cached tokens too, matching provider dashboards (e.g.
+        // DeepSeek's prompt_tokens = cache hit + miss).
+        sessionTokens: { input: sessionUsage.input + sessionUsage.cacheRead + sessionUsage.cacheWrite, output: sessionUsage.output }
+      })
+    }
+
     const taskTool = createTaskTool({
       llm: llmClient,
       model: resolved.model,
       tools: this.tools,
       resolveSubagent,
+      maxContextTokens: contextTokens,
+      compaction: cfg.compaction,
+      toolOutput: cfg.toolOutput,
+      truncation: this.deps.truncation,
+      onUsage: (tokens) => reportUsage(tokens, false),
       onBackgroundResult: (taskId, text, error) => {
         const sessionId = this.activeSessionId(agent.id)
         this.deps.store.appendMessage(sessionId, {
@@ -1018,34 +1056,7 @@ export class MeowAgentManager {
         cacheRead: tokens.cacheRead ?? 0,
         cacheWrite: tokens.cacheWrite ?? 0
       }, this.priceFor(resolved.provider, resolved.model)),
-      onUsage: (tokens) => {
-        const price = this.priceFor(resolved.provider, resolved.model)
-        const sessionId = this.activeSessionId(agent.id)
-        const usage: UsageSummary = {
-          input: tokens.input,
-          output: tokens.output,
-          cacheRead: tokens.cacheRead ?? 0,
-          cacheWrite: tokens.cacheWrite ?? 0,
-          cost: calcCost({
-            input: tokens.input,
-            output: tokens.output,
-            cacheRead: tokens.cacheRead ?? 0,
-            cacheWrite: tokens.cacheWrite ?? 0
-          }, price)
-        }
-        this.lastUsageByAgent.set(agent.id, tokens)
-        this.deps.store.addUsage(sessionId, usage)
-        const sessionUsage = this.deps.store.getUsage(sessionId)
-        this.emit({
-          type: 'usage',
-          agentId: agent.id,
-          tokens,
-          sessionCost: sessionUsage.cost,
-          // "in" counts cached tokens too, matching provider dashboards (e.g.
-          // DeepSeek's prompt_tokens = cache hit + miss).
-          sessionTokens: { input: sessionUsage.input + sessionUsage.cacheRead + sessionUsage.cacheWrite, output: sessionUsage.output }
-        })
-      }
+      onUsage: (tokens) => reportUsage(tokens, true)
     })
     this.runners.set(agent.id, runner)
   }

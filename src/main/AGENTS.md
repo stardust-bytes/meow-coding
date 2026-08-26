@@ -14,7 +14,7 @@ handlers and the app lifecycle.
   to kill the entire process tree on stop.
 - `workspace-store.ts` / `template-manager.ts` — CRUD on `JsonStore<T>` (`userData/workspaces.json`,
   `userData/templates.json`). TemplateManager keeps default templates from being deleted.
-- `json-store.ts` — `JsonStore<T>` interface + `createJsonStore` (read/write JSON file, parse error → `[]`).
+- `json-store.ts` — `JsonStore<T>` interface + `createJsonStore` (in-memory cache, atomic temp+rename write, optional `debounceMs` batching with `flush()`, parse error → `[]` after parking the file as `.corrupt`).
 - `default-templates.ts` — default templates: opencode, claude, aider.
 - `log-manager.ts` — appends each agent's output to `userData/logs/<agentId>.log`.
 - `git-status-service.ts` — `git status --porcelain=v2 -b` (5s timeout), parses branch + dirty count.

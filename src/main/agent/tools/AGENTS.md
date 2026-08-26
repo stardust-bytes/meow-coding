@@ -20,7 +20,7 @@ The tool registry for the native Meow agent. Each file exports a `ToolDefinition
 | `git.ts` | Git operations (status/diff/commit...). |
 | `question.ts` | Ask the user a question (blocks on `prompt-request`). |
 | `todowrite.ts` | Persist a todo list for the session (`todo-updated` events). |
-| `task.ts` | Spawn a subagent with its own LLM call (`createTaskTool`). |
+| `task.ts` | Spawn a subagent with its own LLM call (`createTaskTool`); runs under the parent's context budget + abort signal, reports its usage, and keeps a bounded session cache. |
 | `revert.ts` | Revert files via snapshot store. |
 | `skill.ts` | Load a skill into context. |
 | `websearch.ts` / `webfetch.ts` | Web search / page fetch (need API keys). |

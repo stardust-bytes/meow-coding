@@ -59,12 +59,26 @@ export class SessionStore {
 
   constructor(private store: JsonStore<StoredSession>) {}
 
+  // Normalizing on every read walked every transcript item of every session —
+  // the agent loop reads the transcript several times per step, so a long
+  // session paid that cost repeatedly. Normalize once and keep the result.
+  private sessions: StoredSession[] | null = null
+
   private loadSessions(): StoredSession[] {
-    return (this.store.load() as unknown as RawSession[]).map(normalize)
+    if (!this.sessions) {
+      this.sessions = (this.store.load() as unknown as RawSession[]).map(normalize)
+    }
+    return this.sessions
   }
 
   private saveSessions(sessions: StoredSession[]): void {
+    this.sessions = sessions
     this.store.save(sessions)
+  }
+
+  /** Forces any debounced write to disk — call before the app quits. */
+  flush(): void {
+    this.store.flush?.()
   }
 
   private nextUpdatedAt(): number {
