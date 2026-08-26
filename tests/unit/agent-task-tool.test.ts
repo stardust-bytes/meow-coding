@@ -200,14 +200,32 @@ describe('task tool context and lifecycle', () => {
     expect(usage).toEqual([{ input: 120, output: 30 }, { input: 40, output: 10 }])
   })
 
-  it('passes the parent abort signal to a background subagent', async () => {
-    const llm = new StubLlm()
+  it('links a background subagent to the parent abort signal', async () => {
     const controller = new AbortController()
+    let subSignal: AbortSignal | undefined
+    const llm: LlmClient = {
+      async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
+        subSignal = opts.signal
+        // Stay alive until the signal fires so the abort link is observable.
+        await new Promise<void>(resolve => {
+          const t = setTimeout(resolve, 500)
+          opts.signal?.addEventListener('abort', () => { clearTimeout(t); resolve() }, { once: true })
+        })
+        yield { kind: 'text', text: 'stopped' }
+        yield { kind: 'finish' }
+      }
+    }
     const task = createTaskTool({ llm, model: 'm', tools: new Map([['read', stubTool('read')]]) })
     const ctx: ToolContext = { cwd: '/proj', ask: async () => null, signal: controller.signal }
     await task.run({ prompt: 'x', background: true }, ctx)
+    await new Promise(r => setTimeout(r, 10))
+    // The background subagent gets its own controller, linked to the parent's
+    // so the turn ending still stops it.
+    expect(subSignal).toBeDefined()
+    expect(subSignal).not.toBe(controller.signal)
+    controller.abort()
     await new Promise(r => setTimeout(r, 20))
-    expect(llm.calls[0]?.signal).toBe(controller.signal)
+    expect(subSignal?.aborted).toBe(true)
   })
 
   it('evicts the oldest subagent sessions instead of growing forever', async () => {
@@ -349,5 +367,43 @@ describe('subagent step budget', () => {
     expect(r.output).toContain('state="incomplete"')
     expect(r.output).toContain('reason="max-steps"')
     expect(r.output).toContain('partial progress')
+  })
+})
+
+describe('background subagent lifecycle', () => {
+  it('hands the caller a cancel handle that stops the run', async () => {
+    let cancel: (() => void) | undefined
+    let result: { text: string; error?: string } | undefined
+    const task = createTaskTool({
+      llm: new StubLlm(),
+      model: 'm',
+      tools: new Map([['read', stubTool('read')]]),
+      permission: allowAll(),
+      onBackgroundStart: (_id, c) => { cancel = c },
+      onBackgroundResult: (_id, text, error) => { result = { text, error } }
+    })
+    await task.run({ prompt: 'x', subagent_type: 'research', background: true }, { cwd: '/p', ask: async () => null })
+    expect(typeof cancel).toBe('function')
+    cancel!()
+    await new Promise(r => setTimeout(r, 20))
+    expect(result).toBeDefined()
+  })
+
+  it('emits the background done event with the parent task id', async () => {
+    const events: Array<{ sub: string; parentTaskId?: string }> = []
+    const task = createTaskTool({
+      llm: new StubLlm(),
+      model: 'm',
+      tools: new Map([['read', stubTool('read')]]),
+      permission: allowAll(),
+      onBackgroundResult: () => {}
+    })
+    await task.run(
+      { prompt: 'x', subagent_type: 'research', background: true },
+      { cwd: '/p', ask: async () => null, taskId: 'parent-task', emitSubagent: (_id, e) => events.push(e) }
+    )
+    await new Promise(r => setTimeout(r, 20))
+    const done = events.find(e => e.sub === 'done')
+    expect(done?.parentTaskId).toBe('parent-task')
   })
 })

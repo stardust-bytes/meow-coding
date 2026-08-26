@@ -79,6 +79,9 @@ export function createTaskTool(opts: {
   snapshots?: SnapshotStore
   parentAgentId?: string
   maxSteps?: number
+  // Hands the caller a handle to cancel a background subagent after the turn
+  // that spawned it has ended (the turn's own controller is gone by then).
+  onBackgroundStart?: (taskId: string, cancel: () => void) => void
 }): ToolDefinition {
   // Resumable subagent sessions, keyed by task id (SDD fix loop reuses them).
   // Bounded so a long-lived agent does not accumulate transcripts forever.
@@ -229,22 +232,30 @@ export function createTaskTool(opts: {
       remember(id, items)
 
       if (background) {
-        ctx.emitSubagent?.(id, { sub: 'start', subagentType: role.name, background: true })
-        void runSubagent({ description, prompt, role }, ctx, id, items, true, ctx.signal).then(
-          (result) => {
-            if (result.text) {
-              ctx.emitSubagent?.(id, { sub: 'done', state: 'completed', result: result.text })
-              opts.onBackgroundResult?.(id, result.text)
-            } else {
-              ctx.emitSubagent?.(id, { sub: 'done', state: 'error' })
-              opts.onBackgroundResult?.(id, '', result.error)
+        // The turn's controller is dropped when the turn ends, so a background
+        // subagent needs its own handle or nothing can stop it afterwards.
+        const controller = new AbortController()
+        const onParentAbort = () => controller.abort()
+        ctx.signal?.addEventListener('abort', onParentAbort, { once: true })
+        opts.onBackgroundStart?.(id, () => controller.abort())
+        ctx.emitSubagent?.(id, { sub: 'start', subagentType: role.name, background: true, parentTaskId: ctx.taskId })
+        void runSubagent({ description, prompt, role }, ctx, id, items, true, controller.signal)
+          .then(
+            (result) => {
+              if (result.text) {
+                ctx.emitSubagent?.(id, { sub: 'done', state: 'completed', result: result.text, parentTaskId: ctx.taskId })
+                opts.onBackgroundResult?.(id, result.text)
+              } else {
+                ctx.emitSubagent?.(id, { sub: 'done', state: 'error', parentTaskId: ctx.taskId })
+                opts.onBackgroundResult?.(id, '', result.error)
+              }
+            },
+            (err) => {
+              ctx.emitSubagent?.(id, { sub: 'done', state: 'error', parentTaskId: ctx.taskId })
+              opts.onBackgroundResult?.(id, '', String(err))
             }
-          },
-          (err) => {
-            ctx.emitSubagent?.(id, { sub: 'done', state: 'error' })
-            opts.onBackgroundResult?.(id, '', String(err))
-          }
-        )
+          )
+          .finally(() => ctx.signal?.removeEventListener('abort', onParentAbort))
         return { output: `Subagent ${id} (${role.name}) running in background.`, background: true }
       }
 
