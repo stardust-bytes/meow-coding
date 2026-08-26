@@ -161,4 +161,29 @@ describe('ModelsCatalog', () => {
     })
     expect(await catalog.getVariantOptions('deepseek', 'deepseek-v4-flash', 'nope')).toBeUndefined()
   })
+
+  it('parses live /models limits into fetchLiveModelsInfo', async () => {
+    const fetchFn = async () => jsonResponse({
+      data: [
+        { id: 'deepseek-v4-flash:0731', context_window: 131072, max_output_tokens: 65536 },
+        { id: 'plain-model' }
+      ]
+    })
+    const catalog = new ModelsCatalog(path.join(dir, 'models.json'), fetchFn)
+    expect(await catalog.fetchLiveModelsInfo('https://ollama.com/v1', 'sk')).toEqual([
+      { id: 'deepseek-v4-flash:0731', context: 131072, output: 65536 },
+      { id: 'plain-model' }
+    ])
+  })
+
+  it('fetchLiveModelsInfo returns null on a non-ok response', async () => {
+    const catalog = new ModelsCatalog(path.join(dir, 'models.json'), async () => jsonResponse({}, false))
+    expect(await catalog.fetchLiveModelsInfo('https://x/v1', 'sk')).toBeNull()
+  })
+
+  it('fetchLiveModels still returns just the ids', async () => {
+    const fetchFn = async () => jsonResponse({ data: [{ id: 'a' }, { id: 'b' }] })
+    const catalog = new ModelsCatalog(path.join(dir, 'models.json'), fetchFn)
+    expect(await catalog.fetchLiveModels('https://x/v1', 'sk')).toEqual(['a', 'b'])
+  })
 })

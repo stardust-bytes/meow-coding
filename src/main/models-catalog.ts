@@ -4,8 +4,15 @@ import type { CatalogProviderSummary } from '../shared/types'
 import { computeVariants } from './model-variants'
 import type { VariantBody } from './model-variants'
 import snapshot from './models-snapshot.json'
+import { parseLiveModelsInfo } from './agent/limits'
 
 export interface ModelLimit {
+  context?: number
+  output?: number
+}
+
+export interface LiveModelInfo {
+  id: string
   context?: number
   output?: number
 }
@@ -155,25 +162,29 @@ export class ModelsCatalog {
   }
 
   /**
-   * Fetch the live model list from an OpenAI-compatible /models endpoint.
-   * Used for providers like Ollama Cloud whose server-side model tags drift
-   * from the models.dev catalog (e.g. bare `deepseek-v4-flash` 404s while the
-   * server only serves `deepseek-v4-flash:0731` / `:preview`). Returns null on
-   * any failure so callers can fall back to the static catalog.
+   * Fetch the live model list from an OpenAI-compatible /models endpoint with
+   * whatever limit metadata the server exposes (Ollama Cloud and several
+   * proxies include context/output numbers under various field names). Returns
+   * null on any failure so callers can fall back to the static catalog.
    */
-  async fetchLiveModels(baseUrl: string, apiKey: string): Promise<string[] | null> {
+  async fetchLiveModelsInfo(baseUrl: string, apiKey: string): Promise<LiveModelInfo[] | null> {
     try {
       const res = await this.fetchFn(`${baseUrl.replace(/\/+$/, '')}/models`, {
         headers: { Authorization: `Bearer ${apiKey}` },
         signal: AbortSignal.timeout(10_000)
       })
       if (!res.ok) return null
-      const body = (await res.json()) as { data?: Array<{ id?: unknown }> }
-      const ids = (body.data ?? []).map(m => m.id).filter((id): id is string => typeof id === 'string')
-      return ids.length > 0 ? ids : null
+      const info = parseLiveModelsInfo(await res.json())
+      return info.length > 0 ? info : null
     } catch {
       return null
     }
+  }
+
+  /** Legacy wrapper: chỉ trả id — vẫn dùng bởi fetchProviderModels. */
+  async fetchLiveModels(baseUrl: string, apiKey: string): Promise<string[] | null> {
+    const info = await this.fetchLiveModelsInfo(baseUrl, apiKey)
+    return info && info.length > 0 ? info.map(m => m.id) : null
   }
 
   async getModelLimit(providerId: string, modelId: string): Promise<ModelLimit | undefined> {
