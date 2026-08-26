@@ -6,7 +6,11 @@ single window. It also ships a built-in **native "Meow" agent** with its own cha
 sessions, permissions, and skill system.
 
 <p align="center">
-  <img src="media/meow-app-screen.png" alt="Meow Coding — multiple CLI coding agents in parallel panes" width="720">
+  <img src="media/meow-app-screen-light-mode.png" alt="Meow Coding — multiple CLI coding agents in parallel panes (light mode)" width="720">
+</p>
+
+<p align="center">
+  <img src="media/meow-app-screen-dark-mode.png" alt="Meow Coding — multiple CLI coding agents in parallel panes (dark mode)" width="720">
 </p>
 
 ## Highlights
@@ -100,7 +104,8 @@ Meow Coding is built on open-source technology and openly credits its design inf
 ### UI & desktop
 
 - Frameless custom title bar (min / max / close) with lucide-react icons.
-- "Studio Dark" design system: tokenized fonts, colors, and a coral accent.
+- Light & dark themes (VSCode Light+ / Studio Dark palettes) with a Sun/Moon toggle in the sidebar;
+  popups and terminal colors re-theme live, and the choice persists across restarts.
 - Settings dialog covering connections, providers, agents, permissions, MCP, context, commands,
   templates, and remote control.
 - Idle/exit alert notifications; per-agent logs written to `userData/logs/<agentId>.log`.
