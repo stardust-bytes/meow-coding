@@ -11,9 +11,16 @@ React renderer (no direct Node/Electron access).
 - `src/components/` — `Sidebar`, `PaneGrid`, `Pane`, `PaneHeader`, `XtermHost`, `EmptyState`,
   `StatusBar`, `TitleBar`, `BackgroundPanel`, `AddProjectDialog`, `AddAgentDialog`, `UpdateDialog`,
   `BrowserDialog`, `InstallGuideDialog`, `chat/`, `settings/`.
-- `src/styles.css` — dark coding theme (VSCode Dark+ palette: `#1e1e1e` editor, `#007acc` accent),
-  spacing on a 4px scale, controls use Tailwind default sizes. Font: UI sans (Segoe UI
+- `src/styles.css` — VSCode Dark+ palette (default) with a Light+ variant activated via
+  `[data-theme="light"]` on `<html>`. All colors use CSS variables so theme switching is a single
+  attribute flip. Spacing on a 4px scale, controls use Tailwind default sizes. Font: UI sans (Segoe UI
   Variable/system-ui) for all text, mono (JetBrains Mono) for terminal/data/code labels.
+  Theme toggle lives in the Sidebar footer dropdown menu (Sun/Moon icon). Theme preference is
+  persisted in `localStorage` (`meow.theme`), default is `dark`.
+- `src/theme.ts` — shared theme helpers: `applyTheme` (set `data-theme` on `<html>` from
+  localStorage) and `watchTheme` (re-apply on `storage` events). `main.tsx` calls both for EVERY
+  renderer — including the Git viewer and FileViewer popup windows (separate BrowserWindows) — so
+  they inherit the theme from the main window automatically.
 
 ## Conventions
 

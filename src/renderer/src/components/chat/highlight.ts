@@ -1,7 +1,8 @@
 import { bundledLanguagesInfo, createHighlighter, createOnigurumaEngine } from 'shiki'
 import type { BundledLanguage, Highlighter } from 'shiki'
 
-export const HIGHLIGHT_THEME = 'dark-plus'
+export const HIGHLIGHT_THEMES = ['dark-plus', 'light-plus'] as const
+export type HighlightTheme = (typeof HIGHLIGHT_THEMES)[number]
 
 // Extension → canonical bundled language id, resolved once from the static
 // grammar registry (ids + aliases, e.g. ts → typescript, py → python). The
@@ -16,11 +17,12 @@ for (const info of bundledLanguagesInfo) {
 
 let highlighterPromise: Promise<Highlighter> | null = null
 
-// One lazy highlighter shared by every viewer popup: theme + oniguruma engine
-// load once, individual language grammars load on first use via loadLanguage.
+// One lazy highlighter shared by every viewer popup: both themes + oniguruma
+// engine load once, individual language grammars load on first use via
+// loadLanguage.
 function getHighlighter(): Promise<Highlighter> {
   highlighterPromise ??= createHighlighter({
-    themes: [HIGHLIGHT_THEME],
+    themes: [...HIGHLIGHT_THEMES],
     langs: [],
     engine: createOnigurumaEngine(() => import('shiki/wasm'))
   })
@@ -37,6 +39,14 @@ export function isHighlightable(ext: string): boolean {
   return mapExtToLang(ext) !== undefined
 }
 
+export function currentHighlightTheme(): HighlightTheme {
+  try {
+    return document.documentElement.getAttribute('data-theme') === 'light' ? 'light-plus' : 'dark-plus'
+  } catch {
+    return 'dark-plus'
+  }
+}
+
 // Warms the engine + grammar for `ext` so the first real highlight is fast.
 // Called in parallel with the file-content IPC read; without this the popup's
 // first highlight pays engine init (~50ms) + grammar compile (~200ms) after
@@ -45,18 +55,25 @@ export function isHighlightable(ext: string): boolean {
 // the grammar's hot regexes (comments, strings, keywords, functions, numbers).
 // Oniguruma compiles lazily per pattern, so tokenizing '' warms nothing.
 const WARM_SNIPPETS: Record<string, string> = {
-  typescript: `import { a } from 'b'\nexport function f(x: number): number { return x + 1 } // hi\nconst s = "str"`,
-  javascript: `import { a } from 'b'\nexport function f(x) { return x + 1 } // hi\nconst s = "str"`,
-  tsx: `import { useState } from 'react'\nexport function A() { const [n, setN] = useState(0)\nreturn <div onClick={() => setN(n + 1)}>{n}</div> } // hi`,
-  jsx: `import { useState } from 'react'\nexport function A() { const [n, setN] = useState(0)\nreturn <div onClick={() => setN(n + 1)}>{n}</div> } // hi`,
-  python: `import os\ndef f(x: int) -> int:\n    return x + 1  # hi\ns = "str"`,
-  java: `import java.util.*;\npublic class A { int x = 1; // hi\n  public int f(int n) { return n + 1; } }`,
-  vue: `<template><p>{{ msg }}</p></template>\n<script setup>\nconst msg = "hi"\n</script>`,
-  c: `#include <stdio.h>\nint main(void) { int x = 1; // hi\n  printf("hi"); return 0; }`,
-  cpp: `#include <vector>\nint main() { int x = 1; // hi\n  auto v = std::vector<int>{1,2,3}; return 0; }`,
-  css: `.a { color: red; /* hi */ }\n#b { margin: 0 1px; }`,
-  json: `{ "a": 1, "b": [1, 2, 3], "c": "hi" }`,
-  shellscript: `#!/bin/bash\nx=1\necho "hi" # comment\nfor i in 1 2 3; do echo $i; done`
+  typescript: `import { x } from 'y'\nconst s = "warm"\nfunction f(a: number): string { return String(a) } // warm\n`,
+  javascript: `import { x } from 'y'\nconst s = "warm"\nfunction f(a) { return String(a) } // warm\n`,
+  typescriptreact: `import { useState } from 'react'\nfunction C({ a }: { a: number }) { return <div>{a}</div> }\n`,
+  javascriptreact: `import { useState } from 'react'\nfunction C({ a }) { return <div>{a}</div> }\n`,
+  python: `import os\n# warm\ndef f(a: int) -> str:\n    return str(a)\n`,
+  rust: `use std::fs;\n// warm\nfn main() { let s = String::from("warm"); println!("{}", s); }\n`,
+  go: `package main\n// warm\nfunc main() { s := "warm"; println(s) }\n`,
+  json: `{ "warm": true, "n": 42, "s": "str" }\n`,
+  yaml: `warm: true\nlist:\n  - item1\n  - item2\n`,
+  toml: `warm = true\n[section]\nkey = "value"\n`,
+  markdown: `# Warm\n\nSome **bold** text and \`code\`.\n`,
+  css: `/* warm */\n.a { color: red; padding: 4px; }\n`,
+  scss: `/* warm */\n.a { color: red; padding: 4px; }\n`,
+  html: `<!-- warm -->\n<div class="a">text</div>\n`,
+  xml: `<!-- warm -->\n<root attr="val">text</root>\n`,
+  shell: `#!/bin/bash\n# warm\necho "warm"\n`,
+  bash: `#!/bin/bash\n# warm\necho "warm"\n`,
+  sql: `-- warm\nSELECT * FROM t WHERE id = 1;\n`,
+  dockerfile: `FROM node:20\n# warm\nRUN echo "warm"\n`,
 }
 
 export async function preloadLanguage(ext: string): Promise<void> {
@@ -67,12 +84,15 @@ export async function preloadLanguage(ext: string): Promise<void> {
   // Compile the grammar's hot patterns once so the real highlight is
   // near-instant (~50ms instead of ~200ms).
   const warm = WARM_SNIPPETS[lang] ?? `const x = 1 // warm\nfunction f() { return "s" }`
-  highlighter.codeToHtml(warm, { lang: lang as BundledLanguage, theme: HIGHLIGHT_THEME })
+  for (const theme of HIGHLIGHT_THEMES) {
+    highlighter.codeToHtml(warm, { lang: lang as BundledLanguage, theme })
+  }
 }
 
-// Returns Shiki's highlighted <pre> HTML (VS Code Dark+), or null on any
-// failure — unknown grammar, wasm/grammar load error — so the caller falls
-// back to its own plain-text rendering and the viewer never breaks.
+// Returns Shiki's highlighted <pre> HTML, or null on any failure — unknown
+// grammar, wasm/grammar load error — so the caller falls back to its own
+// plain-text rendering and the viewer never breaks. Theme is selected from
+// the current data-theme attribute (dark-plus / light-plus).
 export async function highlightCode(content: string, ext: string): Promise<string | null> {
   const lang = mapExtToLang(ext)
   if (!lang) return null
@@ -81,7 +101,7 @@ export async function highlightCode(content: string, ext: string): Promise<strin
     await highlighter.loadLanguage(lang as BundledLanguage)
     return highlighter.codeToHtml(content, {
       lang: lang as BundledLanguage,
-      theme: HIGHLIGHT_THEME
+      theme: currentHighlightTheme()
     })
   } catch {
     return null

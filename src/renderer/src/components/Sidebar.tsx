@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Ellipsis, GitBranch, PanelLeft, RefreshCw, Settings, Server } from 'lucide-react'
+import { Ellipsis, GitBranch, Moon, PanelLeft, RefreshCw, Settings, Server, Sun } from 'lucide-react'
 import type { NewAgentInput, Template, WorkspaceSummary } from '@shared/types'
 import AddProjectDialog from './AddProjectDialog'
 import AddAgentDialog from './AddAgentDialog'
+import { applyTheme, type Theme } from '../theme'
 
 function MoreIcon() {
   return <Ellipsis size={14} aria-hidden="true" />
@@ -36,6 +37,12 @@ export default function Sidebar({
   const [footerMenuOpen, setFooterMenuOpen] = useState(false)
   const [footerMenuPos, setFooterMenuPos] = useState<{ x: number; bottom: number } | null>(null)
   const [version, setVersion] = useState('')
+  const [theme, setTheme] = useState<Theme>(() => localStorage.getItem('meow.theme') === 'light' ? 'light' : 'dark')
+
+  useEffect(() => {
+    applyTheme(theme)
+    localStorage.setItem('meow.theme', theme)
+  }, [theme])
 
   useEffect(() => {
     void window.api.getAppVersion().then(setVersion)
@@ -269,6 +276,13 @@ export default function Sidebar({
             >
               <Server size={14} aria-hidden="true" />
               Providers
+            </button>
+            <button
+              className="menu-item"
+              onClick={() => { setTheme(t => t === 'dark' ? 'light' : 'dark') }}
+            >
+              {theme === 'dark' ? <Sun size={14} aria-hidden="true" /> : <Moon size={14} aria-hidden="true" />}
+              {theme === 'dark' ? 'Light mode' : 'Dark mode'}
             </button>
             <div className="sidebar-update-block">
               <span className="sidebar-update-version">v{version || '…'}</span>

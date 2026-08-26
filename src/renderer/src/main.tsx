@@ -6,6 +6,13 @@ import GitViewer from './components/git/GitViewer'
 import '@fontsource-variable/instrument-sans'
 import '@fontsource-variable/bricolage-grotesque'
 import './styles.css'
+import { applyTheme, watchTheme } from './theme'
+
+// Every renderer (main window, Git viewer, FileViewer popup) applies the
+// persisted theme before first paint, and re-applies it when the user toggles
+// the theme in the main window (localStorage syncs across same-origin windows).
+applyTheme()
+watchTheme()
 
 const rootEl = document.getElementById('root')!
 const params = new URLSearchParams(window.location.search)
@@ -17,8 +24,8 @@ if (!window.api) {
   createRoot(rootEl).render(
     <div className="empty-state">
       <p className="subtitle">
-        Preload chưa được nạp (window.api bị thiếu). Đóng mọi cửa sổ Electron cũ đang chạy, sau đó
-        chạy lại <code>npm run dev</code>.
+        Preload is not loaded (window.api is missing). Close any old Electron windows still running,
+        then run <code>npm run dev</code> again.
       </p>
     </div>
   )
