@@ -66,7 +66,7 @@ Alias `@shared` → `src/shared` (configured in electron.vite.config.ts, vitest.
 ## Docs
 
 - `docs/superpowers/specs` — design specs; `docs/superpowers/plans` — implementation plans.
-- `docs/changelog-format.md` — changelog format between versions (reused each release).
+- `docs/changelogs/changelog-format.md` — changelog format between versions (reused each release).
 - Workflow: brainstorm → spec → plan → execute (details in existing docs).
 
 ## AGENTS.md — Documentation Sync Rule
