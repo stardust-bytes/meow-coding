@@ -13,7 +13,8 @@ commands, references, compaction and usage accounting. Orchestrated by `MeowAgen
 | `message.ts` | `toLlmMessages`: converts stored transcript (user/assistant/tool items, incl. image parts) into AI-SDK model messages; `keepFullTurns` exempts the recent tail from `toolOutputMaxChars`; `toToolDefinition` wraps tools. |
 | `config.ts` | Loads `meow.json` + env; `MeowConfig` / `ResolvedAgentConfig`; `loadMeowConfig`, `resolveAgentConfig`, `settingsToConfig`/`configToSettings`, `writeMeowConfig`; defaults (tokens, compaction, notifications, lsp); `resolveOutputTokens` picks the per-answer output budget (catalog limit, hard cap, half-context guard, fallback `maxOutputTokens`). |
 | `session.ts` | `SessionStore`: persists sessions + transcript items to `sessions.json` (normalized once, then cached); `flush()` forces debounced writes; create/list/switch/delete/rename; title inference. |
-| `permission.ts` | Permission rules (allow/ask/deny) + matcher used by `decidePermission`. |
+| `permission.ts` | Permission rules (allow/ask/deny) + matcher used by `decidePermission`; `ToolPermissionContext` + `decide` gate every tool call, and `deriveSubagentContext` narrows the parent's context for a subagent (deny > ask > allow, no prompting in background). |
+| `subagent-roles.ts` | Subagent role discovery: `.meow/agents/*.md` (project) → user dir → built-ins, first-wins by name; frontmatter (`name`, `description`, `tools`, `model`, `deny`, `ask`) can only narrow permissions — there is no `allow` key. |
 | `commands.ts` | Slash commands: built-ins (init/review/sp-*) + user store (`commands.json`) + `resolveCommand`/`expandReferences`-aware templates. |
 | `references.ts` | `expandReferences`: expands `@path` / `@"path with space"` mentions into file contents appended to the prompt. |
 | `snapshot.ts` | `SnapshotStore`: per-turn file snapshots for undo/redo. |

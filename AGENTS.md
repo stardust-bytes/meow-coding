@@ -56,6 +56,9 @@ Alias `@shared` → `src/shared` (configured in electron.vite.config.ts, vitest.
 - Agent exits must be handled: kill the entire process tree (`tree-kill`), no orphan processes.
 - Browser bridge: only bind `127.0.0.1` (do not expose to the network), pairing code required before accepting
   commands; runs on the user's **real** Chrome profile — do not create a separate profile per project.
+- Custom subagent roles live in `.meow/agents/*.md` (project) or `userData/agents/*.md` (user);
+  frontmatter takes `name`, `description`, `tools`, `model`, `deny`, `ask`. There is no `allow` key —
+  a role file can only narrow what the user's own permission rules already grant.
 
 ## Required testing before completion
 
