@@ -96,8 +96,9 @@ export function useChatScroll(): ChatScrollController {
       const pendingId = pendingAnchorIdRef.current
       if (pendingId != null) {
         if (!anchorRect) return
+        const currentScrollTop = feed.scrollTop
         const target = anchorScrollTop({
-          currentScrollTop: feed.scrollTop,
+          currentScrollTop,
           feedTop: feedRect.top,
           rowTop: anchorRect.top,
           scrollHeight: feed.scrollHeight,
@@ -111,8 +112,15 @@ export function useChatScroll(): ChatScrollController {
         // scrollTop when the content shrinks — undoing the anchor. Hold the
         // anchor until the row actually sits at the inset and the turn still
         // fits the viewport; once it grows past the viewport, follow normally.
+        // A target outside the scrollable range means the anchor can never
+        // reach the inset (content too short, or the turn already fills the
+        // viewport) — stop retrying instead of burning frames.
+        const maxScroll = Math.max(0, feed.scrollHeight - feed.clientHeight)
+        const rawTarget = currentScrollTop + anchorTop - CHAT_TURN_TOP_INSET
+        const pinnable = rawTarget >= 0 && rawTarget <= maxScroll
         if (Math.abs(anchorTop - CHAT_TURN_TOP_INSET) > 2
           && turnExtent <= feed.clientHeight - CHAT_TURN_TOP_INSET
+          && pinnable
           && anchorRetriesRef.current < 300) {
           anchorRetriesRef.current += 1
           reconcile()

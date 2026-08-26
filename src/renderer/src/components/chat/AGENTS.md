@@ -9,6 +9,7 @@ pushed from main over IPC (`window.api.onChatEvent`).
 | File | Responsibility |
 |---|---|
 | `ChatPanel.tsx` | Main container: subscribes to chat events, owns feed state (items/todos/queue/pendingPrompt), rAF-batches stream deltas, renders feed + composer + context footer. Memoized. |
+| `useChatScroll.ts` | Feed scroll controller: follow/anchored/manual modes, turn-top anchoring, jump-to-end, jump button. `chat-scroll-geometry.ts` holds the pure geometry helpers. |
 | `ChatInput.tsx` | Composer: textarea (Enter to send), paste/drop image chips (≤4, ≤5MB), `@` file-mention dropdown + chips, edit-queued flow. Memoized. |
 | `parseCommandInput.ts` | `parseCommandInput(raw)` → `{ isCommand, prefix }` for the `/`-command menu. |
 | `SessionBar.tsx` | Session list bar (create/switch/rename/delete sessions). |

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { classifyLlmError, withRetry } from '../../src/main/agent/llm'
+import { classifyLlmError, reduceBudgetForMaxTokensError, withRetry } from '../../src/main/agent/llm'
 import type { LlmStreamPart } from '../../src/main/agent/llm'
 
 function parts(...p: LlmStreamPart[]) {
@@ -50,6 +50,33 @@ describe('classifyLlmError', () => {
 
   it('never retries an abort', () => {
     expect(classifyLlmError({ name: 'AbortError' }).retryable).toBe(false)
+  })
+})
+
+describe('reduceBudgetForMaxTokensError', () => {
+  it('parses the real output limit from a thrown API error', () => {
+    const err = Object.assign(
+      new Error('max_tokens (131072) exceeds model\'s maximum output tokens (65536) for model deepseek-v4-flash'),
+      {
+        statusCode: 400,
+        responseBody: JSON.stringify({
+          error: { message: 'max_tokens (131072) exceeds model\'s maximum output tokens (65536) for model deepseek-v4-flash' }
+        })
+      }
+    )
+    expect(reduceBudgetForMaxTokensError(err)).toBe(65536)
+  })
+
+  it('parses the limit from a formatted error string', () => {
+    expect(reduceBudgetForMaxTokensError(
+      'max_tokens (131072) exceeds model\'s maximum output tokens (65536) for model deepseek-v4-flash'
+    )).toBe(65536)
+  })
+
+  it('returns undefined for unrelated errors', () => {
+    expect(reduceBudgetForMaxTokensError(Object.assign(new Error('bad api key'), { statusCode: 401 }))).toBeUndefined()
+    expect(reduceBudgetForMaxTokensError('boom')).toBeUndefined()
+    expect(reduceBudgetForMaxTokensError(undefined)).toBeUndefined()
   })
 })
 
@@ -145,5 +172,74 @@ describe('withRetry', () => {
 
     const fatal = () => { throw Object.assign(new Error('nope'), { statusCode: 401 }) }
     await expect(collect(withRetry(fatal, { sleep: noSleep }))).rejects.toThrow('nope')
+  })
+
+  it('re-runs with a reduced budget when max_tokens exceeds the model limit', async () => {
+    const budgets: Array<number | undefined> = []
+    let attempts = 0
+    const make = (budget?: number) => {
+      budgets.push(budget)
+      attempts++
+      if (attempts === 1) {
+        throw Object.assign(
+          new Error('max_tokens (131072) exceeds model\'s maximum output tokens (65536) for model deepseek-v4-flash'),
+          {
+            statusCode: 400,
+            responseBody: JSON.stringify({
+              error: { message: 'max_tokens (131072) exceeds model\'s maximum output tokens (65536) for model deepseek-v4-flash' }
+            })
+          }
+        )
+      }
+      return parts({ kind: 'finish' })()
+    }
+    const out = await collect(withRetry(make, { sleep: noSleep, reduceBudget: reduceBudgetForMaxTokensError }))
+    expect(attempts).toBe(2)
+    expect(budgets).toEqual([undefined, 65536])
+    expect(out.map(p => p.kind)).toEqual(['finish'])
+  })
+
+  it('reduces the budget for a non-retryable error part too', async () => {
+    const budgets: Array<number | undefined> = []
+    let attempts = 0
+    const make = (budget?: number) => {
+      budgets.push(budget)
+      attempts++
+      return attempts === 1
+        ? parts({ kind: 'error', error: 'max_tokens (131072) exceeds model\'s maximum output tokens (65536) for model deepseek-v4-flash', retryable: false })()
+        : parts({ kind: 'finish' })()
+    }
+    const out = await collect(withRetry(make, { sleep: noSleep, reduceBudget: reduceBudgetForMaxTokensError }))
+    expect(attempts).toBe(2)
+    expect(budgets).toEqual([undefined, 65536])
+    expect(out.map(p => p.kind)).toEqual(['finish'])
+  })
+
+  it('does not reduce the budget for other non-retryable errors', async () => {
+    let attempts = 0
+    const make = () => {
+      attempts++
+      throw Object.assign(new Error('bad api key'), { statusCode: 401 })
+    }
+    await expect(collect(withRetry(make, { sleep: noSleep, reduceBudget: reduceBudgetForMaxTokensError }))).rejects.toThrow('bad api key')
+    expect(attempts).toBe(1)
+  })
+
+  it('gives up when the reduced budget still exceeds the model limit', async () => {
+    let attempts = 0
+    const make = (budget?: number) => {
+      attempts++
+      // The error always names the same limit, so the budget never shrinks
+      // below it and the retry must stop rather than loop forever.
+      throw Object.assign(
+        new Error('max_tokens (65536) exceeds model\'s maximum output tokens (65536) for model deepseek-v4-flash'),
+        { statusCode: 400 }
+      )
+    }
+    await expect(collect(withRetry(make, { sleep: noSleep, maxAttempts: 3, reduceBudget: reduceBudgetForMaxTokensError })))
+      .rejects.toThrow('max_tokens')
+    // First attempt reduces the budget to 65536; the second sees no further
+    // reduction possible and rethrows.
+    expect(attempts).toBe(2)
   })
 })

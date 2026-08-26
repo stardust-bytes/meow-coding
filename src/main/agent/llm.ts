@@ -244,9 +244,28 @@ export function createLlm(provider: string, apiKey: string, baseUrl?: string, re
 
   return {
     stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
-      return withRetry(() => rawStream(opts), { ...retry, signal: opts.signal })
+      return withRetry(
+        (budget) => rawStream(budget === undefined ? opts : { ...opts, maxOutputTokens: budget }),
+        { ...retry, signal: opts.signal, reduceBudget: reduceBudgetForMaxTokensError }
+      )
     }
   }
+}
+
+// Providers reject max_tokens when the catalog overstates the model's real
+// output limit (e.g. deepseek-v4-flash lists 1M output but the API caps at
+// 64k). The rejection names the real limit; parse it so the retry can send a
+// budget the model actually accepts.
+const MAX_TOKENS_EXCEEDS_RE = /max_tokens\s*\(\d+\)\s*exceeds\s+model's\s+maximum\s+output\s+tokens\s*\((\d+)\)/i
+
+export function reduceBudgetForMaxTokensError(err: unknown): number | undefined {
+  const text = typeof err === 'string'
+    ? err
+    : (err && typeof err === 'object'
+      ? ((err as { responseBody?: string }).responseBody ?? (err as { message?: string }).message ?? '')
+      : '')
+  const m = MAX_TOKENS_EXCEEDS_RE.exec(text)
+  return m ? Number(m[1]) : undefined
 }
 
 // Statuses where the identical request can succeed on a later attempt. 4xx
@@ -309,20 +328,26 @@ const DEFAULT_BASE_DELAY_MS = 1000
  * only retries the initial request, not a failure mid-stream. Once any part has
  * been yielded the attempt is not repeated — replaying would duplicate text the
  * caller already consumed — so the error is surfaced instead.
+ *
+ * A non-retryable rejection can still be recoverable: when the catalog
+ * overstates a model's real output limit, the provider rejects max_tokens
+ * with a 400. `reduceBudget` reads the real limit from the error and the
+ * stream is re-run with a smaller budget instead of failing the whole turn.
  */
 export async function* withRetry(
-  makeStream: () => AsyncGenerator<LlmStreamPart>,
-  opts: RetryOptions = {}
+  makeStream: (budget?: number) => AsyncGenerator<LlmStreamPart>,
+  opts: RetryOptions & { reduceBudget?: (err: unknown) => number | undefined } = {}
 ): AsyncGenerator<LlmStreamPart> {
   const maxAttempts = opts.maxAttempts ?? DEFAULT_MAX_ATTEMPTS
   const baseDelayMs = opts.baseDelayMs ?? DEFAULT_BASE_DELAY_MS
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>(r => setTimeout(r, ms)))
 
+  let budget: number | undefined
   for (let attempt = 1; ; attempt++) {
     let emitted = false
     let failure: LlmStreamPart | undefined
     try {
-      for await (const part of makeStream()) {
+      for await (const part of makeStream(budget)) {
         if (part.kind === 'error' && !emitted) {
           failure = part
           break
@@ -333,16 +358,33 @@ export async function* withRetry(
     } catch (err) {
       if (emitted) throw err
       const { retryable, retryAfterMs: after } = classifyLlmError(err)
-      if (!canRetry(retryable, attempt, maxAttempts, opts.signal)) throw err
-      await sleep(after ?? backoff(baseDelayMs, attempt))
-      continue
+      if (retryable) {
+        if (!canRetry(retryable, attempt, maxAttempts, opts.signal)) throw err
+        await sleep(after ?? backoff(baseDelayMs, attempt))
+        continue
+      }
+      const reduced = opts.reduceBudget?.(err)
+      if (reduced !== undefined && reduced < (budget ?? Number.POSITIVE_INFINITY)) {
+        if (!canRetry(true, attempt, maxAttempts, opts.signal)) throw err
+        budget = reduced
+        continue
+      }
+      throw err
     }
     if (!failure) return
-    if (!canRetry(failure.retryable === true, attempt, maxAttempts, opts.signal)) {
-      yield failure
-      return
+    if (failure.retryable === true) {
+      if (!canRetry(true, attempt, maxAttempts, opts.signal)) { yield failure; return }
+      await sleep(failure.retryAfterMs ?? backoff(baseDelayMs, attempt))
+      continue
     }
-    await sleep(failure.retryAfterMs ?? backoff(baseDelayMs, attempt))
+    const reduced = opts.reduceBudget?.(failure.error)
+    if (reduced !== undefined && reduced < (budget ?? Number.POSITIVE_INFINITY)) {
+      if (!canRetry(true, attempt, maxAttempts, opts.signal)) { yield failure; return }
+      budget = reduced
+      continue
+    }
+    yield failure
+    return
   }
 }
 
