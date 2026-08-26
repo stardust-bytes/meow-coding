@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { decide, decidePermission, PLAN_RULES } from '../../src/main/agent/permission'
-import type { ToolPermissionContext } from '../../src/main/agent/permission'
+import { decide, decidePermission, deriveSubagentContext, PLAN_RULES } from '../../src/main/agent/permission'
+import type { SubagentRole, ToolPermissionContext } from '../../src/main/agent/permission'
 import { DEFAULT_MEOW_CONFIG } from '../../src/main/agent/config'
 import type { PermissionRule } from '../../src/main/agent/config'
 
@@ -146,5 +146,60 @@ describe('decide with a permission context', () => {
 
   it('denies a write-style bash command in plan mode', () => {
     expect(decide(ctx({ mode: 'plan' }), 'bash', { command: 'sed -i s/a/b/ f.txt' })).toBe('deny')
+  })
+})
+
+function role(over: Partial<SubagentRole> = {}): SubagentRole {
+  return { name: 'r', description: '', system: '', tools: [], rules: {}, ...over }
+}
+
+describe('deriveSubagentContext', () => {
+  it('cannot widen: a role asking for allow keeps the parent ask', () => {
+    const child = deriveSubagentContext(
+      ctx({ rules: { bash: 'ask' } }),
+      role({ rules: { bash: 'allow' } }),
+      { background: false }
+    )
+    expect(child.rules.bash).toBe('ask')
+  })
+
+  it('cannot widen: a role asking for allow keeps the parent deny', () => {
+    const child = deriveSubagentContext(
+      ctx({ rules: { git: 'deny' } }),
+      role({ rules: { git: 'allow' } }),
+      { background: false }
+    )
+    expect(child.rules.git).toBe('deny')
+  })
+
+  it('tightens: a role denying a tool the parent allows', () => {
+    const child = deriveSubagentContext(
+      ctx({ rules: { git: 'allow' } }),
+      role({ rules: { git: 'deny' } }),
+      { background: false }
+    )
+    expect(child.rules.git).toBe('deny')
+  })
+
+  it('tightens a tool the parent has no rule for', () => {
+    const child = deriveSubagentContext(ctx(), role({ rules: { office: 'deny' } }), { background: false })
+    expect(child.rules.office).toBe('deny')
+  })
+
+  it('inherits mode and saved allowances untouched', () => {
+    const parent = ctx({ mode: 'plan', isSavedAllow: (t) => t === 'read' })
+    const child = deriveSubagentContext(parent, role(), { background: false })
+    expect(child.mode).toBe('plan')
+    expect(child.isSavedAllow('read')).toBe(true)
+  })
+
+  it('turns off prompting for a background subagent', () => {
+    expect(deriveSubagentContext(ctx(), role(), { background: true }).canPrompt).toBe(false)
+    expect(deriveSubagentContext(ctx(), role(), { background: false }).canPrompt).toBe(true)
+  })
+
+  it('never gains a prompt channel the parent lacks', () => {
+    const child = deriveSubagentContext(ctx({ canPrompt: false }), role(), { background: false })
+    expect(child.canPrompt).toBe(false)
   })
 })

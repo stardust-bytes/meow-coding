@@ -85,6 +85,36 @@ export function decide(
   return decision
 }
 
+export interface SubagentRole {
+  name: string
+  description: string
+  system: string
+  tools: string[]
+  rules: Record<string, PermissionRule>
+  model?: { provider: string; model: string }
+}
+
+const STRICTNESS: Record<PermissionRule, number> = { allow: 0, ask: 1, deny: 2 }
+
+export function deriveSubagentContext(
+  parent: ToolPermissionContext,
+  role: SubagentRole,
+  opts: { background: boolean }
+): ToolPermissionContext {
+  const rules: Record<string, PermissionRule> = { ...parent.rules }
+  for (const [tool, rule] of Object.entries(role.rules)) {
+    const current = rules[tool]
+    // A role may only tighten: whichever side is stricter wins.
+    if (current === undefined || STRICTNESS[rule] > STRICTNESS[current]) rules[tool] = rule
+  }
+  return {
+    mode: parent.mode,
+    rules,
+    isSavedAllow: parent.isSavedAllow,
+    canPrompt: parent.canPrompt && !opts.background
+  }
+}
+
 export function decidePermission(
   mode: AgentMode,
   configRules: Record<string, PermissionRule>,
