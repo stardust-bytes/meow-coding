@@ -53,7 +53,10 @@ import { LearnedLimitsStore, normalizeLearnedKey } from '../../src/main/agent/le
 import type { LearnedLimitEntry } from '../../src/main/agent/learned-limits'
 import type { JsonStore } from '../../src/main/json-store'
 
-function store(initial: LearnedLimitEntry[] = []) {
+// Lưu ý: tên hàm phải là `makeStore`, không được là `store` — dùng `const { store } = store([...])`
+// trong cùng block scope khiến RHS `store([...])` trỏ vào binding `const store` (TDZ) → ReferenceError
+// bất kể implementation thế nào. Đã phát hiện khi thực thi Task 1 (Ruling 2 trong ledger).
+function makeStore(initial: LearnedLimitEntry[] = []) {
   const data: LearnedLimitEntry[] = [...initial]
   const json: JsonStore<LearnedLimitEntry> = {
     load: () => data,
