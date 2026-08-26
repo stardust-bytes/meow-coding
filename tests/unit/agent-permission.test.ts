@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { decidePermission, PLAN_RULES } from '../../src/main/agent/permission'
+import { decide, decidePermission, PLAN_RULES } from '../../src/main/agent/permission'
+import type { ToolPermissionContext } from '../../src/main/agent/permission'
 import { DEFAULT_MEOW_CONFIG } from '../../src/main/agent/config'
 import type { PermissionRule } from '../../src/main/agent/config'
 
@@ -115,5 +116,35 @@ describe('plan mode bash write guard', () => {
 
   it('is inert in build mode', () => {
     expect(decidePermission('build', {}, noSaved, 'bash', { command: "echo 'x' > f.txt" })).toBe('ask')
+  })
+})
+
+function ctx(over: Partial<ToolPermissionContext> = {}): ToolPermissionContext {
+  return { mode: 'build', rules: {}, isSavedAllow: () => false, canPrompt: true, ...over }
+}
+
+describe('decide with a permission context', () => {
+  it('asks when a prompt channel exists', () => {
+    expect(decide(ctx({ rules: { bash: 'ask' } }), 'bash', { command: 'ls' })).toBe('ask')
+  })
+
+  it('denies instead of asking when there is no way to prompt', () => {
+    expect(decide(ctx({ rules: { bash: 'ask' }, canPrompt: false }), 'bash', { command: 'ls' })).toBe('deny')
+  })
+
+  it('denies an unlisted tool with no prompt channel', () => {
+    expect(decide(ctx({ canPrompt: false }), 'office')).toBe('deny')
+  })
+
+  it('still allows what the rules allow without a prompt channel', () => {
+    expect(decide(ctx({ rules: { read: 'allow' }, canPrompt: false }), 'read')).toBe('allow')
+  })
+
+  it('keeps deny winning over a saved always-allow', () => {
+    expect(decide(ctx({ rules: { git: 'deny' }, isSavedAllow: () => true }), 'git')).toBe('deny')
+  })
+
+  it('denies a write-style bash command in plan mode', () => {
+    expect(decide(ctx({ mode: 'plan' }), 'bash', { command: 'sed -i s/a/b/ f.txt' })).toBe('deny')
   })
 })

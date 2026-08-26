@@ -48,6 +48,43 @@ function anyRule(rules: Record<string, PermissionRule>, toolName: string, effect
   return Object.keys(rules).some(p => matchPattern(p, toolName) && rules[p] === effect)
 }
 
+export interface ToolPermissionContext {
+  mode: AgentMode
+  rules: Record<string, PermissionRule>
+  isSavedAllow: (toolName: string) => boolean
+  canPrompt: boolean
+}
+
+function decideRaw(
+  ctx: ToolPermissionContext,
+  toolName: string,
+  input?: Record<string, unknown>
+): PermissionDecision {
+  // Plan mode is read-only: a write-style bash command is denied, not asked.
+  if (ctx.mode === 'plan' && toolName === 'bash') {
+    const command = typeof input?.command === 'string' ? input.command : ''
+    if (command && isWriteBashCommand(command)) return 'deny'
+  }
+  const combined = { ...ctx.rules, ...rulesForMode(ctx.mode) }
+  if (anyRule(combined, toolName, 'deny')) return 'deny'
+  // Plan mode is read-only: a saved always-allow (e.g. bash from build mode)
+  // must not silently bypass the plan-mode ask guard.
+  if (ctx.mode !== 'plan' && ctx.isSavedAllow(toolName)) return 'allow'
+  if (anyRule(combined, toolName, 'allow')) return 'allow'
+  return 'ask'
+}
+
+export function decide(
+  ctx: ToolPermissionContext,
+  toolName: string,
+  input?: Record<string, unknown>
+): PermissionDecision {
+  const decision = decideRaw(ctx, toolName, input)
+  // No channel to ask through is not the same as permission to proceed.
+  if (decision === 'ask' && !ctx.canPrompt) return 'deny'
+  return decision
+}
+
 export function decidePermission(
   mode: AgentMode,
   configRules: Record<string, PermissionRule>,
@@ -55,16 +92,5 @@ export function decidePermission(
   toolName: string,
   input?: Record<string, unknown>
 ): PermissionDecision {
-  // Plan mode is read-only: a write-style bash command is denied, not asked.
-  if (mode === 'plan' && toolName === 'bash') {
-    const command = typeof input?.command === 'string' ? input.command : ''
-    if (command && isWriteBashCommand(command)) return 'deny'
-  }
-  const combined = { ...configRules, ...rulesForMode(mode) }
-  if (anyRule(combined, toolName, 'deny')) return 'deny'
-  // Plan mode is read-only: a saved always-allow (e.g. bash from build mode)
-  // must not silently bypass the plan-mode ask guard.
-  if (mode !== 'plan' && isSavedAllow(toolName)) return 'allow'
-  if (anyRule(combined, toolName, 'allow')) return 'allow'
-  return 'ask'
+  return decide({ mode, rules: configRules, isSavedAllow, canPrompt: true }, toolName, input)
 }
