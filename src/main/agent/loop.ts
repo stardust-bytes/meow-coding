@@ -11,6 +11,8 @@ import { selectHeadTail, serializeItems, buildCompactionPrompt, compactTranscrip
 import { instructionFilesForFile } from './instructions'
 import type { CompactionSettings } from './compact'
 import { estimateUsage } from './token'
+import { DEFAULT_MAX_CONTEXT_TOKENS } from './config'
+import { classifyContextOverflowError } from './limits'
 import type { TruncationStore } from './truncation'
 import type { SnapshotStore } from './snapshot'
 
@@ -40,6 +42,14 @@ export interface LoopDeps {
    * then be rejected once the model started writing its answer.
    */
   maxOutputTokens?: number
+  /**
+   * Giá trị đã xác minh gửi provider làm `max_tokens`; undefined = omit hẳn
+   * (provider tự chọn) — không thể lỗi `max_tokens exceeds`. Khác `maxOutputTokens`
+   * (reserve, chỉ cho compaction/footer).
+   */
+  maxOutputTokensWire?: number
+  /** Provider reject context overflow — ghi trần context học được. */
+  onContextOverflow?: (promptTokens: number, message?: string) => void
   compaction?: CompactionSettings
   toolOutput?: { maxBytes: number; maxLines: number }
   truncation?: TruncationStore
@@ -69,6 +79,9 @@ const MAX_STEPS_PROMPT = 'Final step: wrap up and provide your final answer now.
 export class SessionRunner {
   private readonly maxSteps: number
   private compactedThisRun = 0
+  // Số lần đã tự sửa reject context-overflow trong một run — cùng giới hạn với
+  // compact để một prompt thật sự vượt trần emit lỗi thay vì loop.
+  private rejectRetriesThisRun = 0
   // Provider-reported usage of the last LLM call; overflow detection trusts it
   // over the transcript char estimate because it includes the system prompt and
   // tool definitions (see maybeCompact).
@@ -86,6 +99,7 @@ export class SessionRunner {
     const system = typeof this.deps.system === 'function' ? this.deps.system() : this.deps.system
     let steps = 0
     this.compactedThisRun = 0
+    this.rejectRetriesThisRun = 0
     const runUsage = { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0 }
     while (true) {
       if (signal?.aborted) {
@@ -134,6 +148,7 @@ export class SessionRunner {
           createdAt: Date.now()
         })
       }
+      let recover = false
       try {
         const stream = this.deps.llm.stream({
           model: this.deps.model,
@@ -141,7 +156,7 @@ export class SessionRunner {
           messages: llmMessages,
           tools: isLastStep ? [] : this.visibleToolDefs(),
           signal,
-          maxOutputTokens: this.deps.maxOutputTokens,
+          maxOutputTokens: this.deps.maxOutputTokensWire,
           variantOptions: this.deps.variantOptions
         })
         for await (const part of stream) {
@@ -185,20 +200,35 @@ export class SessionRunner {
               this.deps.onUsage?.(part.tokens)
             }
           } else if (part.kind === 'error') {
+            // Thử tự sửa trước; persistPartial chỉ khi không recover — retry
+            // dựng lại transcript từ đầu, persist trước sẽ nhân đôi text.
+            if (await this.tryRecoverFromReject(llmMessages, part.error, signal)) {
+              steps--
+              recover = true
+              break
+            }
             persistPartial()
             this.deps.onEvent({ type: 'error', agentId, message: part.error ?? 'llm error' })
             return
           }
         }
       } catch (err) {
+        const message = formatLlmError(err)
+        if (await this.tryRecoverFromReject(llmMessages, message, signal)) {
+          steps--
+          continue
+        }
         persistPartial()
         if (signal?.aborted) {
           this.deps.onEvent({ type: 'done', agentId, reason: 'stopped' })
         } else {
-          this.deps.onEvent({ type: 'error', agentId, message: formatLlmError(err) })
+          this.deps.onEvent({ type: 'error', agentId, message })
         }
         return
       }
+      // Recover thành công ở error-part → retry step (đã steps--). Nếu signal
+      // aborted giữa chừng, vòng while kiểm tra lại ở đầu và emit 'stopped'.
+      if (recover) continue
 
       if (signal?.aborted) {
         persistPartial()
@@ -364,9 +394,42 @@ export class SessionRunner {
       if (estimateUsage(toLlmMessages(items, opts)) < usable) return
     }
 
-    // Every path out of here that leaves the context over the limit ends in a
-    // provider 400 that kills the turn, so each one falls back to a hard shrink
-    // that needs no LLM call.
+    // Phần thân compaction thật, dùng chung cho cả ngưỡng lẫn force-compact.
+    await this.compact(signal)
+  }
+
+  /**
+   * Compact không kiểm tra threshold — provider vừa báo context đã vượt trần
+   * thật. Vẫn giữ các fallback (head rỗng / summary fail → hardTruncate) để
+   * retry luôn có transcript nhỏ hơn. No-op khi không thể làm gì.
+   */
+  private async forceCompact(signal?: AbortSignal): Promise<void> {
+    const { compaction, replaceItems } = this.deps
+    if (!compaction?.auto || !replaceItems) return
+    const usable = usableContextTokens(
+      this.deps.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
+      compaction.buffer,
+      this.deps.maxOutputTokens
+    )
+    if (usable <= 0) return
+    const items = this.deps.getItems()
+    const pruned = pruneToolOutputs(items, compaction, this.deps.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS)
+    if (pruned) replaceItems(items)
+    await this.compact(signal)
+  }
+
+  // Phần thân compaction thật, dùng chung cho cả ngưỡng lẫn force-compact.
+  private async compact(signal?: AbortSignal): Promise<void> {
+    const { compaction, replaceItems } = this.deps
+    if (!compaction?.auto || !replaceItems) return
+    const usable = usableContextTokens(
+      this.deps.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
+      compaction.buffer,
+      this.deps.maxOutputTokens
+    )
+    if (usable <= 0) return
+    const items = this.deps.getItems()
+    const opts = this.toLlmOpts()
     const measure = (its: TranscriptItem[]) => estimateUsage(toLlmMessages(its, opts))
     const shrink = () => {
       const truncated = hardTruncate(items, usable, measure)
@@ -379,26 +442,18 @@ export class SessionRunner {
       return
     }
     const previousSummary = this.findPreviousSummary(items)
-    // The head can be bigger than the window it is summarized into; trimming it
-    // here is what keeps the compaction call itself from being rejected.
     const summarizable = fitHeadToBudget(head, usable, compaction.toolOutputMaxChars)
     const prompt = buildCompactionPrompt(previousSummary, serializeItems(summarizable, compaction.toolOutputMaxChars))
-    // Let the UI show a "compacting…" line before the (possibly slow) summary
-    // call, instead of only learning about it after the fact.
     this.deps.onEvent({ type: 'compaction-start', agentId: this.deps.agentId })
     const summary = await compactTranscript({ llm: this.deps.llm, model: this.deps.model, prompt, signal })
     if (signal?.aborted) return
     if (!summary) {
-      // Surface silent failures: a failed compaction LLM call must not leave
-      // the user stuck at an over-limit context with no feedback.
       this.deps.onEvent({ type: 'compaction-failed', agentId: this.deps.agentId })
       shrink()
       return
     }
     this.compactedThisRun++
 
-    // Render the compaction like opencode: a user marker followed by the summary
-    // as an assistant message, then the verbatim recent tail.
     const now = Date.now()
     const markerItem: TranscriptItem = {
       kind: 'message',
@@ -410,6 +465,27 @@ export class SessionRunner {
     }
     replaceItems([markerItem, summaryItem, ...tail])
     this.deps.onEvent({ type: 'compacted', agentId: this.deps.agentId, summary })
+  }
+
+  /**
+   * Một reject của provider có thể tự sửa thay vì giết cả turn:
+   * context overflow → force-compact transcript rồi retry step. Chặn bởi
+   * MAX_COMPACT_PER_RUN để prompt thật sự quá trần emit lỗi. Caller quản lý
+   * `steps--` trước `continue` để retry không tốn step.
+   */
+  private async tryRecoverFromReject(
+    llmMessages: ReturnType<typeof toLlmMessages>,
+    message: string | undefined,
+    signal?: AbortSignal
+  ): Promise<boolean> {
+    if (signal?.aborted) return false
+    if (this.rejectRetriesThisRun >= MAX_COMPACT_PER_RUN) return false
+    if (!classifyContextOverflowError(message)) return false
+    this.rejectRetriesThisRun++
+    // Trần context thật ≤ cỡ prompt bị reject (hoặc con số provider đích danh).
+    this.deps.onContextOverflow?.(estimateUsage(llmMessages), message)
+    await this.forceCompact(signal)
+    return true
   }
 
   // Prompt-building options shared by buildMessages and the overflow estimate,

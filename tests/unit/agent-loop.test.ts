@@ -890,12 +890,114 @@ describe('SessionRunner output reserve', () => {
     expect(replaced.length).toBeGreaterThan(0)
   })
 
-  it('asks the model for no more output than the reserved budget', async () => {
-    const h = makeHarness({ maxOutputTokens: 4096 })
+  it('asks the model for no more output than the verified wire budget', async () => {
+    const h = makeHarness({ maxOutputTokensWire: 4096 })
     h.llm.queue = [textParts('ok')]
     h.runner.run()
     await new Promise(r => setTimeout(r, 20))
     expect(h.llm.calls[0].maxOutputTokens).toBe(4096)
+  })
+})
+
+describe('SessionRunner compact-on-reject', () => {
+  const OVERFLOW = 'prompt is too long: 19000 tokens > 16000 maximum'
+
+  // getItems/replaceItems phải cùng một array để sau compaction, retry đọc
+  // transcript đã thu gọn chứ không phải bản gốc (giống store thật).
+  function makeOverflowHarness(overrides: Partial<LoopDeps> = {}) {
+    const replaced: TranscriptItem[][] = []
+    let items: TranscriptItem[] = []
+    const h = makeHarness({
+      maxContextTokens: 1000,
+      compaction: { auto: true, buffer: 100, keepTokens: 100, tailTurns: 1, toolOutputMaxChars: 2000, prune: true },
+      maxSteps: 3,
+      getItems: () => items,
+      replaceItems: (next) => { replaced.push(next); items = next },
+      ...overrides
+    })
+    const seed = () => {
+      // Ít nhất 2 lượt user để head không rỗng (selectHeadTail giữ tailTurns=1
+      // làm tail) — head rỗng sẽ rơi vào shrink(), không chạy compactTranscript.
+      items.push(
+        { kind: 'message', message: { id: 'u1', role: 'user', text: 'first', createdAt: 1 } },
+        { kind: 'message', message: { id: 'a1', role: 'assistant', text: 'reply', createdAt: 1 } },
+        { kind: 'message', message: { id: 'u2', role: 'user', text: 'second', createdAt: 2 } },
+        { kind: 'message', message: { id: 'a2', role: 'assistant', text: 'work', createdAt: 2 } },
+        { kind: 'message', message: { id: 'u3', role: 'user', text: 'latest', createdAt: 3 } }
+      )
+    }
+    return { ...h, replaced, seed }
+  }
+
+  it('force-compacts and retries when the provider rejects with a context overflow', async () => {
+    const overflow: Array<{ promptTokens: number; message: string }> = []
+    // Có tools để calls[2].tools.length > 0 phân biệt retry call với compaction
+    // call (compactTranscript luôn truyền tools: []).
+    const h = makeOverflowHarness({
+      onContextOverflow: (promptTokens, message) => overflow.push({ promptTokens, message }),
+      tools: new Map([['read', stubTool('read')]])
+    })
+    h.seed()
+    h.llm.queue = [
+      [{ kind: 'error', error: OVERFLOW, retryable: false }],
+      textParts('summary'),
+      textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    expect(h.replaced.length).toBeGreaterThan(0)
+    expect(overflow).toHaveLength(1)
+    expect(overflow[0].message).toBe(OVERFLOW)
+    expect(overflow[0].promptTokens).toBeGreaterThan(0)
+    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }> | undefined
+    expect(done).toBeDefined()
+    expect(done?.reason).toBe('complete')
+    // Lần gọi thứ 3 là retry của step 1 — vẫn còn tools (không phải step chết cuối).
+    expect(h.llm.calls[2]?.tools.length).toBeGreaterThan(0)
+  })
+
+  it('stops after MAX_COMPACT_PER_RUN recoveries and surfaces the real error', async () => {
+    const h = makeOverflowHarness()
+    h.seed()
+    // Chỉ lần recover 1 chạy LLM compaction (queue: summary1). Lần recover 2
+    // gặp head rỗng — marker+summary bị stripCompactionPairs bỏ khỏi head —
+    // nên compact() rơi vào shrink(), không tốn LLM call. Vì vậy lần reject thứ 3
+    // chính là stream call kế tiếp và chạm cap → emit lỗi thật.
+    h.llm.queue = [
+      [{ kind: 'error', error: OVERFLOW, retryable: false }],
+      textParts('summary1'),
+      [{ kind: 'error', error: OVERFLOW, retryable: false }],
+      [{ kind: 'error', error: OVERFLOW, retryable: false }]
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    const error = h.events.find(e => e.type === 'error') as Extract<ChatEvent, { type: 'error' }> | undefined
+    expect(error).toBeDefined()
+    expect(error?.message).toContain(OVERFLOW)
+  })
+
+  it('does not burn a step on the retry after a compact', async () => {
+    const h = makeOverflowHarness({
+      maxSteps: 2,
+      tools: new Map([['read', stubTool('read')]])
+    })
+    h.seed()
+    h.llm.queue = [
+      [{ kind: 'error', error: OVERFLOW, retryable: false }],
+      textParts('summary'),
+      [
+        { kind: 'tool-call', toolCallId: 'tc1', toolName: 'read', toolInput: { file_path: 'a.ts' } },
+        { kind: 'finish' }
+      ],
+      textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    // Retry vẫn là step 1 (steps-- khôi phục) nên vẫn có tools và tool chạy được.
+    expect(h.llm.calls[2]?.tools.length).toBeGreaterThan(0)
+    expect(h.appended.tools).toBe(1)
+    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }> | undefined
+    expect(done?.reason).toBe('complete')
   })
 })
 
