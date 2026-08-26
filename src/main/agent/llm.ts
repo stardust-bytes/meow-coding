@@ -317,6 +317,8 @@ export interface RetryOptions {
   baseDelayMs?: number
   signal?: AbortSignal
   sleep?: (ms: number) => Promise<void>
+  /** Provider đã đích danh output cap thật khi reject max_tokens — ghi lại để turn sau khỏi lỗi lại. */
+  onReducedBudget?: (realLimit: number) => void
 }
 
 const DEFAULT_MAX_ATTEMPTS = 3
@@ -367,6 +369,7 @@ export async function* withRetry(
       if (reduced !== undefined && reduced < (budget ?? Number.POSITIVE_INFINITY)) {
         if (!canRetry(true, attempt, maxAttempts, opts.signal)) throw err
         budget = reduced
+        opts.onReducedBudget?.(reduced)
         continue
       }
       throw err
@@ -381,6 +384,7 @@ export async function* withRetry(
     if (reduced !== undefined && reduced < (budget ?? Number.POSITIVE_INFINITY)) {
       if (!canRetry(true, attempt, maxAttempts, opts.signal)) { yield failure; return }
       budget = reduced
+      opts.onReducedBudget?.(reduced)
       continue
     }
     yield failure

@@ -242,4 +242,53 @@ describe('withRetry', () => {
     // reduction possible and rethrows.
     expect(attempts).toBe(2)
   })
+
+  it('fires onReducedBudget when a max_tokens rejection is parsed (thrown branch)', async () => {
+    const realLimits: number[] = []
+    let attempts = 0
+    const make = (budget?: number) => {
+      attempts++
+      if (attempts === 1) {
+        throw Object.assign(
+          new Error('max_tokens (131072) exceeds model\'s maximum output tokens (65536) for model deepseek-v4-flash'),
+          { statusCode: 400 }
+        )
+      }
+      return parts({ kind: 'finish' })()
+    }
+    await collect(withRetry(make, {
+      sleep: noSleep,
+      reduceBudget: reduceBudgetForMaxTokensError,
+      onReducedBudget: (n) => realLimits.push(n)
+    }))
+    expect(realLimits).toEqual([65536])
+  })
+
+  it('fires onReducedBudget from the error-part branch too', async () => {
+    const realLimits: number[] = []
+    let attempts = 0
+    const make = () => {
+      attempts++
+      return attempts === 1
+        ? parts({ kind: 'error', error: 'max_tokens (131072) exceeds model\'s maximum output tokens (65536) for model deepseek-v4-flash', retryable: false })()
+        : parts({ kind: 'finish' })()
+    }
+    await collect(withRetry(make, {
+      sleep: noSleep,
+      reduceBudget: reduceBudgetForMaxTokensError,
+      onReducedBudget: (n) => realLimits.push(n)
+    }))
+    expect(realLimits).toEqual([65536])
+  })
+
+  it('does not fire onReducedBudget when nothing is parsed', async () => {
+    const realLimits: number[] = []
+    const make = () => { throw Object.assign(new Error('bad api key'), { statusCode: 401 }) }
+    await expect(collect(withRetry(make, {
+      sleep: noSleep,
+      reduceBudget: reduceBudgetForMaxTokensError,
+      onReducedBudget: (n) => realLimits.push(n)
+    }))).rejects.toThrow('bad api key')
+    expect(realLimits).toEqual([])
+  })
 })
