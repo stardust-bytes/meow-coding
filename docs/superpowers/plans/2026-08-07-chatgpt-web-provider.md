@@ -1804,7 +1804,7 @@ git commit -m "feat: add ChatGPT Web settings tab"
 ### Task 14: Manual smoke test + docs
 
 **Files:**
-- Create: `docs/chatgpt-web-smoke-test.md`
+- Create: `docs/testing/chatgpt-web-smoke-test.md`
 
 **Interfaces:**
 - Consumes: the whole feature, end to end.
@@ -1813,7 +1813,7 @@ git commit -m "feat: add ChatGPT Web settings tab"
 - [x] **Step 1: Write the smoke-test doc**
 
 ```markdown
-<!-- docs/chatgpt-web-smoke-test.md -->
+<!-- docs/testing/chatgpt-web-smoke-test.md -->
 # ChatGPT Web Provider — Manual Smoke Test
 
 Automated tests cover every pure function (prompt compiling, response parsing,
@@ -1886,13 +1886,13 @@ Expected: no type errors in either the main or renderer project.
 - [x] **Step 3: Commit**
 
 ```bash
-git add docs/chatgpt-web-smoke-test.md
+git add docs/testing/chatgpt-web-smoke-test.md
 git commit -m "docs: add chatgpt-web manual smoke-test checklist"
 ```
 
 - [x] **Step 4: Walk through the manual smoke test yourself**
 
-Follow `docs/chatgpt-web-smoke-test.md` end to end at least once before considering this feature done. Fix any selector drift or bug found, adding a regression test to the relevant pure-logic module where possible (e.g., if a new dialog phrasing needs matching, add a case to `isChatGptWebRateLimitDialog`'s test in Task 6).
+Follow `docs/testing/chatgpt-web-smoke-test.md` end to end at least once before considering this feature done. Fix any selector drift or bug found, adding a regression test to the relevant pure-logic module where possible (e.g., if a new dialog phrasing needs matching, add a case to `isChatGptWebRateLimitDialog`'s test in Task 6).
 
 
 > **Update 2026-08-07 (persistent profile + Cloudflare fallback):**

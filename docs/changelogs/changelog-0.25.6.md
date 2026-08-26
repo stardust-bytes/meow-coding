@@ -4,7 +4,7 @@
 
 ### Katalon Studio automation via MCP
 - Added builtin `katalon-studio` skill: the native Meow agent can create, edit, run and debug Katalon Studio test scripts (Web UI, API, Mobile) through the local Katalon Studio MCP server.
-- New `docs/katalon-setup.md` — onboarding for new users: install Katalon Studio ≥ 11.1.0, enable the MCP server, add the server in Settings, run a sample flow.
+- New `docs/guides/katalon-setup.md` — onboarding for new users: install Katalon Studio ≥ 11.1.0, enable the MCP server, add the server in Settings, run a sample flow.
 - The skill follows a capture workflow: navigate → take page source → capture objects into the Object Repository → write test case with `findTestObject` → run → fix → re-run.
 
 ## 🐛 Bug Fixes

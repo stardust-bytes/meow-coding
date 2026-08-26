@@ -24,7 +24,7 @@ State the boundary before promising writes:
 1. Katalon Studio is open with the target project loaded, and the MCP server status
    is **Running** (Preferences → Katalon → AI Configuration → Katalon Studio MCP,
    default port `33699`). If the server is not configured yet, point the user at the
-   Katalon setup doc (docs/katalon-setup.md in this repo).
+   Katalon setup doc (docs/guides/katalon-setup.md in this repo).
 2. The MCP server is bound to the user's project. **Each server instance is tied to
    a single project** — switching projects requires restarting the server (GUI mode
    or standalone CLI mode).

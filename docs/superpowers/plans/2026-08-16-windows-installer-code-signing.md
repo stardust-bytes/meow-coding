@@ -235,7 +235,7 @@ git commit -m "build: move electron-builder config to .ts with a Windows signing
 
 **Files:**
 - Modify: `.github/workflows/build.yml`
-- Create: `docs/windows-code-signing.md`
+- Create: `docs/guides/windows-code-signing.md`
 
 **Interfaces:**
 - Consumes: repo secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_TRUSTED_SIGNING_ENDPOINT`, `AZURE_TRUSTED_SIGNING_ACCOUNT_NAME`, `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE` (documented, not created by this task — see Step 4).
@@ -327,7 +327,7 @@ Both new steps are gated on `env.AZURE_CLIENT_ID != ''`, so with no secrets conf
 Run: `node -e "require('js-yaml').load(require('fs').readFileSync('.github/workflows/build.yml', 'utf8')); console.log('YAML OK')"`
 Expected: prints `YAML OK`.
 
-- [ ] **Step 4: Write `docs/windows-code-signing.md`**
+- [ ] **Step 4: Write `docs/guides/windows-code-signing.md`**
 
 ```markdown
 # Windows Code Signing
@@ -395,15 +395,15 @@ verifies the Windows artifacts — no further workflow changes needed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add .github/workflows/build.yml docs/windows-code-signing.md
+git add .github/workflows/build.yml docs/guides/windows-code-signing.md
 git commit -m "ci: sign Windows builds with Azure Trusted Signing when configured"
 ```
 
 ---
 
-## Manual verification (after both tasks, and after the user completes the one-time Azure setup in `docs/windows-code-signing.md`)
+## Manual verification (after both tasks, and after the user completes the one-time Azure setup in `docs/guides/windows-code-signing.md`)
 
 1. Push a `v*` tag to trigger `build.yml`.
 2. In the Actions run, confirm the `windows-latest` leg's "Azure login for Windows code signing" and "Verify Windows code signature" steps both ran and succeeded (not skipped).
 3. Download the released `Meow.Coding.Setup.*.exe`, right-click → Properties → Digital Signatures tab, and confirm a valid signature with a real publisher name is present (not "Unknown publisher").
-4. Run the installer on a clean Windows machine/VM that has never downloaded this app before, and note whether SmartScreen still appears — if it does, that's expected reputation-building behavior (see `docs/windows-code-signing.md`), not a bug in this implementation.
+4. Run the installer on a clean Windows machine/VM that has never downloaded this app before, and note whether SmartScreen still appears — if it does, that's expected reputation-building behavior (see `docs/guides/windows-code-signing.md`), not a bug in this implementation.

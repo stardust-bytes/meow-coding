@@ -433,7 +433,7 @@ remote = new RemoteManager({
 phải phủ — giữ `noEmit` để không sinh output build electron.)
 
 **Tạo `docs/superpowers/plans/2026-08-19-mobile-remote-control` mục mới?** — không; tạo
-`docs/remote-control.md` ngắn: kiến trúc 1 đoạn, cách chạy relay (`server/README.md`), cách bật remote
+`docs/protocols/remote-control.md` ngắn: kiến trúc 1 đoạn, cách chạy relay (`server/README.md`), cách bật remote
 trên desktop, link tới spec + plan.
 
 **Verification cuối (bắt buộc)**:

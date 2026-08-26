@@ -120,7 +120,7 @@ Meow Coding is built on open-source technology and openly credits its design inf
 
 The desktop side is ready: enable **Settings → Remote Control**, point it at a self-hosted
 WebSocket relay (`server/`), and pair with a 6-digit code (TTL ~5 min). The mobile app that
-consumes this protocol is **coming soon** — see `docs/remote-control.md` for the protocol and
+consumes this protocol is **coming soon** — see `docs/protocols/remote-control.md` for the protocol and
 relay setup.
 
 ## Architecture
