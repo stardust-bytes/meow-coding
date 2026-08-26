@@ -1159,11 +1159,12 @@ select.input { width: 100%; }
 .chat-md code {
   background: var(--bg-code); padding: 1px 5px; color: var(--code-text);
   border: 1px solid var(--hairline); border-radius: var(--radius-sm);
-  font-size: var(--fs-md); font-family: var(--font-mono);
+  font-size: 0.88em; font-family: var(--font-mono);
 }
 .chat-md pre {
   background: var(--bg-code); border: 1px solid var(--hairline); border-radius: var(--radius);
   padding: 10px; overflow-x: auto; margin: 6px 0;
+  font-size: 0.88em; line-height: 1.4;
 }
 .chat-md pre code { background: transparent; border: none; padding: 0; }
 .chat-md a { color: var(--accent); }
