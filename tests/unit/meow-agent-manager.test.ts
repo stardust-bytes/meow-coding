@@ -987,7 +987,7 @@ describe('MeowAgentManager', () => {
 
   it('getContextInfo reports the config limit and the auto-compact threshold', async () => {
     const { manager } = await makeManager()
-    const info = manager.getContextInfo('a1')
+    const info = await manager.getContextInfo('a1')
     // config mặc định: maxContextTokens 128000, compaction.auto true, buffer 20000.
     // Ngưỡng còn trừ output reserve (32000) vì phần model sắp viết ra cũng
     // chiếm context — bỏ qua nó thì prompt đầy cửa sổ rồi bị từ chối giữa chừng.
@@ -998,7 +998,7 @@ describe('MeowAgentManager', () => {
 
   it('getContextInfo returns nulls for an unknown agent', async () => {
     const { manager } = await makeManager()
-    expect(manager.getContextInfo('nope')).toEqual({ limit: null, compactThreshold: null, sessionCost: 0 })
+    expect(await manager.getContextInfo('nope')).toEqual({ limit: null, compactThreshold: null, sessionCost: 0 })
   })
 
   it('emits a usage event with the accumulated session cost', async () => {
@@ -1090,10 +1090,14 @@ describe('MeowAgentManager', () => {
         model: 'codex/gpt-5.3-codex', accountId: 'acct-a'
       })
       manager.setModel('codex-1', { provider: 'codex', accountId: 'acct-a', model: 'gpt-5.3-codex' })
+      // register awaits resolveLimits before constructing the llm client, so
+      // the fire-and-forget rebuild lands on the microtask queue.
+      await new Promise(r => setTimeout(r, 0))
       expect(createLlm).toHaveBeenCalledWith(
         'codex',
         'local-account-scoped-key',
-        'http://127.0.0.1:43123/v1'
+        'http://127.0.0.1:43123/v1',
+        expect.objectContaining({ onReducedBudget: expect.any(Function) })
       )
       expect(createLlm.mock.calls.some(c => c[0] === 'codex' && c[1] === 'local-account-scoped-key')).toBe(true)
     } finally {

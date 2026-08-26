@@ -11,8 +11,11 @@ import {
 } from './agent/config'
 import { SessionRunner } from './agent/loop'
 import { usableContextTokens } from './agent/compact'
+import { LimitsService, parseContextLimitFromError } from './agent/limits'
+import { LearnedLimitsStore, normalizeLearnedKey } from './agent/learned-limits'
 import { createLlm } from './agent/llm'
 import type { LlmClient } from './agent/llm'
+import type { RetryOptions } from './agent/llm'
 import { decidePermission } from './agent/permission'
 import type { ToolPermissionContext } from './agent/permission'
 import { collectSubagentRoles } from './agent/subagent-roles'
@@ -52,7 +55,8 @@ export interface MeowAgentManagerDeps {
   trace?: TraceStore
   onTrace?: (e: TraceEvent) => void
   tools: Map<string, ToolDefinition>
-  createLlm?: (provider: string, apiKey: string, baseUrl?: string) => LlmClient
+  createLlm?: (provider: string, apiKey: string, baseUrl?: string, retry?: RetryOptions) => LlmClient
+  learnedLimits?: LearnedLimitsStore
   env?: NodeJS.ProcessEnv
   userSkillsDir?: string
   userAgentsDir?: string
@@ -92,7 +96,8 @@ export class MeowAgentManager {
   private tools: Map<string, ToolDefinition>
   private modes = new Map<string, AgentMode>()
   private mcp = new McpManager()
-  private modelLimits = new Map<string, { context?: number; output?: number }>()
+  private learnedLimits: LearnedLimitsStore
+  private limitsService: LimitsService
   private modelVariants = new Map<string, Record<string, VariantBody>>()
   private redoStacks = new Map<string, Array<{ items: ChatTranscriptItem[]; turn: SnapshotTurn }>>()
   private backgrounds = new Map<string, boolean>()
@@ -114,6 +119,16 @@ export class MeowAgentManager {
   private idleCompactTimer: ReturnType<typeof setInterval> | null = null
 
   constructor(private deps: MeowAgentManagerDeps) {
+    this.learnedLimits = deps.learnedLimits ?? new LearnedLimitsStore({ load: () => [], save: () => {} })
+    this.limitsService = new LimitsService({
+      learned: this.learnedLimits,
+      getCatalogLimit: (providerId, modelId) => this.deps.catalog
+        ? this.deps.catalog.getModelLimit(providerId, modelId)
+        : Promise.resolve(undefined),
+      fetchLiveModels: (baseUrl, apiKey) => this.deps.catalog
+        ? this.deps.catalog.fetchLiveModelsInfo(baseUrl, apiKey)
+        : Promise.resolve(null)
+    })
     this.tools = new Map(deps.tools)
     const cfg = loadMeowConfig(deps.configPath)
     this.deps = { ...deps, notifications: cfg.notifications }
@@ -569,16 +584,20 @@ export class MeowAgentManager {
     }
   }
 
-  getContextInfo(agentId: string): ContextInfo {
+  async getContextInfo(agentId: string): Promise<ContextInfo> {
     const agent = this.agents.get(agentId)
     if (!agent) return { limit: null, compactThreshold: null, sessionCost: 0 }
     const cfg = loadMeowConfig(this.deps.configPath)
     const resolved = this.resolveAgentConfig(cfg, agent.name, agent.model, agent.accountId)
-    const modelLimit = resolved.provider && resolved.model
-      ? this.modelLimits.get(`${resolved.provider}/${resolved.model}`)
-      : undefined
-    const limit = modelLimit?.context ?? cfg.maxContextTokens ?? null
-    const outputTokens = resolveOutputTokens(modelLimit, limit, cfg.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS)
+    const limits = await this.limitsService.resolveLimits({
+      provider: resolved.provider,
+      model: resolved.model,
+      baseUrl: resolved.baseUrl,
+      apiKey: resolved.apiKey ?? '',
+      overrides: { context: cfg.maxContextTokens, output: cfg.maxOutputTokens }
+    })
+    const limit = limits.context
+    const outputTokens = resolveOutputTokens({ output: limits.output ?? undefined }, limit, DEFAULT_MAX_OUTPUT_TOKENS)
     const compactThreshold = cfg.compaction.auto && limit
       ? usableContextTokens(limit, cfg.compaction.buffer, outputTokens)
       : null
@@ -842,8 +861,14 @@ export class MeowAgentManager {
       if (now - lastAttempt < 60_000) continue
       const resolved = this.resolved.get(agentId)
       if (!resolved?.provider || !resolved.model) continue
-      const modelLimit = this.modelLimits.get(`${resolved.provider}/${resolved.model}`)
-      const limit = modelLimit?.context ?? cfg.maxContextTokens ?? null
+      const limits = await this.limitsService.resolveLimits({
+        provider: resolved.provider,
+        model: resolved.model,
+        baseUrl: resolved.baseUrl,
+        apiKey: resolved.apiKey ?? '',
+        overrides: { context: cfg.maxContextTokens, output: cfg.maxOutputTokens }
+      })
+      const limit = limits.context
       const compaction = cfg.compaction
       if (!compaction?.auto || !limit || limit <= 0) continue
       const used = this.lastUsageByAgent.get(agentId)
@@ -851,7 +876,7 @@ export class MeowAgentManager {
       const usedTokens = used.total > 0
         ? used.total
         : used.input + used.output + (used.cacheRead ?? 0) + (used.cacheWrite ?? 0)
-      const outputTokens = resolveOutputTokens(modelLimit, limit, cfg.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS)
+      const outputTokens = resolveOutputTokens({ output: limits.output ?? undefined }, limit, DEFAULT_MAX_OUTPUT_TOKENS)
       if (usedTokens < usableContextTokens(limit, compaction.buffer, outputTokens)) continue
       const runner = this.runners.get(agentId)
       if (!runner) continue
@@ -871,14 +896,9 @@ export class MeowAgentManager {
     if (!this.deps.catalog) return
     try {
       const providers = await this.deps.catalog.fetch()
-      this.modelLimits.clear()
       this.modelVariants.clear()
       for (const [providerId, p] of Object.entries(providers)) {
         for (const model of p.models) {
-          const limit = p.limits?.[model]
-          if (limit && (limit.context !== undefined || limit.output !== undefined)) {
-            this.modelLimits.set(`${providerId}/${model}`, limit)
-          }
           const variants = p.variants?.[model]
           if (variants && Object.keys(variants).length > 0) {
             this.modelVariants.set(`${providerId}/${model}`, variants)
@@ -886,7 +906,7 @@ export class MeowAgentManager {
         }
       }
     } catch {
-      /* offline: fall back to config maxContextTokens */
+      /* offline: giới hạn phân giải lúc call time từ learned/live/catalog/default */
     }
   }
 
@@ -917,17 +937,30 @@ export class MeowAgentManager {
     const cfg = loadMeowConfig(this.deps.configPath)
     const resolved = this.resolveAgentConfig(cfg, agent.name, agent.model, agent.accountId)
     this.resolved.set(agent.id, resolved)
-    const modelLimit = resolved.provider && resolved.model
-      ? this.modelLimits.get(`${resolved.provider}/${resolved.model}`)
-      : undefined
-    const contextTokens = modelLimit?.context ?? cfg.maxContextTokens
-    const outputTokens = resolveOutputTokens(modelLimit, contextTokens, cfg.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS)
+    const limits = await this.limitsService.resolveLimits({
+      provider: resolved.provider,
+      model: resolved.model,
+      baseUrl: resolved.baseUrl,
+      apiKey: resolved.apiKey ?? '',
+      overrides: { context: cfg.maxContextTokens, output: cfg.maxOutputTokens }
+    })
+    const contextTokens = limits.context
+    const outputWire = limits.output
+    // Reserve = wire đã xác minh (hoặc 32k) — chỉ cho compaction/footer, không
+    // phải giá trị gửi provider.
+    const outputReserve = resolveOutputTokens({ output: outputWire ?? undefined }, contextTokens, DEFAULT_MAX_OUTPUT_TOKENS)
     const skills = collectSkills(agent.cwd, this.deps.userSkillsDir, this.deps.builtinSkillsDir)
     // AGENTS.md/CLAUDE.md walking up from cwd are inlined into the system
     // prompt (opencode-style); module-level ones attach on read via loop.ts.
     const instructionFiles = loadInstructions(agent.cwd)
     const instructions = instructionsText(instructionFiles)
-    const llmClient = (this.deps.createLlm ?? createLlm)(resolved.provider, resolved.apiKey ?? '', resolved.baseUrl)
+    const learnedKey = normalizeLearnedKey(resolved.baseUrl, resolved.model)
+    const llmClient = (this.deps.createLlm ?? createLlm)(
+      resolved.provider,
+      resolved.apiKey ?? '',
+      resolved.baseUrl,
+      { onReducedBudget: (realLimit) => this.learnedLimits.recordMaxTokensLimit(learnedKey, realLimit) }
+    )
     const resolveSubagent = (type: SubagentType): ResolvedSubagentModel | undefined => {
       const ref = cfg.subagentModels?.[type]
       if (!ref) return undefined
@@ -975,7 +1008,7 @@ export class MeowAgentManager {
       tools: this.tools,
       resolveSubagent,
       maxContextTokens: contextTokens,
-      maxOutputTokens: outputTokens,
+      maxOutputTokens: outputReserve,
       compaction: cfg.compaction,
       toolOutput: cfg.toolOutput,
       truncation: this.deps.truncation,
@@ -1080,7 +1113,12 @@ export class MeowAgentManager {
       ask: (promptId, tool) => this.awaitPrompt(agent.id, promptId, tool),
       maxSteps: cfg.maxSteps,
       maxContextTokens: contextTokens,
-      maxOutputTokens: outputTokens,
+      maxOutputTokens: outputReserve,
+      maxOutputTokensWire: outputWire ?? undefined,
+      onContextOverflow: (promptTokens, message) => this.learnedLimits.recordContextOverflow(
+        learnedKey,
+        parseContextLimitFromError(message) ?? promptTokens
+      ),
       compaction: cfg.compaction,
       toolOutput: cfg.toolOutput,
       truncation: this.deps.truncation,

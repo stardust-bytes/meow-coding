@@ -23,6 +23,8 @@ import { SnapshotStore } from './agent/snapshot'
 import type { SnapshotTurn } from './agent/snapshot'
 import { TruncationStore } from './agent/truncation'
 import { TraceStore } from './agent/trace-store'
+import { LearnedLimitsStore } from './agent/learned-limits'
+import type { LearnedLimitEntry } from './agent/learned-limits'
 import { SavedPermissions } from './agent/saved-permissions'
 import type { SavedPermission } from './agent/saved-permissions'
 import { createDefaultTools } from './agent/tools/registry'
@@ -149,6 +151,9 @@ export class MainApp {
     savedPermissions: new SavedPermissions(createJsonStore<SavedPermission>(path.join(app.getPath('userData'), 'permissions.json'))),
     truncation: new TruncationStore(path.join(app.getPath('userData'), 'truncation')),
     catalog: new ModelsCatalog(path.join(app.getPath('userData'), 'models.json')),
+    learnedLimits: new LearnedLimitsStore(
+      createJsonStore<LearnedLimitEntry>(path.join(app.getPath('userData'), 'learned-limits.json'), { debounceMs: 500 })
+    ),
     commands: new CommandStore(path.join(app.getPath('userData'), 'commands.json')),
     connections: this.connections,
     lsp: new LspManager(),
