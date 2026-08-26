@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { createTaskTool } from '../../src/main/agent/tools/task'
 import type { ToolPermissionContext } from '../../src/main/agent/permission'
 import type { LlmClient, LlmStreamOptions, LlmStreamPart } from '../../src/main/agent/llm'
@@ -278,5 +281,46 @@ describe('subagent permission', () => {
     await new Promise(r => setTimeout(r, 20))
     expect(ran).toEqual([])
     expect(finished).toBe(true)
+  })
+})
+
+describe('subagent snapshots and todo filtering', () => {
+  it('never hands todowrite to a subagent', async () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), 'meow-task-todo-'))
+    mkdirSync(path.join(cwd, '.meow', 'agents'), { recursive: true })
+    writeFileSync(
+      path.join(cwd, '.meow', 'agents', 'planner.md'),
+      ['---', 'name: planner', 'tools: read, todowrite', '---', 'You plan.'].join('\n')
+    )
+    const llm = new StubLlm()
+    const task = createTaskTool({
+      llm,
+      model: 'm',
+      tools: new Map([['read', stubTool('read')], ['todowrite', stubTool('todowrite')]]),
+      permission: allowAll()
+    })
+    await task.run({ prompt: 'x', subagent_type: 'planner' }, { cwd, ask: async () => null })
+    expect((llm.calls[0]?.tools ?? []).map(t => t.name)).toEqual(['read'])
+  })
+
+  it('passes the parent snapshot store and agent id to the subagent runner', async () => {
+    const seen: Array<Record<string, unknown>> = []
+    const probe: ToolDefinition = {
+      name: 'write', description: 'write', schema: { parse: () => ({}) } as never,
+      run: async (_input, ctx) => {
+        seen.push({ snapshotAgentId: ctx.snapshotAgentId, hasStore: Boolean(ctx.snapshots) })
+        return { output: 'ok' }
+      }
+    }
+    const task = createTaskTool({
+      llm: new ToolCallingLlm('write'),
+      model: 'm',
+      tools: new Map([['write', probe]]),
+      permission: allowAll(),
+      snapshots: { snapshot: () => {} } as never,
+      parentAgentId: 'agent-parent'
+    })
+    await task.run({ prompt: 'x', subagent_type: 'general' }, { cwd: '/p', ask: async () => null })
+    expect(seen[0]).toEqual({ snapshotAgentId: 'agent-parent', hasStore: true })
   })
 })

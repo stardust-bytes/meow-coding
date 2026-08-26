@@ -6,6 +6,7 @@ import type { TranscriptItem } from '../message'
 import type { ChatEvent, ChatMessage, MessageTokens, PromptResponse, SubagentType, ToolCallData } from '../../../shared/types'
 import type { CompactionSettings } from '../compact'
 import type { TruncationStore } from '../truncation'
+import type { SnapshotStore } from '../snapshot'
 import type { ToolContext, ToolDefinition, ToolRunResult } from './types'
 import { collectSubagentRoles } from '../subagent-roles'
 import { decide, deriveSubagentContext } from '../permission'
@@ -74,6 +75,9 @@ export function createTaskTool(opts: {
   // Bubbles a subagent's permission prompt up to the parent's UI.
   ask?: (promptId: string, tool?: string) => Promise<PromptResponse | null>
   onPromptRequest?: (e: Extract<ChatEvent, { type: 'prompt-request' }>, meta: { taskId: string; subagentType: string }) => void
+  // Subagent edits snapshot under the parent's agent id so undo/revert reach them.
+  snapshots?: SnapshotStore
+  parentAgentId?: string
 }): ToolDefinition {
   // Resumable subagent sessions, keyed by task id (SDD fix loop reuses them).
   // Bounded so a long-lived agent does not accumulate transcripts forever.
@@ -115,6 +119,9 @@ export function createTaskTool(opts: {
     const model = role.model?.model ?? sub?.model ?? opts.model
     const safeTools = new Map<string, ToolDefinition>()
     for (const name of role.tools) {
+      // A subagent runner has no setTodos sink, so todowrite would silently
+      // swallow whatever it is given.
+      if (name === 'todowrite') continue
       const def = opts.tools.get(name)
       if (def) safeTools.set(name, def)
     }
@@ -142,6 +149,8 @@ export function createTaskTool(opts: {
       toolOutput: opts.toolOutput,
       truncation: opts.truncation,
       replaceItems: (next) => { items.length = 0; items.push(...next) },
+      snapshots: opts.snapshots,
+      snapshotAgentId: opts.parentAgentId,
       onUsage: opts.onUsage,
       onEvent: (e) => {
         if (e.type === 'text-delta') {
