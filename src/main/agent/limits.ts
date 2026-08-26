@@ -1,4 +1,6 @@
 import type { LiveModelInfo } from '../models-catalog'
+import { LearnedLimitsStore, normalizeLearnedKey } from './learned-limits'
+import { DEFAULT_MAX_CONTEXT_TOKENS, MAX_OUTPUT_HARD_CAP } from './config'
 
 // Field của response /models OpenAI-compatible có thể mang context/output dưới
 // nhiều tên khác nhau (Ollama Cloud, các proxy); mỗi danh sách thử theo thứ tự.
@@ -75,4 +77,88 @@ export function parseContextLimitFromError(message: string | undefined): number 
   const maxIs = message.match(/\bmax(?:imum)?\s*(?:is|:)\s*(\d+)/i)
   if (maxIs) return Number(maxIs[1])
   return undefined
+}
+
+export interface ResolvedLimits {
+  context: number
+  output: number | null
+}
+
+export interface LimitsServiceDeps {
+  learned: LearnedLimitsStore
+  getCatalogLimit?: (providerId: string, modelId: string) => Promise<{ context?: number; output?: number } | undefined>
+  fetchLiveModels?: (baseUrl: string, apiKey: string) => Promise<LiveModelInfo[] | null>
+  now?: () => number
+}
+
+export const LIVE_MODELS_TTL_MS = 5 * 60_000
+
+interface LiveCacheEntry {
+  fetchedAt: number
+  info: LiveModelInfo[] | null
+}
+
+/**
+ * Phân giải giới hạn thật của model từ nguồn đáng tin cậy nhất có biết về nó.
+ * "Trust the provider, verify by error": mỗi tầng là một phỏng đoán cho tới khi
+ * provider tự xác nhận. output = null khi không nguồn nào đáng tin khai cap —
+ * wire lúc đó bỏ hẳn max_tokens, đó chính là thứ làm lỗi `max_tokens exceeds`
+ * không thể xảy ra.
+ */
+export class LimitsService {
+  private liveCache = new Map<string, LiveCacheEntry>()
+  private livePending = new Set<string>()
+
+  constructor(private deps: LimitsServiceDeps) {}
+
+  async resolveLimits(args: {
+    provider: string
+    model: string
+    baseUrl?: string
+    apiKey?: string
+    overrides?: { context?: number; output?: number }
+  }): Promise<ResolvedLimits> {
+    const overrides = args.overrides
+    if (overrides && (overrides.context !== undefined || overrides.output !== undefined)) {
+      return { context: overrides.context ?? DEFAULT_MAX_CONTEXT_TOKENS, output: overrides.output ?? null }
+    }
+    const learned = this.deps.learned.get(normalizeLearnedKey(args.baseUrl, args.model))
+    if (learned && (learned.context !== undefined || learned.output !== undefined)) {
+      return { context: learned.context ?? DEFAULT_MAX_CONTEXT_TOKENS, output: learned.output ?? null }
+    }
+    const live = this.liveInfo(args.baseUrl, args.apiKey)
+    const liveModel = live?.find(m => matchModel(m.id, args.model))
+    if (liveModel && (liveModel.context !== undefined || liveModel.output !== undefined)) {
+      return { context: liveModel.context ?? DEFAULT_MAX_CONTEXT_TOKENS, output: liveModel.output ?? null }
+    }
+    const catalogLimit = await this.deps.getCatalogLimit?.(args.provider, args.model)
+    if (catalogLimit && (catalogLimit.context !== undefined || catalogLimit.output !== undefined)) {
+      return {
+        context: catalogLimit.context ?? DEFAULT_MAX_CONTEXT_TOKENS,
+        // Catalog là nguồn duy nhất có thể khai quá mức trắng trợn (claim 1M
+        // trên endpoint thật chỉ 64k), nên output của nó bị cap.
+        output: catalogLimit.output === undefined ? null : Math.min(catalogLimit.output, MAX_OUTPUT_HARD_CAP)
+      }
+    }
+    return { context: DEFAULT_MAX_CONTEXT_TOKENS, output: null }
+  }
+
+  // Synchronous: không bao giờ chặn caller lên mạng. Cache miss → kick fetch
+  // nền (dedupe bằng livePending); resolve hiện tại trả về cái đang biết, fetch
+  // lấp cache cho resolve kế tiếp.
+  private liveInfo(baseUrl: string | undefined, apiKey: string | undefined): LiveModelInfo[] | null {
+    if (!baseUrl || !apiKey || !this.deps.fetchLiveModels) return null
+    const cacheKey = `${baseUrl}|${apiKey}`
+    const now = this.deps.now?.() ?? Date.now()
+    const cached = this.liveCache.get(cacheKey)
+    if (cached && now - cached.fetchedAt < LIVE_MODELS_TTL_MS) return cached.info
+    if (this.livePending.has(cacheKey)) return cached?.info ?? null
+    this.livePending.add(cacheKey)
+    const finish = (info: LiveModelInfo[] | null): void => {
+      this.livePending.delete(cacheKey)
+      this.liveCache.set(cacheKey, { fetchedAt: now, info })
+    }
+    Promise.resolve(this.deps.fetchLiveModels(baseUrl, apiKey)).then(finish, () => finish(null))
+    return cached?.info ?? null
+  }
 }
