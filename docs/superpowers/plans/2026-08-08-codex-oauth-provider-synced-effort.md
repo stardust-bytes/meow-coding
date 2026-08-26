@@ -313,7 +313,6 @@ Expected: no whitespace errors; only intentional feature commits are present, pl
 If the user-facing Codex OAuth document has an appropriate model-selection section, add a short note that effort choices come from the installed CLIProxyAPI registry and are hidden where unsupported. Do not claim every Codex model supports reasoning.
 
 ```bash
-git add docs/release-notes/codex-oauth.md
 git commit -m "docs: explain Codex OAuth effort availability"
 ```
 

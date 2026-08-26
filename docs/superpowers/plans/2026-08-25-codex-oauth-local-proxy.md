@@ -328,7 +328,6 @@ git commit -m "feat: manage Codex OAuth accounts in providers"
 
 - Modify: README.md or the existing user-facing setup documentation
 - Modify: docs/changelogs/changelog-format.md only if its rules require an entry format update
-- Create: docs/release-notes/codex-oauth.md if release notes are managed there
 
 - [ ] Step 1: Add user-facing documentation for connecting multiple Codex accounts, selecting the active one, using its models in native chat, where account metadata is stored, and how disconnect works. Include the CLIProxyAPI MIT attribution and explain that Claude Code and Antigravity OAuth are not enabled in this release.
 
@@ -345,7 +344,6 @@ git commit -m "feat: manage Codex OAuth accounts in providers"
 - [ ] Step 7: Commit documentation and any review fixes.
 
 ~~~bash
-git add README.md docs/release-notes/codex-oauth.md
 git commit -m "docs: explain Codex OAuth connections"
 ~~~
 
