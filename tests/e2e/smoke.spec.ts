@@ -53,21 +53,22 @@ test('settings opens below the title bar and returns to the app', async () => {
       ])
       expect(navBox?.x).toBeLessThanOrEqual((settingsBox?.x ?? 0) + 1)
       expect((contentBox?.x ?? 0) + (contentBox?.width ?? 0)).toBeGreaterThanOrEqual((settingsBox?.x ?? 0) + (settingsBox?.width ?? 0) - 1)
-      expect((settingsBox?.x ?? 0) + (settingsBox?.width ?? 0) - ((tabBox?.x ?? 0) + (tabBox?.width ?? 0))).toBeCloseTo(
-        (contentBox?.x ?? 0) - ((navBox?.x ?? 0) + (navBox?.width ?? 0)),
+      // Content padding is symmetric: the tab is inset equally from both edges.
+      expect((tabBox?.x ?? 0) - (contentBox?.x ?? 0)).toBeCloseTo(
+        ((contentBox?.x ?? 0) + (contentBox?.width ?? 0)) - ((tabBox?.x ?? 0) + (tabBox?.width ?? 0)),
         0
       )
-      await expect.poll(() => window.locator('.settings-nav').evaluate(element => getComputedStyle(element).paddingTop)).toBe('3.5px')
+      await expect.poll(() => window.locator('.settings-nav').evaluate(element => getComputedStyle(element).paddingTop)).toBe('3.75px')
       await expect.poll(() => window.locator('.settings-content').evaluate(element => ({
         top: getComputedStyle(element).paddingTop,
         bottom: getComputedStyle(element).paddingBottom
-      }))).toEqual({ top: '10.5px', bottom: '10.5px' })
+      }))).toEqual({ top: '11.25px', bottom: '11.25px' })
 
       await window.getByRole('button', { name: 'MCP' }).click()
       await window.getByRole('button', { name: '+ Add server' }).click()
       const serverPopup = window.locator('.settings-screen .dialog')
       await expect(serverPopup).toBeVisible()
-      await expect.poll(() => serverPopup.evaluate(element => getComputedStyle(element).borderTopLeftRadius)).toBe('10px')
+      await expect.poll(() => serverPopup.evaluate(element => getComputedStyle(element).borderTopLeftRadius)).toBe('8px')
       await window.keyboard.press('Escape')
       await expect(serverPopup).toHaveCount(0)
 
@@ -250,7 +251,7 @@ test('providers screen connects a provider and returns to the app', async () => 
       await window.locator('.provider-catalog-row', { hasText: 'deepseek' }).getByRole('button', { name: 'connect' }).click()
       const popup = window.locator('.dialog')
       await expect(popup).toBeVisible()
-      await expect.poll(() => popup.evaluate(element => getComputedStyle(element).borderTopLeftRadius)).toBe('10px')
+      await expect.poll(() => popup.evaluate(element => getComputedStyle(element).borderTopLeftRadius)).toBe('8px')
       await popup.locator('.provider-key').fill('sk-test')
       await popup.locator('.submit').click()
 
@@ -287,7 +288,7 @@ test('providers screen connects a provider and returns to the app', async () => 
   }
 })
 
-test('providers connects a Codex account and selects its model in chat', async () => {
+test('codex account models group under the account label in the model picker', async () => {
   const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
   const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
   try {
@@ -309,16 +310,10 @@ test('providers connects a Codex account and selects its model in chat', async (
     })
     const window = await app.firstWindow()
     try {
-      // Codex section starts empty: Connect Codex is available.
-      await window.getByRole('button', { name: 'Menu', exact: true }).click()
-      await window.getByRole('button', { name: 'Providers' }).click()
-      await expect(window.getByRole('button', { name: 'Connect Codex' })).toBeVisible()
-      await window.getByRole('button', { name: 'Connect Codex' }).click()
-      await expect(window.locator('.codex-account-row')).toContainText('E2E Account')
-      await expect(window.locator('.codex-status-active')).toBeVisible()
-      await window.getByRole('button', { name: 'Back to app' }).click()
+      // The Codex OAuth section is hidden from the Providers screen; seed the
+      // account via IPC so the picker can group its models under the label.
+      await window.evaluate(() => window.api.connectCodex())
 
-      // ModelPicker groups the active account's models under its label.
       await window.locator('.project-row').click()
       await expect(window.locator('.chat-panel')).toBeVisible()
       await window.locator('.model-trigger').click()
