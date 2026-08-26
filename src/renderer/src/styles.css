@@ -1054,7 +1054,7 @@ select.input { width: 100%; }
   transition: background 120ms ease, border-color 120ms ease;
 }
 .settings-nav-item:hover { background: var(--bg-hover); }
-.settings-nav-item.active { background: var(--bg-active); color: var(--accent); border-left-color: var(--accent); }
+.settings-nav-item.active { background: var(--accent); color: #ffffff; border-left-color: var(--accent); }
 .settings-content { flex: 1; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
 .settings-save-pill {
   position: fixed; right: 18px; bottom: 18px; z-index: 110;
