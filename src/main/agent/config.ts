@@ -264,16 +264,13 @@ function normalizeMcp(raw: Record<string, McpServerConfig> | undefined): Record<
   return out
 }
 
-const SUBAGENT_ROLES: readonly SubagentType[] = ['research', 'general', 'reviewer']
-
 function normalizeSubagentModels(
   raw: Partial<Record<SubagentType, ModelRef>> | undefined,
   providers: Record<string, MeowProviderConfig>
 ): Partial<Record<SubagentType, ModelRef>> | undefined {
   if (!raw) return undefined
   const out: Partial<Record<SubagentType, ModelRef>> = {}
-  for (const type of SUBAGENT_ROLES) {
-    const ref = raw[type]
+  for (const [type, ref] of Object.entries(raw)) {
     if (!ref || !ref.provider || !ref.model) continue
     // Account-scoped providers resolve through the connection subsystem and do
     // not require a meow.json provider entry.

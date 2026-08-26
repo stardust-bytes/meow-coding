@@ -331,7 +331,8 @@ export interface MeowSettings {
   subagentModels?: Partial<Record<SubagentType, ModelRef>>
 }
 
-export type SubagentType = 'research' | 'general' | 'reviewer'
+export type SubagentType = string
+export const BUILTIN_SUBAGENT_TYPES = ['research', 'general', 'reviewer'] as const
 
 export interface ModelRef {
   provider: string

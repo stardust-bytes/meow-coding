@@ -8,7 +8,7 @@ export interface Skill {
   path?: string
 }
 
-function parseFrontmatter(text: string): { frontmatter: Record<string, string>; body: string } {
+export function parseFrontmatter(text: string): { frontmatter: Record<string, string>; body: string } {
   const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(text)
   if (!m) return { frontmatter: {}, body: text }
   const frontmatter: Record<string, string> = {}
