@@ -13,6 +13,8 @@ import { usableContextTokens } from './agent/compact'
 import { createLlm } from './agent/llm'
 import type { LlmClient } from './agent/llm'
 import { decidePermission } from './agent/permission'
+import type { ToolPermissionContext } from './agent/permission'
+import { collectSubagentRoles } from './agent/subagent-roles'
 import { SessionStore } from './agent/session'
 import type { SessionSummary, StoredSession } from './agent/session'
 import { McpManager } from './agent/mcp/manager'
@@ -52,6 +54,7 @@ export interface MeowAgentManagerDeps {
   createLlm?: (provider: string, apiKey: string, baseUrl?: string) => LlmClient
   env?: NodeJS.ProcessEnv
   userSkillsDir?: string
+  userAgentsDir?: string
   userToolsDir?: string
   builtinSkillsDir?: string
   snapshots: SnapshotStore
@@ -79,6 +82,9 @@ export class MeowAgentManager {
   private agents = new Map<string, AgentConfig>()
   private resolved = new Map<string, ResolvedAgentConfig>()
   private controllers = new Map<string, AbortController>()
+  // Background subagents outlive the turn that spawned them, so the turn's
+  // controller can't stop them. Keyed by agentId -> taskId -> cancel handle.
+  private backgroundTasks = new Map<string, Map<string, { sessionId: string; cancel: () => void }>>()
   private pendingPrompts = new Map<string, { agentId: string; tool?: string; resolve: (resp: PromptResponse | null) => void }>()
   private running = new Set<string>()
   private activeSessions = new Map<string, string>()
@@ -459,6 +465,10 @@ export class MeowAgentManager {
   stop(agentId: string): void {
     this.controllers.get(agentId)?.abort()
     this.controllers.delete(agentId)
+    // Background subagents outlive the turn's controller; cancel them too.
+    // The entries stay so onBackgroundResult can still deliver the result to
+    // the session that spawned each one; it deletes them as they settle.
+    for (const entry of this.backgroundTasks.get(agentId)?.values() ?? []) entry.cancel()
     this.running.delete(agentId)
     this.resolvePendingFor(agentId, null)
   }
@@ -471,7 +481,7 @@ export class MeowAgentManager {
   }
 
   stopAll(): void {
-    for (const id of [...this.controllers.keys()]) this.stop(id)
+    for (const id of new Set([...this.controllers.keys(), ...this.backgroundTasks.keys()])) this.stop(id)
   }
 
   newSession(agentId: string): SessionSummary {
@@ -928,8 +938,9 @@ export class MeowAgentManager {
     // Subagents spend real tokens, so their usage is billed to the session too,
     // but it must not overwrite lastUsageByAgent: that drives the parent's
     // context-overflow check and a subagent runs in a separate context.
-    const reportUsage = (tokens: MessageTokens, isMainContext: boolean): void => {
-      const price = this.priceFor(resolved.provider, resolved.model)
+    // `used` names the subagent's own model so its tokens are priced correctly.
+    const reportUsage = (tokens: MessageTokens, isMainContext: boolean, used?: { provider: string; model: string }): void => {
+      const price = this.priceFor(used?.provider ?? resolved.provider, used?.model ?? resolved.model)
       const sessionId = this.activeSessionId(agent.id)
       const usage: UsageSummary = {
         input: tokens.input,
@@ -967,9 +978,39 @@ export class MeowAgentManager {
       compaction: cfg.compaction,
       toolOutput: cfg.toolOutput,
       truncation: this.deps.truncation,
-      onUsage: (tokens) => reportUsage(tokens, false),
+      // The subagent inherits the parent's permission context, re-resolved on
+      // every call so a mode switch or a newly saved always-allow reaches a
+      // subagent already running. Absent, task.ts falls back to NO_PERMISSION.
+      permission: (): ToolPermissionContext => ({
+        mode: this.modes.get(agent.id) ?? 'build',
+        rules: cfg.permission,
+        isSavedAllow: (tool) => this.deps.savedPermissions.isAllowed(agent.cwd, tool),
+        canPrompt: true
+      }),
+      ask: (promptId, tool) => this.awaitPrompt(agent.id, promptId, tool),
+      onPromptRequest: (e, meta) => this.emit({
+        ...e,
+        agentId: agent.id,
+        taskId: meta.taskId,
+        subagentType: meta.subagentType
+      }),
+      snapshots: this.deps.snapshots,
+      parentAgentId: agent.id,
+      userAgentsDir: this.deps.userAgentsDir,
+      roleNames: collectSubagentRoles(agent.cwd, new Set(this.tools.keys()), this.deps.userAgentsDir).map(r => r.name),
+      maxSteps: cfg.subagentMaxSteps,
+      onUsage: (tokens, used) => reportUsage(tokens, false, used),
+      onBackgroundStart: (taskId, cancel) => {
+        const forAgent = this.backgroundTasks.get(agent.id) ?? new Map()
+        forAgent.set(taskId, { sessionId: this.activeSessionId(agent.id), cancel })
+        this.backgroundTasks.set(agent.id, forAgent)
+      },
       onBackgroundResult: (taskId, text, error) => {
-        const sessionId = this.activeSessionId(agent.id)
+        // Deliver to the session that spawned the subagent, not whichever is
+        // active now (the user may have switched sessions while it ran).
+        const entry = this.backgroundTasks.get(agent.id)?.get(taskId)
+        this.backgroundTasks.get(agent.id)?.delete(taskId)
+        const sessionId = entry?.sessionId ?? this.activeSessionId(agent.id)
         this.deps.store.appendMessage(sessionId, {
           id: randomUUID(),
           role: 'assistant',

@@ -142,6 +142,7 @@ export class MainApp {
       browser: { bridge: this.browserBridge, launcher: this.browserLauncher }
     }),
     userSkillsDir: path.join(app.getPath('userData'), 'skills'),
+    userAgentsDir: path.join(app.getPath('userData'), 'agents'),
     userToolsDir: path.join(app.getPath('userData'), 'tools'),
     builtinSkillsDir: this.builtinSkillsDir,
     snapshots: new SnapshotStore(createJsonStore<SnapshotTurn>(path.join(app.getPath('userData'), 'snapshots.json'))),

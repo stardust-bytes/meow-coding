@@ -28,6 +28,9 @@ const PTY_AGENT: AgentConfig = {
 
 interface StubLlmOptions {
   hangUntilAbort?: boolean
+  // Hangs only the subagent's stream (cheap-model) until its signal aborts, so
+  // a background subagent can be observed still running after the parent turn.
+  hangSubagentUntilAbort?: boolean
   partsQueue?: LlmStreamPart[][]
 }
 
@@ -48,6 +51,7 @@ async function makeManager(opts: StubLlmOptions & {
   catalog?: ModelsCatalog
   connections?: StubConnections
   tools?: ToolDefinition[]
+  prices?: Record<string, { input?: number; output?: number }>
 } = {}) {
   const cfgDir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-cfg-'))
   const defaultCfg = path.join(cfgDir, 'meow.json')
@@ -78,6 +82,7 @@ async function makeManager(opts: StubLlmOptions & {
   const llmSystems: string[] = []
   const llmVariants: Array<Record<string, unknown> | undefined> = []
   const llmModels: string[] = []
+  const hangState = { resolved: 0 }
   let llmClient: LlmClient
   const createLlm = vi.fn((): LlmClient => {
     llmClient = {
@@ -90,6 +95,15 @@ async function makeManager(opts: StubLlmOptions & {
           await new Promise<void>(resolve => {
             if (request.signal?.aborted) return resolve()
             request.signal?.addEventListener('abort', () => resolve(), { once: true })
+          })
+          yield { kind: 'finish' }
+          return
+        }
+        if (opts.hangSubagentUntilAbort && request.model === 'cheap-model') {
+          yield { kind: 'text', text: 'background answer' }
+          await new Promise<void>(resolve => {
+            if (request.signal?.aborted) { hangState.resolved++; return resolve() }
+            request.signal?.addEventListener('abort', () => { hangState.resolved++; resolve() }, { once: true })
           })
           yield { kind: 'finish' }
           return
@@ -112,13 +126,13 @@ async function makeManager(opts: StubLlmOptions & {
     catalog: opts.catalog,
     truncation: new TruncationStore(path.join(cfgDir, 'truncation')),
     commands: new CommandStore(path.join(cfgDir, 'commands.json')),
-    prices: { 'test/test-model': { input: 1, output: 2 } },
+    prices: opts.prices ?? { 'test/test-model': { input: 1, output: 2 } },
     connections,
     env: { ANTHROPIC_API_KEY: 'sk-test' } as NodeJS.ProcessEnv
   })
   manager.setOnEvent(e => events.push(e))
   await manager.init([{ ...MEOW_AGENT }, { ...PTY_AGENT }])
-  return { manager, store, events, createLlm, savedPermissions, llmCalls, llmSystems, llmVariants, llmModels }
+  return { manager, store, events, createLlm, savedPermissions, llmCalls, llmSystems, llmVariants, llmModels, hangState }
 }
 
 describe('MeowAgentManager', () => {
@@ -1247,5 +1261,90 @@ describe('MeowAgentManager', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe('MeowAgentManager subagents', () => {
+  function configWithSubagentModel(): string {
+    const cfgDir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-sub-'))
+    const cfgPath = path.join(cfgDir, 'meow.json')
+    writeFileSync(cfgPath, JSON.stringify({
+      provider: {
+        test: { apiKey: 'sk-test', models: ['test-model'] },
+        cheap: { apiKey: 'sk-cheap', models: ['cheap-model'] }
+      },
+      model: 'test',
+      permission: { task: 'allow', read: 'allow' },
+      subagentModels: { research: { provider: 'cheap', model: 'cheap-model' } }
+    }))
+    return cfgPath
+  }
+
+  function spawnResearch(background: boolean): LlmStreamPart[] {
+    return [{
+      kind: 'tool-call',
+      toolCallId: 't1',
+      toolName: 'task',
+      toolInput: { prompt: 'research x', subagent_type: 'research', background }
+    }, { kind: 'finish' }]
+  }
+
+  it('bills subagent usage at the subagent model price', async () => {
+    const { manager, events } = await makeManager({
+      configPath: configWithSubagentModel(),
+      prices: {
+        'test/test-model': { input: 1, output: 2 },
+        'cheap/cheap-model': { input: 1, output: 1 }
+      },
+      partsQueue: [
+        spawnResearch(false),
+        [{ kind: 'text', text: 'sub answer' }, { kind: 'finish', tokens: { input: 1000, output: 1000, total: 2000 } }],
+        [{ kind: 'text', text: 'parent done' }, { kind: 'finish', tokens: { input: 0, output: 0, total: 0 } }]
+      ]
+    })
+    await manager.send('a1', 'go')
+    const costs = events.filter(e => e.type === 'usage').map(e => e.sessionCost)
+    expect(costs.length).toBeGreaterThan(0)
+    // 1000 in + 1000 out at cheap/cheap-model (1/1 per M) = 0.002; the parent
+    // step costs 0. Billing at the parent price (1/2) would give 0.003.
+    expect(costs[costs.length - 1]).toBeCloseTo(0.002, 6)
+  })
+
+  it('cancels a background subagent started in an earlier turn', async () => {
+    const { manager, hangState } = await makeManager({
+      configPath: configWithSubagentModel(),
+      hangSubagentUntilAbort: true,
+      partsQueue: [
+        spawnResearch(true),
+        [{ kind: 'text', text: 'parent done' }, { kind: 'finish' }]
+      ]
+    })
+    await manager.send('a1', 'go')
+    // The turn's controller is gone, but the background subagent is still alive.
+    expect(hangState.resolved).toBe(0)
+    manager.stop('a1')
+    await new Promise(r => setTimeout(r, 20))
+    expect(hangState.resolved).toBe(1)
+  })
+
+  it('delivers a background subagent result to the session that spawned it', async () => {
+    const { manager, store, hangState } = await makeManager({
+      configPath: configWithSubagentModel(),
+      hangSubagentUntilAbort: true,
+      partsQueue: [
+        spawnResearch(true),
+        [{ kind: 'text', text: 'parent done' }, { kind: 'finish' }]
+      ]
+    })
+    await manager.send('a1', 'go')
+    const spawned = manager.listSessions('a1')[0]
+    manager.newSession('a1')
+    await new Promise(r => setTimeout(r, 20))
+    expect(hangState.resolved).toBe(1)
+    const items = store.get(spawned.id)?.items ?? []
+    const texts = items
+      .filter((i): i is { kind: 'message'; message: { role: 'assistant'; text: string } } => i.kind === 'message')
+      .map(i => i.message.text)
+    expect(texts.some(t => t.includes('background answer'))).toBe(true)
   })
 })

@@ -63,7 +63,8 @@ export function createTaskTool(opts: {
   toolOutput?: { maxBytes: number; maxLines: number }
   truncation?: TruncationStore
   // Subagent spend is real spend; report it so session cost is not understated.
-  onUsage?: (tokens: MessageTokens) => void
+  // `used` names the subagent's actual model when it differs from the parent's.
+  onUsage?: (tokens: MessageTokens, used?: { provider: string; model: string }) => void
   maxSessions?: number
   // The parent's permission context, re-resolved on every call so a mode switch
   // or a newly saved always-allow reaches a subagent already running. Absent,
@@ -156,7 +157,14 @@ export function createTaskTool(opts: {
       replaceItems: (next) => { items.length = 0; items.push(...next) },
       snapshots: opts.snapshots,
       snapshotAgentId: opts.parentAgentId,
-      onUsage: opts.onUsage,
+      // Report the subagent's own model so the parent bills it at the right
+      // price instead of charging the parent's model rate for subagent tokens.
+      onUsage: (tokens) => opts.onUsage?.(
+        tokens,
+        role.model
+          ? { provider: role.model.provider, model }
+          : sub ? { provider: sub.provider, model } : undefined
+      ),
       onEvent: (e) => {
         if (e.type === 'text-delta') {
           ctx.emitSubagent?.(id, { sub: 'delta', text: e.delta, parentTaskId: ctx.taskId })
