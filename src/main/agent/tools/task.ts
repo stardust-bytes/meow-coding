@@ -3,11 +3,12 @@ import { z } from 'zod'
 import type { LlmClient } from '../llm'
 import { SessionRunner } from '../loop'
 import type { TranscriptItem } from '../message'
-import type { ChatMessage, MessageTokens, SubagentType, ToolCallData } from '../../../shared/types'
+import type { ChatEvent, ChatMessage, MessageTokens, PromptResponse, SubagentType, ToolCallData } from '../../../shared/types'
 import type { CompactionSettings } from '../compact'
 import type { TruncationStore } from '../truncation'
 import type { ToolContext, ToolDefinition, ToolRunResult } from './types'
 import { collectSubagentRoles } from '../subagent-roles'
+import { decide, deriveSubagentContext } from '../permission'
 import type { SubagentRole, ToolPermissionContext } from '../permission'
 
 export type { SubagentType } from '../../../shared/types'
@@ -70,6 +71,9 @@ export function createTaskTool(opts: {
   userAgentsDir?: string
   // Role names shown in the schema description at registration time.
   roleNames?: string[]
+  // Bubbles a subagent's permission prompt up to the parent's UI.
+  ask?: (promptId: string, tool?: string) => Promise<PromptResponse | null>
+  onPromptRequest?: (e: Extract<ChatEvent, { type: 'prompt-request' }>, meta: { taskId: string; subagentType: string }) => void
 }): ToolDefinition {
   // Resumable subagent sessions, keyed by task id (SDD fix loop reuses them).
   // Bounded so a long-lived agent does not accumulate transcripts forever.
@@ -123,8 +127,14 @@ export function createTaskTool(opts: {
       llm: sub?.llm ?? opts.llm,
       tools: safeTools,
       turn: ctx.turn,
-      decidePermission: () => 'allow',
-      ask: async () => null,
+      // Derived fresh on every call so a mode switch or a newly saved
+      // always-allow reaches a subagent already running.
+      decidePermission: (tool, toolInput) => decide(
+        deriveSubagentContext(opts.permission?.() ?? NO_PERMISSION, role, { background }),
+        tool,
+        toolInput
+      ),
+      ask: opts.ask ?? (async () => null),
       maxSteps: 20,
       maxContextTokens: opts.maxContextTokens,
       maxOutputTokens: opts.maxOutputTokens,
@@ -148,6 +158,8 @@ export function createTaskTool(opts: {
           })
         } else if (e.type === 'error') {
           ctx.emitSubagent?.(id, { sub: 'done', state: 'error', parentTaskId: ctx.taskId })
+        } else if (e.type === 'prompt-request') {
+          opts.onPromptRequest?.(e, { taskId: id, subagentType: role.name })
         }
       },
       getItems: () => items,

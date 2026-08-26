@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createTaskTool } from '../../src/main/agent/tools/task'
+import type { ToolPermissionContext } from '../../src/main/agent/permission'
 import type { LlmClient, LlmStreamOptions, LlmStreamPart } from '../../src/main/agent/llm'
 import type { ToolDefinition, ToolContext } from '../../src/main/agent/tools/types'
 
@@ -15,6 +16,26 @@ class StubLlm implements LlmClient {
 
 function stubTool(name: string): ToolDefinition {
   return { name, description: name, schema: { parse: () => ({}) } as never, run: async () => ({ output: 'x' }) }
+}
+
+function allowAll(mode: 'build' | 'plan' = 'build'): () => ToolPermissionContext {
+  return () => ({ mode, rules: { '*': 'allow' }, isSavedAllow: () => false, canPrompt: true })
+}
+
+// LlmStreamPart carries a tool call as toolName/toolCallId/toolInput (see llm.ts:11).
+class ToolCallingLlm implements LlmClient {
+  private called = false
+  constructor(private toolName: string, private toolInput: Record<string, unknown> = {}) {}
+  async *stream(): AsyncGenerator<LlmStreamPart> {
+    if (!this.called) {
+      this.called = true
+      yield { kind: 'tool-call', toolCallId: 't1', toolName: this.toolName, toolInput: this.toolInput }
+      yield { kind: 'finish' }
+      return
+    }
+    yield { kind: 'text', text: 'finished' }
+    yield { kind: 'finish' }
+  }
 }
 
 describe('task tool (subagent)', () => {
@@ -41,7 +62,7 @@ describe('task tool (subagent)', () => {
       ['bash', stubTool('bash')],
       ['write', stubTool('write')]
     ])
-    const task = createTaskTool({ llm, model: 'm', tools })
+    const task = createTaskTool({ llm, model: 'm', tools, permission: allowAll() })
     const ctx: ToolContext = { cwd: '/proj', ask: async () => null }
     await task.run({ prompt: 'x' }, ctx)
     const subTools = llm.calls[0]?.tools ?? []
@@ -138,7 +159,8 @@ describe('task tool context and lifecycle', () => {
       model: 'm',
       tools: new Map([['read', bigOutputTool('read', 40000)]]),
       maxContextTokens: 2000,
-      compaction: { auto: true, buffer: 200, keepTokens: 500, tailTurns: 2, toolOutputMaxChars: 500, prune: true }
+      compaction: { auto: true, buffer: 200, keepTokens: 500, tailTurns: 2, toolOutputMaxChars: 500, prune: true },
+      permission: allowAll()
     })
     const ctx: ToolContext = { cwd: '/proj', ask: async () => null }
     await task.run({ prompt: 'x', subagent_type: 'research' }, ctx)
@@ -155,7 +177,8 @@ describe('task tool context and lifecycle', () => {
       llm,
       model: 'm',
       tools: new Map([['read', stubTool('read')]]),
-      onUsage: (tokens) => usage.push({ input: tokens.input, output: tokens.output })
+      onUsage: (tokens) => usage.push({ input: tokens.input, output: tokens.output }),
+      permission: allowAll()
     })
     const ctx: ToolContext = { cwd: '/proj', ask: async () => null }
     await task.run({ prompt: 'x', subagent_type: 'research' }, ctx)
@@ -195,5 +218,65 @@ describe('task tool context and lifecycle', () => {
     llm.calls.length = 0
     await task.run({ prompt: 'again', task_id: ids[2] }, ctx)
     expect(JSON.stringify(llm.calls[0].messages)).toContain('question-2')
+  })
+})
+
+describe('subagent permission', () => {
+  it('denies a tool the parent denies, even though the subagent has it', async () => {
+    const ran: string[] = []
+    const git: ToolDefinition = {
+      name: 'git', description: 'git', schema: { parse: () => ({}) } as never,
+      run: async () => { ran.push('git'); return { output: 'ok' } }
+    }
+    const task = createTaskTool({
+      llm: new ToolCallingLlm('git'),
+      model: 'm',
+      tools: new Map([['git', git], ['read', stubTool('read')]]),
+      permission: () => ({ mode: 'build', rules: { git: 'deny' }, isSavedAllow: () => false, canPrompt: true })
+    })
+    await task.run({ prompt: 'x', subagent_type: 'reviewer' }, { cwd: '/p', ask: async () => null })
+    expect(ran).toEqual([])
+  })
+
+  it('bubbles an ask to the parent and runs the tool once allowed', async () => {
+    const ran: string[] = []
+    const bash: ToolDefinition = {
+      name: 'bash', description: 'bash', schema: { parse: () => ({}) } as never,
+      run: async () => { ran.push('bash'); return { output: 'ok' } }
+    }
+    const prompts: Array<{ taskId: string; subagentType: string }> = []
+    const task = createTaskTool({
+      llm: new ToolCallingLlm('bash', { command: 'ls' }),
+      model: 'm',
+      tools: new Map([['bash', bash]]),
+      permission: () => ({ mode: 'build', rules: { bash: 'ask' }, isSavedAllow: () => false, canPrompt: true }),
+      ask: async () => ({ allow: true }),
+      onPromptRequest: (_e, meta) => prompts.push(meta)
+    })
+    await task.run({ prompt: 'x', subagent_type: 'general' }, { cwd: '/p', ask: async () => null })
+    expect(ran).toEqual(['bash'])
+    expect(prompts[0]?.subagentType).toBe('general')
+    expect(prompts[0]?.taskId).toBeTruthy()
+  })
+
+  it('denies rather than hanging when a background subagent needs to ask', async () => {
+    const ran: string[] = []
+    const bash: ToolDefinition = {
+      name: 'bash', description: 'bash', schema: { parse: () => ({}) } as never,
+      run: async () => { ran.push('bash'); return { output: 'ok' } }
+    }
+    let finished = false
+    const task = createTaskTool({
+      llm: new ToolCallingLlm('bash', { command: 'ls' }),
+      model: 'm',
+      tools: new Map([['bash', bash]]),
+      permission: () => ({ mode: 'build', rules: { bash: 'ask' }, isSavedAllow: () => false, canPrompt: true }),
+      ask: async () => ({ allow: true }),
+      onBackgroundResult: () => { finished = true }
+    })
+    await task.run({ prompt: 'x', subagent_type: 'general', background: true }, { cwd: '/p', ask: async () => null })
+    await new Promise(r => setTimeout(r, 20))
+    expect(ran).toEqual([])
+    expect(finished).toBe(true)
   })
 })
