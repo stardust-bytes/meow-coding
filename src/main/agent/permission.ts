@@ -19,7 +19,9 @@ export const PLAN_RULES: Record<string, PermissionRule> = {
   revert: 'deny',
   git: 'deny',
   todowrite: 'deny',
-  task: 'deny',
+  // The task tool itself is read-only; task.ts decides which roles may run in
+  // plan mode, and the subagent inherits plan mode so its own writes stay denied.
+  task: 'allow',
   'browser_*': 'ask'
 }
 

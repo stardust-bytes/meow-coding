@@ -7,48 +7,27 @@ import type { ChatMessage, MessageTokens, SubagentType, ToolCallData } from '../
 import type { CompactionSettings } from '../compact'
 import type { TruncationStore } from '../truncation'
 import type { ToolContext, ToolDefinition, ToolRunResult } from './types'
+import { collectSubagentRoles } from '../subagent-roles'
+import type { SubagentRole, ToolPermissionContext } from '../permission'
 
 export type { SubagentType } from '../../../shared/types'
 
 const DEFAULT_MAX_SESSIONS = 20
 
-export interface SubagentConfig {
-  system: string
-  tools: string[]
+// Nothing is permitted until a parent context says otherwise: a caller that
+// forgets to wire permission gets a subagent that can do nothing, not one that
+// can do everything.
+const NO_PERMISSION: ToolPermissionContext = {
+  mode: 'build',
+  rules: {},
+  isSavedAllow: () => false,
+  canPrompt: false
 }
 
 export interface ResolvedSubagentModel {
   provider: string
   model: string
   llm: LlmClient
-}
-
-// Mirrors opencode: each subagent is a specialized agent type with its own
-// system prompt and tool set. `general` can modify files (SDD implementer),
-// `reviewer` inspects diffs read-only, `research` explores read-only.
-export const SUBAGENT_CONFIGS: Record<SubagentType, SubagentConfig> = {
-  research: {
-    system:
-      'You are a research subagent. Investigate and answer concisely. ' +
-      'You cannot modify files.',
-    tools: ['read', 'glob', 'grep', 'webfetch']
-  },
-  general: {
-    system:
-      'You are a general-purpose implementation subagent. Implement exactly what is asked: ' +
-      'read relevant files first, make changes with write/edit/apply-patch, run tests with bash, ' +
-      'commit with git when the task expects it. ' +
-      'Return a concise report starting with one status line: DONE, DONE_WITH_CONCERNS, ' +
-      'NEEDS_CONTEXT, or BLOCKED, then a summary of changes, test results, and any concerns.',
-    tools: ['read', 'glob', 'grep', 'webfetch', 'write', 'edit', 'apply-patch', 'bash', 'git', 'todowrite', 'skill']
-  },
-  reviewer: {
-    system:
-      'You are a code review subagent. Inspect the requested changes (use git diff and read) for ' +
-      'spec compliance and code quality. Return a verdict line APPROVED or CHANGES_REQUESTED, ' +
-      'then a numbered list of findings with severity (Critical / Important / Minor).',
-    tools: ['read', 'glob', 'grep', 'git', 'webfetch']
-  }
 }
 
 function renderOutput(input: { id: string; description: string; text: string }): string {
@@ -84,10 +63,30 @@ export function createTaskTool(opts: {
   // Subagent spend is real spend; report it so session cost is not understated.
   onUsage?: (tokens: MessageTokens) => void
   maxSessions?: number
+  // The parent's permission context, re-resolved on every call so a mode switch
+  // or a newly saved always-allow reaches a subagent already running. Absent,
+  // the subagent falls back to NO_PERMISSION and can do nothing.
+  permission?: () => ToolPermissionContext
+  userAgentsDir?: string
+  // Role names shown in the schema description at registration time.
+  roleNames?: string[]
 }): ToolDefinition {
   // Resumable subagent sessions, keyed by task id (SDD fix loop reuses them).
   // Bounded so a long-lived agent does not accumulate transcripts forever.
   const maxSessions = opts.maxSessions ?? DEFAULT_MAX_SESSIONS
+  const knownTools = new Set(opts.tools.keys())
+  const resolveRole = (cwd: string, name: string): SubagentRole | { error: string } => {
+    const roles = collectSubagentRoles(cwd, knownTools, opts.userAgentsDir)
+    const role = roles.find(r => r.name === name)
+    if (!role) {
+      return { error: `task: unknown subagent_type "${name}". Available: ${roles.map(r => r.name).join(', ')}` }
+    }
+    const mode = (opts.permission?.() ?? NO_PERMISSION).mode
+    if (mode === 'plan' && role.name !== 'research') {
+      return { error: `task: only the read-only "research" subagent may run in plan mode (got "${name}")` }
+    }
+    return role
+  }
   const sessions = new Map<string, TranscriptItem[]>()
   const remember = (id: string, items: TranscriptItem[]) => {
     sessions.delete(id)
@@ -100,24 +99,26 @@ export function createTaskTool(opts: {
   }
 
   const runSubagent = async (
-    input: { description?: string; prompt: string; subagent_type: SubagentType },
+    input: { description?: string; prompt: string; role: SubagentRole },
     ctx: ToolContext,
     id: string,
     items: TranscriptItem[],
+    background: boolean,
     signal?: AbortSignal
   ): Promise<SubagentResult> => {
-    const cfg = SUBAGENT_CONFIGS[input.subagent_type]
-    const sub = opts.resolveSubagent?.(input.subagent_type)
+    const role = input.role
+    const sub = opts.resolveSubagent?.(role.name)
+    const model = role.model?.model ?? sub?.model ?? opts.model
     const safeTools = new Map<string, ToolDefinition>()
-    for (const name of cfg.tools) {
+    for (const name of role.tools) {
       const def = opts.tools.get(name)
       if (def) safeTools.set(name, def)
     }
     const runner = new SessionRunner({
-      agentId: `sub-${input.subagent_type}-${id}`,
+      agentId: `sub-${role.name}-${id}`,
       taskId: id,
-      model: sub?.model ?? opts.model,
-      system: cfg.system,
+      model,
+      system: role.system,
       cwd: ctx.cwd,
       llm: sub?.llm ?? opts.llm,
       tools: safeTools,
@@ -179,8 +180,8 @@ export function createTaskTool(opts: {
     schema: z.object({
       description: z.string().describe('A short (3-5 words) description of the task'),
       prompt: z.string().describe('The task for the subagent to perform'),
-      subagent_type: z.enum(['research', 'general', 'reviewer']).default('research')
-        .describe('The type of subagent to use: research (read-only), general (can write code), reviewer (code review)'),
+      subagent_type: z.string().default('research')
+        .describe(`The subagent role to use. Available: ${(opts.roleNames ?? ['research', 'general', 'reviewer']).join(', ')}`),
       task_id: z.string().optional()
         .describe('Resume a previous subagent session (pass the task id from a prior result)'),
       background: z.boolean().optional()
@@ -189,8 +190,11 @@ export function createTaskTool(opts: {
     async run(input, ctx: ToolContext): Promise<ToolRunResult> {
       const { description, prompt, subagent_type = 'research', task_id, background } =
         input as unknown as {
-          description?: string; prompt: string; subagent_type?: SubagentType; task_id?: string; background?: boolean
+          description?: string; prompt: string; subagent_type?: string; task_id?: string; background?: boolean
         }
+      const resolved = resolveRole(ctx.cwd, subagent_type)
+      if ('error' in resolved) return { error: resolved.error }
+      const role = resolved
       const id = task_id ?? randomUUID()
       const items = sessions.get(id) ?? []
       items.push({
@@ -200,8 +204,8 @@ export function createTaskTool(opts: {
       remember(id, items)
 
       if (background) {
-        ctx.emitSubagent?.(id, { sub: 'start', subagentType: subagent_type, background: true })
-        void runSubagent({ description, prompt, subagent_type }, ctx, id, items, ctx.signal).then(
+        ctx.emitSubagent?.(id, { sub: 'start', subagentType: role.name, background: true })
+        void runSubagent({ description, prompt, role }, ctx, id, items, true, ctx.signal).then(
           (result) => {
             if (result.text) {
               ctx.emitSubagent?.(id, { sub: 'done', state: 'completed', result: result.text })
@@ -216,13 +220,13 @@ export function createTaskTool(opts: {
             opts.onBackgroundResult?.(id, '', String(err))
           }
         )
-        return { output: `Subagent ${id} (${subagent_type}) running in background.`, background: true }
+        return { output: `Subagent ${id} (${role.name}) running in background.`, background: true }
       }
 
-      ctx.emitSubagent?.(id, { sub: 'start', subagentType: subagent_type })
-      const result = await runSubagent({ description, prompt, subagent_type }, ctx, id, items, ctx.signal)
+      ctx.emitSubagent?.(id, { sub: 'start', subagentType: role.name })
+      const result = await runSubagent({ description, prompt, role }, ctx, id, items, false, ctx.signal)
       if (!result.text) return { error: result.error ?? 'task: subagent produced no answer' }
-      return { output: renderOutput({ id, description: description ?? subagent_type, text: result.text }) }
+      return { output: renderOutput({ id, description: description ?? role.name, text: result.text }) }
     }
   }
 }

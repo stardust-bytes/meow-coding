@@ -1,11 +1,13 @@
 import { describe, expect, it, afterEach, vi } from 'vitest'
-import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { createTaskTool, SUBAGENT_CONFIGS } from '../../src/main/agent/tools/task'
+import { createTaskTool } from '../../src/main/agent/tools/task'
 import { createDefaultTools } from '../../src/main/agent/tools/registry'
+import { BUILTIN_ROLES } from '../../src/main/agent/subagent-roles'
+import type { ToolPermissionContext } from '../../src/main/agent/permission'
 import type { LlmClient, LlmStreamOptions, LlmStreamPart } from '../../src/main/agent/llm'
-import type { ToolContext, SubagentToolEvent } from '../../src/main/agent/tools/types'
+import type { ToolContext, SubagentToolEvent, ToolDefinition } from '../../src/main/agent/tools/types'
 
 const { subagentRunners } = vi.hoisted(() => ({
   subagentRunners: [] as Array<{ agentId: string; turn?: number }>
@@ -47,17 +49,29 @@ function stubLlm(partsQueue: LlmStreamPart[][], onRequest?: (req: LlmStreamOptio
   }
 }
 
+class StubLlm implements LlmClient {
+  calls: LlmStreamOptions[] = []
+
+  async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
+    this.calls.push(opts)
+    yield { kind: 'text', text: 'sub result' }
+    yield { kind: 'finish' }
+  }
+}
+
+function stubTool(name: string): ToolDefinition {
+  return { name, description: name, schema: { parse: () => ({}) } as never, run: async () => ({ output: 'x' }) }
+}
+
+function allowAll(mode: 'build' | 'plan' = 'build'): () => ToolPermissionContext {
+  return () => ({ mode, rules: { '*': 'allow' }, isSavedAllow: () => false, canPrompt: true })
+}
+
 const ctx: ToolContext = { cwd: '', ask: async () => null }
 
-describe('task subagent configs', () => {
-  it('defines three subagent types with expected tool sets', () => {
-    expect(SUBAGENT_CONFIGS.research.tools).toEqual(['read', 'glob', 'grep', 'webfetch'])
-    expect(SUBAGENT_CONFIGS.general.tools).toEqual(
-      expect.arrayContaining(['write', 'edit', 'apply-patch', 'bash', 'git', 'todowrite'])
-    )
-    expect(SUBAGENT_CONFIGS.reviewer.tools).toEqual(expect.arrayContaining(['git']))
-    expect(SUBAGENT_CONFIGS.general.system).toMatch(/DONE/)
-    expect(SUBAGENT_CONFIGS.reviewer.system).toMatch(/APPROVED/)
+describe('task subagent roles', () => {
+  it('defines three built-in roles with expected tool sets', () => {
+    expect(BUILTIN_ROLES.map(r => r.name).sort()).toEqual(['general', 'research', 'reviewer'])
   })
 
   it('research subagent cannot write (no write tool)', async () => {
@@ -66,7 +80,8 @@ describe('task subagent configs', () => {
     const tool = createTaskTool({
       llm: stubLlm([[{ kind: 'tool-call', toolCallId: 'c1', toolName: 'write', toolInput: { file_path: 'x', content: 'y' } }, { kind: 'finish' }]]),
       model: 'm',
-      tools: createDefaultTools()
+      tools: createDefaultTools(),
+      permission: allowAll()
     })
     const r = await tool.run({ description: 'try write', prompt: 'write x', subagent_type: 'research' }, ctx)
     expect(existsSync(path.join(dir, 'x'))).toBe(false)
@@ -82,7 +97,8 @@ describe('task subagent configs', () => {
         [{ kind: 'text', text: 'DONE - wrote a.txt' }, { kind: 'finish' }]
       ]),
       model: 'm',
-      tools: createDefaultTools()
+      tools: createDefaultTools(),
+      permission: allowAll()
     })
     const r = await tool.run({ description: 'write file', prompt: 'write a.txt', subagent_type: 'general' }, ctx)
     expect(readFileSync(path.join(dir, 'a.txt'), 'utf-8')).toBe('hi')
@@ -98,7 +114,7 @@ describe('task subagent configs', () => {
       [{ kind: 'text', text: 'step one result' }, { kind: 'finish' }],
       [{ kind: 'text', text: 'step two result' }, { kind: 'finish' }]
     ], req => requests.push(req.messages.map(m => JSON.stringify(m.content))))
-    const tool = createTaskTool({ llm, model: 'm', tools: createDefaultTools() })
+    const tool = createTaskTool({ llm, model: 'm', tools: createDefaultTools(), permission: allowAll() })
     const r1 = await tool.run({ description: 'one', prompt: 'do one', subagent_type: 'research' }, ctx)
     const id = /<task id="([^"]+)"/.exec(r1.output ?? '')?.[1]
     expect(id).toBeTruthy()
@@ -113,7 +129,8 @@ describe('task subagent configs', () => {
     const tool = createTaskTool({
       llm: stubLlm([[{ kind: 'text', text: 'ok' }, { kind: 'finish' }]]),
       model: 'm',
-      tools: createDefaultTools()
+      tools: createDefaultTools(),
+      permission: allowAll()
     })
     await tool.run(
       { description: 'explore', prompt: 'find it', subagent_type: 'research' },
@@ -130,7 +147,8 @@ describe('task subagent configs', () => {
     const tool = createTaskTool({
       llm: stubLlm([[{ kind: 'text', text: 'ok' }, { kind: 'finish' }]]),
       model: 'm',
-      tools: createDefaultTools()
+      tools: createDefaultTools(),
+      permission: allowAll()
     })
     await tool.run(
       { description: 'explore', prompt: 'go', subagent_type: 'general' },
@@ -141,5 +159,54 @@ describe('task subagent configs', () => {
     expect(delta?.parentTaskId).toBe('parent-1')
     const done = events.find(e => e.sub === 'done')
     expect(done?.parentTaskId).toBe('parent-1')
+  })
+
+  it('runs a role defined by a project file', async () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), 'meow-task-'))
+    dirs.push(cwd)
+    mkdirSync(path.join(cwd, '.meow', 'agents'), { recursive: true })
+    writeFileSync(
+      path.join(cwd, '.meow', 'agents', 'auditor.md'),
+      ['---', 'name: auditor', 'tools: read, grep', '---', 'You audit.'].join('\n')
+    )
+    const llm = new StubLlm()
+    const task = createTaskTool({
+      llm,
+      model: 'm',
+      tools: new Map([['read', stubTool('read')], ['grep', stubTool('grep')], ['bash', stubTool('bash')]]),
+      permission: allowAll()
+    })
+    const r = await task.run({ prompt: 'x', subagent_type: 'auditor' }, { cwd, ask: async () => null })
+    expect(r.error).toBeUndefined()
+    expect(llm.calls[0]?.system).toContain('You audit.')
+    expect((llm.calls[0]?.tools ?? []).map(t => t.name).sort()).toEqual(['grep', 'read'])
+  })
+
+  it('rejects an unknown role and names the valid ones', async () => {
+    const task = createTaskTool({
+      llm: new StubLlm(),
+      model: 'm',
+      tools: new Map([['read', stubTool('read')]]),
+      permission: allowAll()
+    })
+    const r = await task.run({ prompt: 'x', subagent_type: 'nope' }, { cwd: '/proj', ask: async () => null })
+    expect(r.error).toContain('nope')
+    expect(r.error).toContain('research')
+  })
+
+  it('lets plan mode reach the task tool at all', async () => {
+    const { PLAN_RULES } = await import('../../src/main/agent/permission')
+    expect(PLAN_RULES.task).toBe('allow')
+  })
+
+  it('allows only the read-only research role in plan mode', async () => {
+    const tools = new Map([['read', stubTool('read')]])
+    const research = createTaskTool({ llm: new StubLlm(), model: 'm', tools, permission: allowAll('plan') })
+    const ok = await research.run({ prompt: 'x', subagent_type: 'research' }, { cwd: '/p', ask: async () => null })
+    expect(ok.error).toBeUndefined()
+
+    const general = createTaskTool({ llm: new StubLlm(), model: 'm', tools, permission: allowAll('plan') })
+    const blocked = await general.run({ prompt: 'x', subagent_type: 'general' }, { cwd: '/p', ask: async () => null })
+    expect(blocked.error).toMatch(/plan mode/i)
   })
 })

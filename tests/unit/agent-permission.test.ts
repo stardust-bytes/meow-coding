@@ -44,7 +44,6 @@ describe('decidePermission (plan mode)', () => {
     expect(decidePermission('plan', {}, noSaved, 'apply-patch')).toBe('deny')
     expect(decidePermission('plan', {}, noSaved, 'git')).toBe('deny')
     expect(decidePermission('plan', {}, noSaved, 'todowrite')).toBe('deny')
-    expect(decidePermission('plan', {}, noSaved, 'task')).toBe('deny')
   })
 
   it('allows read-only tools and asks for bash', () => {
@@ -52,6 +51,8 @@ describe('decidePermission (plan mode)', () => {
     expect(decidePermission('plan', {}, noSaved, 'glob')).toBe('allow')
     expect(decidePermission('plan', {}, noSaved, 'grep')).toBe('allow')
     expect(decidePermission('plan', {}, noSaved, 'bash')).toBe('ask')
+    // The task tool itself is read-only; task.ts gates which roles may run.
+    expect(decidePermission('plan', {}, noSaved, 'task')).toBe('allow')
   })
 
   it('plan mode wins even if config allows a write tool', () => {
