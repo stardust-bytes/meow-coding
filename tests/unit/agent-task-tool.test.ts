@@ -41,6 +41,17 @@ class ToolCallingLlm implements LlmClient {
   }
 }
 
+// Always calls a tool, so the loop only stops when it runs out of steps. The
+// final step still yields a tool call (the runner strips tools, not the LLM),
+// so the loop ends on isLastStep and reports max-steps instead of complete.
+class NeverFinishingLlm implements LlmClient {
+  async *stream(): AsyncGenerator<LlmStreamPart> {
+    yield { kind: 'text', text: 'partial progress' }
+    yield { kind: 'tool-call', toolCallId: 't', toolName: 'read', toolInput: {} }
+    yield { kind: 'finish' }
+  }
+}
+
 describe('task tool (subagent)', () => {
   it('runs a subagent and returns its final answer', async () => {
     const llm = new StubLlm()
@@ -322,5 +333,21 @@ describe('subagent snapshots and todo filtering', () => {
     })
     await task.run({ prompt: 'x', subagent_type: 'general' }, { cwd: '/p', ask: async () => null })
     expect(seen[0]).toEqual({ snapshotAgentId: 'agent-parent', hasStore: true })
+  })
+})
+
+describe('subagent step budget', () => {
+  it('reports an incomplete task when the subagent runs out of steps', async () => {
+    const task = createTaskTool({
+      llm: new NeverFinishingLlm(),
+      model: 'm',
+      tools: new Map([['read', stubTool('read')]]),
+      permission: allowAll(),
+      maxSteps: 2
+    })
+    const r = await task.run({ prompt: 'x', subagent_type: 'research' }, { cwd: '/p', ask: async () => null })
+    expect(r.output).toContain('state="incomplete"')
+    expect(r.output).toContain('reason="max-steps"')
+    expect(r.output).toContain('partial progress')
   })
 })

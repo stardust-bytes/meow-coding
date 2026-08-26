@@ -32,17 +32,17 @@ export interface ResolvedSubagentModel {
   llm: LlmClient
 }
 
-function renderOutput(input: { id: string; description: string; text: string }): string {
-  return [
-    `<task id="${input.id}" state="completed">`,
-    input.text,
-    `</task>`
-  ].join('\n')
+function renderOutput(input: { id: string; description: string; text: string; incomplete?: string }): string {
+  const state = input.incomplete
+    ? `state="incomplete" reason="${input.incomplete}"`
+    : 'state="completed"'
+  return [`<task id="${input.id}" ${state}>`, input.text, `</task>`].join('\n')
 }
 
 interface SubagentResult {
   text: string
   error?: string
+  incomplete?: string
 }
 
 export function createTaskTool(opts: {
@@ -78,6 +78,7 @@ export function createTaskTool(opts: {
   // Subagent edits snapshot under the parent's agent id so undo/revert reach them.
   snapshots?: SnapshotStore
   parentAgentId?: string
+  maxSteps?: number
 }): ToolDefinition {
   // Resumable subagent sessions, keyed by task id (SDD fix loop reuses them).
   // Bounded so a long-lived agent does not accumulate transcripts forever.
@@ -125,6 +126,7 @@ export function createTaskTool(opts: {
       const def = opts.tools.get(name)
       if (def) safeTools.set(name, def)
     }
+    let stopReason: string | undefined
     const runner = new SessionRunner({
       agentId: `sub-${role.name}-${id}`,
       taskId: id,
@@ -142,7 +144,7 @@ export function createTaskTool(opts: {
         toolInput
       ),
       ask: opts.ask ?? (async () => null),
-      maxSteps: 20,
+      maxSteps: opts.maxSteps ?? 30,
       maxContextTokens: opts.maxContextTokens,
       maxOutputTokens: opts.maxOutputTokens,
       compaction: opts.compaction,
@@ -160,6 +162,7 @@ export function createTaskTool(opts: {
         } else if (e.type === 'tool-start' || e.type === 'tool-result') {
           ctx.emitSubagent?.(id, { sub: 'tool', tool: e.call.tool, parentTaskId: ctx.taskId })
         } else if (e.type === 'done') {
+          stopReason = e.reason
           ctx.emitSubagent?.(id, {
             sub: 'done',
             state: e.reason === 'stopped' ? 'cancelled' : 'completed',
@@ -187,7 +190,8 @@ export function createTaskTool(opts: {
       }
     }
     if (!text) return { text: '', error: 'task: subagent produced no answer' }
-    return { text }
+    const incomplete = stopReason === 'max-steps' || stopReason === 'length' ? stopReason : undefined
+    return { text, ...(incomplete ? { incomplete } : {}) }
   }
 
   return {
@@ -247,7 +251,7 @@ export function createTaskTool(opts: {
       ctx.emitSubagent?.(id, { sub: 'start', subagentType: role.name })
       const result = await runSubagent({ description, prompt, role }, ctx, id, items, false, ctx.signal)
       if (!result.text) return { error: result.error ?? 'task: subagent produced no answer' }
-      return { output: renderOutput({ id, description: description ?? role.name, text: result.text }) }
+      return { output: renderOutput({ id, description: description ?? role.name, text: result.text, incomplete: result.incomplete }) }
     }
   }
 }

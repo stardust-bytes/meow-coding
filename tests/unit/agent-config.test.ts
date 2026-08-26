@@ -495,6 +495,10 @@ describe('maxSteps default', () => {
     expect(Number.isFinite(cfg.maxSteps)).toBe(true)
     expect(cfg.maxSteps).toBeGreaterThan(20)
   })
+
+  it('defaults subagentMaxSteps to 30', () => {
+    expect(DEFAULT_MEOW_CONFIG.subagentMaxSteps).toBe(30)
+  })
 })
 
 describe('resolveOutputTokens', () => {

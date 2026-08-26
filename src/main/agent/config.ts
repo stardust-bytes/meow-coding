@@ -49,6 +49,7 @@ export interface MeowConfig {
   maxContextTokens: number
   maxOutputTokens: number
   maxSteps: number
+  subagentMaxSteps: number
   compaction: MeowCompactionConfig
   toolOutput: ToolOutputConfig
   lsp: LspConfig
@@ -77,6 +78,9 @@ export const DEFAULT_MAX_CONTEXT_TOKENS = 128000
 // burning tokens forever. The budget resets whenever steered messages are
 // promoted, so this bounds one uninterrupted run, not a whole session.
 export const DEFAULT_MAX_STEPS = 100
+// Subagents get a tighter budget than the parent: they are single-purpose and
+// a runaway loop there is pure waste.
+export const DEFAULT_SUBAGENT_MAX_STEPS = 30
 // Reserved from the context budget and sent as the provider's output cap.
 // Fallback for models whose limit is unknown from the catalog: kept well
 // under the 64k some models allow, a coding answer never needs that much.
@@ -158,6 +162,7 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
   maxContextTokens: DEFAULT_MAX_CONTEXT_TOKENS,
   maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
   maxSteps: DEFAULT_MAX_STEPS,
+  subagentMaxSteps: DEFAULT_SUBAGENT_MAX_STEPS,
   compaction: DEFAULT_COMPACTION,
   toolOutput: DEFAULT_TOOL_OUTPUT,
   lsp: DEFAULT_LSP,
@@ -308,6 +313,7 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     maxContextTokens: raw.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
     maxOutputTokens: raw.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
     maxSteps: raw.maxSteps ?? DEFAULT_MAX_STEPS,
+    subagentMaxSteps: raw.subagentMaxSteps ?? DEFAULT_SUBAGENT_MAX_STEPS,
     compaction: normalizeCompaction(raw.compaction),
     toolOutput: normalizeToolOutput(raw.toolOutput),
     lsp: normalizeLsp(raw.lsp),
@@ -462,6 +468,7 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
     maxContextTokens: settings.maxContextTokens ?? base.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
     maxOutputTokens: settings.maxOutputTokens ?? base.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
     maxSteps: settings.maxSteps ?? base.maxSteps ?? DEFAULT_MAX_STEPS,
+    subagentMaxSteps: base.subagentMaxSteps ?? DEFAULT_SUBAGENT_MAX_STEPS,
     compaction: settings.compaction ? normalizeCompaction(settings.compaction) : normalizeCompaction(base.compaction),
     toolOutput: settings.toolOutput ? normalizeToolOutput(settings.toolOutput) : normalizeToolOutput(base.toolOutput),
     lsp: settings.lsp ? normalizeLsp(settings.lsp) : normalizeLsp(base.lsp),
