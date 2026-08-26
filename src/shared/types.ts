@@ -319,6 +319,8 @@ export interface MeowSettings {
   permission: Record<string, PermissionRule>
   mcp: Record<string, McpServerConfig>
   maxContextTokens: number
+  /** Max tokens per answer; fallback when the model's catalog limit is unknown. */
+  maxOutputTokens: number
   maxSteps: number
   compaction: CompactionSettings
   toolOutput: ToolOutputSettings

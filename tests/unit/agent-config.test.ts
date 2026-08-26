@@ -4,10 +4,12 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import {
   DEFAULT_MEOW_CONFIG,
+  MAX_OUTPUT_HARD_CAP,
   configToSettings,
   loadMeowConfig,
   resolveAgentConfig,
   resolveApiKey,
+  resolveOutputTokens,
   settingsToConfig,
   writeMeowConfig
 } from '../../src/main/agent/config'
@@ -342,6 +344,7 @@ describe('configToSettings / settingsToConfig', () => {
   it('defaults to token-based compaction settings', () => {
     const cfg = loadMeowConfig(file)
     expect(cfg.maxContextTokens).toBe(128000)
+    expect(cfg.maxOutputTokens).toBe(32000)
     expect(cfg.maxSteps).toBe(100)
     expect(cfg.compaction).toEqual({
       auto: true,
@@ -401,6 +404,7 @@ describe('configToSettings / settingsToConfig', () => {
     cfg.permission = { bash: 'ask', write: 'allow', edit: 'deny' }
     cfg.mcp = { mytools: { command: 'npx', args: ['-y', '@foo/bar'] } }
     cfg.maxContextTokens = 123000
+    cfg.maxOutputTokens = 64000
     cfg.maxSteps = 300
     cfg.compaction = { auto: false, buffer: 7000, keepTokens: 900, tailTurns: 1, toolOutputMaxChars: 400, prune: false }
     cfg.toolOutput = { maxBytes: 100000, maxLines: 500 }
@@ -411,6 +415,7 @@ describe('configToSettings / settingsToConfig', () => {
     expect(settings.permission.bash).toBe('ask')
     expect(settings.mcp.mytools).toEqual({ command: 'npx', args: ['-y', '@foo/bar'] })
     expect(settings.maxContextTokens).toBe(123000)
+    expect(settings.maxOutputTokens).toBe(64000)
     expect(settings.maxSteps).toBe(300)
     expect(settings.compaction.tailTurns).toBe(1)
 
@@ -419,6 +424,7 @@ describe('configToSettings / settingsToConfig', () => {
     expect(back.permission).toMatchObject({ bash: 'ask', write: 'allow', edit: 'deny' })
     expect(back.mcp.mytools.command).toBe('npx')
     expect(back.maxContextTokens).toBe(123000)
+    expect(back.maxOutputTokens).toBe(64000)
     expect(back.maxSteps).toBe(300)
     expect(back.compaction).toEqual({ auto: false, buffer: 7000, keepTokens: 900, tailTurns: 1, toolOutputMaxChars: 400, prune: false })
     expect(back.toolOutput).toEqual({ maxBytes: 100000, maxLines: 500 })
@@ -488,5 +494,29 @@ describe('maxSteps default', () => {
     const cfg = loadMeowConfig(file)
     expect(Number.isFinite(cfg.maxSteps)).toBe(true)
     expect(cfg.maxSteps).toBeGreaterThan(20)
+  })
+})
+
+describe('resolveOutputTokens', () => {
+  it('uses the catalog output limit when known', () => {
+    expect(resolveOutputTokens({ output: 128000 }, 1_000_000, 32000)).toBe(128000)
+  })
+
+  it('caps a huge catalog claim at the hard cap', () => {
+    expect(resolveOutputTokens({ output: 1_048_576 }, 1_048_576, 32000)).toBe(MAX_OUTPUT_HARD_CAP)
+  })
+
+  it('never reserves more than half the context window', () => {
+    // glm-4.5 lists 98304 output on a 131072 window -> half wins.
+    expect(resolveOutputTokens({ output: 98304 }, 131072, 32000)).toBe(65536)
+  })
+
+  it('falls back to the user setting when the model is unknown', () => {
+    expect(resolveOutputTokens(undefined, 128000, 64000)).toBe(64000)
+    expect(resolveOutputTokens({ output: undefined }, null, 32000)).toBe(32000)
+  })
+
+  it('still honors the fallback below the half-context guard', () => {
+    expect(resolveOutputTokens({ output: 64000 }, 128000, 32000)).toBe(64000)
   })
 })

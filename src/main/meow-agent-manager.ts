@@ -4,7 +4,8 @@ import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSugge
 import type { AgentConfig, AgentMode, ArtifactEntry, CatalogProviderSummary, Command, ModelRef, SubagentType } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, resolveApiKey, settingsToConfig, writeMeowConfig,
-  OLLAMA_CLOUD_BASE_URL, DEFAULT_MAX_OUTPUT_TOKENS,
+  resolveOutputTokens,
+  OLLAMA_CLOUD_BASE_URL,
   type MeowConfig, type ResolvedAgentConfig
 } from './agent/config'
 import { SessionRunner } from './agent/loop'
@@ -566,7 +567,7 @@ export class MeowAgentManager {
       ? this.modelLimits.get(`${resolved.provider}/${resolved.model}`)
       : undefined
     const limit = modelLimit?.context ?? cfg.maxContextTokens ?? null
-    const outputTokens = Math.min(modelLimit?.output ?? DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS)
+    const outputTokens = resolveOutputTokens(modelLimit, limit, cfg.maxOutputTokens)
     const compactThreshold = cfg.compaction.auto && limit
       ? usableContextTokens(limit, cfg.compaction.buffer, outputTokens)
       : null
@@ -839,7 +840,7 @@ export class MeowAgentManager {
       const usedTokens = used.total > 0
         ? used.total
         : used.input + used.output + (used.cacheRead ?? 0) + (used.cacheWrite ?? 0)
-      const outputTokens = Math.min(modelLimit?.output ?? DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS)
+      const outputTokens = resolveOutputTokens(modelLimit, limit, cfg.maxOutputTokens)
       if (usedTokens < usableContextTokens(limit, compaction.buffer, outputTokens)) continue
       const runner = this.runners.get(agentId)
       if (!runner) continue
@@ -909,7 +910,7 @@ export class MeowAgentManager {
       ? this.modelLimits.get(`${resolved.provider}/${resolved.model}`)
       : undefined
     const contextTokens = modelLimit?.context ?? cfg.maxContextTokens
-    const outputTokens = Math.min(modelLimit?.output ?? DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS)
+    const outputTokens = resolveOutputTokens(modelLimit, contextTokens, cfg.maxOutputTokens)
     const skills = collectSkills(agent.cwd, this.deps.userSkillsDir, this.deps.builtinSkillsDir)
     // AGENTS.md/CLAUDE.md walking up from cwd are inlined into the system
     // prompt (opencode-style); module-level ones attach on read via loop.ts.

@@ -239,6 +239,7 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
             {draft && tab === 'context' && (
               <ContextTab
                 maxContextTokens={draft.maxContextTokens}
+                maxOutputTokens={draft.maxOutputTokens}
                 maxSteps={draft.maxSteps}
                 compaction={draft.compaction}
                 toolOutput={draft.toolOutput}

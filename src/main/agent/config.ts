@@ -47,6 +47,7 @@ export interface MeowConfig {
   permission: Record<string, PermissionRule>
   mcp: Record<string, McpServerConfig>
   maxContextTokens: number
+  maxOutputTokens: number
   maxSteps: number
   compaction: MeowCompactionConfig
   toolOutput: ToolOutputConfig
@@ -77,9 +78,29 @@ export const DEFAULT_MAX_CONTEXT_TOKENS = 128000
 // promoted, so this bounds one uninterrupted run, not a whole session.
 export const DEFAULT_MAX_STEPS = 100
 // Reserved from the context budget and sent as the provider's output cap.
-// Kept well under the 64k some models allow: a coding answer never needs that
-// much, and reserving 64k would push compaction far too early.
+// Fallback for models whose limit is unknown from the catalog: kept well
+// under the 64k some models allow, a coding answer never needs that much.
 export const DEFAULT_MAX_OUTPUT_TOKENS = 32000
+// Ceiling on the per-answer output budget even when the catalog claims more
+// (e.g. deepseek-v4-flash:0731 lists 1M output): reserving that much from the
+// context budget would push the auto-compact threshold to zero.
+export const MAX_OUTPUT_HARD_CAP = 131072
+
+/**
+ * Effective per-answer output budget. A model with a catalog limit uses it
+ * (capped so a huge claim can't starve the context budget); unknown models
+ * fall back to the user setting. Never reserves more than half the context
+ * window so compaction always keeps room to work.
+ */
+export function resolveOutputTokens(
+  modelLimit: { output?: number } | undefined,
+  contextLimit: number | null | undefined,
+  fallback: number
+): number {
+  const base = modelLimit?.output ?? fallback
+  if (!contextLimit || contextLimit <= 0) return Math.min(base, MAX_OUTPUT_HARD_CAP)
+  return Math.min(base, MAX_OUTPUT_HARD_CAP, Math.floor(contextLimit / 2))
+}
 export const DEFAULT_COMPACTION: MeowCompactionConfig = {
   auto: true,
   buffer: 20000,
@@ -135,6 +156,7 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
   },
   mcp: {},
   maxContextTokens: DEFAULT_MAX_CONTEXT_TOKENS,
+  maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
   maxSteps: DEFAULT_MAX_STEPS,
   compaction: DEFAULT_COMPACTION,
   toolOutput: DEFAULT_TOOL_OUTPUT,
@@ -287,6 +309,7 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     permission: { ...DEFAULT_MEOW_CONFIG.permission, ...(raw.permission ?? {}) },
     mcp: normalizeMcp(raw.mcp),
     maxContextTokens: raw.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
+    maxOutputTokens: raw.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
     maxSteps: raw.maxSteps ?? DEFAULT_MAX_STEPS,
     compaction: normalizeCompaction(raw.compaction),
     toolOutput: normalizeToolOutput(raw.toolOutput),
@@ -396,6 +419,7 @@ export function configToSettings(cfg: MeowConfig): MeowSettings {
     permission: cfg.permission,
     mcp: cfg.mcp,
     maxContextTokens: cfg.maxContextTokens,
+    maxOutputTokens: cfg.maxOutputTokens,
     maxSteps: cfg.maxSteps,
     compaction: cfg.compaction,
     toolOutput: cfg.toolOutput,
@@ -439,6 +463,7 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
       : (base.permission ?? DEFAULT_MEOW_CONFIG.permission),
     mcp: normalizeMcp(settings.mcp ?? base.mcp ?? {}),
     maxContextTokens: settings.maxContextTokens ?? base.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
+    maxOutputTokens: settings.maxOutputTokens ?? base.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
     maxSteps: settings.maxSteps ?? base.maxSteps ?? DEFAULT_MAX_STEPS,
     compaction: settings.compaction ? normalizeCompaction(settings.compaction) : normalizeCompaction(base.compaction),
     toolOutput: settings.toolOutput ? normalizeToolOutput(settings.toolOutput) : normalizeToolOutput(base.toolOutput),
