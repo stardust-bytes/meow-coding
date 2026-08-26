@@ -1,4 +1,5 @@
 import { BrowserWindow, shell } from 'electron'
+import { getWindowChromeOptions } from './window-chrome'
 import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import type { FileContentResult, FileViewerPayload } from '../shared/types'
@@ -78,6 +79,9 @@ export function openFileViewer(payload: FileViewerPayload, getMainWindow: () => 
     height: 700,
     title: path.basename(abs),
     backgroundColor: '#1e1e1e',
+    // Match the main app: custom title bar + overlay so min/max/close blend
+    // with the theme instead of drawing a native frame.
+    ...getWindowChromeOptions(process.platform),
     // Hide the default File/Edit/View/Window menu bar; Alt still reveals it so
     // shortcuts (copy/paste) keep working.
     autoHideMenuBar: true,

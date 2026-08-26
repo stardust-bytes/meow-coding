@@ -1,4 +1,5 @@
 import { BrowserWindow } from 'electron'
+import { getWindowChromeOptions } from './window-chrome'
 import path from 'node:path'
 
 const viewerWindows = new Map<string, BrowserWindow>()
@@ -20,6 +21,9 @@ export function openGitViewer(projectPath: string, getMainWindow: () => BrowserW
     height: 700,
     title: `${path.basename(projectPath)} — Git`,
     backgroundColor: '#1e1e1e',
+    // Match the main app: custom title bar + overlay so min/max/close blend
+    // with the theme instead of drawing a native frame.
+    ...getWindowChromeOptions(process.platform),
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),

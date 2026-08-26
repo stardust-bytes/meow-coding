@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import MarkdownText from './chat/MarkdownText'
+import PopupTitleBar from './PopupTitleBar'
 import { isHighlightable, preloadLanguage, highlightCode } from './chat/highlight'
 
 interface Props {
@@ -63,6 +64,7 @@ export default function FileViewer({ path: filePath, root }: Props) {
 
   return (
     <div className="viewer">
+      <PopupTitleBar title={filePath} />
       <div className="viewer-toolbar">
         <span className="viewer-path" title={filePath}>{filePath}</span>
         <div className="viewer-actions">

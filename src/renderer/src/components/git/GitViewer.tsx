@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, GitBranch, RefreshCw, X } from 'lucide-react'
 import type { GitBranch as GitBranchType, GitStatusDetail } from '@shared/types'
+import PopupTitleBar from '../PopupTitleBar'
 import GitBranchSwitcher from './GitBranchSwitcher'
 import GitChangesTab from './GitChangesTab'
 import GitHistoryTab from './GitHistoryTab'
@@ -141,6 +142,7 @@ export default function GitViewer({ projectPath }: Props) {
 
   return (
     <div className="git-viewer">
+      <PopupTitleBar title={projectPath} />
       <div className="git-header">
         <span className="git-title" title={projectPath}>
           <GitBranch size={14} aria-hidden="true" />
