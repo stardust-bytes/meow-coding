@@ -1,16 +1,31 @@
-import type { BrowserWindowConstructorOptions } from 'electron'
+import type { BrowserWindow, BrowserWindowConstructorOptions } from 'electron'
 
 const TITLE_BAR_HEIGHT = 32
-// Match the app's title bar background (--bg-panel: #10141b) and text
-// (--text: #cdd3de) so the Windows overlay buttons blend with the theme.
-const TITLE_BAR_BG = '#10141b'
-const TITLE_BAR_SYMBOL = '#cdd3de'
+// Match the app's title bar background (--bg-panel) and text (--text) so the
+// Windows overlay buttons blend with the theme. WindowChrome only reads these
+// when a window is created; they are re-applied live via applyTitleBarTheme.
+export type TitleBarTheme = 'dark' | 'light'
+const TITLE_BAR_COLORS: Record<TitleBarTheme, { color: string; symbolColor: string }> = {
+  dark: { color: '#0f0f11', symbolColor: '#ffffff' },
+  light: { color: '#f3f3f3', symbolColor: '#1e1e1e' }
+}
+
+export function getTitleBarOverlay(theme: TitleBarTheme): { color: string; symbolColor: string } {
+  return TITLE_BAR_COLORS[theme]
+}
+
+export function applyTitleBarTheme(win: BrowserWindow | null, theme: TitleBarTheme): void {
+  if (!win || process.platform !== 'win32') return
+  const overlay = getTitleBarOverlay(theme)
+  win.setTitleBarOverlay({ ...overlay, height: TITLE_BAR_HEIGHT })
+}
 
 export function getWindowChromeOptions(platform: NodeJS.Platform): BrowserWindowConstructorOptions {
   if (platform === 'win32') {
+    const overlay = getTitleBarOverlay('dark')
     return {
       titleBarStyle: 'hidden',
-      titleBarOverlay: { color: TITLE_BAR_BG, symbolColor: TITLE_BAR_SYMBOL, height: TITLE_BAR_HEIGHT }
+      titleBarOverlay: { ...overlay, height: TITLE_BAR_HEIGHT }
     }
   }
   if (platform === 'darwin') {

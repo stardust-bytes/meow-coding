@@ -35,7 +35,7 @@ import { isPathInside, listDir, shouldIgnore } from './dir-lister'
 import type { DirEntry } from '../shared/types'
 import { LspManager } from './agent/lsp/manager'
 import { ModelsCatalog } from './models-catalog'
-import { getWindowChromeOptions } from './window-chrome'
+import { applyTitleBarTheme, getWindowChromeOptions } from './window-chrome'
 import { Vault } from './vault'
 import { ConnectionsManager } from './connections/connections-manager'
 import { CodexOAuth } from './connections/codex-oauth'
@@ -832,6 +832,7 @@ export function registerIpcHandlers(): void {
   })
   ipcMain.handle(Channels.WindowClose, () => win?.close())
   ipcMain.handle(Channels.WindowIsMaximized, () => win?.isMaximized() ?? false)
+  ipcMain.handle(Channels.WindowSetTheme, (_e, theme: 'dark' | 'light') => applyTitleBarTheme(win, theme))
   ipcMain.handle(Channels.BrowserGetStatus, () => mainApp.browserBridge.getStatus())
   ipcMain.handle(Channels.BrowserPair, () => mainApp.browserBridge.pair())
   ipcMain.handle(Channels.BrowserOpenInstallGuide, () => mainApp.browserLauncher.showInstallGuide())

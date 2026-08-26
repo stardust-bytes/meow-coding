@@ -26,7 +26,7 @@ handlers and the app lifecycle.
 - `models-catalog.ts` / `model-variants.ts` — model provider catalog + variants (reasoning, pricing).
 - `terminal-shell.ts` — `resolveShell`: picks the default shell per platform.
 - `updater.ts` — electron-updater wrapper, emits `UpdaterStatusEvent`.
-- `window-chrome.ts` — `getWindowChromeOptions`: hides the title-bar on Windows/Linux.
+- `window-chrome.ts` — `getWindowChromeOptions`: hides the title-bar on Windows/Linux; `applyTitleBarTheme` re-colors the Windows overlay (min/max/close) live when the app theme toggles dark/light.
 - `vault.ts` — encrypted secret store (safeStorage) for provider API keys.
 - `browser/` — BrowserBridge (local WS server + pairing) + Chrome launcher + snapshot format.
 

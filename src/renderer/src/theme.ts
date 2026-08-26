@@ -7,7 +7,12 @@ export function getTheme(): Theme {
 }
 
 export function applyTheme(theme?: Theme): void {
-  document.documentElement.setAttribute('data-theme', theme ?? getTheme())
+  const resolved = theme ?? getTheme()
+  document.documentElement.setAttribute('data-theme', resolved)
+  // Keep the Windows titleBarOverlay min/max/close buttons in step with the
+  // app theme; without this they stay dark even in light mode. The main window
+  // is the only one with an overlay, but the call is harmless from popups.
+  void window.api?.setTitleBarTheme(resolved)
 }
 
 // Popup windows (Git viewer, FileViewer) are separate renderers; they re-apply

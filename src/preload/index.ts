@@ -161,6 +161,7 @@ const api: AgentApi = {
   toggleMaximizeWindow: () => ipcRenderer.invoke(Channels.WindowToggleMaximize),
   closeWindow: () => ipcRenderer.invoke(Channels.WindowClose),
   isWindowMaximized: () => ipcRenderer.invoke(Channels.WindowIsMaximized),
+  setTitleBarTheme: (theme: 'dark' | 'light') => ipcRenderer.invoke(Channels.WindowSetTheme, theme),
   onWindowMaximizedChange: (cb: (e: WindowMaximizedChangeEvent) => void) =>
     subscribe(Channels.EventWindowMaximizedChange, cb),
   onUpdaterStatus: (cb: (e: UpdaterStatusEvent) => void) => subscribe(Channels.EventUpdaterStatus, cb),

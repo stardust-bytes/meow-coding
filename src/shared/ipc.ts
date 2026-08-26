@@ -98,6 +98,7 @@ export const Channels = {
   WindowToggleMaximize: 'window:toggle-maximize',
   WindowClose: 'window:close',
   WindowIsMaximized: 'window:is-maximized',
+  WindowSetTheme: 'window:set-theme',
   EventWindowMaximizedChange: 'window:maximized-change',
   TerminalOpen: 'terminal:open',
   TerminalClose: 'terminal:close',
@@ -256,6 +257,7 @@ export interface AgentApi {
   toggleMaximizeWindow(): Promise<void>
   closeWindow(): Promise<void>
   isWindowMaximized(): Promise<boolean>
+  setTitleBarTheme(theme: 'dark' | 'light'): Promise<void>
   onWindowMaximizedChange(cb: (e: WindowMaximizedChangeEvent) => void): () => void
   onUpdaterStatus(cb: (e: UpdaterStatusEvent) => void): () => void
   onPtyData(cb: (e: PtyDataEvent) => void): () => void

@@ -25,7 +25,7 @@ describe('IPC contract', () => {
       'listSessions', 'createSession', 'switchSession', 'deleteSession', 'renameSession',
       'getChatTodos',
       'isChatRunning',
-      'minimizeWindow', 'toggleMaximizeWindow', 'closeWindow', 'isWindowMaximized', 'onWindowMaximizedChange',
+      'minimizeWindow', 'toggleMaximizeWindow', 'closeWindow', 'isWindowMaximized', 'setTitleBarTheme', 'onWindowMaximizedChange',
       'getBrowserStatus', 'pairBrowser', 'openBrowserInstallGuide', 'openBrowserExtensionFolder', 'openBrowserChromeExtensions',
       'getBrowserConsoleLogs', 'getBrowserNetworkLogs', 'onBrowserStatus', 'onBrowserOpenInstallGuide',
       'getRemoteStatus', 'setRemoteEnabled', 'setRemoteRelayUrl', 'startRemotePairing', 'revokeRemoteToken', 'onRemoteStatus',
@@ -131,6 +131,7 @@ describe('IPC contract', () => {
       toggleMaximizeWindow: async () => {},
       closeWindow: async () => {},
       isWindowMaximized: async () => false,
+      setTitleBarTheme: async () => {},
       onWindowMaximizedChange: () => () => {},
       listCommands: async () => [],
       saveCommand: async (c) => c,
@@ -207,6 +208,7 @@ describe('IPC contract', () => {
     expect(Channels.WindowToggleMaximize).toBe('window:toggle-maximize')
     expect(Channels.WindowClose).toBe('window:close')
     expect(Channels.WindowIsMaximized).toBe('window:is-maximized')
+    expect(Channels.WindowSetTheme).toBe('window:set-theme')
     expect(Channels.EventWindowMaximizedChange).toBe('window:maximized-change')
     expect(Channels.BrowserGetStatus).toBe('browser:get-status')
     expect(Channels.BrowserPair).toBe('browser:pair')
