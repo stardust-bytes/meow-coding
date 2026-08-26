@@ -9,6 +9,7 @@ import type { SavedPermission } from '../../src/main/agent/saved-permissions'
 import { writeTool } from '../../src/main/agent/tools/write'
 import { editTool } from '../../src/main/agent/tools/edit'
 import { revertTool } from '../../src/main/agent/tools/revert'
+import { snapshotFile } from '../../src/main/agent/tools/snapshot-util'
 import type { ToolContext } from '../../src/main/agent/tools/types'
 
 function makeStore() {
@@ -129,5 +130,44 @@ describe('revert tool + file tools snapshot', () => {
   it('reports when there is nothing to revert', async () => {
     const r = await revertTool.run({}, ctx)
     expect(r.output).toContain('no changes')
+  })
+})
+
+describe('snapshotFile agent attribution', () => {
+  it('records under snapshotAgentId when the caller is a subagent', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-snap-'))
+    const file = path.join(dir, 'a.txt')
+    writeFileSync(file, 'before')
+    const recorded: Array<{ agentId: string; filePath: string }> = []
+    const ctx = {
+      cwd: dir,
+      ask: async () => null,
+      agentId: 'sub-general-123',
+      snapshotAgentId: 'agent-parent',
+      snapshots: {
+        snapshot: (agentId: string, filePath: string) => recorded.push({ agentId, filePath })
+      }
+    } as unknown as ToolContext
+
+    snapshotFile(ctx, file)
+
+    expect(recorded).toEqual([{ agentId: 'agent-parent', filePath: file }])
+  })
+
+  it('falls back to agentId when snapshotAgentId is absent', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-snap-'))
+    const file = path.join(dir, 'a.txt')
+    writeFileSync(file, 'before')
+    const recorded: string[] = []
+    const ctx = {
+      cwd: dir,
+      ask: async () => null,
+      agentId: 'agent-parent',
+      snapshots: { snapshot: (agentId: string) => recorded.push(agentId) }
+    } as unknown as ToolContext
+
+    snapshotFile(ctx, file)
+
+    expect(recorded).toEqual(['agent-parent'])
   })
 })

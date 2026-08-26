@@ -45,6 +45,7 @@ export interface LoopDeps {
   truncation?: TruncationStore
   replaceItems?: (items: TranscriptItem[]) => void
   snapshots?: SnapshotStore
+  snapshotAgentId?: string
   onEvent: (e: ChatEvent) => void
   onArtifact?: (entry: Omit<ArtifactEntry, 'id' | 'ts'>) => void
   getItems: () => TranscriptItem[]
@@ -272,6 +273,7 @@ export class SessionRunner {
           taskId: this.deps.taskId,
           turn: this.deps.turn,
           snapshots: this.deps.snapshots,
+          snapshotAgentId: this.deps.snapshotAgentId,
           diagnostics: this.deps.diagnostics,
           setTodos: (todos) => this.deps.setTodos?.(todos),
           emitSubagent: (taskId, e) => this.deps.onEvent({
