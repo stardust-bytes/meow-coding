@@ -359,6 +359,16 @@ export class SessionRunner {
       .filter(t => this.deps.decidePermission(t.name) !== 'deny')
   }
 
+  // Khi usable <= 0 (context nhỏ hơn buffer + reserve — thường là model có
+  // context thật nhỏ học từ learned-limits), compaction phải vẫn chạy, không
+  // được tắt: dùng trần cứng limit - reserve (luôn >= limit/2 vì reserve <=
+  // floor(limit/2)), để self-heal (compact-on-reject / forceCompact) còn chỗ
+  // thu gọn transcript.
+  private compactionTarget(limit: number, buffer: number, reserve = 0): number {
+    const usable = usableContextTokens(limit, buffer, reserve)
+    return usable > 0 ? usable : Math.max(1, limit - reserve)
+  }
+
   // Token-based overflow detection (modeled on opencode session/compaction.ts):
   // when the estimated request size approaches the model context limit, run an
   // LLM compaction that summarizes the older head and keeps the recent tail
@@ -366,8 +376,7 @@ export class SessionRunner {
   async compactIfOverThreshold(signal?: AbortSignal): Promise<void> {
     const { compaction, maxContextTokens, replaceItems } = this.deps
     if (!compaction?.auto || !maxContextTokens || maxContextTokens <= 0 || !replaceItems) return
-    const usable = usableContextTokens(maxContextTokens, compaction.buffer, this.deps.maxOutputTokens)
-    if (usable <= 0) return
+    const usable = this.compactionTarget(maxContextTokens, compaction.buffer, this.deps.maxOutputTokens)
     let items = this.deps.getItems()
     const opts = this.toLlmOpts()
     // Trust the provider-reported usage when available (mirrors opencode's
@@ -406,12 +415,11 @@ export class SessionRunner {
   private async forceCompact(signal?: AbortSignal): Promise<void> {
     const { compaction, replaceItems } = this.deps
     if (!compaction?.auto || !replaceItems) return
-    const usable = usableContextTokens(
+    const usable = this.compactionTarget(
       this.deps.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
       compaction.buffer,
       this.deps.maxOutputTokens
     )
-    if (usable <= 0) return
     const items = this.deps.getItems()
     const pruned = pruneToolOutputs(items, compaction, this.deps.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS)
     if (pruned) replaceItems(items)
@@ -422,12 +430,11 @@ export class SessionRunner {
   private async compact(signal?: AbortSignal): Promise<void> {
     const { compaction, replaceItems } = this.deps
     if (!compaction?.auto || !replaceItems) return
-    const usable = usableContextTokens(
+    const usable = this.compactionTarget(
       this.deps.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
       compaction.buffer,
       this.deps.maxOutputTokens
     )
-    if (usable <= 0) return
     const items = this.deps.getItems()
     const opts = this.toLlmOpts()
     const measure = (its: TranscriptItem[]) => estimateUsage(toLlmMessages(its, opts))

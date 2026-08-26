@@ -897,6 +897,14 @@ describe('SessionRunner output reserve', () => {
     await new Promise(r => setTimeout(r, 20))
     expect(h.llm.calls[0].maxOutputTokens).toBe(4096)
   })
+
+  it('omits max_tokens entirely when no wire budget is verified', async () => {
+    const h = makeHarness({ maxOutputTokens: 4096 }) // reserve only, no wire
+    h.llm.queue = [textParts('ok')]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 20))
+    expect(h.llm.calls[0].maxOutputTokens).toBeUndefined()
+  })
 })
 
 describe('SessionRunner compact-on-reject', () => {
@@ -954,6 +962,26 @@ describe('SessionRunner compact-on-reject', () => {
     expect(done?.reason).toBe('complete')
     // Lần gọi thứ 3 là retry của step 1 — vẫn còn tools (không phải step chết cuối).
     expect(h.llm.calls[2]?.tools.length).toBeGreaterThan(0)
+  })
+
+  it('force-compacts even when the context budget sits below the buffer floor (usable <= 0)', async () => {
+    // Context nhỏ (100) với buffer 100 → usable = 100 - 100 - 0 = 0. Trước
+    // compactionTarget, forceCompact no-op → retry giữ transcript quá trần →
+    // reject lặp tới MAX_COMPACT_PER_RUN rồi chết. Với clamp, compaction chạy
+    // (compactTranscript thay transcript) nên replaced không rỗng.
+    const h = makeOverflowHarness({ maxContextTokens: 100, maxOutputTokens: 0 })
+    h.seed()
+    h.llm.queue = [
+      [{ kind: 'error', error: OVERFLOW, retryable: false }],
+      textParts('summary'),
+      textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    expect(h.replaced.length).toBeGreaterThan(0)
+    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }> | undefined
+    expect(done).toBeDefined()
+    expect(done?.reason).toBe('complete')
   })
 
   it('stops after MAX_COMPACT_PER_RUN recoveries and surfaces the real error', async () => {
