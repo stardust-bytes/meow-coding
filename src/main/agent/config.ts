@@ -46,8 +46,8 @@ export interface MeowConfig {
   agents: Record<string, MeowAgentConfig>
   permission: Record<string, PermissionRule>
   mcp: Record<string, McpServerConfig>
-  maxContextTokens: number
-  maxOutputTokens: number
+  maxContextTokens?: number
+  maxOutputTokens?: number
   maxSteps: number
   subagentMaxSteps: number
   compaction: MeowCompactionConfig
@@ -159,8 +159,6 @@ export const DEFAULT_MEOW_CONFIG: MeowConfig = {
     'browser_*': 'allow'
   },
   mcp: {},
-  maxContextTokens: DEFAULT_MAX_CONTEXT_TOKENS,
-  maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
   maxSteps: DEFAULT_MAX_STEPS,
   subagentMaxSteps: DEFAULT_SUBAGENT_MAX_STEPS,
   compaction: DEFAULT_COMPACTION,
@@ -310,8 +308,8 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     agents: normalizeAgents(raw.agents),
     permission: { ...DEFAULT_MEOW_CONFIG.permission, ...(raw.permission ?? {}) },
     mcp: normalizeMcp(raw.mcp),
-    maxContextTokens: raw.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
-    maxOutputTokens: raw.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
+    maxContextTokens: raw.maxContextTokens,
+    maxOutputTokens: raw.maxOutputTokens,
     maxSteps: raw.maxSteps ?? DEFAULT_MAX_STEPS,
     subagentMaxSteps: raw.subagentMaxSteps ?? DEFAULT_SUBAGENT_MAX_STEPS,
     compaction: normalizeCompaction(raw.compaction),
@@ -465,8 +463,8 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
       ? { ...DEFAULT_MEOW_CONFIG.permission, ...settings.permission }
       : (base.permission ?? DEFAULT_MEOW_CONFIG.permission),
     mcp: normalizeMcp(settings.mcp ?? base.mcp ?? {}),
-    maxContextTokens: settings.maxContextTokens ?? base.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
-    maxOutputTokens: settings.maxOutputTokens ?? base.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
+    maxContextTokens: settings.maxContextTokens ?? base.maxContextTokens,
+    maxOutputTokens: settings.maxOutputTokens ?? base.maxOutputTokens,
     maxSteps: settings.maxSteps ?? base.maxSteps ?? DEFAULT_MAX_STEPS,
     subagentMaxSteps: base.subagentMaxSteps ?? DEFAULT_SUBAGENT_MAX_STEPS,
     compaction: settings.compaction ? normalizeCompaction(settings.compaction) : normalizeCompaction(base.compaction),

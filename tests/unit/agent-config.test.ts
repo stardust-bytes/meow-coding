@@ -341,10 +341,10 @@ describe('configToSettings / settingsToConfig', () => {
     expect(cfg.mcp.t.args).toEqual(['-y', '@foo/bar'])
   })
 
-  it('defaults to token-based compaction settings', () => {
+  it('defaults to auto limits and token-based compaction settings', () => {
     const cfg = loadMeowConfig(file)
-    expect(cfg.maxContextTokens).toBe(128000)
-    expect(cfg.maxOutputTokens).toBe(32000)
+    expect(cfg.maxContextTokens).toBeUndefined()
+    expect(cfg.maxOutputTokens).toBeUndefined()
     expect(cfg.maxSteps).toBe(100)
     expect(cfg.compaction).toEqual({
       auto: true,
@@ -357,6 +357,13 @@ describe('configToSettings / settingsToConfig', () => {
     expect(cfg.toolOutput).toEqual({ maxBytes: 51200, maxLines: 2000 })
     expect(cfg.lsp).toEqual({ enabled: true, diagnosticsTimeoutMs: 3000 })
     expect(cfg.notifications).toEqual({ needsInput: true, onDone: true })
+  })
+
+  it('preserves an explicit context/output override', () => {
+    writeFileSync(file, JSON.stringify({ maxContextTokens: 64000, maxOutputTokens: 8192 }))
+    const cfg = loadMeowConfig(file)
+    expect(cfg.maxContextTokens).toBe(64000)
+    expect(cfg.maxOutputTokens).toBe(8192)
   })
 
   it('normalizes notifications settings', () => {

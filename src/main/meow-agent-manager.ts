@@ -5,6 +5,7 @@ import type { AgentConfig, AgentMode, ArtifactEntry, CatalogProviderSummary, Com
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, resolveApiKey, settingsToConfig, writeMeowConfig,
   resolveOutputTokens,
+  DEFAULT_MAX_OUTPUT_TOKENS,
   OLLAMA_CLOUD_BASE_URL,
   type MeowConfig, type ResolvedAgentConfig
 } from './agent/config'
@@ -577,7 +578,7 @@ export class MeowAgentManager {
       ? this.modelLimits.get(`${resolved.provider}/${resolved.model}`)
       : undefined
     const limit = modelLimit?.context ?? cfg.maxContextTokens ?? null
-    const outputTokens = resolveOutputTokens(modelLimit, limit, cfg.maxOutputTokens)
+    const outputTokens = resolveOutputTokens(modelLimit, limit, cfg.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS)
     const compactThreshold = cfg.compaction.auto && limit
       ? usableContextTokens(limit, cfg.compaction.buffer, outputTokens)
       : null
@@ -850,7 +851,7 @@ export class MeowAgentManager {
       const usedTokens = used.total > 0
         ? used.total
         : used.input + used.output + (used.cacheRead ?? 0) + (used.cacheWrite ?? 0)
-      const outputTokens = resolveOutputTokens(modelLimit, limit, cfg.maxOutputTokens)
+      const outputTokens = resolveOutputTokens(modelLimit, limit, cfg.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS)
       if (usedTokens < usableContextTokens(limit, compaction.buffer, outputTokens)) continue
       const runner = this.runners.get(agentId)
       if (!runner) continue
@@ -920,7 +921,7 @@ export class MeowAgentManager {
       ? this.modelLimits.get(`${resolved.provider}/${resolved.model}`)
       : undefined
     const contextTokens = modelLimit?.context ?? cfg.maxContextTokens
-    const outputTokens = resolveOutputTokens(modelLimit, contextTokens, cfg.maxOutputTokens)
+    const outputTokens = resolveOutputTokens(modelLimit, contextTokens, cfg.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS)
     const skills = collectSkills(agent.cwd, this.deps.userSkillsDir, this.deps.builtinSkillsDir)
     // AGENTS.md/CLAUDE.md walking up from cwd are inlined into the system
     // prompt (opencode-style); module-level ones attach on read via loop.ts.

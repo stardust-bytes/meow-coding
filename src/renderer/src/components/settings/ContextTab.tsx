@@ -1,13 +1,11 @@
 import type { CompactionSettings, NotificationsSettings, ToolOutputSettings } from '@shared/types'
 
 interface Props {
-  maxContextTokens: number
-  maxOutputTokens: number
   maxSteps: number
   compaction: CompactionSettings
   toolOutput: ToolOutputSettings
   notifications: NotificationsSettings
-  onChange: (patch: { maxContextTokens: number; maxOutputTokens: number; maxSteps: number; compaction: CompactionSettings; toolOutput: ToolOutputSettings; notifications: NotificationsSettings }) => void
+  onChange: (patch: { maxSteps: number; compaction: CompactionSettings; toolOutput: ToolOutputSettings; notifications: NotificationsSettings }) => void
 }
 
 function num(value: string, fallback: number): number {
@@ -19,50 +17,20 @@ function displaySteps(n: number): string {
   return Number.isFinite(n) && n > 0 ? String(n) : ''
 }
 
-export default function ContextTab({ maxContextTokens, maxOutputTokens, maxSteps, compaction, toolOutput, notifications, onChange }: Props) {
-  const setTokens = (value: string) =>
-    onChange({ maxContextTokens: num(value, maxContextTokens), maxOutputTokens, maxSteps, compaction, toolOutput, notifications })
-  const setOutputTokens = (value: string) =>
-    onChange({ maxContextTokens, maxOutputTokens: num(value, maxOutputTokens), maxSteps, compaction, toolOutput, notifications })
+export default function ContextTab({ maxSteps, compaction, toolOutput, notifications, onChange }: Props) {
   const setMaxSteps = (value: string) =>
-    onChange({ maxContextTokens, maxOutputTokens, maxSteps: num(value, maxSteps), compaction, toolOutput, notifications })
+    onChange({ maxSteps: num(value, maxSteps), compaction, toolOutput, notifications })
   const setComp = (patch: Partial<CompactionSettings>) =>
-    onChange({ maxContextTokens, maxOutputTokens, maxSteps, compaction: { ...compaction, ...patch }, toolOutput, notifications })
+    onChange({ maxSteps, compaction: { ...compaction, ...patch }, toolOutput, notifications })
   const setToolOutput = (patch: Partial<ToolOutputSettings>) =>
-    onChange({ maxContextTokens, maxOutputTokens, maxSteps, compaction, toolOutput: { ...toolOutput, ...patch }, notifications })
+    onChange({ maxSteps, compaction, toolOutput: { ...toolOutput, ...patch }, notifications })
   const setNotifications = (patch: Partial<NotificationsSettings>) =>
-    onChange({ maxContextTokens, maxOutputTokens, maxSteps, compaction, toolOutput, notifications: { ...notifications, ...patch } })
+    onChange({ maxSteps, compaction, toolOutput, notifications: { ...notifications, ...patch } })
 
   return (
     <div className="settings-tab context-tab">
       <section className="settings-section">
         <h4 className="settings-section-header">Limits</h4>
-        <div className="settings-field">
-          <label className="label">Max context tokens</label>
-          <input
-            className="input"
-            type="number"
-            min={1000}
-            value={maxContextTokens}
-            onChange={e => setTokens(e.target.value)}
-          />
-          <p className="settings-hint">
-            Fallback model context limit in tokens, used when the model's limit is not known from the catalog.
-          </p>
-        </div>
-        <div className="settings-field">
-          <label className="label">Max output tokens</label>
-          <input
-            className="input"
-            type="number"
-            min={1000}
-            value={maxOutputTokens}
-            onChange={e => setOutputTokens(e.target.value)}
-          />
-          <p className="settings-hint">
-            Fallback answer length cap in tokens, used when the model's limit is not known from the catalog.
-          </p>
-        </div>
         <div className="settings-field">
           <label className="label">Max steps per turn</label>
           <input

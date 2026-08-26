@@ -58,7 +58,9 @@ async function makeManager(opts: StubLlmOptions & {
   if (!opts.configPath) {
     writeFileSync(defaultCfg, JSON.stringify({
       provider: { test: { apiKey: 'sk-test', models: ['test-model'] } },
-      model: 'test'
+      model: 'test',
+      maxContextTokens: 128000,
+      maxOutputTokens: 32000
     }))
   }
   const sessions: StoredSession[] = []
