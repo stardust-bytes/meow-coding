@@ -1,5 +1,6 @@
 import { BrowserWindow } from 'electron'
 import { getWindowChromeOptions } from './window-chrome'
+import { Channels } from '../shared/ipc'
 import path from 'node:path'
 
 const viewerWindows = new Map<string, BrowserWindow>()
@@ -33,6 +34,8 @@ export function openGitViewer(projectPath: string, getMainWindow: () => BrowserW
     }
   })
   win.loadURL(`${base}?git=${encodeURIComponent(projectPath)}`)
+  win.on('maximize', () => win?.webContents.send(Channels.EventWindowMaximizedChange, { maximized: true }))
+  win.on('unmaximize', () => win?.webContents.send(Channels.EventWindowMaximizedChange, { maximized: false }))
   win.on('closed', () => viewerWindows.delete(projectPath))
   viewerWindows.set(projectPath, win)
 }

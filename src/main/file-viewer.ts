@@ -1,5 +1,6 @@
 import { BrowserWindow, shell } from 'electron'
 import { getWindowChromeOptions } from './window-chrome'
+import { Channels } from '../shared/ipc'
 import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import type { FileContentResult, FileViewerPayload } from '../shared/types'
@@ -93,6 +94,8 @@ export function openFileViewer(payload: FileViewerPayload, getMainWindow: () => 
     }
   })
   win.loadURL(`${base}?file=${encodeURIComponent(abs)}&root=${encodeURIComponent(payload.root)}`)
+  win.on('maximize', () => win?.webContents.send(Channels.EventWindowMaximizedChange, { maximized: true }))
+  win.on('unmaximize', () => win?.webContents.send(Channels.EventWindowMaximizedChange, { maximized: false }))
   win.on('closed', () => viewerWindows.delete(abs))
   viewerWindows.set(abs, win)
 }

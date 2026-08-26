@@ -824,15 +824,16 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.AppVersion, () => app.getVersion())
   ipcMain.handle(Channels.UpdaterCheck, () => mainApp.checkForUpdates())
   ipcMain.handle(Channels.UpdaterInstall, () => mainApp.installUpdate())
-  ipcMain.handle(Channels.WindowMinimize, () => win?.minimize())
-  ipcMain.handle(Channels.WindowToggleMaximize, () => {
-    if (!win) return
-    if (win.isMaximized()) win.unmaximize()
-    else win.maximize()
+  ipcMain.handle(Channels.WindowMinimize, e => BrowserWindow.fromWebContents(e.sender)?.minimize())
+  ipcMain.handle(Channels.WindowToggleMaximize, e => {
+    const w = BrowserWindow.fromWebContents(e.sender)
+    if (!w) return
+    if (w.isMaximized()) w.unmaximize()
+    else w.maximize()
   })
-  ipcMain.handle(Channels.WindowClose, () => win?.close())
-  ipcMain.handle(Channels.WindowIsMaximized, () => win?.isMaximized() ?? false)
-  ipcMain.handle(Channels.WindowSetTheme, (_e, theme: 'dark' | 'light') => applyTitleBarTheme(win, theme))
+  ipcMain.handle(Channels.WindowClose, e => BrowserWindow.fromWebContents(e.sender)?.close())
+  ipcMain.handle(Channels.WindowIsMaximized, e => BrowserWindow.fromWebContents(e.sender)?.isMaximized() ?? false)
+  ipcMain.handle(Channels.WindowSetTheme, (e, theme: 'dark' | 'light') => applyTitleBarTheme(BrowserWindow.fromWebContents(e.sender), theme))
   ipcMain.handle(Channels.BrowserGetStatus, () => mainApp.browserBridge.getStatus())
   ipcMain.handle(Channels.BrowserPair, () => mainApp.browserBridge.pair())
   ipcMain.handle(Channels.BrowserOpenInstallGuide, () => mainApp.browserLauncher.showInstallGuide())
