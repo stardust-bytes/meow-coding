@@ -342,7 +342,7 @@ describe('configToSettings / settingsToConfig', () => {
   it('defaults to token-based compaction settings', () => {
     const cfg = loadMeowConfig(file)
     expect(cfg.maxContextTokens).toBe(128000)
-    expect(cfg.maxSteps).toBe(Infinity)
+    expect(cfg.maxSteps).toBe(100)
     expect(cfg.compaction).toEqual({
       auto: true,
       buffer: 20000,
@@ -482,3 +482,11 @@ function cfgWithProviders() {
   c.model = 'anthropic'
   return c
 }
+
+describe('maxSteps default', () => {
+  it('caps maxSteps at a finite value so a runaway tool loop terminates', () => {
+    const cfg = loadMeowConfig(file)
+    expect(Number.isFinite(cfg.maxSteps)).toBe(true)
+    expect(cfg.maxSteps).toBeGreaterThan(20)
+  })
+})

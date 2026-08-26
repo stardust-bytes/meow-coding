@@ -10,7 +10,7 @@ commands, references, compaction and usage accounting. Orchestrated by `MeowAgen
 |---|---|
 | `loop.ts` | `SessionRunner`: the agent turn loop — streams LLM output, executes tool calls, handles permissions/aborts, emits `ChatEvent`s. The heart of the agent. |
 | `llm.ts` | `LlmClient` interface + `createLlm` factory (Anthropic / OpenAI-compatible). |
-| `message.ts` | `toLlmMessages`: converts stored transcript (user/assistant/tool items, incl. image parts) into AI-SDK model messages; `toToolDefinition` wraps tools. |
+| `message.ts` | `toLlmMessages`: converts stored transcript (user/assistant/tool items, incl. image parts) into AI-SDK model messages; `keepFullTurns` exempts the recent tail from `toolOutputMaxChars`; `toToolDefinition` wraps tools. |
 | `config.ts` | Loads `meow.json` + env; `MeowConfig` / `ResolvedAgentConfig`; `loadMeowConfig`, `resolveAgentConfig`, `settingsToConfig`/`configToSettings`, `writeMeowConfig`; defaults (tokens, compaction, notifications, lsp). |
 | `session.ts` | `SessionStore`: persists sessions + transcript items to `sessions.json`; create/list/switch/delete/rename; title inference. |
 | `permission.ts` | Permission rules (allow/ask/deny) + matcher used by `decidePermission`. |
@@ -18,10 +18,10 @@ commands, references, compaction and usage accounting. Orchestrated by `MeowAgen
 | `references.ts` | `expandReferences`: expands `@path` / `@"path with space"` mentions into file contents appended to the prompt. |
 | `snapshot.ts` | `SnapshotStore`: per-turn file snapshots for undo/redo. |
 | `saved-permissions.ts` | Persists "always allow" tool permissions (`permissions.json`). |
-| `compact.ts` | Context compaction: token-based thresholding, `truncateToolOutput`. |
+| `compact.ts` | Context compaction: token-based thresholding, `truncateToolOutput`, `hardTruncate` (last-resort shrink when LLM compaction cannot help). |
 | `truncation.ts` | `TruncationStore`: truncation state per session. |
 | `usage.ts` | `calcCost` / `EMPTY_USAGE` / price-based cost accounting. |
-| `token.ts` | Token estimation/counting helpers. |
+| `token.ts` | Token estimation/counting helpers; inline image data URLs are charged a flat cost, not their base64 length. |
 | `trace-store.ts` | `TraceStore`: per-session trace event log (buffered + flushed async, seq per session). |
 | `apply-patch.ts` | Unified-diff parser + applier (the `apply-patch` tool backend). |
 | `plugin.ts` | Loads user tools from `userData/tools`. |

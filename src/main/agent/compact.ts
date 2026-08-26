@@ -46,10 +46,40 @@ export function pruneToolOutputs(items: TranscriptItem[], cfg: CompactionSetting
   for (const item of targets) {
     if (item.kind === 'tool') {
       item.tool.output = undefined
-      item.tool.error = '[Old tool result content cleared]'
+      item.tool.error = CLEARED_OUTPUT
     }
   }
   return true
+}
+
+export const CLEARED_OUTPUT = '[Old tool result content cleared]'
+
+/**
+ * Last-resort shrink used when LLM compaction cannot help: the head is empty,
+ * the per-run compaction budget is spent, or the summary call failed. Without
+ * it the request goes out over the limit and the provider rejects the whole
+ * turn. Clears every tool output first, then drops the oldest turns, always
+ * keeping the final turn even when that alone exceeds the target.
+ */
+export function hardTruncate(
+  items: TranscriptItem[],
+  targetTokens: number,
+  measure: (items: TranscriptItem[]) => number = estimateUsage
+): TranscriptItem[] {
+  if (measure(items) <= targetTokens) return items
+  const cleared: TranscriptItem[] = items.map(item =>
+    item.kind === 'tool' && item.tool.output !== undefined
+      ? { kind: 'tool', tool: { ...item.tool, output: undefined, error: CLEARED_OUTPUT } }
+      : item
+  )
+  if (measure(cleared) <= targetTokens) return cleared
+  const starts = turns(cleared).map(t => t.start)
+  let out = cleared
+  for (let i = 1; i < starts.length; i++) {
+    out = cleared.slice(starts[i])
+    if (measure(out) <= targetTokens) break
+  }
+  return out
 }
 
 export const COMPACTION_MARKER = 'What did we do so far?'

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { selectHeadTail, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, truncateToolOutput, serializeItems, pruneToolOutputs } from '../../src/main/agent/compact'
+import { selectHeadTail, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, truncateToolOutput, serializeItems, pruneToolOutputs, hardTruncate } from '../../src/main/agent/compact'
+import { estimateUsage } from '../../src/main/agent/token'
 import type { TranscriptItem } from '../../src/main/agent/message'
 import type { ChatMessage, ToolCallData } from '../../src/shared/types'
 import type { LlmClient, LlmStreamPart } from '../../src/main/agent/llm'
@@ -194,5 +195,47 @@ describe('pruneToolOutputs', () => {
       msg('assistant', 'a2')
     ]
     expect(pruneToolOutputs(items, cfg)).toBe(false)
+  })
+})
+
+describe('hardTruncate', () => {
+  it('clears tool outputs to get the transcript under the target', () => {
+    const items = [msg('user', 'q'), msg('assistant', 'a'), tool('x'.repeat(20000))]
+    const out = hardTruncate(items, 2000)
+    const t = out.find(i => i.kind === 'tool')
+    expect(t?.kind === 'tool' && t.tool.output).toBeUndefined()
+    expect(t?.kind === 'tool' && t.tool.error).toBe('[Old tool result content cleared]')
+    expect(estimateUsage(out)).toBeLessThan(2000)
+  })
+
+  it('drops the oldest turns when clearing tool outputs is not enough', () => {
+    const items = [
+      msg('user', 'old ' + 'x'.repeat(20000)),
+      msg('assistant', 'old answer'),
+      msg('user', 'recent question'),
+      msg('assistant', 'recent answer')
+    ]
+    const out = hardTruncate(items, 2000)
+    expect(out.some(i => i.kind === 'message' && i.message.text.startsWith('old '))).toBe(false)
+    expect(out.some(i => i.kind === 'message' && i.message.text === 'recent question')).toBe(true)
+    expect(estimateUsage(out)).toBeLessThan(2000)
+  })
+
+  it('keeps the last turn even when it alone exceeds the target', () => {
+    const items = [msg('user', 'huge ' + 'x'.repeat(50000))]
+    const out = hardTruncate(items, 100)
+    expect(out).toHaveLength(1)
+  })
+
+  it('leaves a transcript that already fits untouched', () => {
+    const items = [msg('user', 'small'), msg('assistant', 'ok')]
+    expect(hardTruncate(items, 100000)).toEqual(items)
+  })
+
+  it('does not mutate the items it was given', () => {
+    const items = [msg('user', 'q'), msg('assistant', 'a'), tool('x'.repeat(20000))]
+    hardTruncate(items, 2000)
+    const original = items.find(i => i.kind === 'tool')
+    expect(original?.kind === 'tool' && original.tool.output).toBe('x'.repeat(20000))
   })
 })

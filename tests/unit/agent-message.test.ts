@@ -187,3 +187,49 @@ describe('toToolDefinition', () => {
     expect((t as { description?: string }).description).toBe('Read a file')
   })
 })
+
+describe('toLlmMessages tool output truncation', () => {
+  const long = 'x'.repeat(500)
+
+  function turn(prompt: string, callId: string) {
+    return [
+      { kind: 'message' as const, message: msg('user', prompt) },
+      { kind: 'message' as const, message: msg('assistant', 'working') },
+      { kind: 'tool' as const, tool: { ...toolCall('bash', { command: 'x' }, callId), output: long } }
+    ]
+  }
+
+  function toolValues(items: ReturnType<typeof turn>) {
+    return items
+  }
+
+  it('keeps tool output from the most recent turns in full and truncates only older turns', () => {
+    const items = [...turn('old question', 'c1'), ...turn('new question', 'c2')]
+    const llm = toLlmMessages(items, { toolOutputMaxChars: 50, keepFullTurns: 1 })
+    const results = llm.filter(m => m.role === 'tool')
+    expect(results).toHaveLength(2)
+    expect(JSON.stringify(results[0])).toContain('[truncated]')
+    expect(JSON.stringify(results[1])).not.toContain('[truncated]')
+    const value = (results[1].content as Array<{ output: { value: string } }>)[0].output.value
+    expect(value).toBe(long)
+  })
+
+  it('truncates every turn when keepFullTurns is 0', () => {
+    const items = [...turn('old question', 'c1'), ...turn('new question', 'c2')]
+    const llm = toLlmMessages(items, { toolOutputMaxChars: 50, keepFullTurns: 0 })
+    const results = llm.filter(m => m.role === 'tool')
+    expect(JSON.stringify(results[0])).toContain('[truncated]')
+    expect(JSON.stringify(results[1])).toContain('[truncated]')
+  })
+
+  it('still applies the truncation store to full-size recent output', () => {
+    const items = turn('new question', 'c1')
+    const seen: string[] = []
+    toLlmMessages(items, {
+      toolOutputMaxChars: 50,
+      keepFullTurns: 1,
+      truncate: (_id, text) => { seen.push(text); return 'stored' }
+    })
+    expect(seen).toEqual([long])
+  })
+})

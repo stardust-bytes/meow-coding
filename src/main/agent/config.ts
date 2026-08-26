@@ -72,7 +72,10 @@ export interface AccountEndpointResolver {
 // uncatalogued OpenAI-compatible models cap at 128k, so assuming 200k would
 // delay compaction past the real limit.
 export const DEFAULT_MAX_CONTEXT_TOKENS = 128000
-export const DEFAULT_MAX_STEPS = Infinity
+// A finite cap so a model stuck in a tool-call loop wraps up instead of
+// burning tokens forever. The budget resets whenever steered messages are
+// promoted, so this bounds one uninterrupted run, not a whole session.
+export const DEFAULT_MAX_STEPS = 100
 export const DEFAULT_COMPACTION: MeowCompactionConfig = {
   auto: true,
   buffer: 20000,

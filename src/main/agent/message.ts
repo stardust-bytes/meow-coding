@@ -1,7 +1,7 @@
 import type { FlexibleSchema, ModelMessage, Tool } from 'ai'
 import { jsonSchema, tool } from 'ai'
 import type { ChatMessage, ChatTranscriptItem, ToolCallData } from '../../shared/types'
-import { truncateToolOutput } from './compact'
+import { COMPACTION_MARKER, truncateToolOutput } from './compact'
 import type { ToolDefinition, ToolSchema } from './tools/types'
 
 export type TranscriptItem = ChatTranscriptItem
@@ -10,7 +10,28 @@ type AssistantPart = { type: 'text'; text: string } | { type: 'tool-call'; toolC
 
 export interface ToLlmOptions {
   toolOutputMaxChars?: number
+  /**
+   * Tool results in the last N user turns are exempt from `toolOutputMaxChars`
+   * and reach the model at full size (still subject to `truncate`). Older
+   * results stay capped, which is what keeps a long session inside its budget.
+   * Defaults to 0 — every result capped — so callers opt into keeping context.
+   */
+  keepFullTurns?: number
   truncate?: (toolId: string, text: string) => string
+}
+
+// Index of the first item belonging to the last `keepFullTurns` user turns.
+// Compaction markers are not real turns, mirroring `turns()` in compact.ts.
+function recentTurnStart(items: TranscriptItem[], keepFullTurns: number): number {
+  if (keepFullTurns <= 0) return items.length
+  let seen = 0
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i]
+    if (item.kind !== 'message' || item.message.role !== 'user') continue
+    if (item.message.text === COMPACTION_MARKER) continue
+    if (++seen === keepFullTurns) return i
+  }
+  return 0
 }
 
 // OpenAI-compatible providers stream `function.arguments` as a raw JSON string;
@@ -63,8 +84,10 @@ export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): Mod
 
   const maxOutput = opts?.toolOutputMaxChars
   const truncate = opts?.truncate
+  const fullFrom = recentTurnStart(items, opts?.keepFullTurns ?? 0)
 
-  for (const item of items) {
+  for (let index = 0; index < items.length; index++) {
+    const item = items[index]
     if (item.kind === 'message') {
       flush()
       if (item.message.role === 'user') {
@@ -92,7 +115,7 @@ export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): Mod
       if (!pendingAssistant) continue
       pendingAssistant.calls.push(item.tool)
       let value = item.tool.output ?? 'ok'
-      if (maxOutput !== undefined) value = truncateToolOutput(value, maxOutput)
+      if (maxOutput !== undefined && index < fullFrom) value = truncateToolOutput(value, maxOutput)
       if (truncate) value = truncate(item.tool.id, value)
       const output: { type: 'text'; value: string } | { type: 'error-text'; value: string } =
         item.tool.error

@@ -4,10 +4,10 @@ import { appendStreamDelta } from '../../shared/text'
 import type { LlmClient, LlmStreamPart } from './llm'
 import { formatLlmError } from './llm'
 import { toLlmMessages } from './message'
-import type { TranscriptItem } from './message'
+import type { ToLlmOptions, TranscriptItem } from './message'
 import type { ToolContext, ToolDefinition } from './tools/types'
 import type { PermissionDecision } from './permission'
-import { selectHeadTail, serializeItems, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, pruneToolOutputs } from './compact'
+import { selectHeadTail, serializeItems, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, pruneToolOutputs, hardTruncate } from './compact'
 import { instructionFilesForFile } from './instructions'
 import type { CompactionSettings } from './compact'
 import { estimateUsage } from './token'
@@ -49,6 +49,7 @@ export interface LoopDeps {
 }
 
 const DEFAULT_MAX_STEPS = 50
+const DEFAULT_KEEP_FULL_TURNS = 2
 const MAX_COMPACT_PER_RUN = 2
 const MAX_STEPS_PROMPT = 'Final step: wrap up and provide your final answer now. Tool calls are disabled.'
 
@@ -317,7 +318,7 @@ export class SessionRunner {
     const usable = maxContextTokens - compaction.buffer
     if (usable <= 0) return
     let items = this.deps.getItems()
-    const opts = { toolOutputMaxChars: compaction.toolOutputMaxChars, ...this.truncationOpts() }
+    const opts = this.toLlmOpts()
     // Trust the provider-reported usage when available (mirrors opencode's
     // overflow check): it covers the system prompt + tool definitions, which
     // the transcript char estimate never counts. But it lags behind tool
@@ -342,9 +343,20 @@ export class SessionRunner {
       if (estimateUsage(toLlmMessages(items, opts)) < usable) return
     }
 
+    // Every path out of here that leaves the context over the limit ends in a
+    // provider 400 that kills the turn, so each one falls back to a hard shrink
+    // that needs no LLM call.
+    const measure = (its: TranscriptItem[]) => estimateUsage(toLlmMessages(its, opts))
+    const shrink = () => {
+      const truncated = hardTruncate(items, usable, measure)
+      if (truncated !== items) replaceItems(truncated)
+    }
+
     const { head, tail } = selectHeadTail(items, compaction.keepTokens, compaction.tailTurns)
-    if (head.length === 0) return
-    if (this.compactedThisRun >= MAX_COMPACT_PER_RUN) return
+    if (head.length === 0 || this.compactedThisRun >= MAX_COMPACT_PER_RUN) {
+      shrink()
+      return
+    }
     const previousSummary = this.findPreviousSummary(items)
     const prompt = buildCompactionPrompt(previousSummary, serializeItems(head, compaction.toolOutputMaxChars))
     // Let the UI show a "compacting…" line before the (possibly slow) summary
@@ -356,6 +368,7 @@ export class SessionRunner {
       // Surface silent failures: a failed compaction LLM call must not leave
       // the user stuck at an over-limit context with no feedback.
       this.deps.onEvent({ type: 'compaction-failed', agentId: this.deps.agentId })
+      shrink()
       return
     }
     this.compactedThisRun++
@@ -373,6 +386,18 @@ export class SessionRunner {
     }
     replaceItems([markerItem, summaryItem, ...tail])
     this.deps.onEvent({ type: 'compacted', agentId: this.deps.agentId, summary })
+  }
+
+  // Prompt-building options shared by buildMessages and the overflow estimate,
+  // so what we measure is exactly what we send. Tool results in the recent tail
+  // reach the model at full size; only older ones are capped, which is what
+  // lets a `read` or a test run actually be useful to the model.
+  private toLlmOpts(): ToLlmOptions {
+    return {
+      toolOutputMaxChars: this.deps.compaction?.toolOutputMaxChars,
+      keepFullTurns: this.deps.compaction?.tailTurns ?? DEFAULT_KEEP_FULL_TURNS,
+      ...this.truncationOpts()
+    }
   }
 
   private truncationOpts(): { truncate?: (toolId: string, text: string) => string } {
@@ -395,9 +420,7 @@ export class SessionRunner {
   }
 
   private buildMessages(isLastStep = false): ReturnType<typeof toLlmMessages> {
-    const items = this.deps.getItems()
-    const toolOutputMaxChars = this.deps.compaction?.toolOutputMaxChars
-    const messages = toLlmMessages(items, { toolOutputMaxChars, ...this.truncationOpts() })
+    const messages = toLlmMessages(this.deps.getItems(), this.toLlmOpts())
     return isLastStep ? [...messages, { role: 'user', content: MAX_STEPS_PROMPT }] : messages
   }
 }

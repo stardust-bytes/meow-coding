@@ -523,14 +523,17 @@ describe('SessionRunner', () => {
     h.runner.run()
     await new Promise(r => setTimeout(r, 30))
 
-    expect(replaced.length).toBe(0)
+    // The failed summary must still leave the context under the limit: the
+    // fallback hard-truncate runs so the next request is not rejected.
+    expect(replaced.length).toBe(1)
+    expect(replaced[0].some(i => i.kind === 'message' && i.message.text.startsWith('old '))).toBe(false)
     const events = h.events.map(e => e.type)
     expect(events.indexOf('compaction-start')).toBeGreaterThanOrEqual(0)
     expect(events.indexOf('compaction-failed')).toBeGreaterThan(events.indexOf('compaction-start'))
     expect(events).not.toContain('compacted')
   })
 
-  it('truncates tool output to toolOutputMaxChars when sending to the model', async () => {
+  it('sends the freshest tool output to the model in full', async () => {
     const h = makeHarness({
       tools: new Map([['bash', stubTool('bash', async () => ({ output: 'o'.repeat(5000) }))]]),
       compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 50 },
@@ -544,7 +547,34 @@ describe('SessionRunner', () => {
     await new Promise(r => setTimeout(r, 30))
     const secondMessages = h.llm.calls[1]?.messages ?? []
     const toolMsg = secondMessages.find(m => m.role === 'tool')
-    expect(JSON.stringify(toolMsg)).toContain('[truncated]')
+    expect(JSON.stringify(toolMsg)).not.toContain('[truncated]')
+    expect(JSON.stringify(toolMsg)).toContain('o'.repeat(5000))
+  })
+
+  it('truncates tool output from older turns when sending to the model', async () => {
+    const h = makeHarness({
+      tools: new Map([['bash', stubTool('bash', async () => ({ output: 'n'.repeat(5000) }))]]),
+      compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 1, toolOutputMaxChars: 50 },
+      maxContextTokens: 200000
+    })
+    h.items.push(
+      { kind: 'message', message: { id: 'u1', role: 'user', text: 'old question', createdAt: 1 } },
+      { kind: 'message', message: { id: 'a1', role: 'assistant', text: 'working', createdAt: 1 } },
+      { kind: 'tool', tool: { id: 'old1', tool: 'bash', input: { command: 'old' }, permission: 'allowed', output: 'O'.repeat(5000) } },
+      { kind: 'message', message: { id: 'u2', role: 'user', text: 'new question', createdAt: 1 } }
+    )
+    h.llm.queue = [
+      [{ kind: 'tool-call', toolCallId: 'tc1', toolName: 'bash', toolInput: { command: 'x' } }, { kind: 'finish' }],
+      textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    const secondMessages = h.llm.calls[1]?.messages ?? []
+    const toolMsgs = secondMessages.filter(m => m.role === 'tool')
+    expect(toolMsgs).toHaveLength(2)
+    expect(JSON.stringify(toolMsgs[0])).toContain('[truncated]')
+    expect(JSON.stringify(toolMsgs[0])).not.toContain('O'.repeat(5000))
+    expect(JSON.stringify(toolMsgs[1])).toContain('n'.repeat(5000))
   })
 
   it('persists provider token usage on the assistant message', async () => {
@@ -743,4 +773,49 @@ describe('SessionRunner', () => {
     expect(toolOutputs.join('\n')).not.toContain('<system-reminder>')
   })
 
+})
+
+describe('SessionRunner compaction fallback', () => {
+  function overflowHarness(replaced: TranscriptItem[][]) {
+    return makeHarness({
+      maxContextTokens: 200,
+      compaction: { auto: true, buffer: 20, keepTokens: 100000, tailTurns: 2, toolOutputMaxChars: 2000, prune: true },
+      maxSteps: 1,
+      replaceItems: (items) => replaced.push(items)
+    })
+  }
+
+  it('clears tool output when there is no head to summarize', async () => {
+    const replaced: TranscriptItem[][] = []
+    const h = overflowHarness(replaced)
+    h.items.push(
+      { kind: 'message', message: { id: 'u1', role: 'user', text: 'question', createdAt: 1 } },
+      { kind: 'message', message: { id: 'a1', role: 'assistant', text: 'working', createdAt: 1 } },
+      { kind: 'tool', tool: { id: 't1', tool: 'bash', input: {}, permission: 'allowed', output: 'x'.repeat(20000) } }
+    )
+    h.llm.queue = [textParts('done')]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+
+    expect(replaced.length).toBeGreaterThan(0)
+    const last = replaced[replaced.length - 1]
+    const toolItem = last.find(i => i.kind === 'tool')
+    expect(toolItem?.kind === 'tool' && toolItem.tool.output).toBeUndefined()
+    expect(h.events.map(e => e.type)).not.toContain('error')
+  })
+
+  it('does not touch a transcript that is already under the limit', async () => {
+    const replaced: TranscriptItem[][] = []
+    const h = makeHarness({
+      maxContextTokens: 200000,
+      compaction: { auto: true, buffer: 20000, keepTokens: 8000, tailTurns: 2, toolOutputMaxChars: 2000, prune: true },
+      maxSteps: 1,
+      replaceItems: (items) => replaced.push(items)
+    })
+    h.items.push({ kind: 'message', message: { id: 'u1', role: 'user', text: 'small', createdAt: 1 } })
+    h.llm.queue = [textParts('done')]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    expect(replaced).toHaveLength(0)
+  })
 })
