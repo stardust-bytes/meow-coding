@@ -202,7 +202,7 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .title-bar-controls { display: flex; height: 100%; -webkit-app-region: no-drag; }
 .title-bar-btn {
   width: 46px; height: 100%; display: flex; align-items: center; justify-content: center;
-  background: transparent; border: none; color: var(--text-dim); cursor: pointer; padding: 0;
+  background: transparent; border: none; color: var(--text); cursor: pointer; padding: 0;
   transition: background 120ms ease, color 120ms ease;
 }
 .title-bar-btn:hover { background: var(--bg-hover); color: var(--text-strong); }
@@ -1767,7 +1767,7 @@ select.input { width: 100%; }
 }
 .right-panel-tab {
   flex: 0 0 auto; height: 44px; display: flex; align-items: center; justify-content: center;
-  background: transparent; border: none; color: var(--text-dim); cursor: pointer;
+  background: transparent; border: none; color: var(--text); cursor: pointer;
   transition: background 120ms ease, color 120ms ease;
 }
 .right-panel-tab:hover { background: var(--bg-hover); color: var(--text-strong); }
