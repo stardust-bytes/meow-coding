@@ -8,6 +8,9 @@ import { ListRootsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { ToolDefinition } from '../tools/types'
 import type { McpServerConfig } from '../../../shared/types'
 import { buildSpawnCommand } from '../../pty-manager'
+import type { TruncationStore } from '../truncation'
+import { estimateTokens, charsForTokens } from '../token'
+import { DEFAULT_MCP_OUTPUT_TOKENS } from '../config'
 
 export type { McpServerConfig }
 
@@ -34,6 +37,10 @@ export interface McpManagerDeps {
   createTransport?: (cfg: McpServerConfig) => Transport
   /** Project dir served to servers as workspace root and used as spawn cwd. */
   projectPath?: string
+  /** Persists full MCP output when it exceeds the token cap; the model gets a head/tail preview + file path. */
+  truncation?: TruncationStore
+  /** Returns the current mcpOutput.maxTokens override (undefined = default). */
+  getMcpOutputMaxTokens?: () => number | undefined
 }
 
 export class McpManager {
@@ -99,7 +106,7 @@ export class McpManager {
           name: fullName,
           description: tool.description ?? `MCP tool ${tool.name} from server ${serverName}`,
           schema: tool.inputSchema ?? { type: 'object', properties: {} },
-          run: async (input) => {
+          run: async (input, callCtx) => {
             // Resolve the connection at call time, not snapshot time: every
             // syncTools() → connect() closes all previous clients, so a tool
             // definition captured by an older runner would otherwise call a
@@ -111,7 +118,15 @@ export class McpManager {
             const texts = content.filter(c => c.type === 'text').map(c => c.text ?? '')
             const text = texts.join('\n')
             if (res.isError) return { error: text || 'mcp tool error' }
-            return { output: text || JSON.stringify(content) }
+            const full = text || JSON.stringify(content)
+            const maxTokens = this.deps.getMcpOutputMaxTokens?.() ?? DEFAULT_MCP_OUTPUT_TOKENS
+            if (estimateTokens(full) <= maxTokens) return { output: full }
+            // Exceeds the cap: persist the full output and return a head preview + file path.
+            if (this.deps.truncation && callCtx?.agentId) {
+              const preview = this.deps.truncation.truncate(callCtx.agentId, fullName, full, { maxBytes: charsForTokens(maxTokens) })
+              return { output: preview }
+            }
+            return { output: full.slice(0, charsForTokens(maxTokens)) + '\n[truncated]' }
           }
         })
       }

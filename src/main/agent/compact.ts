@@ -9,10 +9,13 @@ import { DEFAULT_MAX_CONTEXT_TOKENS } from './config'
 
 export interface CompactionSettings {
   auto: boolean
-  buffer: number
-  keepTokens: number
+  /** Undefined = auto (ratio × context window, with floor). */
+  buffer?: number
+  /** Undefined = auto. */
+  keepTokens?: number
   tailTurns: number
-  toolOutputMaxChars: number
+  /** Undefined = auto. */
+  toolOutputMaxChars?: number
   prune?: boolean
 }
 

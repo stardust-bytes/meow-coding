@@ -5,6 +5,7 @@ import type { AgentConfig, AgentMode, ArtifactEntry, CatalogProviderSummary, Com
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, resolveApiKey, settingsToConfig, writeMeowConfig,
   resolveOutputTokens,
+  DEFAULT_MAX_CONTEXT_TOKENS,
   DEFAULT_MAX_OUTPUT_TOKENS,
   OLLAMA_CLOUD_BASE_URL,
   type MeowConfig, type ResolvedAgentConfig
@@ -95,7 +96,8 @@ export class MeowAgentManager {
   private activeSessions = new Map<string, string>()
   private tools: Map<string, ToolDefinition>
   private modes = new Map<string, AgentMode>()
-  private mcp = new McpManager()
+  private mcp!: McpManager
+  private cachedMcpOutputMaxTokens: number | undefined = undefined
   private learnedLimits: LearnedLimitsStore
   private limitsService: LimitsService
   private modelVariants = new Map<string, Record<string, VariantBody>>()
@@ -130,6 +132,10 @@ export class MeowAgentManager {
         : Promise.resolve(null)
     })
     this.tools = new Map(deps.tools)
+    this.mcp = new McpManager({
+      truncation: deps.truncation,
+      getMcpOutputMaxTokens: () => this.cachedMcpOutputMaxTokens
+    })
     const cfg = loadMeowConfig(deps.configPath)
     this.deps = { ...deps, notifications: cfg.notifications }
     this.traceEnabled = cfg.trace?.enabled ?? false
@@ -913,6 +919,7 @@ export class MeowAgentManager {
 
   private async syncTools(): Promise<void> {
     const cfg = loadMeowConfig(this.deps.configPath)
+    this.cachedMcpOutputMaxTokens = cfg.mcpOutput?.maxTokens
     await this.mcp.connect(cfg.mcp ?? {}, this.deps.projectPath)
     const userTools = await loadUserTools(
       [this.deps.userToolsDir].filter((d): d is string => Boolean(d))

@@ -6,9 +6,21 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { McpManager } from '../../src/main/agent/mcp/manager'
+import { TruncationStore } from '../../src/main/agent/truncation'
 import type { ToolContext } from '../../src/main/agent/tools/types'
 
 const ctx: ToolContext = { cwd: '/proj', ask: async () => null }
+
+function makeBigServer(payload: string): Server {
+  const server = new Server({ name: 'big', version: '1' }, { capabilities: { tools: {} } })
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: [{ name: 'blob', description: 'big', inputSchema: { type: 'object', properties: {} } }]
+  }))
+  server.setRequestHandler(CallToolRequestSchema, async () => ({
+    content: [{ type: 'text', text: payload }]
+  }))
+  return server
+}
 
 function makeEchoServer(): Server {
   const server = new Server({ name: 'mock', version: '1' }, { capabilities: { tools: {} } })
@@ -148,5 +160,39 @@ describe('McpManager', () => {
     // against the live connection by server name at call time.
     const r = await echo.run({ text: 'again' }, ctx)
     expect(r.output).toBe('echo:again')
+  })
+
+  it('truncates MCP output exceeding maxTokens and writes the full output to disk', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'mcp-trunc-'))
+    const truncation = new TruncationStore(dir)
+    // ~68k tokens of text — well over the 25000 default
+    const payload = 'x'.repeat(60 * 4000)
+    const server = makeBigServer(payload)
+    servers.push(server)
+    const [serverSide, clientSide] = InMemoryTransport.createLinkedPair()
+    await server.connect(serverSide)
+
+    const mcp = new McpManager({ createTransport: () => clientSide, truncation, getMcpOutputMaxTokens: () => 25000 })
+    managers.push(mcp)
+    await mcp.connect({ big: { command: 'node' } })
+
+    const tools = mcp.getTools()
+    const r = await tools.get('mcp__big__blob')!.run({}, { ...ctx, agentId: 'agent-1' })
+    expect(r.output).toContain('truncated')
+    expect(truncation.exists('agent-1', 'mcp__big__blob')).toBe(true)
+  })
+
+  it('passes small MCP output through unchanged', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'mcp-trunc-small-'))
+    const truncation = new TruncationStore(dir)
+    const server = makeBigServer('small payload')
+    servers.push(server)
+    const [serverSide, clientSide] = InMemoryTransport.createLinkedPair()
+    await server.connect(serverSide)
+    const mcp = new McpManager({ createTransport: () => clientSide, truncation, getMcpOutputMaxTokens: () => 25000 })
+    managers.push(mcp)
+    await mcp.connect({ big: { command: 'node' } })
+    const r = await mcp.getTools().get('mcp__big__blob')!.run({}, { ...ctx, agentId: 'agent-1' })
+    expect(r.output).toBe('small payload')
   })
 })
