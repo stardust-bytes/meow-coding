@@ -107,7 +107,7 @@ writes it through `settingsToConfig`.
 
   // ── Budgets ──────────────────────────────────────────────────────────────
   "maxContextTokens": 200000,   // optional override; otherwise resolved (learned/live/catalog/128k)
-  "maxOutputTokens": 32000,     // optional override
+  "maxOutputTokens": 32000,     // optional override; absent = omit max_tokens (provider decides)
   "maxSteps": 100,              // steps per uninterrupted run (DEFAULT_MAX_STEPS)
   "subagentMaxSteps": 30,       // DEFAULT_SUBAGENT_MAX_STEPS
 

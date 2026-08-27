@@ -325,7 +325,9 @@ a session parked over its limit would only compact when the user sent the next m
 `LimitsService.resolveLimits({provider, model, baseUrl, apiKey, overrides})` resolves in priority
 order and returns `{ context: number, output: number | null }`:
 
-1. **Override** — `maxContextTokens` / `maxOutputTokens` from `meow.json`.
+1. **Override** — `maxContextTokens` / `maxOutputTokens` from `meow.json`. `maxOutputTokens` is an
+   optional override; when absent it resolves to `output: null` (omit `max_tokens`), letting the
+   provider decide.
 2. **Learned** — `learned-limits.json`, keyed `baseUrl|model`. Only ever tightens, never raises.
 3. **Live `/models`** — fetched in the background from an OpenAI-compatible endpoint, cached per
    `baseUrl|apiKey` with a TTL.
