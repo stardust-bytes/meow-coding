@@ -13,7 +13,7 @@ main process config.
 | `AgentsTab.tsx` | Per-agent config (name, system prompt, provider/model). |
 | `PermissionsTab.tsx` | Tool permission rules (allow/ask/deny). |
 | `McpTab.tsx` | MCP server configs + connection status. |
-| `ContextTab.tsx` | Context/compaction settings: max steps, notifications, tool-output limits. Fields grouped into 4 sections (Limits / Compaction / Tool output / Notifications) with headers. Token limits are auto-resolved by the main process (no manual context/output fields). |
+| `ContextTab.tsx` | Context/compaction settings: max steps, auto-compact, MCP output max tokens (Basic) + collapsible Advanced (buffer/keepTokens/tailTurns/toolOutputMaxChars/maxBytes/maxLines) + Notifications. Empty optional fields = auto-resolved by ratio of context window; placeholders show the auto value for the active agent. |
 | `CommandsTab.tsx` | Slash-command editor (project-level). "+ Add command" button in header (top), same `agents-head` pattern as AgentsTab. |
 | `TemplatesTab.tsx` | Agent template CRUD. |
 | `UpdatesTab.tsx` | Update channel + check/install. |

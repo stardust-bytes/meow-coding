@@ -7,7 +7,7 @@ tools, and exposes them to the Meow agent as `ToolDefinition`s alongside the bui
 
 | File | Responsibility |
 |---|---|
-| `manager.ts` | `McpManager`: `connect(servers)` (closeAll → per-server client), `getTools()`, `getStatus()`, `closeAll()` on dispose. Also defines `McpServerConfig` type + status shape. |
+| `manager.ts` | `McpManager`: `connect(servers)` (closeAll → per-server client), `getTools()`, `getStatus()`, `closeAll()` on dispose. Also defines `McpServerConfig` type + status shape. `McpManagerDeps` accepts `truncation` (`TruncationStore`) + `getMcpOutputMaxTokens`; the `run` wrapper truncates output exceeding the cap (default `DEFAULT_MCP_OUTPUT_TOKENS` 25000) to a head/tail preview + file path. |
 
 ## Conventions
 
