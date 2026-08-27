@@ -57,7 +57,8 @@ describe('classifyContextOverflowError', () => {
       'The request exceeded the maximum context length',
       'context_length_exceeded: requested 200000 tokens',
       'input exceeds the context window of the model',
-      'Please reduce the length of the messages or completion'
+      'Please reduce the length of the messages or completion',
+      'Input token exceed the limit (request id: 20260827151121597191920c955d568RXzzSEEf)'
     ]) {
       expect(classifyContextOverflowError(msg), msg).toBe(true)
     }

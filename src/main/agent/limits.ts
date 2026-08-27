@@ -52,7 +52,11 @@ const CONTEXT_OVERFLOW_PATTERNS = [
   'maximum context length',
   'context_length_exceeded',
   'exceeds the context window',
-  'please reduce the length of the messages'
+  'please reduce the length of the messages',
+  // Các proxy OpenAI-compatible (vd "deepseek 30 day") reject input quá trần
+  // bằng "Input token exceed the limit (request id: ...)".
+  'input token exceed',
+  'exceed the limit'
 ] as const
 
 export function classifyContextOverflowError(message: string | undefined): boolean {
