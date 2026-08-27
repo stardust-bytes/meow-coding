@@ -41,7 +41,8 @@ export class SystemLogger {
       for (const name of readdirSync(this.logDir)) {
         const m = /^(\d{4}-\d{2}-\d{2})-log\.txt$/.exec(name)
         if (!m) continue
-        const ts = new Date(`${m[1]}T00:00:00`).getTime()
+        const [y, mo, d] = m[1].split('-').map(Number)
+        const ts = new Date(y, mo - 1, d).getTime()
         if (ts < cutoff) {
           try {
             rmSync(path.join(this.logDir, name))

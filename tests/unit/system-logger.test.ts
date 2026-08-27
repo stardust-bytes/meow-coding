@@ -1,5 +1,5 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, readFileSync, existsSync, readdirSync, writeFileSync } from 'node:fs'
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
+import { mkdtempSync, rmSync, readFileSync, existsSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { SystemLogger } from '../../src/main/system-logger'
@@ -67,5 +67,20 @@ describe('SystemLogger', () => {
     expect(() => bad.log('ERROR', 'main', 'x')).not.toThrow()
     // thư mục được tự tạo
     expect(existsSync(path.join(dir, 'no-such', 'deep'))).toBe(true)
+  })
+
+  it('falls back to process.stderr.write when appendFileSync fails', () => {
+    const now = new Date()
+    const p = (n: number) => String(n).padStart(2, '0')
+    const stamp = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`
+    // A directory at the target path makes appendFileSync throw EISDIR on all platforms.
+    mkdirSync(path.join(dir, `${stamp}-log.txt`))
+    const spy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    try {
+      expect(() => logs.log('ERROR', 'main', 'boom')).not.toThrow()
+      expect(spy).toHaveBeenCalled()
+    } finally {
+      spy.mockRestore()
+    }
   })
 })

@@ -18,6 +18,11 @@ watchTheme()
 
 function patchConsoleLogging(): void {
   if (!window.api) return
+  // Guard against HMR re-execution: every dev module reload re-runs this module,
+  // which would otherwise re-wrap console.* and fire duplicate IPC writes per call.
+  const g = console as unknown as { __meowSystemLogPatched?: boolean }
+  if (g.__meowSystemLogPatched) return
+  g.__meowSystemLogPatched = true
   const levelOf: Record<'log' | 'info' | 'warn' | 'error', LogLevel> = {
     log: 'INFO', info: 'INFO', warn: 'WARN', error: 'ERROR'
   }
