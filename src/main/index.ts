@@ -740,8 +740,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.ProviderFetchModels, (_e, providerId: string) =>
     mainApp.meowAgent.fetchProviderModels(providerId))
   ipcMain.handle(Channels.ProviderCatalog, () => mainApp.meowAgent.listProviderCatalog())
-  ipcMain.handle(Channels.ProviderConnect, (_e, providerId: string, apiKey: string, baseUrl?: string) =>
-    mainApp.meowAgent.connectProvider(providerId, apiKey, baseUrl))
+  ipcMain.handle(Channels.ProviderConnect, (_e, providerId: string, apiKey: string, baseUrl?: string, models?: string[]) =>
+    mainApp.meowAgent.connectProvider(providerId, apiKey, baseUrl, models))
   ipcMain.handle(Channels.ProviderDisconnect, (_e, providerId: string) =>
     mainApp.meowAgent.disconnectProvider(providerId))
 

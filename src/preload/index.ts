@@ -89,8 +89,8 @@ const api: AgentApi = {
   getProviderModels: () => ipcRenderer.invoke(Channels.ProviderModels),
   fetchProviderModels: (providerId: string) => ipcRenderer.invoke(Channels.ProviderFetchModels, providerId),
   listProviderCatalog: () => ipcRenderer.invoke(Channels.ProviderCatalog),
-  connectProvider: (providerId: string, apiKey: string, baseUrl?: string) =>
-    ipcRenderer.invoke(Channels.ProviderConnect, providerId, apiKey, baseUrl),
+  connectProvider: (providerId: string, apiKey: string, baseUrl?: string, models?: string[]) =>
+    ipcRenderer.invoke(Channels.ProviderConnect, providerId, apiKey, baseUrl, models),
   disconnectProvider: (providerId: string) => ipcRenderer.invoke(Channels.ProviderDisconnect, providerId),
   listConnections: () => ipcRenderer.invoke(Channels.ConnectionList),
   connectCodex: () => ipcRenderer.invoke(Channels.ConnectionConnectCodex),

@@ -651,14 +651,16 @@ export class MeowAgentManager {
   async fetchProviderModels(providerId: string): Promise<string[]> {
     if (!this.deps.catalog) return []
     const providers = await this.deps.catalog.fetch()
-    if (providerId === 'ollama-cloud') {
-      const p = this.getSettings().providers.find(x => x.id === providerId)
-      const key = p ? resolveApiKey(p, this.deps.env, this.deps.vault ? ref => this.deps.vault!.getSecret(ref) : undefined) : null
-      const base = p?.baseUrl || providers[providerId]?.api
-      if (key && base) {
-        const live = await this.deps.catalog.fetchLiveModels(base, key)
-        if (live) return live
-      }
+    const p = this.getSettings().providers.find(x => x.id === providerId)
+    // Any provider with a baseUrl + key can be live-synced from its OpenAI
+    // compatible /models endpoint — including user-added OpenAI-compatible
+    // providers that aren't in the models.dev catalog. Falls back to the
+    // catalog, then the stored list.
+    const key = p ? resolveApiKey(p, this.deps.env, this.deps.vault ? ref => this.deps.vault!.getSecret(ref) : undefined) : null
+    const base = p?.baseUrl || providers[providerId]?.api
+    if (key && base) {
+      const live = await this.deps.catalog.fetchLiveModels(base, key)
+      if (live && live.length > 0) return live
     }
     return providers[providerId]?.models ?? []
   }
@@ -668,7 +670,7 @@ export class MeowAgentManager {
     return this.deps.catalog.list()
   }
 
-  async connectProvider(providerId: string, apiKey: string, baseUrl?: string): Promise<MeowSettings> {
+  async connectProvider(providerId: string, apiKey: string, baseUrl?: string, models?: string[]): Promise<MeowSettings> {
     const catalog = await this.deps.catalog?.fetch() ?? {}
     const catalogModels = catalog[providerId]?.models ?? []
     const settings = this.getSettings()
@@ -704,17 +706,26 @@ export class MeowAgentManager {
     if (providerId === 'ollama-cloud' && base && /ollama\.com/.test(base) && !/\/v\d+\/?$/.test(base)) {
       base = catalog[providerId]?.api || OLLAMA_CLOUD_BASE_URL
     }
-    let models = catalogModels.length > 0 ? catalogModels : (existing?.models ?? [])
-    // Ollama Cloud's server-side model tags differ from the models.dev catalog
-    // (bare tags 404 "model not found"); sync the account's actual list so
-    // every listed model is usable. Fall back to the catalog when unreachable.
-    if (providerId === 'ollama-cloud' && apiKey && base && this.deps.catalog) {
-      const live = await this.deps.catalog.fetchLiveModels(base, apiKey)
-      if (live) models = live
+    // Explicit manual models (typed into the Providers UI) always win — that
+    // is how a user adds an OpenAI-compatible endpoint that isn't in models.dev
+    // with a hand-typed model list. Otherwise try the endpoint's live /models,
+    // then the models.dev catalog, then the previously stored list.
+    const explicitModels = (models ?? []).map(m => m.trim()).filter(Boolean)
+    let finalModels: string[]
+    if (explicitModels.length > 0) {
+      finalModels = explicitModels
+    } else {
+      let live: string[] | null = null
+      if (apiKey && base && this.deps.catalog) {
+        live = await this.deps.catalog.fetchLiveModels(base, apiKey)
+      }
+      finalModels = live && live.length > 0
+        ? live
+        : (catalogModels.length > 0 ? catalogModels : (existing?.models ?? []))
     }
     const nextProviders = [
       ...settings.providers.filter(p => p.id !== providerId),
-      { id: providerId, apiKey: plainKey, keyRef, baseUrl: base, models }
+      { id: providerId, apiKey: plainKey, keyRef, baseUrl: base, models: finalModels }
     ]
     const defaultProvider = settings.providers.some(p => p.id === settings.defaultProvider)
       ? settings.defaultProvider

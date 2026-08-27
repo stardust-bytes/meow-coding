@@ -1110,6 +1110,7 @@ select.input { width: 100%; }
 .provider-connect-form { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; flex: 1; min-width: 0; }
 .provider-connect-form .provider-key { flex: 1; min-width: 0; }
 .provider-connect-form .provider-baseurl { flex: 1.2; min-width: 0; }
+.provider-connect-form .provider-models { flex-basis: 100%; }
 .provider-codex { border-top: 1px solid var(--hairline); padding-top: 8px; display: flex; flex-direction: column; gap: 8px; }
 .provider-codex h4 { margin: 0; font-size: var(--fs-md); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); font-family: var(--font-display); }
 .codex-account-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }

@@ -23,7 +23,7 @@ handlers and the app lifecycle.
 - `file-suggest.ts` — file suggestions for `@`-mentions (deep search across the entire project tree, ignores
   node_modules/.git/out/dist).
 - `file-watcher.ts` — recursively watches the project, filters text files, batches changes (debounce 500ms).
-- `models-catalog.ts` / `model-variants.ts` — model provider catalog + variants (reasoning, pricing).
+- `models-catalog.ts` / `model-variants.ts` — model provider catalog + variants (reasoning, pricing); `fetchLiveModelsInfo` syncs any OpenAI-compatible `/models` endpoint (used when connecting a provider or clicking "Sync models"). `meow-agent-manager.connectProvider` accepts a hand-typed `models[]` (the way to add an arbitrary OpenAI-compatible baseUrl + key), falling back to live `/models` → catalog → stored list.
 - `terminal-shell.ts` — `resolveShell`: picks the default shell per platform.
 - `updater.ts` — electron-updater wrapper, emits `UpdaterStatusEvent`.
 - `window-chrome.ts` — `getWindowChromeOptions`: hides the title-bar on Windows/Linux; `applyTitleBarTheme` re-colors the Windows overlay (min/max/close) live when the app theme toggles dark/light.

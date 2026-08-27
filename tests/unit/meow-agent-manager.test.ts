@@ -812,6 +812,58 @@ describe('MeowAgentManager', () => {
     }
   })
 
+  it('connectProvider uses manually typed models for an OpenAI-compatible provider', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-manual-models-'))
+    try {
+      // Catalog has no models for this provider — only the hand-typed list
+      // should survive (endpoint /models is never reached).
+      const catalog = new ModelsCatalog(path.join(dir, 'models.json'), async () =>
+        ({ ok: true, json: async () => ({}) }) as unknown as Response)
+      const { manager } = await makeManager({ configPath: path.join(dir, 'meow.json'), catalog })
+      const settings = await manager.connectProvider('my-api', 'sk-abc', 'https://api.example.com/v1', ['model-a', 'model-b'])
+      const provider = settings.providers.find(p => p.id === 'my-api')
+      expect(provider?.baseUrl).toBe('https://api.example.com/v1')
+      expect(provider?.models).toEqual(['model-a', 'model-b'])
+      expect(settings.defaultProvider).toBe('my-api')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('connectProvider prefers manual models over the live /models sync', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-manual-pref-'))
+    try {
+      const catalog = new ModelsCatalog(path.join(dir, 'models.json'), async url => {
+        if (String(url).endsWith('/models')) {
+          return { ok: true, json: async () => ({ data: [{ id: 'live-a' }, { id: 'live-b' }] }) } as unknown as Response
+        }
+        return { ok: true, json: async () => ({}) } as unknown as Response
+      })
+      const { manager } = await makeManager({ configPath: path.join(dir, 'meow.json'), catalog })
+      const settings = await manager.connectProvider('my-api', 'sk-abc', 'https://api.example.com/v1', ['typed-1'])
+      expect(settings.providers.find(p => p.id === 'my-api')?.models).toEqual(['typed-1'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('fetchProviderModels live-syncs any provider with a baseUrl and key', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-live-any-'))
+    try {
+      const catalog = new ModelsCatalog(path.join(dir, 'models.json'), async url => {
+        if (String(url).endsWith('/models')) {
+          return { ok: true, json: async () => ({ data: [{ id: 'glm-5.1' }, { id: 'qwen3.5:397b' }] }) } as unknown as Response
+        }
+        return { ok: true, json: async () => ({}) } as unknown as Response
+      })
+      const { manager } = await makeManager({ configPath: path.join(dir, 'meow.json'), catalog })
+      await manager.connectProvider('my-api', 'sk-abc', 'https://api.example.com/v1', [])
+      expect(await manager.fetchProviderModels('my-api')).toEqual(['glm-5.1', 'qwen3.5:397b'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('executes multiple allow tool calls in a turn in parallel', async () => {
     const { manager, events } = await makeManager({
       partsQueue: [

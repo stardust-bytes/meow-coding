@@ -31,6 +31,7 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
   const [baseUrl, setBaseUrl] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [models, setModels] = useState<string[]>([])
+  const [manualModels, setManualModels] = useState('')
   const [status, setStatus] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -46,6 +47,7 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
     setProviderId(id)
     setApiKey('')
     setBaseUrl('')
+    setManualModels('')
     setModal({ kind: 'catalog', id, name })
   }
 
@@ -53,6 +55,7 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
     setProviderId('')
     setApiKey('')
     setBaseUrl('')
+    setManualModels('')
     setModal({ kind: 'manual' })
   }
 
@@ -60,6 +63,7 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
     setProviderId(p.id)
     setApiKey('')
     setBaseUrl(p.baseUrl ?? '')
+    setManualModels(p.models.join(', '))
     setModal({ kind: 'edit', id: p.id, name: p.id })
   }
 
@@ -69,10 +73,11 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
     const isEdit = modal?.kind === 'edit'
     // Connect requires a key; edit keeps the current key when left blank.
     if (!isEdit && !apiKey.trim()) return
+    const modelList = manualModels.split(/[\s,]+/).map(m => m.trim()).filter(Boolean)
     setStatus('')
     setSaving(true)
     try {
-      const result = await window.api.connectProvider(id, apiKey.trim(), baseUrl.trim() || undefined)
+      const result = await window.api.connectProvider(id, apiKey.trim(), baseUrl.trim() || undefined, modelList)
       setModal(null)
       onPersisted(result)
       onChange({ providers: result.providers, defaultProvider: result.defaultProvider })
@@ -85,7 +90,7 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
         const provider = result.providers.find(p => p.id === id)
         setStatus(provider && provider.models.length > 0
           ? `Connected ${id}. ${provider.models.length} model(s) synced.`
-          : `Connected ${id}. Models will sync when models.dev is reachable.`)
+          : `Connected ${id}. Add models in the modal or they will sync when models.dev is reachable.`)
       }
     } catch (err) {
       setStatus(String(err))
@@ -126,6 +131,25 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
     }
     setExpandedId(id)
     setModels(await window.api.fetchProviderModels(id))
+  }
+
+  const syncModels = async (id: string) => {
+    setStatus('')
+    try {
+      const live = await window.api.fetchProviderModels(id)
+      // Live-sync the stored list too, so the model picker sees it immediately.
+      const p = connected.find(x => x.id === id)
+      if (p) {
+        const next = connected.map(c => (c.id === id ? { ...c, models: live.length > 0 ? live : c.models } : c))
+        const result = await window.api.saveSettings({ ...settings, defaultProvider: settings.defaultProvider, providers: next })
+        onPersisted(result)
+        onChange({ providers: result.providers })
+      }
+      setStatus(live.length > 0 ? `Synced ${id}. ${live.length} model(s).` : `No models for ${id}. Add them manually in Edit.`)
+      setModels(live)
+    } catch (err) {
+      setStatus(String(err))
+    }
   }
 
   const setDefault = async (id: string) => {
@@ -192,6 +216,7 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
                   : null}
               {p.baseUrl && <span className="provider-connected-baseurl">{p.baseUrl}</span>}
               <button className="btn small" onClick={() => openEdit(p)}>Edit</button>
+              <button className="btn small" onClick={() => void syncModels(p.id)}>Sync models</button>
               <button className="btn small" onClick={() => void setDefault(p.id)}>
                 {settings.defaultProvider === p.id ? 'default' : 'set default'}
               </button>
@@ -249,11 +274,23 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
           />
           <input
             className="input provider-baseurl"
-            placeholder="baseUrl (optional)"
+            placeholder="baseUrl (optional, any OpenAI-compatible endpoint)"
             value={baseUrl}
             disabled={saving}
             onChange={e => setBaseUrl(e.target.value)}
           />
+          <textarea
+            className="input provider-models"
+            rows={3}
+            placeholder="models (comma or space separated, e.g. gpt-4o, claude-3-5-sonnet)"
+            value={manualModels}
+            disabled={saving}
+            onChange={e => setManualModels(e.target.value)}
+          />
+          <p className="settings-hint">
+            Leave models blank to auto-sync from the endpoint's <code>/models</code> (or models.dev).
+            Typing models here overrides the synced list — this is how you add any OpenAI-compatible API.
+          </p>
         </Modal>
       )}
     </div>

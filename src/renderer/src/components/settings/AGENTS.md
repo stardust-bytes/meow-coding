@@ -9,7 +9,7 @@ main process config.
 | File | Responsibility |
 |---|---|
 | `SettingsDialog.tsx` | Full-screen shell: loads settings/MCP status/provider catalog, tab switching, `patch()` draft state, save flow. |
-| `ProvidersTab.tsx` | Provider management tab (opened from the sidebar Providers menu item): add/connect (API key + base URL), fetch models from catalog, default provider. |
+| `ProvidersTab.tsx` | Provider management tab (opened from the sidebar Providers menu item): add/connect (API key + base URL), fetch models from the live `/models` endpoint or the catalog, hand-enter model IDs for any OpenAI-compatible API, "Sync models", default provider. |
 | `AgentsTab.tsx` | Per-agent config (name, system prompt, provider/model). |
 | `PermissionsTab.tsx` | Tool permission rules (allow/ask/deny). |
 | `McpTab.tsx` | MCP server configs + connection status. |
