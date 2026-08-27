@@ -932,7 +932,7 @@ select.input { width: 100%; }
 .tool-call-name.denied { color: var(--red); }
 .tool-call-running { color: var(--yellow); font-size: var(--fs-base); }
 .tool-call-input, .tool-call-output, .tool-call-error {
-  margin: 0; padding: 8px 10px; font-size: var(--fs-md); white-space: pre-wrap; word-break: break-word;
+  margin: 0; padding: 8px 10px; font-size: var(--fs-sm); white-space: pre-wrap; word-break: break-word;
   user-select: text; max-height: 220px; overflow-y: auto;
   font-family: var(--font-mono);
   border-radius: 0 0 var(--radius) var(--radius);
@@ -1274,7 +1274,7 @@ select.input { width: 100%; }
 
 /* Diff view */
 .tool-call-diff { color: var(--text); }
-.diff-view { font-family: var(--font-mono); font-size: var(--fs-md); user-select: text; max-height: 260px; overflow-y: auto; }
+.diff-view { font-family: var(--font-mono); font-size: var(--fs-sm); user-select: text; max-height: 260px; overflow-y: auto; }
 .diff-line { display: flex; gap: 6px; padding: 0 10px; white-space: pre-wrap; word-break: break-word; border-radius: 0; }
 .diff-line.del { background: rgba(255, 95, 86, 0.1); color: var(--red); }
 .diff-line.add { background: rgba(74, 222, 159, 0.1); color: var(--green); }
