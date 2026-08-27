@@ -51,6 +51,8 @@ Alias `@shared` → `src/shared` (configured in electron.vite.config.ts, vitest.
 - Security: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: false`. Do not expose
   `ipcRenderer` to the window.
 - Language: source code + UI labels + system-style notifications (prefixed `[meow]`) are all English.
+  Specs, implementation plans, and any project documentation (README, docs/, AGENTS.md, changelogs)
+  must also be written in English.
 - Do not add unnecessary comments; only comment when explaining a complex decision (e.g. Windows shim, tree-kill).
 - Agent exits must be handled: kill the entire process tree (`tree-kill`), no orphan processes.
 - Browser bridge: only bind `127.0.0.1` (do not expose to the network), pairing code required before accepting

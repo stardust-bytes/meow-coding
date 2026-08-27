@@ -28,6 +28,8 @@ House rules, process, and the traps that have already bitten someone in this rep
 - **UI labels are English.** Numeric displays use tabular-nums.
 - **User-facing system notices from main are English, prefixed `[meow]`** — chat errors, PTY
   hints, native notifications. Follow this when adding one.
+- **All project documentation is English**: specs, implementation plans, READMEs, `docs/`,
+  `AGENTS.md` files, and changelogs are written in English.
 - Some in-code comments are Vietnamese for historical reasons. They are normal comments; do not
   mass-translate them as a side effect of unrelated work.
 

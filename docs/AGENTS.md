@@ -16,3 +16,4 @@ Documentation following the Superpowers workflow.
 - First line states the status (e.g. `Status: pending review`).
 - Process: brainstorm → spec → plan → execute. Update spec/plan when decisions change.
 - When writing a new spec/plan, refer to existing specs/plans to keep the format consistent.
+- Language: all documentation (specs, plans, notes, reference pages) is written in English.

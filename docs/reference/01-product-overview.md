@@ -145,3 +145,5 @@ straight to the code.
   notifications) are **English**, always prefixed with `[meow]`. Example:
   `"[meow] No provider/API key configured. Open Settings, add a provider (id + API key + models) and try again."`.
   Some in-code comments are Vietnamese for historical reasons; treat them as normal comments.
+- **All project documentation is English**: design specs, implementation plans, READMEs, `docs/`,
+  `AGENTS.md` files, and changelogs are written in English.
