@@ -1,6 +1,8 @@
 export type AgentStatus = 'spawning' | 'running' | 'idle' | 'exited' | 'stopped' | 'error'
 export type AlertLevel = 'normal' | 'attention' | 'error'
 export type AgentKind = 'pty' | 'native'
+export type LogLevel = 'INFO' | 'WARN' | 'ERROR'
+export type LogSource = 'main' | 'render' | 'agent'
 export type AgentMode = 'build' | 'plan'
 export type ModelVariant = string
 export type ChatRole = 'user' | 'assistant'

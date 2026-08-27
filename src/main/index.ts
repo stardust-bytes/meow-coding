@@ -11,6 +11,7 @@ import { WorkspaceStore } from './workspace-store'
 import { PtyManager } from './pty-manager'
 import { resolveShell } from './terminal-shell'
 import { LogManager } from './log-manager'
+import { SystemLogger } from './system-logger'
 import { GitStatusService } from './git-status-service'
 import { GitService } from './git-service'
 import { openGitViewer } from './git-viewer'
@@ -105,6 +106,7 @@ export class MainApp {
   )
   pty = new PtyManager()
   logs = new LogManager(path.join(app.getPath('userData'), 'logs'))
+  systemLogger = new SystemLogger(path.join(app.getPath('userData'), 'logs'))
   git = new GitStatusService()
   gitSvc = new GitService()
   alerts = new AlertService()
