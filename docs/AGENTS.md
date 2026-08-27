@@ -7,6 +7,8 @@ Documentation following the Superpowers workflow.
   handling, testing, success criteria. Written **before** code.
 - `superpowers/plans/` — step-by-step implementation plans, guiding from spec to execution.
 - `superpowers/notes/` — technical notes / ad-hoc decisions.
+- `reference/` — full system reference for agents/LLMs: product, architecture, agent runtime, tools,
+  IPC, storage, providers, integrations, UI, build/release, conventions. Start at `reference/README.md`.
 
 ## Conventions
 
