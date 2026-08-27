@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { usableContextTokens, fitHeadToBudget, selectHeadTail, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, truncateToolOutput, serializeItems, pruneToolOutputs, hardTruncate } from '../../src/main/agent/compact'
+import { usableContextTokens, fitHeadToBudget, selectHeadTail, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, truncateToolOutput, serializeItems, pruneToolOutputs, hardTruncate, resolveCompactionSettings, COMPACTION_RATIOS } from '../../src/main/agent/compact'
+import type { CompactionSettings } from '../../src/main/agent/compact'
 import { estimateTokens, estimateUsage } from '../../src/main/agent/token'
 import type { TranscriptItem } from '../../src/main/agent/message'
 import type { ChatMessage, ToolCallData } from '../../src/shared/types'
@@ -306,5 +307,48 @@ describe('pruneToolOutputs context scaling', () => {
     expect(pruneToolOutputs(items, cfg, 1_000_000)).toBe(false)
     const toolItem = items.find(i => i.kind === 'tool')
     expect(toolItem && toolItem.kind === 'tool' ? toolItem.tool.output : '').toContain('P')
+  })
+})
+
+describe('resolveCompactionSettings', () => {
+  const full: CompactionSettings = { auto: true, tailTurns: 2, prune: true }
+
+  it('scales buffer/keepTokens/toolOutputMaxChars by ratio of context window', () => {
+    const r = resolveCompactionSettings(full, 200000, 0)
+    expect(r.buffer).toBe(Math.round(200000 * COMPACTION_RATIOS.buffer)) // 30000
+    expect(r.keepTokens).toBe(Math.round(200000 * COMPACTION_RATIOS.keepTokens)) // 12000
+    expect(r.toolOutputMaxChars).toBe(Math.round(200000 * COMPACTION_RATIOS.toolOutputMaxChars)) // 3000
+    expect(r.tailTurns).toBe(2)
+    expect(r.auto).toBe(true)
+  })
+
+  it('applies floors for small context windows', () => {
+    const r = resolveCompactionSettings(full, 128000, 0)
+    expect(r.buffer).toBeGreaterThanOrEqual(10000)
+    expect(r.keepTokens).toBeGreaterThanOrEqual(4000)
+    expect(r.toolOutputMaxChars).toBeGreaterThanOrEqual(1500)
+  })
+
+  it('override values win over the ratio', () => {
+    const r = resolveCompactionSettings(
+      { auto: true, tailTurns: 2, buffer: 5000, keepTokens: 5000, toolOutputMaxChars: 500 },
+      1000000, 0
+    )
+    expect(r.buffer).toBe(5000)
+    expect(r.keepTokens).toBe(5000)
+    expect(r.toolOutputMaxChars).toBe(500)
+  })
+
+  it('clamps keepTokens to at most half the usable context', () => {
+    const r = resolveCompactionSettings(full, 10000, 9000)
+    const usable = Math.max(0, 10000 - 9000)
+    expect(r.keepTokens).toBeLessThanOrEqual(Math.floor(usable / 2))
+  })
+
+  it('passes through tailTurns and auto/prune untouched', () => {
+    const r = resolveCompactionSettings({ auto: false, tailTurns: 4, prune: false }, 200000, 0)
+    expect(r.auto).toBe(false)
+    expect(r.tailTurns).toBe(4)
+    expect(r.prune).toBe(false)
   })
 })

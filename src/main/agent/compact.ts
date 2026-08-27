@@ -1,6 +1,7 @@
 import type { TranscriptItem } from './message'
 import type { LlmClient, LlmStreamOptions } from './llm'
 import { charsForTokens, estimateTokens, estimateUsage } from './token'
+import { DEFAULT_MAX_CONTEXT_TOKENS } from './config'
 
 // ---------------------------------------------------------------------------
 // Token-based compaction (modeled on opencode session/compaction.ts)
@@ -74,6 +75,51 @@ export const CLEARED_OUTPUT = '[Old tool result content cleared]'
  */
 export function usableContextTokens(limit: number, buffer: number, outputReserve = 0): number {
   return limit - buffer - outputReserve
+}
+
+/** Ratios of the model's context window used when a knob is left on "auto." */
+export const COMPACTION_RATIOS = {
+  buffer: 0.15,
+  keepTokens: 0.06,
+  toolOutputMaxChars: 0.015,
+} as const
+
+/** Minimums so a small context window never gets unusably tiny knobs. */
+const FLOOR = { buffer: 10000, keepTokens: 4000, toolOutputMaxChars: 1500 }
+
+export interface ResolvedCompaction {
+  auto: boolean
+  buffer: number
+  keepTokens: number
+  tailTurns: number
+  toolOutputMaxChars: number
+  prune?: boolean
+}
+
+/**
+ * Fills auto (undefined) compaction knobs from the model's context window.
+ * Present values are overrides and pass through unchanged. `keepTokens` is
+ * clamped to at most half the usable context so the verbatim tail can never
+ * consume the whole window. Call with `DEFAULT_MAX_CONTEXT_TOKENS` when the
+ * real limit is not yet known (live /models still fetching).
+ */
+export function resolveCompactionSettings(
+  raw: CompactionSettings,
+  contextLimit: number,
+  outputReserve = 0
+): ResolvedCompaction {
+  const limit = contextLimit > 0 ? contextLimit : DEFAULT_MAX_CONTEXT_TOKENS
+  const pct = (ratio: number, floor: number) => Math.max(floor, Math.round(limit * ratio))
+  const usable = Math.max(0, limit - outputReserve)
+  const autoKeep = pct(COMPACTION_RATIOS.keepTokens, FLOOR.keepTokens)
+  return {
+    auto: raw.auto,
+    buffer: raw.buffer ?? pct(COMPACTION_RATIOS.buffer, FLOOR.buffer),
+    keepTokens: raw.keepTokens ?? Math.min(autoKeep, Math.floor(usable / 2)),
+    tailTurns: raw.tailTurns,
+    toolOutputMaxChars: raw.toolOutputMaxChars ?? pct(COMPACTION_RATIOS.toolOutputMaxChars, FLOOR.toolOutputMaxChars),
+    prune: raw.prune,
+  }
 }
 
 /**
