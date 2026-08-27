@@ -16,6 +16,7 @@
 - `npm test` phải xanh ở mọi commit. Baseline trên máy này đang xanh (kể cả `officecli-binary-manager.test.ts`).
 - Không hardcode chuỗi IPC channel; chỉ dùng `Channels` từ `src/shared/ipc.ts`.
 - `src/shared` không được import Node/Electron; `LogLevel`/`LogSource` là type thuần, JSON-serializable.
+- Helper `formatLogArg`/`safeJson` dùng chung cả main + renderer → đặt ở `src/shared/log-helpers.ts` (KHÔNG duplicate ở 2 nơi — quyết định pre-flight của user).
 - Mọi thay đổi hành vi phải có test viết **trước** phần implement (TDD).
 - Commit sau mỗi task.
 - Chỉ comment khi giải thích quyết định khó, không comment mô tả code.
@@ -24,10 +25,11 @@
 
 ---
 
-### Task 1: `SystemLogger` class + unit test
+### Task 1: `SystemLogger` class + shared log helpers + unit test
 
 **Files:**
 - Modify: `src/shared/types.ts` (thêm 2 type thuần — renderer dùng chung)
+- Create: `src/shared/log-helpers.ts` (`formatLogArg`/`safeJson` — dùng chung main + renderer)
 - Create: `src/main/system-logger.ts`
 - Test: `tests/unit/system-logger.test.ts`
 
@@ -36,6 +38,7 @@
 - Produces:
   - `type LogLevel = 'INFO' | 'WARN' | 'ERROR'` (trong `src/shared/types.ts`)
   - `type LogSource = 'main' | 'render' | 'agent'` (trong `src/shared/types.ts`)
+  - `function safeJson(v: unknown): string` và `function formatLogArg(a: unknown): string` (export từ `src/shared/log-helpers.ts` — Task 3 + 4 dùng)
   - `class SystemLogger { constructor(logDir: string, now?: () => Date); log(level: LogLevel, source: LogSource, message: string): void; prune(maxDays?: number): void }` (export từ `src/main/system-logger.ts`)
 
 - [ ] **Step 1: Thêm type vào `src/shared/types.ts`**
@@ -130,9 +133,25 @@ Lưu ý: test `prune` dùng `require('node:fs')` để tránh trùng tên import
 Run: `npx vitest run tests/unit/system-logger.test.ts`
 Expected: FAIL — không tìm thấy module `../../src/main/system-logger`.
 
-- [ ] **Step 4: Viết implementation**
+- [ ] **Step 4: Tạo `src/shared/log-helpers.ts`**
 
-Tạo `src/main/system-logger.ts`:
+```ts
+export function safeJson(v: unknown): string {
+  try {
+    const s = JSON.stringify(v)
+    return s === undefined ? String(v) : s
+  } catch {
+    return String(v)
+  }
+}
+
+export function formatLogArg(a: unknown): string {
+  if (a instanceof Error) return a.stack ?? a.message
+  return typeof a === 'string' ? a : safeJson(a)
+}
+```
+
+- [ ] **Step 5: Viết implementation `src/main/system-logger.ts`**
 
 ```ts
 import { appendFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
@@ -211,8 +230,6 @@ writeFileSync(other, 'other')
 
 - [ ] **Step 6: Sửa test `prune` cho không phụ thuộc ngày chạy**
 
-Test `prune` ở Step 2 dùng ngày cứng `2026-08-27` sẽ fail nếu chạy ở ngày khác. Thay toàn bộ test `prune` bằng bản tính ngày tương đối theo `Date.now()`:
-
 ```ts
   it('prune removes dated files older than maxDays and keeps others', () => {
     const p = (n: number) => String(n).padStart(2, '0')
@@ -253,7 +270,7 @@ Trong constructor `MainApp`, ngay sau dòng `logs = new LogManager(...)` (dòng 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/shared/types.ts src/main/system-logger.ts src/main/index.ts tests/unit/system-logger.test.ts
+git add src/shared/types.ts src/shared/log-helpers.ts src/main/system-logger.ts src/main/index.ts tests/unit/system-logger.test.ts
 git commit -m "feat(main): system logger theo ngày + unit test"
 ```
 
@@ -379,20 +396,6 @@ git commit -m "feat(ipc): channel system-log:write + writeSystemLog"
 Sau `export const mainApp = new MainApp()` (dòng 549), thêm:
 
 ```ts
-function safeJson(v: unknown): string {
-  try {
-    const s = JSON.stringify(v)
-    return s === undefined ? String(v) : s
-  } catch {
-    return String(v)
-  }
-}
-
-function formatLogArg(a: unknown): string {
-  if (a instanceof Error) return a.stack ?? a.message
-  return typeof a === 'string' ? a : safeJson(a)
-}
-
 function patchConsole(systemLogger: SystemLogger): void {
   const hooks: Array<[keyof Console, LogLevel]> = [
     ['log', 'INFO'],
@@ -422,7 +425,7 @@ process.on('unhandledRejection', reason => {
 })
 ```
 
-Import `LogLevel` và `SystemLogger` ở đầu file (import type `LogLevel` từ `../shared/types`, import `SystemLogger` từ `./system-logger`).
+Import ở đầu file: `import { SystemLogger } from './system-logger'`, `import type { LogLevel } from '../shared/types'`, và `import { formatLogArg, safeJson } from '../shared/log-helpers'`.
 
 - [ ] **Step 3: Ghi log lỗi agent tại pty exit**
 
@@ -485,20 +488,6 @@ git commit -m "feat(main): log console, crash và lỗi agent vào system logger
 Thêm vào `src/renderer/src/main.tsx` sau `watchTheme()` (trước khối `const rootEl = ...`):
 
 ```ts
-function safeJson(v: unknown): string {
-  try {
-    const s = JSON.stringify(v)
-    return s === undefined ? String(v) : s
-  } catch {
-    return String(v)
-  }
-}
-
-function formatLogArg(a: unknown): string {
-  if (a instanceof Error) return a.stack ?? a.message
-  return typeof a === 'string' ? a : safeJson(a)
-}
-
 function patchConsoleLogging(): void {
   if (!window.api) return
   const levelOf: Record<'log' | 'info' | 'warn' | 'error', LogLevel> = {
@@ -517,10 +506,11 @@ function patchConsoleLogging(): void {
 patchConsoleLogging()
 ```
 
-Thêm import `LogLevel` từ shared (renderer có alias `@shared` trong `electron.vite.config.ts` + `tsconfig.web.json` — cùng chuẩn các file render khác):
+Thêm import từ shared (renderer có alias `@shared` trong `electron.vite.config.ts` + `tsconfig.web.json` — cùng chuẩn các file render khác):
 
 ```ts
 import type { LogLevel } from '@shared/types'
+import { formatLogArg } from '@shared/log-helpers'
 ```
 
 - [ ] **Step 2: Chạy typecheck**
@@ -560,10 +550,11 @@ Chỉ thêm dòng này — không đụng các mục khác.
 
 - [ ] **Step 2: `src/shared/AGENTS.md`**
 
-Sửa dòng mô tả `types.ts` để liệt kê 2 type mới (giữ nguyên format):
+Sửa dòng mô tả `types.ts` để liệt kê 2 type mới, và thêm bullet `log-helpers.ts` (giữ nguyên format):
 
 ```md
 - `types.ts` — pure data models (Template, Workspace, AgentConfig, AgentState, GitStatus, LogLevel, LogSource, ...).
+- `log-helpers.ts` — pure helpers `formatLogArg`/`safeJson` dùng cho system logger (main + renderer).
 ```
 
 - [ ] **Step 3: `docs/reference/05-ipc-contract.md`**
@@ -585,7 +576,7 @@ Thêm 1 dòng vào bảng, ngay sau dòng `logs/<agentId>.log`:
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/main/AGENTS.md src/shared/AGENTS.md docs/reference/05-ipc-contract.md docs/reference/06-data-and-storage.md
+git add src/main/AGENTS.md src/shared/AGENTS.md src/shared/log-helpers.ts docs/reference/05-ipc-contract.md docs/reference/06-data-and-storage.md
 git commit -m "docs: sync system logger vào AGENTS.md và reference"
 ```
 
