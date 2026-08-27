@@ -3,10 +3,12 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import {
+  DEFAULT_COMPACTION,
   DEFAULT_MEOW_CONFIG,
   MAX_OUTPUT_HARD_CAP,
   configToSettings,
   loadMeowConfig,
+  normalizeCompaction,
   resolveAgentConfig,
   resolveApiKey,
   resolveOutputTokens,
@@ -348,10 +350,10 @@ describe('configToSettings / settingsToConfig', () => {
     expect(cfg.maxSteps).toBe(100)
     expect(cfg.compaction).toEqual({
       auto: true,
-      buffer: 20000,
-      keepTokens: 8000,
+      buffer: undefined,
+      keepTokens: undefined,
       tailTurns: 2,
-      toolOutputMaxChars: 2000,
+      toolOutputMaxChars: undefined,
       prune: true
     })
     expect(cfg.toolOutput).toEqual({ maxBytes: 51200, maxLines: 2000 })
@@ -529,5 +531,34 @@ describe('resolveOutputTokens', () => {
 
   it('still honors the fallback below the half-context guard', () => {
     expect(resolveOutputTokens({ output: 64000 }, 128000, 32000)).toBe(64000)
+  })
+})
+
+describe('normalizeCompaction optional fields', () => {
+  it('drops fixed defaults — missing fields become undefined (auto)', () => {
+    const out = normalizeCompaction({ auto: true, tailTurns: 2 })
+    expect(out.buffer).toBeUndefined()
+    expect(out.keepTokens).toBeUndefined()
+    expect(out.toolOutputMaxChars).toBeUndefined()
+    expect(out.auto).toBe(true)
+    expect(out.tailTurns).toBe(2)
+    expect(out.prune).toBe(true)
+  })
+
+  it('preserves explicit values as overrides', () => {
+    const out = normalizeCompaction({ auto: true, tailTurns: 1, buffer: 50000, keepTokens: 12000, toolOutputMaxChars: 4000 })
+    expect(out.buffer).toBe(50000)
+    expect(out.keepTokens).toBe(12000)
+    expect(out.toolOutputMaxChars).toBe(4000)
+    expect(out.tailTurns).toBe(1)
+  })
+
+  it('DEFAULT_COMPACTION no longer carries fixed token numbers', () => {
+    expect(DEFAULT_COMPACTION.buffer).toBeUndefined()
+    expect(DEFAULT_COMPACTION.keepTokens).toBeUndefined()
+    expect(DEFAULT_COMPACTION.toolOutputMaxChars).toBeUndefined()
+    expect(DEFAULT_COMPACTION.auto).toBe(true)
+    expect(DEFAULT_COMPACTION.tailTurns).toBe(2)
+    expect(DEFAULT_COMPACTION.prune).toBe(true)
   })
 })

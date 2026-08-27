@@ -107,10 +107,7 @@ export function resolveOutputTokens(
 }
 export const DEFAULT_COMPACTION: MeowCompactionConfig = {
   auto: true,
-  buffer: 20000,
-  keepTokens: 8000,
   tailTurns: 2,
-  toolOutputMaxChars: 2000,
   prune: true
 }
 export const DEFAULT_TOOL_OUTPUT: ToolOutputConfig = {
@@ -213,13 +210,13 @@ function normalizeAgents(raw: Record<string, unknown> | undefined): Record<strin
   return { ...base, ...out }
 }
 
-function normalizeCompaction(raw: Partial<MeowCompactionConfig> | undefined): MeowCompactionConfig {
+export function normalizeCompaction(raw: Partial<MeowCompactionConfig> | undefined): MeowCompactionConfig {
   return {
     auto: raw?.auto ?? DEFAULT_COMPACTION.auto,
-    buffer: raw?.buffer ?? DEFAULT_COMPACTION.buffer,
-    keepTokens: raw?.keepTokens ?? DEFAULT_COMPACTION.keepTokens,
+    buffer: raw?.buffer,
+    keepTokens: raw?.keepTokens,
     tailTurns: raw?.tailTurns ?? DEFAULT_COMPACTION.tailTurns,
-    toolOutputMaxChars: raw?.toolOutputMaxChars ?? DEFAULT_COMPACTION.toolOutputMaxChars,
+    toolOutputMaxChars: raw?.toolOutputMaxChars,
     prune: raw?.prune ?? DEFAULT_COMPACTION.prune
   }
 }
