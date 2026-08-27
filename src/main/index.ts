@@ -97,6 +97,19 @@ function openInEditor(projectPath: string): Promise<void> {
   })
 }
 
+// Open a real OS terminal window (cmd on Windows, the default shell elsewhere)
+// rooted at the given directory — not a tab inside Meow Coding.
+function openSystemTerminal(cwd: string): void {
+  if (process.platform === 'win32') {
+    spawn('cmd.exe', ['/d', '/s', '/c', 'start', 'cmd.exe', '/k', `cd /d "${cwd.replace(/"/g, '""')}"`], {
+      windowsHide: true, windowsVerbatimArguments: true, detached: true, stdio: 'ignore'
+    }).unref()
+  } else {
+    const shell = process.env.SHELL || '/bin/bash'
+    spawn(shell, [], { cwd, detached: true, stdio: 'ignore' }).unref()
+  }
+}
+
 export class MainApp {
   templates = new TemplateManager(
     createJsonStore<Template>(path.join(app.getPath('userData'), 'templates.json')),
@@ -740,6 +753,7 @@ export function registerIpcHandlers(): void {
   })
   ipcMain.handle(Channels.TerminalOpen, (_e, cwd: string) => mainApp.openTerminal(cwd))
   ipcMain.handle(Channels.TerminalClose, (_e, id: string) => mainApp.closeTerminal(id))
+  ipcMain.handle(Channels.SystemTerminalOpen, (_e, cwd: string) => openSystemTerminal(cwd))
 
   ipcMain.handle(Channels.AgentAdd, async (_e, projectPath: string, input: NewAgentInput) => {
     const tmpl = mainApp.templates.list().find(t => t.id === input.templateId)

@@ -104,6 +104,7 @@ export const Channels = {
   EventWindowMaximizedChange: 'window:maximized-change',
   TerminalOpen: 'terminal:open',
   TerminalClose: 'terminal:close',
+  SystemTerminalOpen: 'system-terminal:open',
   EventTerminalExit: 'terminal:exit',
   EventPtyData: 'pty:data',
   EventAgentState: 'agent:state',
@@ -187,6 +188,7 @@ export interface AgentApi {
   onArtifactsChanged(cb: (e: ArtifactsChangedEvent) => void): () => void
   openTerminal(cwd: string): Promise<TerminalInfo>
   closeTerminal(id: string): Promise<void>
+  openSystemTerminal(cwd: string): Promise<void>
   addAgent(projectPath: string, input: NewAgentInput): Promise<WorkspaceRuntime>
   removeAgent(projectPath: string, agentId: string): Promise<void>
   setAgentMode(agentId: string, mode: 'build' | 'plan'): Promise<void>

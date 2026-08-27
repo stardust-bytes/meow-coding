@@ -72,6 +72,8 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.TerminalOpen, cwd),
   closeTerminal: (id: string) =>
     ipcRenderer.invoke(Channels.TerminalClose, id),
+  openSystemTerminal: (cwd: string) =>
+    ipcRenderer.invoke(Channels.SystemTerminalOpen, cwd),
   addAgent: (projectPath: string, input: NewAgentInput) =>
     ipcRenderer.invoke(Channels.AgentAdd, projectPath, input),
   removeAgent: (projectPath: string, agentId: string) =>

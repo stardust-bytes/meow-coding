@@ -17,7 +17,6 @@ interface Props {
   onOpen: (path: string) => void
   onRemove: (path: string) => void
   onRefresh: () => void
-  onOpenTerminal: (path: string) => void
   onOpenSettings: () => void
   onOpenProviders: () => void
   onOpenGit: (path: string) => void
@@ -26,7 +25,7 @@ interface Props {
 }
 
 export default function Sidebar({
-  workspaces, templates, activePath, onOpen, onRemove, onRefresh, onOpenTerminal, onOpenSettings, onOpenProviders, onOpenGit, onCheckUpdate, updateChecking
+  workspaces, templates, activePath, onOpen, onRemove, onRefresh, onOpenSettings, onOpenProviders, onOpenGit, onCheckUpdate, updateChecking
 }: Props) {
   const [showAddProject, setShowAddProject] = useState(false)
   const [addAgentPath, setAddAgentPath] = useState<string | null>(null)
@@ -209,7 +208,7 @@ export default function Sidebar({
                     </button>
                     <button
                       className="menu-item"
-                      onClick={() => { setOpenProjectMenu(null); onOpenTerminal(ws.projectPath) }}
+                      onClick={() => { setOpenProjectMenu(null); void window.api.openSystemTerminal(ws.projectPath) }}
                     >
                       Open Terminal
                     </button>

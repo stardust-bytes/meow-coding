@@ -8,7 +8,7 @@ describe('IPC contract', () => {
   it('defines all channels used by the preload api', () => {
     const required: (keyof AgentApi)[] = [
       'listWorkspaces', 'addWorkspace', 'removeWorkspace', 'openWorkspace', 'openInEditor',
-      'openFolder', 'openTerminal', 'closeTerminal',
+      'openFolder', 'openTerminal', 'closeTerminal', 'openSystemTerminal',
       'gitOpenViewer', 'gitGetBranches', 'gitCreateBranch', 'gitCheckout', 'gitStash', 'gitStashPop',
       'gitGetStatusDetail', 'gitGetDiff', 'gitGetCommits', 'gitGetCommitDiff', 'gitCompareCommits', 'gitGetBlame', 'gitGetFileHistory', 'gitDiscard',
       'addAgent', 'removeAgent', 'setAgentMode', 'setAgentVariant', 'getAgentVariants', 'setAgentModel', 'getAgentModel', 'getContextInfo', 'getProviderModels', 'fetchProviderModels',
@@ -55,6 +55,7 @@ describe('IPC contract', () => {
       gitGetFileHistory: async () => [],
       openTerminal: async () => ({ id: '', cwd: '', name: '', status: 'running' }),
       closeTerminal: async () => {},
+      openSystemTerminal: async () => {},
       addAgent: async () => ({ workspace: { projectPath: '', name: '', agents: [] }, agents: [], git: null }),
       removeAgent: async () => {},
       setAgentMode: async () => {},
@@ -232,6 +233,7 @@ describe('IPC contract', () => {
     expect(Channels.ProjectOpenFolder).toBe('project:open-folder')
     expect(Channels.TerminalOpen).toBe('terminal:open')
     expect(Channels.TerminalClose).toBe('terminal:close')
+    expect(Channels.SystemTerminalOpen).toBe('system-terminal:open')
     expect(Channels.EventTerminalExit).toBe('terminal:exit')
     expect(Channels.GitOpenViewer).toBe('git:open-viewer')
     expect(Channels.GitGetBranches).toBe('git:get-branches')

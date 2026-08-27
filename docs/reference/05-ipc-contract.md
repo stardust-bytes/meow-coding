@@ -94,6 +94,7 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `LogPath` / `LogOpen` | `log:path` / `log:open` | `getLogPath` / `openLog` |
 | `SystemLog` | `system-log:write` | `writeSystemLog(level: LogLevel, message)` — renderer gửi log về main ghi vào file theo ngày |
 | `TerminalOpen` / `TerminalClose` | `terminal:open` / `terminal:close` | `openTerminal(cwd): TerminalInfo` / `closeTerminal(id)` |
+| `SystemTerminalOpen` | `system-terminal:open` | `openSystemTerminal(cwd)` — opens a real OS terminal window (cmd on Windows) rooted at `cwd`, not a tab inside Meow Coding |
 
 ### Chat & sessions
 

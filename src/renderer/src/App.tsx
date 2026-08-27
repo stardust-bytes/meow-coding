@@ -200,12 +200,6 @@ export default function App() {
     setWorkspaces(await window.api.listWorkspaces())
   }, [runtime])
 
-  const addTerminal = useCallback(async (projectPath: string) => {
-    if (runtime?.workspace.projectPath !== projectPath) await openWorkspace(projectPath)
-    const t = await window.api.openTerminal(projectPath)
-    setTerminals(prev => [...prev, t])
-  }, [runtime, openWorkspace])
-
   const removeTerminal = useCallback((id: string) => {
     void window.api.closeTerminal(id)
     setTerminals(prev => prev.filter(t => t.id !== id))
@@ -260,7 +254,6 @@ export default function App() {
           onOpen={openWorkspace}
           onRemove={removeWorkspace}
           onRefresh={refreshWorkspaces}
-          onOpenTerminal={addTerminal}
           onOpenSettings={() => { setSettingsTab('agents'); setShowSettings(true) }}
           onOpenProviders={() => { setSettingsTab('providers'); setShowSettings(true) }}
           onOpenGit={path => void window.api.gitOpenViewer(path)}
