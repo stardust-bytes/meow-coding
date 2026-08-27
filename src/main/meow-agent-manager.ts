@@ -158,14 +158,14 @@ export class MeowAgentManager {
       if (e.type === 'done' && this.deps.notifications?.onDone !== false) {
         const cost = e.cost !== undefined ? ` · ${e.cost.toFixed(4)}` : ''
         this.deps.notify?.notify({
-          title: '[meow] Hoàn thành',
+          title: '[meow] Done',
           body: `${this.agents.get(e.agentId)?.name ?? e.agentId}${e.reason ? ` (${e.reason})` : ''}${cost}`,
           agentId: e.agentId,
           onActivate: () => this.deps.onActivateAgent?.(e.agentId)
         })
       } else if (e.type === 'error' && this.deps.notifications?.onDone !== false) {
         this.deps.notify?.notify({
-          title: '[meow] Lỗi',
+          title: '[meow] Error',
           body: `${this.agents.get(e.agentId)?.name ?? e.agentId}: ${e.message}`,
           agentId: e.agentId,
           onActivate: () => this.deps.onActivateAgent?.(e.agentId)
@@ -328,7 +328,7 @@ export class MeowAgentManager {
   private enqueueMessage(agentId: string, text: string, images?: ImageAttachment[], displayText?: string): void {
     const q = this.queues.get(agentId) ?? []
     if (q.length >= this.MAX_QUEUE) {
-      this.emit({ type: 'error', agentId, message: '[meow] Hàng đợi đã đầy (tối đa 5 tin). Hãy chờ turn hiện tại xong hoặc xóa tin đang chờ.' })
+      this.emit({ type: 'error', agentId, message: '[meow] Queue is full (max 5 messages). Wait for the current turn to finish or remove a queued message.' })
       return
     }
     q.push({ id: randomUUID(), text, images, displayText })
@@ -407,7 +407,7 @@ export class MeowAgentManager {
         type: 'error',
         agentId,
         message:
-          '[meow] Chưa cấu hình provider/API key. Mở Settings, thêm provider (id + API key + models) rồi thử lại.'
+          '[meow] No provider/API key configured. Open Settings, add a provider (id + API key + models) and try again.'
       })
       return
     }
@@ -693,7 +693,7 @@ export class MeowAgentManager {
     // a cryptic "Cannot convert argument to a ByteString" TypeError. Reject it
     // here so the user gets an actionable message instead.
     if (apiKey && !/^[\x21-\x7E]+$/.test(apiKey)) {
-      throw new Error('[meow] API key không hợp lệ: key chỉ được chứa ký tự ASCII (a-z, A-Z, 0-9 và ký hiệu). Vui lòng dán lại key chính xác.')
+      throw new Error('[meow] Invalid API key: the key may only contain ASCII characters (a-z, A-Z, 0-9 and symbols). Please paste the correct key.')
     }
     // Empty apiKey on an existing provider keeps the stored secret, so edits
     // that only change baseUrl don't require re-entering the key.
@@ -793,7 +793,7 @@ export class MeowAgentManager {
     const all = this.listCommands(agent.cwd)
     const command = all.find(c => c.name === name || `/${c.name}` === name)
     if (!command) {
-      this.emit({ type: 'error', agentId, message: `[meow] Không tìm thấy command "${name}".` })
+      this.emit({ type: 'error', agentId, message: `[meow] Command "${name}" not found.` })
       return
     }
     // System commands act on state (e.g. creating a session) instead of
@@ -1217,8 +1217,8 @@ export class MeowAgentManager {
       }
       if (this.deps.notifications?.needsInput !== false) {
         this.deps.notify?.notify({
-          title: '[meow] Cần bạn nhập',
-          body: `${this.agents.get(agentId)?.name ?? agentId} đang chờ...`,
+          title: '[meow] Input needed',
+          body: `${this.agents.get(agentId)?.name ?? agentId} is waiting...`,
           agentId,
           onActivate: () => this.deps.onActivateAgent?.(agentId)
         })

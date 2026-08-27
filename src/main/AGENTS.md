@@ -42,7 +42,7 @@ handlers and the app lifecycle.
   in `src/shared/ipc.ts`.
 - Adding IPC: add a channel to `Channels` + a method to `AgentApi` (`src/shared/ipc.ts`), a handler in
   `registerIpcHandlers`, and the corresponding implementation in preload. Do not hardcode channel strings.
-- On agent exit: insert a Vietnamese hint with the `[meow]` prefix if it exits with an error (code ≠ 0) and has no output.
+- On agent exit: insert an English hint with the `[meow]` prefix if it exits with an error (code ≠ 0) and has no output.
 - Avoid orphan processes: every stop path goes through `tree-kill`; verify after changing stop logic.
 
 ## Testing

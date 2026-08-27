@@ -152,7 +152,7 @@ writes it through `settingsToConfig`.
   `provider` — except account-scoped refs (`accountId` present), which resolve through the
   connection subsystem instead.
 - **API keys must be printable ASCII.** `connectProvider` rejects anything else with an actionable
-  Vietnamese `[meow]` message, and the LLM stream guards it again for keys stored before that check
+  English `[meow]` message, and the LLM stream guards it again for keys stored before that check
   existed.
 - **`settingsToConfig`** sets `apiKeyEnv: "<ID>_API_KEY"` for providers that carry neither an
   `apiKey` nor a `keyRef`, so environment-variable configuration keeps working.

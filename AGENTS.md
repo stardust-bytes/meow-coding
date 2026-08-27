@@ -50,8 +50,7 @@ Alias `@shared` → `src/shared` (configured in electron.vite.config.ts, vitest.
 - Only the main process may spawn/kill processes; the renderer accesses everything via `window.api`.
 - Security: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: false`. Do not expose
   `ipcRenderer` to the window.
-- Language: source code + UI labels in English; system-style notifications from main use Vietnamese, prefixed
-  with `[meow]`.
+- Language: source code + UI labels + system-style notifications (prefixed `[meow]`) are all English.
 - Do not add unnecessary comments; only comment when explaining a complex decision (e.g. Windows shim, tree-kill).
 - Agent exits must be handled: kill the entire process tree (`tree-kill`), no orphan processes.
 - Browser bridge: only bind `127.0.0.1` (do not expose to the network), pairing code required before accepting

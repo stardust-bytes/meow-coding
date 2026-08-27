@@ -62,7 +62,7 @@ so a newly added skill or an edited `AGENTS.md` takes effect on the next turn wi
 
 `send(agentId, text, images?, displayText?)`:
 
-- If a turn is running → `enqueueMessage` (cap `MAX_QUEUE = 5`; over the cap emits a Vietnamese
+- If a turn is running → `enqueueMessage` (cap `MAX_QUEUE = 5`; over the cap emits an English
   `[meow]` error) and return.
 - Otherwise `runTurn(...)`, then `drainQueue(...)` recursively until the queue empties.
 

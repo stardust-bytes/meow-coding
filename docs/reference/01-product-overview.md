@@ -142,6 +142,6 @@ straight to the code.
 
 - Source code identifiers, comments and **all UI labels are English**.
 - System-style notices emitted from the main process to the user (chat errors, PTY hints, native
-  notifications) are **Vietnamese**, always prefixed with `[meow]`. Example:
-  `"[meow] Chưa cấu hình provider/API key…"`. Some in-code comments are Vietnamese for the same
-  historical reason; treat them as normal comments.
+  notifications) are **English**, always prefixed with `[meow]`. Example:
+  `"[meow] No provider/API key configured. Open Settings, add a provider (id + API key + models) and try again."`.
+  Some in-code comments are Vietnamese for historical reasons; treat them as normal comments.

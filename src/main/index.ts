@@ -247,7 +247,7 @@ export class MainApp {
         const agent = ws?.agents.find(a => a.id === agentId)
         const tmpl = agent ? this.templates.list().find(t => t.id === agent.templateId) : undefined
         const label = tmpl ? `${tmpl.command} ${tmpl.args.join(' ')}`.trim() : (agent?.name ?? agentId)
-        const hint = `[meow] Agent thoát với exit code ${code} và không có output. Kiểm tra lệnh "${label}" có trong PATH không, rồi dùng restart.\n`
+        const hint = `[meow] Agent exited with code ${code} and produced no output. Check that "${label}" is on your PATH, then use restart.\n`
         this.logs.append(agentId, hint)
         win?.webContents.send(Channels.EventPtyData, { agentId, data: hint })
       }
@@ -293,7 +293,7 @@ export class MainApp {
           // the dialog closed; clicking installs and restarts.
           const n = new Notification({
             title: 'Meow Coding',
-            body: `[meow] v${e.version} đã tải xong. Click để cài đặt và khởi động lại.`
+            body: `[meow] v${e.version} has been downloaded. Click to install and restart.`
           })
           n.on('click', () => this.updater.install())
           n.show()
@@ -366,7 +366,7 @@ export class MainApp {
     if (agent.kind === 'native') return
     const tmpl = this.templates.list().find(t => t.id === agent.templateId)
     if (!tmpl) {
-      const message = `[meow] Không tìm thấy template "${agent.templateId}" cho agent "${agent.name}". Thêm template đó hoặc xóa agent này.\n`
+      const message = `[meow] Template "${agent.templateId}" not found for agent "${agent.name}". Add that template or remove this agent.\n`
       this.logs.append(agentId, message)
       win?.webContents.send(Channels.EventPtyData, { agentId, data: message })
       this.setState(agentId, { status: 'error', alert: 'error' })
@@ -384,7 +384,7 @@ export class MainApp {
       }
       this.alerts.track(agentId)
     } catch (err) {
-      const message = `[meow] Không thể khởi động agent "${agent.name}" (${tmpl.command} ${tmpl.args.join(' ')}): ${String(err)}\n`
+      const message = `[meow] Could not start agent "${agent.name}" (${tmpl.command} ${tmpl.args.join(' ')}): ${String(err)}\n`
       this.logs.append(agentId, message)
       win?.webContents.send(Channels.EventPtyData, { agentId, data: message })
       this.setState(agentId, { status: 'error', alert: 'error' })
@@ -698,7 +698,7 @@ export function registerIpcHandlers(): void {
       const st = await stat(abs)
       if (!st.isFile()) throw new Error('not a file')
     } catch {
-      new Notification({ title: 'Meow Coding', body: `[meow] Không tìm thấy file: ${payload.path}` }).show()
+      new Notification({ title: 'Meow Coding', body: `[meow] File not found: ${payload.path}` }).show()
       return
     }
     const kind = isTextPath(abs)

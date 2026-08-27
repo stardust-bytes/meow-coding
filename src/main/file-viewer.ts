@@ -105,15 +105,15 @@ export async function readFileContent(absPath: string): Promise<FileContentResul
   try {
     st = await stat(absPath)
   } catch {
-    throw new Error(`Không tìm thấy file: ${absPath}`)
+    throw new Error(`File not found: ${absPath}`)
   }
   if (st.size > MAX_VIEWER_BYTES) {
-    throw new Error('File quá lớn để xem trực tiếp (tối đa 5MB)')
+    throw new Error('File is too large to preview directly (max 5MB)')
   }
   const buf = await readFile(absPath)
   const content = buf.toString('utf8')
   if (looksLikeBinaryContent(content)) {
-    throw new Error('File binary không xem trực tiếp được — sẽ mở bằng ứng dụng hệ điều hành')
+    throw new Error('Binary file cannot be previewed directly — it will be opened with the OS application')
   }
   return { path: absPath, ext: extOf(absPath), content }
 }

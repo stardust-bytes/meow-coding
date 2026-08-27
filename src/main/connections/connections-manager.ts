@@ -108,9 +108,9 @@ export class ConnectionsManager {
 
   async setActive(accountId: string): Promise<void> {
     const account = this.deps.store.get('codex', accountId)
-    if (!account) throw new Error('[meow] Không tìm thấy tài khoản Codex')
+    if (!account) throw new Error('[meow] Codex account not found')
     if (account.status !== 'ready') {
-      throw new Error('[meow] Tài khoản Codex chưa sẵn sàng (token hết hạn hoặc đang làm mới)')
+      throw new Error('[meow] Codex account is not ready (token expired or refreshing)')
     }
     this.deps.store.setActive('codex', accountId)
   }
@@ -154,11 +154,11 @@ export class ConnectionsManager {
   getChatEndpoint(accountId: string): { baseUrl: string; apiKey: string } | null {
     const account = this.deps.store.get('codex', accountId)
     if (!account || account.status !== 'ready') {
-      throw new Error('[meow] Không có tài khoản Codex sẵn sàng. Kết nối tài khoản trong Providers rồi thử lại.')
+      throw new Error('[meow] No ready Codex account. Connect an account in Providers and try again.')
     }
     const endpoint = this.deps.proxy.getEndpoint(accountId)
     if (!endpoint) {
-      throw new Error('[meow] Proxy Codex chưa sẵn sàng. Thử lại sau.')
+      throw new Error('[meow] Codex proxy is not ready. Try again later.')
     }
     void this.ensureFresh(accountId)
     return { baseUrl: endpoint.baseUrl, apiKey: endpoint.apiKey }

@@ -63,7 +63,7 @@ function maskError(err: unknown, secrets: string[], paths: string[] = []): Error
   for (const p of paths) {
     if (p) message = message.split(p).join('[redacted]')
   }
-  return new Error(`[meow] Không thể khởi động proxy Codex: ${message}`)
+  return new Error(`[meow] Could not start the Codex proxy: ${message}`)
 }
 
 function isPortFree(port: number): Promise<boolean> {
@@ -137,13 +137,13 @@ export class CodexProxyManager {
   async start(accounts: Array<{ accountId: string; tokens: OAuthTokens }>): Promise<CodexProxyEndpoint[]> {
     this.cleanupStale()
     this.modelCatalog = undefined
-    if (accounts.length === 0) throw new Error('[meow] Không có tài khoản Codex để khởi động proxy')
+    if (accounts.length === 0) throw new Error('[meow] No Codex account to start the proxy')
     if (this.child) {
       await this.stop()
     }
 
     if (!existsSync(this.deps.binaryPath)) {
-      throw new Error('[meow] Không tìm thấy proxy Codex. Trong môi trường dev, chạy `npm run build:cliproxy`; bản cài đặt chính thức đã kèm sẵn.')
+      throw new Error('[meow] Codex proxy not found. In a dev environment, run `npm run build:cliproxy`; the official install already bundles it.')
     }
 
     const runDir = path.join(this.deps.runtimeDir, `run-${this.deps.randomBytes(8).toString('hex')}`)

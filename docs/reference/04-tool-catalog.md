@@ -184,7 +184,7 @@ blocks); blank runs are collapsed; the result is truncated with `...(truncated)`
 ### `websearch`
 
 `{ query: string }` — Tavily API. Requires the **`TAVILY_API_KEY` environment variable**; without
-it the tool returns a Vietnamese `[meow]`-style error explaining that.
+it the tool returns an English `[meow]`-style error explaining that.
 
 ### `lsp`
 

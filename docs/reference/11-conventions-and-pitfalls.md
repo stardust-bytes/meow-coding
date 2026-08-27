@@ -26,8 +26,8 @@ House rules, process, and the traps that have already bitten someone in this rep
 - **Match the surrounding code**: comment density, naming, idiom.
 - **Functional React components with hooks**; declare the `Props` interface in the same file.
 - **UI labels are English.** Numeric displays use tabular-nums.
-- **User-facing system notices from main are Vietnamese, prefixed `[meow]`** — chat errors, PTY
-  hints, native notifications. Follow this when adding one; do not "fix" existing ones to English.
+- **User-facing system notices from main are English, prefixed `[meow]`** — chat errors, PTY
+  hints, native notifications. Follow this when adding one.
 - Some in-code comments are Vietnamese for historical reasons. They are normal comments; do not
   mass-translate them as a side effect of unrelated work.
 

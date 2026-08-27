@@ -14,7 +14,7 @@ function refreshStatus(): void {
       text.textContent = 'Paired & connected'
     } else if (res?.connected) {
       dot.className = 'dot amber'
-      text.textContent = 'Connected (chưa pair)'
+      text.textContent = 'Connected (not paired)'
     } else {
       dot.className = 'dot red'
       text.textContent = 'Disconnected'
@@ -34,10 +34,10 @@ async function detect(): Promise<void> {
       if (typeof body.port === 'number') portInput.value = String(body.port)
       $('hint').textContent = `Detected Meow bridge on port ${body.port}.`
     } else {
-      $('hint').textContent = 'Không tìm thấy bridge tại port mặc định.'
+      $('hint').textContent = 'No bridge found on the default port.'
     }
   } catch {
-    $('hint').textContent = 'Meow chưa chạy? Không kết nối được bridge.'
+    $('hint').textContent = 'Is Meow running? Could not connect to the bridge.'
   }
 }
 
@@ -54,7 +54,7 @@ $('saveBtn').addEventListener('click', () => {
   const code = ($('code') as HTMLInputElement).value.trim()
   void chrome.storage.local.set({ [STORAGE_KEY]: { port, code } }).then(() => {
     void chrome.runtime.sendMessage({ kind: 'pair', code }).then(() => {
-      $('hint').textContent = 'Saved. Đang kết nối...'
+      $('hint').textContent = 'Saved. Connecting...'
       setTimeout(refreshStatus, 800)
     })
   })

@@ -355,7 +355,7 @@ function UpToDateDialog({ version, onClose }: { version?: string; onClose: () =>
         <h3>Update</h3>
         <button className="dialog-close" aria-label="Close" onClick={onClose}>✕</button>
         <p className="settings-hint">
-          Đây là phiên bản mới nhất{version ? ` (v${version})` : ''}.
+          This is the latest version{version ? ` (v${version})` : ''}.
         </p>
         <div className="dialog-actions">
           <button className="btn" onClick={onClose}>Close</button>

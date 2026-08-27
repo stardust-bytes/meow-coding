@@ -201,7 +201,7 @@ describe('ConnectionsManager', () => {
 
   it('returns a user-safe error when no active ready account exists', async () => {
     const { manager } = makeManager()
-    expect(() => manager.getChatEndpoint('nope')).toThrow(/Không có tài khoản Codex/)
+    expect(() => manager.getChatEndpoint('nope')).toThrow(/No ready Codex account/)
   })
 
   it('disconnects an account and removes its secrets', async () => {

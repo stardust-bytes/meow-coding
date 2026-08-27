@@ -20,7 +20,7 @@ export const websearchTool: ToolDefinition = {
     const apiKey = process.env.TAVILY_API_KEY
     if (!apiKey) {
       return {
-        error: 'websearch: chưa cấu hình biến môi trường TAVILY_API_KEY. Thêm key để dùng websearch.'
+        error: 'websearch: TAVILY_API_KEY environment variable is not configured. Add a key to use websearch.'
       }
     }
     try {

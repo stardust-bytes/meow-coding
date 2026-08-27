@@ -155,7 +155,7 @@ child process stdout
    → renderer: term.write(data)   (buffered in App.buffersRef if xterm not mounted yet)
 ```
 
-Exit path: `PtyManager 'exit'` → if exit code ≠ 0 and no log exists, a Vietnamese `[meow]` hint is
+Exit path: `PtyManager 'exit'` → if exit code ≠ 0 and no log exists, an English `[meow]` hint is
 appended and pushed as PTY data → `AlertService.onExit` → `setState` to `exited` or `error` → a
 `pty-run` trace event is written when tracing is enabled.
 

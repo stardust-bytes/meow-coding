@@ -32,4 +32,4 @@ terminal/chat, sidebar, status bar, title bar, and dialogs. All data flows throu
 
 - **Never** import from `electron` or `node:*` here; use `window.api` (typed `AgentApi`).
 - `App.tsx` (parent) owns terminal registration and global state; components stay presentational-ish.
-- UI labels are English; system-style notices from main are Vietnamese with `[meow]` prefix.
+- UI labels and system-style notices from main (with `[meow]` prefix) are English.

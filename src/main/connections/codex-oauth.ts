@@ -198,7 +198,7 @@ export class CodexOAuth {
       }
     }
     throw new CodexOAuthError(
-      `Không thể mở callback OAuth (port ${this.deps.callbackPorts.join(', ')} đang bận). Đóng ứng dụng khác đang chiếm port rồi thử lại.`
+      `Cannot open the OAuth callback (port ${this.deps.callbackPorts.join(', ')} is busy). Close another app using that port and try again.`
     )
   }
 

@@ -18,7 +18,7 @@ export class Vault {
 
   saveSecret(ref: string, secret: string): void {
     if (!this.isAvailable()) {
-      throw new Error('[meow] Không thể mã hoá khóa: safeStorage không khả dụng trên máy này')
+      throw new Error('[meow] Could not encrypt the key: safeStorage is not available on this machine')
     }
     const map = this.load()
     map[ref] = safeStorage.encryptString(secret).toString('base64')

@@ -95,7 +95,7 @@ export class TrayManager {
     if (existsSync(flag)) return
     const n = new Notification({
       title: 'Meow Coding',
-      body: '[meow] Meow Coding vẫn đang chạy ngầm, click icon tray để mở lại.'
+      body: '[meow] Meow Coding is still running in the background. Click the tray icon to reopen it.'
     })
     n.on('click', () => this.showWindow())
     n.show()
