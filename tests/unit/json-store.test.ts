@@ -1,13 +1,33 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest'
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtempSync, rmSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createJsonStore } from '../../src/main/json-store'
 
+// Control how many renameSync calls throw a transient Windows "file locked"
+// EPERM, so we can exercise the retry + fallback path deterministically.
+const fsKontrol = vi.hoisted(() => ({ renameFailures: 0 }))
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>()
+  return {
+    ...actual,
+    renameSync: (oldPath: string, newPath: string) => {
+      if (fsKontrol.renameFailures > 0) {
+        fsKontrol.renameFailures--
+        const err = new Error('operation not permitted') as NodeJS.ErrnoException
+        err.code = 'EPERM'
+        throw err
+      }
+      return actual.renameSync(oldPath, newPath)
+    }
+  }
+})
+
 let dir: string
 let file: string
 
 beforeEach(() => {
+  fsKontrol.renameFailures = 0
   dir = mkdtempSync(path.join(tmpdir(), 'meow-json-'))
   file = path.join(dir, 'data.json')
 })
@@ -67,5 +87,29 @@ describe('createJsonStore', () => {
     store.save([{ n: 1 }, { n: 2 }])
     expect(createJsonStore<{ n: number }>(file).load()).toEqual([{ n: 1 }, { n: 2 }])
     expect(existsSync(file)).toBe(true)
+  })
+
+  it('retries a transient Windows EPERM on rename and still saves', () => {
+    fsKontrol.renameFailures = 3 // within the retry budget
+    const store = createJsonStore<{ n: number }>(file)
+    expect(() => store.save([{ n: 1 }])).not.toThrow()
+    expect(createJsonStore<{ n: number }>(file).load()).toEqual([{ n: 1 }])
+  })
+
+  it('falls back to an in-place write when rename stays locked, without crashing', () => {
+    fsKontrol.renameFailures = 99 // exceeds the retry budget
+    const store = createJsonStore<{ n: number }>(file)
+    expect(() => store.save([{ n: 1 }])).not.toThrow()
+    // The write still reached disk and no temp file is left behind.
+    expect(createJsonStore<{ n: number }>(file).load()).toEqual([{ n: 1 }])
+    expect(readdirSync(dir)).toEqual(['data.json'])
+  })
+
+  it('does not crash when a debounced flush write is blocked by a Windows lock', () => {
+    fsKontrol.renameFailures = 99
+    const store = createJsonStore<{ n: number }>(file, { debounceMs: 50 })
+    store.save([{ n: 1 }])
+    expect(() => store.flush?.()).not.toThrow()
+    expect(createJsonStore<{ n: number }>(file).load()).toEqual([{ n: 1 }])
   })
 })
