@@ -392,19 +392,18 @@ select.input { width: 100%; }
    native agent Chat/Trace toggle inside PaneHeader. */
 .agent-tabs-view { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; animation: meow-rise 300ms 120ms ease-out both; }
 .agent-tab-bar {
-  display: flex; gap: 4px; align-items: center; padding: 6px 8px 0;
+  display: flex; gap: 4px; align-items: center; padding: 6px 8px; margin-bottom: 0.5rem;
   border-bottom: 1px solid var(--hairline); overflow-x: auto; flex: 0 0 auto;
 }
 .agent-tab {
-  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
-  background: var(--bg-panel); border: 1px solid var(--hairline); border-bottom: none;
-  border-radius: var(--radius) var(--radius) 0 0; color: var(--text-dim);
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px;
+  background: var(--bg-panel); border: 1px solid var(--hairline);
+  border-radius: var(--radius); color: var(--text-dim);
   font-size: var(--fs-sm); cursor: pointer; white-space: nowrap; user-select: none;
 }
-.agent-tab:hover { background: var(--bg-hover); color: var(--text); }
+.agent-tab:hover { background: var(--bg-hover); border-color: var(--accent-dim); color: var(--text); }
 .agent-tab.active {
-  background: var(--bg-active); color: var(--text-strong);
-  border-top: 2px solid var(--accent);
+  background: var(--bg-active); border-color: var(--accent-border); color: var(--text-strong);
 }
 .agent-tab-name { font-weight: var(--fw-semibold); }
 .agent-tab-close {
