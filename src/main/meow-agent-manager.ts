@@ -725,7 +725,7 @@ export class MeowAgentManager {
     }
     const nextProviders = [
       ...settings.providers.filter(p => p.id !== providerId),
-      { id: providerId, apiKey: plainKey, keyRef, baseUrl: base, models: finalModels, providerType }
+      { id: providerId, apiKey: plainKey, keyRef, baseUrl: base, models: finalModels, providerType: providerType ?? existing?.providerType }
     ]
     const defaultProvider = settings.providers.some(p => p.id === settings.defaultProvider)
       ? settings.defaultProvider

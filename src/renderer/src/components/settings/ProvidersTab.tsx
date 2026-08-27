@@ -33,6 +33,7 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
   const [models, setModels] = useState<string[]>([])
   const [manualModels, setManualModels] = useState('')
   const [providerType, setProviderType] = useState('')
+  const [originalProviderType, setOriginalProviderType] = useState('')
   const [status, setStatus] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -50,6 +51,7 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
     setBaseUrl('')
     setManualModels('')
     setProviderType('')
+    setOriginalProviderType('')
     setModal({ kind: 'catalog', id, name })
   }
 
@@ -59,6 +61,7 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
     setBaseUrl('')
     setManualModels('')
     setProviderType('')
+    setOriginalProviderType('')
     setModal({ kind: 'manual' })
   }
 
@@ -68,6 +71,7 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
     setBaseUrl(p.baseUrl ?? '')
     setManualModels(p.models.join(', '))
     setProviderType(p.providerType ?? '')
+    setOriginalProviderType(p.providerType ?? '')
     setModal({ kind: 'edit', id: p.id, name: p.id })
   }
 
@@ -78,7 +82,10 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
     // Connect requires a key; edit keeps the current key when left blank.
     if (!isEdit && !apiKey.trim()) return
     const modelList = manualModels.split(/[\s,]+/).map(m => m.trim()).filter(Boolean)
-    const pType = providerType.trim() || undefined
+    // On edit: empty providerType means "keep current"; on new: empty means auto-detect (undefined).
+    const pType = isEdit
+      ? (providerType.trim() || originalProviderType.trim() || undefined)
+      : (providerType.trim() || undefined)
     setStatus('')
     setSaving(true)
     try {
