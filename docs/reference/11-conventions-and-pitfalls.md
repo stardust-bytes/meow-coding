@@ -57,7 +57,10 @@ When editing an `AGENTS.md`:
   formatting when the user explicitly asks for that specific file.
 
 The same discipline applies to `docs/reference/` (this set): when you change behavior a document
-describes, update that document in the same commit.
+describes, update that document in the same commit. This includes **any feature, architecture, or
+system change** — adding/changing a feature, an agent tool, an IPC channel, a setting, a storage
+format, a provider/connection, an integration, or any behavior a reference page describes. Update the
+matching `docs/reference/<NN>-*.md` page in the same commit.
 
 ## 11.4 The Superpowers workflow
 
@@ -169,6 +172,7 @@ npm run build && npm run e2e
 ```
 
 Then: relevant `AGENTS.md` updated, and any `docs/reference/` page whose described behavior changed.
+This includes any feature, architecture, or system change described above.
 
 ### Adding an IPC call
 

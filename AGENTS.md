@@ -87,6 +87,11 @@ Each module directory has an `AGENTS.md` file describing its purpose, status, ke
 
 Principle: **Code changes → AGENTS.md updated before commit.**
 
+**Feature/architecture/system changes also require updating `docs/reference/`.** When you add or change
+a feature, an architecture piece, an agent tool, an IPC channel, a setting, a storage format, or any
+behavior a reference page describes, update the matching `docs/reference/<NN>-*.md` page in the same
+commit — see [11.3](docs/reference/11-conventions-and-pitfalls.md#113-documentation-sync-rule).
+
 When updating any `AGENTS.md` file:
 - **ONLY** modify the entries that reflect the code, structure, status, dependency, endpoint, or TODO items that were actually changed or newly added.
 - **DO NOT** rewrite the whole file, **DO NOT** "clean up" unrelated sections, and **DO NOT** change wording just because you prefer different phrasing when the current meaning is still correct.

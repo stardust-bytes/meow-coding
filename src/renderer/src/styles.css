@@ -298,9 +298,12 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   background: linear-gradient(180deg, var(--bg-raised), var(--bg-panel));
   border-bottom: 1px solid var(--hairline);
   margin: -10px -10px 4px;
-  padding: 8px 10px;
+  padding: 0 10px;
+  height: 38px; flex: 0 0 38px; box-sizing: border-box;
   border-radius: 0;
 }
+/* Header buttons sized to balance with the 20px icon toggle. */
+.sidebar-head .btn { padding: 3px 10px; font-size: var(--fs-sm); font-weight: var(--fw-medium); line-height: 1.4; }
 .panel-title {
   font-family: var(--font-display);
   font-size: var(--fs-md);
@@ -395,11 +398,14 @@ select.input { width: 100%; }
   display: flex; gap: 4px; align-items: center; padding: 0 8px;
   height: 38px; flex: 0 0 38px; box-sizing: border-box;
   border-bottom: 1px solid var(--hairline); overflow-x: auto;
+  border-radius: var(--radius) var(--radius) 0 0;
 }
+.agent-tab-bar::-webkit-scrollbar { height: 4px; }
+.agent-tab-bar::-webkit-scrollbar-thumb { border: 1px solid transparent; background-clip: padding-box; }
 .agent-tab {
   display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px;
   background: var(--bg-panel); border: 1px solid var(--hairline);
-  border-radius: var(--radius) var(--radius) 0 0; color: var(--text-dim);
+  border-radius: var(--radius); color: var(--text-dim);
   font-size: var(--fs-sm); cursor: pointer; white-space: nowrap; user-select: none;
 }
 .agent-tab:hover { background: var(--bg-hover); border-color: var(--accent-dim); color: var(--text); }
@@ -413,7 +419,7 @@ select.input { width: 100%; }
 }
 .agent-tab-close:hover { color: var(--red); }
 /* Content panel: equal padding on all sides (0.5rem) around the pane. */
-.agent-pane-container { flex: 1; min-height: 0; padding: 0.5rem; }
+.agent-pane-container { flex: 1; min-height: 0; padding: 0.5rem; display: flex; flex-direction: column; }
 .agent-pane-container .pane { flex: 1; min-height: 0; }
 .pane {
   display: flex;
