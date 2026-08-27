@@ -390,7 +390,7 @@ select.input { width: 100%; }
 /* Agent/terminal tab bar (was PaneGrid split-screen).
    NOTE: class prefix `agent-tab-*` — do NOT reuse `.pane-tab` which is the
    native agent Chat/Trace toggle inside PaneHeader. */
-.agent-tabs-view { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.agent-tabs-view { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; animation: meow-rise 300ms 120ms ease-out both; }
 .agent-tab-bar {
   display: flex; gap: 4px; align-items: center; padding: 6px 8px 0;
   border-bottom: 1px solid var(--hairline); overflow-x: auto; flex: 0 0 auto;

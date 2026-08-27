@@ -8,7 +8,7 @@ React renderer (no direct Node/Electron access).
   fallback (preload not loaded).
 - `src/App.tsx` — state hub: workspaces, templates, open runtimes; defines `PaneModel`
   (agent + state + git) for each pane.
-- `src/components/` — `Sidebar`, `PaneGrid`, `Pane`, `PaneHeader`, `XtermHost`, `EmptyState`,
+- `src/components/` — `Sidebar`, `PaneTabs`, `Pane`, `PaneHeader`, `XtermHost`, `EmptyState`,
   `StatusBar`, `TitleBar`, `BackgroundPanel`, `AddProjectDialog`, `AddAgentDialog`, `UpdateDialog`,
   `BrowserDialog`, `InstallGuideDialog`, `chat/`, `settings/`.
 - `src/styles.css` — VSCode Dark+ palette (default) with a Light+ variant activated via
@@ -29,7 +29,8 @@ React renderer (no direct Node/Electron access).
   is called. Do not remove this mechanism.
 - Input/resize: xterm `onData`/resize → `window.api.writeInput` / `window.api.resizePty` (via props
   in `Pane`).
-- Grid + zoom: click a pane to zoom full-window, `Esc` to exit (handled in `PaneGrid`).
+- Tab-bar layout: each agent/terminal pane is a tab; only the active tab renders (tracked in
+  `PaneTabs`).
 - Functional components + hooks; declare the `Props` interface in the same file.
 - UI labels in English. Use tabular-nums figures when displaying numbers.
 
