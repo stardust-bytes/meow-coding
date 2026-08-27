@@ -6,7 +6,7 @@ import type {
   AgentConfig, AgentState, ArtifactEntry, GitStatus, Template, TerminalInfo, UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from '@shared/types'
 import Sidebar from './components/Sidebar'
-import PaneGrid from './components/PaneGrid'
+import PaneTabs from './components/PaneTabs'
 import BackgroundPanel from './components/BackgroundPanel'
 import EmptyState from './components/EmptyState'
 import StatusBar from './components/StatusBar'
@@ -270,7 +270,7 @@ export default function App() {
         <main className="main">
           {panes.length > 0 ? (
             <>
-              <PaneGrid
+              <PaneTabs
                 panes={panes}
                 backgrounds={backgrounds}
                 isTerminal={id => terminals.some(t => t.id === id)}
