@@ -5,7 +5,23 @@ interface Props {
   compaction: CompactionSettings
   toolOutput: ToolOutputSettings
   notifications: NotificationsSettings
-  onChange: (patch: { maxSteps: number; compaction: CompactionSettings; toolOutput: ToolOutputSettings; notifications: NotificationsSettings }) => void
+  mcpOutput?: { maxTokens?: number }
+  /** Active agent's context limit, for the "auto ≈" placeholders. */
+  resolvedContextTokens?: number | null
+  onChange: (patch: {
+    maxSteps: number
+    compaction: CompactionSettings
+    toolOutput: ToolOutputSettings
+    notifications: NotificationsSettings
+    mcpOutput?: { maxTokens?: number }
+  }) => void
+}
+
+// Empty input = undefined = auto-resolved by ratio of the context window.
+function numOrUndefined(value: string): number | undefined {
+  if (value.trim() === '') return undefined
+  const n = Number(value)
+  return Number.isFinite(n) && n > 0 ? n : undefined
 }
 
 function num(value: string, fallback: number): number {
@@ -17,15 +33,24 @@ function displaySteps(n: number): string {
   return Number.isFinite(n) && n > 0 ? String(n) : ''
 }
 
-export default function ContextTab({ maxSteps, compaction, toolOutput, notifications, onChange }: Props) {
+// Same ratios as COMPACTION_RATIOS in the main process; the renderer cannot
+// import main-process token helpers, so placeholders show the token count.
+const RATIO = { buffer: 0.15, keepTokens: 0.06, toolOutputMaxChars: 0.015 }
+
+export default function ContextTab({ maxSteps, compaction, toolOutput, notifications, mcpOutput, resolvedContextTokens, onChange }: Props) {
   const setMaxSteps = (value: string) =>
-    onChange({ maxSteps: num(value, maxSteps), compaction, toolOutput, notifications })
+    onChange({ maxSteps: num(value, maxSteps), compaction, toolOutput, notifications, mcpOutput })
   const setComp = (patch: Partial<CompactionSettings>) =>
-    onChange({ maxSteps, compaction: { ...compaction, ...patch }, toolOutput, notifications })
+    onChange({ maxSteps, compaction: { ...compaction, ...patch }, toolOutput, notifications, mcpOutput })
   const setToolOutput = (patch: Partial<ToolOutputSettings>) =>
-    onChange({ maxSteps, compaction, toolOutput: { ...toolOutput, ...patch }, notifications })
+    onChange({ maxSteps, compaction, toolOutput: { ...toolOutput, ...patch }, notifications, mcpOutput })
   const setNotifications = (patch: Partial<NotificationsSettings>) =>
-    onChange({ maxSteps, compaction, toolOutput, notifications: { ...notifications, ...patch } })
+    onChange({ maxSteps, compaction, toolOutput, notifications: { ...notifications, ...patch }, mcpOutput })
+  const setMcpOutput = (patch: Partial<NonNullable<typeof mcpOutput>>) =>
+    onChange({ maxSteps, compaction, toolOutput, notifications, mcpOutput: { ...mcpOutput, ...patch } })
+
+  const ctx = typeof resolvedContextTokens === 'number' && resolvedContextTokens > 0 ? resolvedContextTokens : null
+  const auto = (key: keyof typeof RATIO) => ctx ? `auto ≈ ${Math.round(ctx * RATIO[key])} tokens` : 'auto'
 
   return (
     <div className="settings-tab context-tab">
@@ -42,13 +67,9 @@ export default function ContextTab({ maxSteps, compaction, toolOutput, notificat
             onChange={e => setMaxSteps(e.target.value)}
           />
           <p className="settings-hint">
-            Maximum tool steps before the agent is forced to wrap up (Infinity = unlimited).
+            Maximum tool steps before the agent is forced to wrap up (empty = unlimited).
           </p>
         </div>
-      </section>
-
-      <section className="settings-section">
-        <h4 className="settings-section-header">Compaction</h4>
         <div className="settings-field">
           <label className="settings-check">
             <input
@@ -60,26 +81,46 @@ export default function ContextTab({ maxSteps, compaction, toolOutput, notificat
           </label>
         </div>
         <div className="settings-field">
+          <label className="label">MCP output max tokens</label>
+          <input
+            className="input"
+            type="number"
+            min={1000}
+            value={mcpOutput?.maxTokens ?? ''}
+            placeholder="25000"
+            onChange={e => setMcpOutput({ maxTokens: numOrUndefined(e.target.value) })}
+          />
+          <p className="settings-hint">
+            MCP tool results larger than this are written to a file and replaced by a preview. Empty = 25000.
+          </p>
+        </div>
+      </section>
+
+      <details className="settings-section">
+        <summary className="settings-section-header">Advanced (compaction tuning — empty = auto)</summary>
+        <div className="settings-field">
           <label className="label">Buffer (tokens)</label>
           <input
             className="input"
             type="number"
-            min={100}
-            value={compaction.buffer}
-            onChange={e => setComp({ buffer: num(e.target.value, compaction.buffer) })}
+            min={1000}
+            value={compaction.buffer ?? ''}
+            placeholder={auto('buffer')}
+            onChange={e => setComp({ buffer: numOrUndefined(e.target.value) })}
           />
-          <p className="settings-hint">Tokens reserved for the model output before compaction triggers.</p>
+          <p className="settings-hint">Tokens reserved for the model output before compaction triggers. Empty = auto.</p>
         </div>
         <div className="settings-field">
           <label className="label">Keep recent tokens</label>
           <input
             className="input"
             type="number"
-            min={100}
-            value={compaction.keepTokens}
-            onChange={e => setComp({ keepTokens: num(e.target.value, compaction.keepTokens) })}
+            min={1000}
+            value={compaction.keepTokens ?? ''}
+            placeholder={auto('keepTokens')}
+            onChange={e => setComp({ keepTokens: numOrUndefined(e.target.value) })}
           />
-          <p className="settings-hint">Tokens of the recent tail kept verbatim during compaction.</p>
+          <p className="settings-hint">Tokens of the recent tail kept verbatim during compaction. Empty = auto.</p>
         </div>
         <div className="settings-field">
           <label className="label">Tail turns</label>
@@ -98,15 +139,12 @@ export default function ContextTab({ maxSteps, compaction, toolOutput, notificat
             className="input"
             type="number"
             min={100}
-            value={compaction.toolOutputMaxChars}
-            onChange={e => setComp({ toolOutputMaxChars: num(e.target.value, compaction.toolOutputMaxChars) })}
+            value={compaction.toolOutputMaxChars ?? ''}
+            placeholder={auto('toolOutputMaxChars')}
+            onChange={e => setComp({ toolOutputMaxChars: numOrUndefined(e.target.value) })}
           />
-          <p className="settings-hint">Tool results sent to the model are truncated to this many characters.</p>
+          <p className="settings-hint">Tool results sent to the model are truncated to this many characters. Empty = auto.</p>
         </div>
-      </section>
-
-      <section className="settings-section">
-        <h4 className="settings-section-header">Tool output</h4>
         <div className="settings-field">
           <label className="label">Tool output max bytes</label>
           <input
@@ -131,7 +169,7 @@ export default function ContextTab({ maxSteps, compaction, toolOutput, notificat
           />
           <p className="settings-hint">Maximum lines kept in the tool-result preview.</p>
         </div>
-      </section>
+      </details>
 
       <section className="settings-section">
         <h4 className="settings-section-header">Notifications</h4>

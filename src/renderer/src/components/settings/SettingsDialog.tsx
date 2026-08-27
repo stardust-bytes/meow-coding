@@ -30,13 +30,16 @@ interface Props {
   templates: Template[]
   onTemplatesChange: (templates: Template[]) => void
   initialTab?: TabId
+  /** First registered agent, used to fetch the context limit for "auto ≈" placeholders. */
+  agentId?: string
 }
 
-export default function SettingsDialog({ onClose, projectPath, templates, onTemplatesChange, initialTab = 'agents' }: Props) {
+export default function SettingsDialog({ onClose, projectPath, templates, onTemplatesChange, initialTab = 'agents', agentId }: Props) {
   const [tab, setTab] = useState<TabId>(initialTab)
   const [draft, setDraft] = useState<MeowSettings | null>(null)
   const [mcpStatus, setMcpStatus] = useState<McpServerStatus[]>([])
   const [catalog, setCatalog] = useState<CatalogProviderSummary[]>([])
+  const [resolvedContextTokens, setResolvedContextTokens] = useState<number | null>(null)
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [saveError, setSaveError] = useState('')
   const saveTimerRef = useRef<number | null>(null)
@@ -68,6 +71,17 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  // Context limit for the "auto ≈" placeholders in the Context tab. No agent
+  // id (no workspace open) → null, and the placeholders fall back to "auto".
+  useEffect(() => {
+    if (!agentId) return
+    let cancelled = false
+    void window.api.getContextInfo(agentId).then(info => {
+      if (!cancelled) setResolvedContextTokens(info.limit)
+    })
+    return () => { cancelled = true }
+  }, [agentId])
 
   useEffect(() => {
     draftRef.current = draft
@@ -242,6 +256,8 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
                 compaction={draft.compaction}
                 toolOutput={draft.toolOutput}
                 notifications={draft.notifications ?? { needsInput: true, onDone: true }}
+                mcpOutput={draft.mcpOutput}
+                resolvedContextTokens={resolvedContextTokens}
                 onChange={ctx => patch(ctx)}
               />
             )}

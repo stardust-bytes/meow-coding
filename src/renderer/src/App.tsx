@@ -339,6 +339,7 @@ export default function App() {
           templates={templates}
           onTemplatesChange={setTemplates}
           initialTab={settingsTab}
+          agentId={runtime?.workspace.agents[0]?.id}
         />
       )}
     </div>
