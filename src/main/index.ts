@@ -52,6 +52,7 @@ import { RemoteManager } from './remote/remote-manager'
 import { RemoteSettingsStore } from './remote/remote-settings'
 import { RemotePairing } from './remote/remote-pairing'
 import { Channels } from '../shared/ipc'
+import { formatLogArg, safeJson } from '../shared/log-helpers'
 import type { AgentState, Command, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, Template, TerminalInfo, Workspace, WorkspaceRuntime } from '../shared/types'
 
 let win: BrowserWindow | null = null
@@ -225,6 +226,9 @@ export class MainApp {
         return
       }
       const code = exitCode ?? -1
+      if (code !== 0) {
+        mainApp.systemLogger.log('ERROR', 'agent', `agent ${agentId} exited with code ${code}`)
+      }
       if (code !== 0 && !this.logs.exists(agentId)) {
         const ws = this.findWorkspaceByAgent(agentId)
         const agent = ws?.agents.find(a => a.id === agentId)
@@ -261,6 +265,9 @@ export class MainApp {
         this.setState(event.agentId, { status: 'running', lastOutputAt: Date.now(), alert: 'normal' })
       } else if (event.type === 'done' || event.type === 'error') {
         this.setState(event.agentId, { status: 'idle', alert: 'normal' })
+      }
+      if (event.type === 'error') {
+        mainApp.systemLogger.log('ERROR', 'agent', `agent ${event.agentId}: ${event.message}`)
       }
       mainApp.remote?.handleAgentEvent(event)
       win?.webContents.send(Channels.EventChat, event)
@@ -549,6 +556,35 @@ export class MainApp {
 }
 
 export const mainApp = new MainApp()
+
+function patchConsole(systemLogger: SystemLogger): void {
+  const hooks: Array<[keyof Console, LogLevel]> = [
+    ['log', 'INFO'],
+    ['info', 'INFO'],
+    ['warn', 'WARN'],
+    ['error', 'ERROR']
+  ]
+  const c = console as unknown as Record<string, (...args: unknown[]) => void>
+  for (const [method, level] of hooks) {
+    const original = c[method].bind(console)
+    c[method] = (...args: unknown[]) => {
+      original(...args)
+      systemLogger.log(level, 'main', args.map(formatLogArg).join(' '))
+    }
+  }
+}
+
+patchConsole(mainApp.systemLogger)
+
+process.on('uncaughtException', err => {
+  mainApp.systemLogger.log('ERROR', 'main', `uncaughtException: ${err.stack ?? err.message}`)
+  app.quit()
+})
+
+process.on('unhandledRejection', reason => {
+  const msg = reason instanceof Error ? (reason.stack ?? reason.message) : safeJson(reason)
+  mainApp.systemLogger.log('ERROR', 'main', `unhandledRejection: ${msg}`)
+})
 
 function createWindow(): void {
   win = new BrowserWindow({
@@ -860,6 +896,7 @@ export function registerIpcHandlers(): void {
 
 app.whenReady().then(async () => {
   if (!gotTheLock) return // secondary instance — already quitting
+  mainApp.systemLogger.prune(7)
   mainApp.meowAgent.truncationCleanup()
   await mainApp.browserBridge.start().catch(err => {
     console.error('[meow] browser bridge start failed:', err)
