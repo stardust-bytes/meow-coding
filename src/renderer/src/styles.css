@@ -787,6 +787,11 @@ select.input { width: 100%; }
   display: flex; align-items: center; gap: 10px;
   font-family: var(--font-mono); font-size: var(--fs-xs);
   color: var(--accent); user-select: none; margin: 4px 0;
+  animation: chat-retry-pulse 1.2s ease-in-out infinite;
+}
+@keyframes chat-retry-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 .chat-retry::before, .chat-retry::after {
   content: ""; flex: 1; height: 1px; background: var(--accent-border);
@@ -863,6 +868,7 @@ select.input { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
   .chat-running { animation: none; }
+  .chat-retry { animation: none; }
   .pane.status-spawning { animation: none; }
 }
 .chat-queue { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; }

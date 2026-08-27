@@ -110,6 +110,20 @@ interface Props {
   onVariantChange?: (variant: string | undefined) => void
 }
 
+function RetryCountdown({ id, attempt, maxAttempts, delayMs }: { id: string; attempt: number; maxAttempts: number; delayMs: number }) {
+  const [remaining, setRemaining] = useState(() => Math.max(1, Math.ceil(delayMs / 1000)))
+  useEffect(() => {
+    setRemaining(Math.max(1, Math.ceil(delayMs / 1000)))
+    const timer = setInterval(() => setRemaining(r => r <= 1 ? 0 : r - 1), 1000)
+    return () => clearInterval(timer)
+  }, [delayMs])
+  return (
+    <div key={id} className="chat-retry">
+      {remaining > 0 ? `Retrying in ${remaining}s…` : 'Retrying now…'} (attempt {attempt}/{maxAttempts})
+    </div>
+  )
+}
+
 function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVariantChange }: Props) {
   const [items, setItems] = useState<FeedItem[]>([])
   const [running, setRunning] = useState(false)
@@ -797,9 +811,7 @@ if (e.type === 'usage') {
           }
           if (item.kind === 'retry') {
             return (
-              <div key={item.id} className="chat-retry">
-                Retrying in {Math.max(1, Math.ceil(item.delayMs / 1000))}s… (attempt {item.attempt}/{item.maxAttempts})
-              </div>
+              <RetryCountdown key={item.id} id={item.id} attempt={item.attempt} maxAttempts={item.maxAttempts} delayMs={item.delayMs} />
             )
           }
           if (item.kind === 'message') {
