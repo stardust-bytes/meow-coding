@@ -52,7 +52,7 @@ import { RemoteManager } from './remote/remote-manager'
 import { RemoteSettingsStore } from './remote/remote-settings'
 import { RemotePairing } from './remote/remote-pairing'
 import { Channels } from '../shared/ipc'
-import type { AgentState, Command, FileViewerPayload, ImageAttachment, MeowSettings, ModelRef, NewAgentInput, PromptResponse, Template, TerminalInfo, Workspace, WorkspaceRuntime } from '../shared/types'
+import type { AgentState, Command, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, Template, TerminalInfo, Workspace, WorkspaceRuntime } from '../shared/types'
 
 let win: BrowserWindow | null = null
 let isQuitting = false
@@ -788,6 +788,9 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.LogPath, (_e, agentId: string) => mainApp.logs.pathFor(agentId))
   ipcMain.handle(Channels.LogOpen, (_e, agentId: string) => {
     void shell.openPath(mainApp.logs.pathFor(agentId))
+  })
+  ipcMain.handle(Channels.SystemLog, (_e, level: LogLevel, message: string) => {
+    mainApp.systemLogger.log(level, 'render', message)
   })
   ipcMain.handle(Channels.ChatSend, (_e, agentId: string, text: string, images?: ImageAttachment[]) =>
     mainApp.meowAgent.send(agentId, text, images))

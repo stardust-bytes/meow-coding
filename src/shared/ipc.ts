@@ -2,7 +2,7 @@ import type {
   AgentConfig, AgentState, ArtifactEntry, CatalogProviderSummary, ChatEvent, ChatMessage, ChatTranscriptItem, Command,
   ConnectionAccount, ContextChangedEvent, ContextInfo, DirEntry, FileContentResult, FileSuggestion, FileViewerPayload,
   GitActionResult, GitBlameLine, GitBranch, GitCommit, GitDiffResult, GitStatus, GitStatusDetail,
-  ImageAttachment, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PromptResponse,
+  ImageAttachment, LogLevel, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PromptResponse,
   SessionSummary, StatsSummary, Template, TerminalInfo, TodoItem, TraceEvent, TraceSummary, UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from './types'
 import type { BrowserStatusInfo, PairingInfo } from './browser-types'
@@ -63,6 +63,7 @@ export const Channels = {
   PtyResize: 'pty:resize',
   LogOpen: 'log:open',
   LogPath: 'log:path',
+  SystemLog: 'system-log:write',
   AppQuit: 'app:quit',
   AppVersion: 'app:version',
   UpdaterCheck: 'updater:check',
@@ -215,6 +216,7 @@ export interface AgentApi {
   resizePty(agentId: string, cols: number, rows: number): Promise<void>
   openLog(agentId: string): Promise<void>
   getLogPath(agentId: string): Promise<string>
+  writeSystemLog(level: LogLevel, message: string): Promise<void>
   quit(): Promise<void>
   getAppVersion(): Promise<string>
   checkForUpdates(): Promise<void>

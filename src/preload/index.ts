@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
 import type { ArtifactsChangedEvent } from '../shared/ipc'
-import type { ChatEvent, Command, ContextChangedEvent, FileViewerPayload, ImageAttachment, MeowSettings, ModelRef, NewAgentInput, PromptResponse, Template, TraceEvent, UpdaterStatusEvent } from '../shared/types'
+import type { ChatEvent, Command, ContextChangedEvent, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, Template, TraceEvent, UpdaterStatusEvent } from '../shared/types'
 import type { AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, GitStatusEvent, PtyDataEvent, TerminalExitEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
 import type { BrowserStatusInfo } from '../shared/browser-types'
 import type { RemoteStatus } from '../shared/remote-types'
@@ -114,6 +114,8 @@ const api: AgentApi = {
     ipcRenderer.invoke(Channels.PtyResize, agentId, cols, rows),
   openLog: (agentId: string) => ipcRenderer.invoke(Channels.LogOpen, agentId),
   getLogPath: (agentId: string) => ipcRenderer.invoke(Channels.LogPath, agentId),
+  writeSystemLog: (level: LogLevel, message: string) =>
+    ipcRenderer.invoke(Channels.SystemLog, level, message),
   quit: () => ipcRenderer.invoke(Channels.AppQuit),
   getAppVersion: () => ipcRenderer.invoke(Channels.AppVersion),
   checkForUpdates: () => ipcRenderer.invoke(Channels.UpdaterCheck),
