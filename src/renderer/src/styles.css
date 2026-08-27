@@ -392,13 +392,14 @@ select.input { width: 100%; }
    native agent Chat/Trace toggle inside PaneHeader. */
 .agent-tabs-view { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; animation: meow-rise 300ms 120ms ease-out both; }
 .agent-tab-bar {
-  display: flex; gap: 4px; align-items: center; padding: 6px 8px; margin-bottom: 0.5rem;
-  border-bottom: 1px solid var(--hairline); overflow-x: auto; flex: 0 0 auto;
+  display: flex; gap: 4px; align-items: center; padding: 0 8px;
+  height: 38px; flex: 0 0 38px; box-sizing: border-box;
+  border-bottom: 1px solid var(--hairline); overflow-x: auto;
 }
 .agent-tab {
   display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px;
   background: var(--bg-panel); border: 1px solid var(--hairline);
-  border-radius: var(--radius); color: var(--text-dim);
+  border-radius: var(--radius) var(--radius) 0 0; color: var(--text-dim);
   font-size: var(--fs-sm); cursor: pointer; white-space: nowrap; user-select: none;
 }
 .agent-tab:hover { background: var(--bg-hover); border-color: var(--accent-dim); color: var(--text); }
@@ -411,8 +412,9 @@ select.input { width: 100%; }
   cursor: pointer; font: inherit; font-size: var(--fs-xs); padding: 0 2px; line-height: 1;
 }
 .agent-tab-close:hover { color: var(--red); }
-/* The active pane fills the remaining height below the tab bar. */
-.agent-tabs-view .pane { flex: 1; min-height: 0; }
+/* Content panel: equal padding on all sides (0.5rem) around the pane. */
+.agent-pane-container { flex: 1; min-height: 0; padding: 0.5rem; }
+.agent-pane-container .pane { flex: 1; min-height: 0; }
 .pane {
   display: flex;
   flex-direction: column;
