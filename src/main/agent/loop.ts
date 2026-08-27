@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ArtifactEntry, ChatEvent, ChatMessage, MessageTokens, PromptResponse, QuestionPrompt, QueuedMessage, TodoItem, ToolCallData } from '../../shared/types'
+import type { ArtifactEntry, ChatEvent, ChatMessage, MessageTokens, PendingPromptInfo, PromptResponse, QuestionPrompt, QueuedMessage, TodoItem, ToolCallData } from '../../shared/types'
 import { appendStreamDelta } from '../../shared/text'
 import type { LlmClient, LlmStreamPart } from './llm'
 import { formatLlmError } from './llm'
@@ -33,7 +33,7 @@ export interface LoopDeps {
   llm: LlmClient
   tools: Map<string, ToolDefinition>
   decidePermission: (toolName: string, input?: Record<string, unknown>) => PermissionDecision
-  ask: (promptId: string, tool?: string) => Promise<PromptResponse | null>
+  ask: (promptId: string, tool: string | undefined, info: PendingPromptInfo) => Promise<PromptResponse | null>
   maxSteps?: number
   maxContextTokens?: number
   /**
@@ -289,7 +289,7 @@ export class SessionRunner {
     } else {
       const promptId = randomUUID()
       this.deps.onEvent({ type: 'prompt-request', agentId, promptId, kind: 'permission', call })
-      const resp = await this.deps.ask(promptId, call.tool)
+      const resp = await this.deps.ask(promptId, call.tool, { promptId, kind: 'permission', call })
       allowed = resp?.allow ?? false
     }
 
@@ -337,7 +337,14 @@ export class SessionRunner {
               multiple: question.multiple,
               custom: question.custom
             })
-            const resp = await this.deps.ask(promptId)
+            const resp = await this.deps.ask(promptId, undefined, {
+              promptId,
+              kind: 'question',
+              question: question.question,
+              options: question.options,
+              multiple: question.multiple,
+              custom: question.custom
+            })
             return resp?.text ?? null
           },
           onFileRead: (filePath) => {

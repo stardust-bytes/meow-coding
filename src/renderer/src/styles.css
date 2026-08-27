@@ -422,7 +422,10 @@ select.input { width: 100%; }
 .agent-tab-close:hover { color: var(--red); }
 /* Content panel: equal padding on all sides (0.5rem) around the pane. */
 .agent-pane-container { flex: 1; min-height: 0; padding: 0.5rem; display: flex; flex-direction: column; }
+/* All panes stay mounted (so background agents keep streaming/answering), but
+   only the active one is laid out; the rest are hidden without unmounting. */
 .agent-pane-container .pane { flex: 1; min-height: 0; }
+.agent-pane-container .pane:not(.active) { display: none; }
 .pane {
   display: flex;
   flex-direction: column;

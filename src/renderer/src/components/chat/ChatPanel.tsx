@@ -268,6 +268,26 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     // The agent may already be mid-turn from before a project switch/remount;
     // restore the running state so the Stop button and indicator come back.
     void window.api.isChatRunning(agentId).then(setRunning)
+    // The agent may be waiting on a permission/question prompt from before a
+    // remount (tab switch). Restore it so the popup comes back and the agent
+    // isn't left hanging with no way to answer.
+    void window.api.getPendingPrompt(agentId).then(info => {
+      if (!info) return
+      setPendingPrompt({
+        promptId: info.promptId,
+        promptType: info.kind,
+        call: info.call,
+        question: info.question,
+        options: info.options,
+        multiple: info.multiple,
+        custom: info.custom
+      })
+      setSelectedAction(0)
+      setSelectedOptions([])
+      setCustomInput(false)
+      setQuestionText('')
+      setQuestionIndex(0)
+    })
     const off = window.api.onChatEvent(e => applyEvent(e))
     return off
     // eslint-disable-next-line react-hooks/exhaustive-deps

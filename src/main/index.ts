@@ -799,6 +799,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.ChatListTranscript, (_e, agentId: string) => mainApp.meowAgent.listTranscript(agentId))
   ipcMain.handle(Channels.ChatGetTodos, (_e, agentId: string) => mainApp.meowAgent.getTodos(agentId))
   ipcMain.handle(Channels.ChatIsRunning, (_e, agentId: string) => mainApp.meowAgent.isRunning(agentId))
+  ipcMain.handle(Channels.ChatGetPendingPrompt, (_e, agentId: string) => mainApp.meowAgent.getPendingPrompt(agentId))
   ipcMain.handle(Channels.ChatRespondPrompt, (_e, agentId: string, promptId: string, resp: PromptResponse) =>
     mainApp.meowAgent.respondPrompt(agentId, promptId, resp))
   ipcMain.handle(Channels.ChatQueueRemove, (_e, agentId: string, id: string) =>

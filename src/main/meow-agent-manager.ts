@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
-import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, NotificationsSettings, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TraceEvent, UsageSummary } from '../shared/types'
+import type { ChatEvent, ChatMessage, ChatTranscriptItem, ContextInfo, FileSuggestion, ImageAttachment, McpServerStatus, MeowSettings, MessageTokens, ModelUsage, NotificationsSettings, PendingPromptInfo, PromptResponse, QueuedMessage, StatsSummary, TodoItem, TraceEvent, UsageSummary } from '../shared/types'
 import type { AgentConfig, AgentMode, ArtifactEntry, CatalogProviderSummary, Command, ModelRef, SubagentType } from '../shared/types'
 import {
   configToSettings, loadMeowConfig, resolveAgentConfig, resolveApiKey, settingsToConfig, writeMeowConfig,
@@ -91,7 +91,12 @@ export class MeowAgentManager {
   // Background subagents outlive the turn that spawned them, so the turn's
   // controller can't stop them. Keyed by agentId -> taskId -> cancel handle.
   private backgroundTasks = new Map<string, Map<string, { sessionId: string; cancel: () => void }>>()
-  private pendingPrompts = new Map<string, { agentId: string; tool?: string; resolve: (resp: PromptResponse | null) => void }>()
+  private pendingPrompts = new Map<string, {
+    agentId: string
+    tool?: string
+    info: PendingPromptInfo
+    resolve: (resp: PromptResponse | null) => void
+  }>()
   private running = new Set<string>()
   private activeSessions = new Map<string, string>()
   private tools: Map<string, ToolDefinition>
@@ -524,6 +529,13 @@ export class MeowAgentManager {
 
   getTodos(agentId: string): TodoItem[] {
     return this.deps.store.todos(this.activeSessionId(agentId))
+  }
+
+  getPendingPrompt(agentId: string): PendingPromptInfo | null {
+    for (const entry of this.pendingPrompts.values()) {
+      if (entry.agentId === agentId) return entry.info
+    }
+    return null
   }
 
   respondPrompt(agentId: string, promptId: string, resp: PromptResponse): void {
@@ -1045,7 +1057,7 @@ export class MeowAgentManager {
         isSavedAllow: (tool) => this.deps.savedPermissions.isAllowed(agent.cwd, tool),
         canPrompt: true
       }),
-      ask: (promptId, tool) => this.awaitPrompt(agent.id, promptId, tool),
+      ask: (promptId, tool) => this.awaitPrompt(agent.id, promptId, tool, { promptId, kind: 'permission' }),
       onPromptRequest: (e, meta) => this.emit({
         ...e,
         agentId: agent.id,
@@ -1134,7 +1146,7 @@ export class MeowAgentManager {
         tool,
         input
       ),
-      ask: (promptId, tool) => this.awaitPrompt(agent.id, promptId, tool),
+      ask: (promptId, tool, info) => this.awaitPrompt(agent.id, promptId, tool, info),
       maxSteps: cfg.maxSteps,
       maxContextTokens: contextTokens,
       maxOutputTokens: outputReserve,
@@ -1196,9 +1208,9 @@ export class MeowAgentManager {
     return { input: p.input ?? 0, output: p.output ?? 0, cacheRead: p.cacheRead, cacheWrite: p.cacheWrite }
   }
 
-  private awaitPrompt(agentId: string, promptId: string, tool?: string): Promise<PromptResponse | null> {
+  private awaitPrompt(agentId: string, promptId: string, tool: string | undefined, info: PendingPromptInfo): Promise<PromptResponse | null> {
     return new Promise(resolve => {
-      this.pendingPrompts.set(promptId, { agentId, tool, resolve })
+      this.pendingPrompts.set(promptId, { agentId, tool, info, resolve })
       if (this.controllers.get(agentId)?.signal.aborted) {
         this.pendingPrompts.delete(promptId)
         resolve(null)

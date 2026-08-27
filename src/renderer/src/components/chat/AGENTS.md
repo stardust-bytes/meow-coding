@@ -8,7 +8,7 @@ pushed from main over IPC (`window.api.onChatEvent`).
 
 | File | Responsibility |
 |---|---|
-| `ChatPanel.tsx` | Main container: subscribes to chat events, owns feed state (items/todos/queue/pendingPrompt), rAF-batches stream deltas, renders feed + composer + context footer. Transient status lines (compaction, retry) live only in feed state — never written to the transcript. Memoized. |
+| `ChatPanel.tsx` | Main container: subscribes to chat events, owns feed state (items/todos/queue/pendingPrompt), rAF-batches stream deltas, renders feed + composer + context footer. Transient status lines (compaction, retry) live only in feed state — never written to the transcript. On mount it restores an in-flight permission/question prompt via `window.api.getPendingPrompt` so a remounted panel (tab switch) doesn't leave the agent hanging. Memoized. |
 | `useChatScroll.ts` | Feed scroll controller: follow/anchored/manual modes, turn-top anchoring, jump-to-end, jump button. `chat-scroll-geometry.ts` holds the pure geometry helpers. |
 | `ChatInput.tsx` | Composer: textarea (Enter to send), paste/drop image chips (≤4, ≤5MB), `@` file-mention dropdown + chips, edit-queued flow. Memoized. |
 | `parseCommandInput.ts` | `parseCommandInput(raw)` → `{ isCommand, prefix }` for the `/`-command menu. |

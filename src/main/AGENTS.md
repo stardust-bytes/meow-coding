@@ -9,6 +9,8 @@ handlers and the app lifecycle.
   `git:status` events to the renderer; `registerIpcHandlers`; window lifecycle; `before-quit` → `pty.stopAll()`.
 - `meow-agent-manager.ts` — `MeowAgentManager`: orchestrates the agent chat loop, sessions, commands,
   permissions, subagents, MCP/user tools, stats, settings. The only place that orchestrates the native agent.
+  In-flight permission/question prompts are stored (with their content) so a remounted chat panel can restore
+  them via `getPendingPrompt` instead of leaving the agent waiting forever.
 - `pty-manager.ts` — node-pty wrapper, emits `data`/`exit` events. `buildSpawnCommand` wraps non-`.exe`
   commands through `cmd.exe` on Windows (ConPTY cannot spawn `.cmd` shims directly). Uses `tree-kill`
   to kill the entire process tree on stop.
