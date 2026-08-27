@@ -33,6 +33,7 @@ in `src/main/index.ts`).
 | `models.json` | `models-catalog.ts` | object | Cached models.dev catalog (falls back to the bundled `models-snapshot.json`) |
 | `remote.json` | `remote/remote-settings.ts` | object | `{ enabled, relayUrl, deviceId, sessionToken? }` |
 | `logs/<agentId>.log` | `log-manager.ts` | text | Raw PTY output, append-only |
+| `logs/<YYYY-MM-DD>-log.txt` | `system-logger.ts` | text | App-wide system log (main/render/agent), append-only, pruned after 7 days on startup |
 | `traces/` | `agent/trace-store.ts` | one file per session | Only written when `trace.enabled` |
 | `truncation/<agentId>-<toolId>.txt` | `agent/truncation.ts` | text | Full text of truncated tool output; cleaned up after 7 days on startup |
 | `connections/index.json` | `connections/connection-store.ts` | `{ version: 1, accounts: ConnectionAccount[] }` | **Metadata only** — never secrets |

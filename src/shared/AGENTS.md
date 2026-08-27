@@ -2,8 +2,9 @@
 
 Shared contract between main / preload / renderer.
 
-- `types.ts` — pure data models (Template, Workspace, AgentConfig, AgentState, GitStatus, ...).
+- `types.ts` — pure data models (Template, Workspace, AgentConfig, AgentState, GitStatus, LogLevel, LogSource, ...).
   JSON-serializable only: **no** classes, no functions, no Node/Electron imports.
+- `log-helpers.ts` — pure helpers `formatLogArg`/`safeJson` dùng cho system logger (main + renderer).
 - `ipc.ts` — `Channels` (all channel strings) + `AgentApi` (API interface) + event payload types
   (`PtyDataEvent`, `AgentStateEvent`, `GitStatusEvent`).
 - `browser-types.ts` — types specific to the browser bridge (pairing, snapshot).

@@ -92,6 +92,7 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `PtyInject` | `pty:inject` | `injectPrompt(agentId, text)` — writes `text + '\n'` |
 | `PtyResize` | `pty:resize` | `resizePty(agentId, cols, rows)` |
 | `LogPath` / `LogOpen` | `log:path` / `log:open` | `getLogPath` / `openLog` |
+| `SystemLog` | `system-log:write` | `writeSystemLog(level: LogLevel, message)` — renderer gửi log về main ghi vào file theo ngày |
 | `TerminalOpen` / `TerminalClose` | `terminal:open` / `terminal:close` | `openTerminal(cwd): TerminalInfo` / `closeTerminal(id)` |
 
 ### Chat & sessions
