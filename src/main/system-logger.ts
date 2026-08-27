@@ -26,10 +26,11 @@ export class SystemLogger {
 
   log(level: LogLevel, source: LogSource, message: string): void {
     try {
-      const line = `[${formatTs(this.now())}] [${level}] [${source}] ${message}\n`
-      appendFileSync(this.fileFor(this.now()), line)
+      const ts = this.now()
+      const line = `[${formatTs(ts)}] [${level}] [${source}] ${message}\n`
+      appendFileSync(this.fileFor(ts), line)
     } catch (err) {
-      // Không dùng console.* ở đây — console đã bị patch (Task 3), sẽ đệ quy.
+      // console.* is patched later (Task 3) — using it here would recurse.
       process.stderr.write(`[system-log] append failed: ${err instanceof Error ? err.message : String(err)}\n`)
     }
   }

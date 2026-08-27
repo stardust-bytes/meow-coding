@@ -62,7 +62,7 @@ describe('SystemLogger', () => {
     expect(existsSync(other)).toBe(true) // file không đúng pattern không bị đụng
   })
 
-  it('log tolerates an unwritable directory without throwing', () => {
+  it('constructor creates a deep log directory and log works there', () => {
     const bad = new SystemLogger(path.join(dir, 'no-such', 'deep'))
     expect(() => bad.log('ERROR', 'main', 'x')).not.toThrow()
     // thư mục được tự tạo
