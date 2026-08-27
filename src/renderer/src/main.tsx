@@ -7,12 +7,34 @@ import '@fontsource-variable/instrument-sans'
 import '@fontsource-variable/bricolage-grotesque'
 import './styles.css'
 import { applyTheme, watchTheme } from './theme'
+import type { LogLevel } from '@shared/types'
+import { formatLogArg } from '@shared/log-helpers'
 
 // Every renderer (main window, Git viewer, FileViewer popup) applies the
 // persisted theme before first paint, and re-applies it when the user toggles
 // the theme in the main window (localStorage syncs across same-origin windows).
 applyTheme()
 watchTheme()
+
+function patchConsoleLogging(): void {
+  if (!window.api) return
+  const levelOf: Record<'log' | 'info' | 'warn' | 'error', LogLevel> = {
+    log: 'INFO', info: 'INFO', warn: 'WARN', error: 'ERROR'
+  }
+  // Console methods are typed read-only, so assign through a looser record
+  // (same pattern as the main process) while preserving the original `this`.
+  const c = console as unknown as Record<string, (...args: unknown[]) => void>
+  for (const name of ['log', 'info', 'warn', 'error'] as const) {
+    const original = c[name].bind(console)
+    c[name] = (...args: unknown[]) => {
+      original(...args)
+      const message = args.map(formatLogArg).join(' ')
+      void window.api.writeSystemLog(levelOf[name], message || name).catch(() => {})
+    }
+  }
+}
+
+patchConsoleLogging()
 
 const rootEl = document.getElementById('root')!
 const params = new URLSearchParams(window.location.search)

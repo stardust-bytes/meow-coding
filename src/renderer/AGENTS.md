@@ -5,7 +5,8 @@ React renderer (no direct Node/Electron access).
 ## Structure
 
 - `index.html` + `src/main.tsx` — entry; render `<App>`; if `window.api` is missing, show a guidance
-  fallback (preload not loaded).
+  fallback (preload not loaded). `main.tsx` also patches `console.log/info/warn/error` to forward
+  each call to the system logger via `window.api.writeSystemLog` (no-op when `window.api` is missing).
 - `src/App.tsx` — state hub: workspaces, templates, open runtimes; defines `PaneModel`
   (agent + state + git) for each pane.
 - `src/components/` — `Sidebar`, `PaneTabs`, `Pane`, `PaneHeader`, `XtermHost`, `EmptyState`,
