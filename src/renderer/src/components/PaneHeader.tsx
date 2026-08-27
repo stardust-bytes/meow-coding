@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Ellipsis } from 'lucide-react'
 import type { AgentState, GitStatus } from '@shared/types'
+import ConfirmDialog from './ConfirmDialog'
 
 interface Props {
   name: string
@@ -38,6 +39,7 @@ export default function PaneHeader({
   const [menuOpen, setMenuOpen] = useState(false)
   const [injecting, setInjecting] = useState(false)
   const [prompt, setPrompt] = useState('')
+  const [confirmRemove, setConfirmRemove] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -120,7 +122,7 @@ export default function PaneHeader({
             <div className="sidebar-menu-dropdown pane-menu-dropdown">
               {isTerminal ? (
                 <>
-                  <button className="menu-item danger" onClick={() => { close(); onRemove() }}>Close terminal</button>
+                  <button className="menu-item danger" onClick={() => { close(); setConfirmRemove(true) }}>Close terminal</button>
                 </>
               ) : (
                 <>
@@ -139,13 +141,24 @@ export default function PaneHeader({
                       {background ? 'Open pane' : 'Run in background'}
                     </button>
                   )}
-                  <button className="menu-item danger" onClick={() => { close(); onRemove() }}>Delete agent</button>
+                  <button className="menu-item danger" onClick={() => { close(); setConfirmRemove(true) }}>Delete agent</button>
                 </>
               )}
             </div>
           )}
         </div>
       </span>
+      {confirmRemove && (
+        <ConfirmDialog
+          title={isTerminal ? 'Close terminal' : 'Delete agent'}
+          message={isTerminal
+            ? `Close terminal "${name}"?`
+            : `Delete agent "${name}"? This cannot be undone.`}
+          confirmLabel={isTerminal ? 'Close' : 'Delete'}
+          onConfirm={() => { setConfirmRemove(false); onRemove() }}
+          onCancel={() => setConfirmRemove(false)}
+        />
+      )}
     </div>
   )
 }

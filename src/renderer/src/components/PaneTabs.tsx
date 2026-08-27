@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Terminal } from '@xterm/xterm'
 import type { PaneModel } from '../App'
 import Pane from './Pane'
+import ConfirmDialog from './ConfirmDialog'
 
 interface Props {
   panes: PaneModel[]
@@ -14,6 +15,7 @@ interface Props {
 
 export default function PaneTabs({ panes, backgrounds, isTerminal, onRemove, onRegisterTerminal, onUnregisterTerminal }: Props) {
   const [activeId, setActiveId] = useState<string | null>(panes[0]?.agent.id ?? null)
+  const [pendingClose, setPendingClose] = useState<string | null>(null)
 
   // Keep active tab valid as the pane list changes (add/remove).
   useEffect(() => {
@@ -41,7 +43,7 @@ export default function PaneTabs({ panes, backgrounds, isTerminal, onRemove, onR
               <button
                 className="agent-tab-close"
                 aria-label={`Close ${pane.agent.name}`}
-                onClick={e => { e.stopPropagation(); onRemove(pane.agent.id) }}
+                onClick={e => { e.stopPropagation(); setPendingClose(pane.agent.id) }}
               >✕</button>
             ) : null}
           </div>
@@ -62,6 +64,22 @@ export default function PaneTabs({ panes, backgrounds, isTerminal, onRemove, onR
           />
         </div>
       ) : null}
+      {pendingClose && (() => {
+        const pane = panes.find(p => p.agent.id === pendingClose)
+        if (!pane) return null
+        const isTerm = isTerminal(pane.agent.id)
+        return (
+          <ConfirmDialog
+            title={isTerm ? 'Close terminal' : 'Delete agent'}
+            message={isTerm
+              ? `Close terminal "${pane.agent.name}"?`
+              : `Delete agent "${pane.agent.name}"? This cannot be undone.`}
+            confirmLabel={isTerm ? 'Close' : 'Delete'}
+            onConfirm={() => { onRemove(pane.agent.id); setPendingClose(null) }}
+            onCancel={() => setPendingClose(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

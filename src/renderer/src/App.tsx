@@ -287,6 +287,7 @@ export default function App() {
                   if (pane?.agent.kind === 'native') void window.api.stopChat(agentId)
                   else void window.api.stopAgent(agentId)
                 }}
+                onRemove={handleRemovePane}
               />
             </>
           ) : (

@@ -9,15 +9,16 @@ terminal/chat, sidebar, status bar, title bar, and dialogs. All data flows throu
 | File | Responsibility |
 |---|---|
 | `Pane.tsx` | A single agent pane: header + either `ChatPanel` (native agent) or `XtermHost` (PTY agent); background badge mode. |
-| `PaneTabs.tsx` | Tab-bar layout of agent/terminal panes; only the active tab renders; tracks active tab. |
-| `PaneHeader.tsx` | Pane title bar: status dot, git info, menu (inject/log/stop/new-session/background/delete). |
+| `PaneTabs.tsx` | Tab-bar layout of agent/terminal panes; only the active tab renders; tracks active tab; shows a confirm dialog before closing a tab. |
+| `PaneHeader.tsx` | Pane title bar: status dot, git info, menu (inject/log/stop/new-session/background/delete); shows a confirm dialog before deleting an agent / closing a terminal. |
+| `ConfirmDialog.tsx` | Reusable confirmation dialog (title, message, confirm/cancel, danger styling). |
 | `Sidebar.tsx` | Left sidebar: workspace list, add/remove, templates, open in editor. |
 | `StatusBar.tsx` | Bottom bar: workspace name, git branch, running count, app version (via IPC). |
 | `TitleBar.tsx` | Custom window chrome (min/max/close) for frameless platforms. |
 | `PopupTitleBar.tsx` | Popup window chrome for the FileViewer/GitViewer BrowserWindows: drag region + (Linux) custom min/max/close, mirroring the main TitleBar so popups match the app theme. |
 | `XtermHost.tsx` | PTY terminal host via xterm.js. |
 | `EmptyState.tsx` | Shown when no pane is open (workspace vs. no-workspace hint). |
-| `BackgroundPanel.tsx` | Lists background agents; open/stop them. |
+| `BackgroundPanel.tsx` | Lists background agents; open/stop/delete them (delete shows a confirm dialog). |
 | `UpdateDialog.tsx` | Auto-update status + install prompt. |
 | `BrowserDialog.tsx` | Chrome bridge pairing + status UI. |
 | `InstallGuideDialog.tsx` | Extension install steps for the browser bridge. |

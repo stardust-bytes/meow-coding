@@ -368,6 +368,8 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .btn:disabled { opacity: 0.45; cursor: default; transform: none; }
 .btn.ghost { background: transparent; }
 .btn.ghost:hover { background: var(--bg-hover); }
+.btn.danger { border-color: rgba(255, 95, 86, 0.4); color: var(--red); }
+.btn.danger:hover { background: rgba(255, 95, 86, 0.12); }
 .btn-icon {
   display: inline-flex; align-items: center; justify-content: center;
   line-height: 0; /* icon-only buttons: collapse text line box so the svg is vertically centered, not baseline-shifted */
