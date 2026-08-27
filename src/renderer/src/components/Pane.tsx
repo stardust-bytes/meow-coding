@@ -10,17 +10,15 @@ interface Props {
   pane: PaneModel
   background: boolean
   isTerminal: boolean
-  zoomed: boolean
   active: boolean
   onFocus: () => void
-  onZoom: () => void
   onRemove: () => void
   onRegisterTerminal: (agentId: string, term: Terminal) => void
   onUnregisterTerminal: (agentId: string) => void
 }
 
 export default function Pane({
-  pane, background, isTerminal, zoomed, active, onFocus, onZoom, onRemove, onRegisterTerminal, onUnregisterTerminal
+  pane, background, isTerminal, active, onFocus, onRemove, onRegisterTerminal, onUnregisterTerminal
 }: Props) {
   const id = pane.agent.id
   const write = (data: string) => void window.api.writeInput(id, data)
@@ -52,12 +50,11 @@ export default function Pane({
   }, [id, background])
 
   return (
-    <div className={`pane ${zoomed ? 'zoomed' : ''} ${background ? 'backgrounded' : ''} ${active ? 'active' : ''} status-${pane.state.status}`} onClick={onFocus}>
+    <div className={`pane ${background ? 'backgrounded' : ''} ${active ? 'active' : ''} status-${pane.state.status}`} onClick={onFocus}>
       <PaneHeader
         name={pane.agent.name}
         state={pane.state}
         git={pane.git}
-        zoomed={zoomed}
         background={background}
         native={native}
         activeTab={tab}
@@ -65,7 +62,6 @@ export default function Pane({
         onTabChange={setTab}
         isTerminal={isTerminal}
         active={active}
-        onZoom={onZoom}
         onStop={handleStop}
         onRestart={handleRestart}
         onInject={handleInject}

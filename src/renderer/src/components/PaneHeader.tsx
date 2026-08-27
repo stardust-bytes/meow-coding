@@ -6,7 +6,6 @@ interface Props {
   name: string
   state: AgentState
   git: GitStatus | null
-  zoomed: boolean
   background?: boolean
   native?: boolean
   isTerminal?: boolean
@@ -14,7 +13,6 @@ interface Props {
   activeTab?: 'chat' | 'trace'
   traceEnabled?: boolean
   onTabChange?: (tab: 'chat' | 'trace') => void
-  onZoom: () => void
   onStop: () => void
   onRestart: () => void
   onInject: (text: string) => void
@@ -33,9 +31,9 @@ function MoreIcon() {
 }
 
 export default function PaneHeader({
-  name, state, git, zoomed, background = false, native = false, isTerminal = false, active = false,
+  name, state, git, background = false, native = false, isTerminal = false, active = false,
   activeTab = 'chat', traceEnabled = true, onTabChange,
-  onZoom, onStop, onRestart, onInject, onOpenLog, onToggleBackground, onRemove
+  onStop, onRestart, onInject, onOpenLog, onToggleBackground, onRemove
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [injecting, setInjecting] = useState(false)
@@ -122,9 +120,6 @@ export default function PaneHeader({
             <div className="sidebar-menu-dropdown pane-menu-dropdown">
               {isTerminal ? (
                 <>
-                  <button className="menu-item" onClick={() => { close(); onZoom() }}>
-                    {zoomed ? 'Exit zoom' : 'Zoom'}
-                  </button>
                   <button className="menu-item danger" onClick={() => { close(); onRemove() }}>Close terminal</button>
                 </>
               ) : (
@@ -134,9 +129,6 @@ export default function PaneHeader({
                       <button className="menu-item" onClick={() => { close(); setInjecting(v => !v) }}>Inject</button>
                       <button className="menu-item" onClick={() => { close(); onOpenLog() }}>Log</button>
                       <button className="menu-item" onClick={() => { close(); onStop() }}>Stop</button>
-                      <button className="menu-item" onClick={() => { close(); onZoom() }}>
-                        {zoomed ? 'Exit zoom' : 'Zoom'}
-                      </button>
                     </>
                   )}
                   <button className="menu-item" onClick={() => { close(); onRestart() }}>

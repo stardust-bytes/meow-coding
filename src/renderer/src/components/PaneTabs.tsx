@@ -53,9 +53,7 @@ export default function PaneTabs({ panes, backgrounds, isTerminal, onRemove, onR
           pane={active}
           background={Boolean(backgrounds[active.agent.id])}
           isTerminal={isTerminal(active.agent.id)}
-          zoomed={false}
           active
-          onZoom={() => {}}
           onFocus={() => setActiveId(active.agent.id)}
           onRemove={() => onRemove(active.agent.id)}
           onRegisterTerminal={onRegisterTerminal}
