@@ -10,7 +10,7 @@ import {
   type MeowConfig, type ResolvedAgentConfig
 } from './agent/config'
 import { SessionRunner } from './agent/loop'
-import { usableContextTokens } from './agent/compact'
+import { resolveCompactionSettings, usableContextTokens } from './agent/compact'
 import { LimitsService, parseContextLimitFromError } from './agent/limits'
 import { LearnedLimitsStore, normalizeLearnedKey } from './agent/learned-limits'
 import { createLlm } from './agent/llm'
@@ -598,8 +598,9 @@ export class MeowAgentManager {
     })
     const limit = limits.context
     const outputTokens = resolveOutputTokens({ output: limits.output ?? undefined }, limit, DEFAULT_MAX_OUTPUT_TOKENS)
+    const compaction = resolveCompactionSettings(cfg.compaction, limit ?? DEFAULT_MAX_CONTEXT_TOKENS, outputTokens)
     const compactThreshold = cfg.compaction.auto && limit
-      ? usableContextTokens(limit, cfg.compaction.buffer, outputTokens)
+      ? usableContextTokens(limit, compaction.buffer, outputTokens)
       : null
     return {
       limit,
@@ -869,14 +870,14 @@ export class MeowAgentManager {
         overrides: { context: cfg.maxContextTokens, output: cfg.maxOutputTokens }
       })
       const limit = limits.context
-      const compaction = cfg.compaction
-      if (!compaction?.auto || !limit || limit <= 0) continue
+      if (!cfg.compaction?.auto || !limit || limit <= 0) continue
       const used = this.lastUsageByAgent.get(agentId)
       if (!used) continue
       const usedTokens = used.total > 0
         ? used.total
         : used.input + used.output + (used.cacheRead ?? 0) + (used.cacheWrite ?? 0)
       const outputTokens = resolveOutputTokens({ output: limits.output ?? undefined }, limit, DEFAULT_MAX_OUTPUT_TOKENS)
+      const compaction = resolveCompactionSettings(cfg.compaction ?? { auto: false, tailTurns: 2 }, limit, outputTokens)
       if (usedTokens < usableContextTokens(limit, compaction.buffer, outputTokens)) continue
       const runner = this.runners.get(agentId)
       if (!runner) continue

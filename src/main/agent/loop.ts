@@ -7,9 +7,9 @@ import { toLlmMessages } from './message'
 import type { ToLlmOptions, TranscriptItem } from './message'
 import type { ToolContext, ToolDefinition } from './tools/types'
 import type { PermissionDecision } from './permission'
-import { selectHeadTail, serializeItems, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, pruneToolOutputs, hardTruncate, usableContextTokens, fitHeadToBudget } from './compact'
+import { selectHeadTail, serializeItems, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, pruneToolOutputs, hardTruncate, usableContextTokens, fitHeadToBudget, resolveCompactionSettings } from './compact'
 import { instructionFilesForFile } from './instructions'
-import type { CompactionSettings } from './compact'
+import type { CompactionSettings, ResolvedCompaction } from './compact'
 import { estimateUsage } from './token'
 import { DEFAULT_MAX_CONTEXT_TOKENS } from './config'
 import { classifyContextOverflowError } from './limits'
@@ -79,6 +79,9 @@ const MAX_STEPS_PROMPT = 'Final step: wrap up and provide your final answer now.
 export class SessionRunner {
   private readonly maxSteps: number
   private compactedThisRun = 0
+  // Compaction knobs resolved once per run from the model's context window
+  // (auto knobs filled by ratio; overrides pass through).
+  private compaction!: ResolvedCompaction
   // Số lần đã tự sửa reject context-overflow trong một run — cùng giới hạn với
   // compact để một prompt thật sự vượt trần emit lỗi thay vì loop.
   private rejectRetriesThisRun = 0
@@ -100,6 +103,11 @@ export class SessionRunner {
     let steps = 0
     this.compactedThisRun = 0
     this.rejectRetriesThisRun = 0
+    this.compaction = resolveCompactionSettings(
+      this.deps.compaction ?? { auto: false, tailTurns: 2 },
+      this.deps.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
+      this.deps.maxOutputTokens ?? 0
+    )
     const runUsage = { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0 }
     while (true) {
       if (signal?.aborted) {
@@ -374,7 +382,8 @@ export class SessionRunner {
   // LLM compaction that summarizes the older head and keeps the recent tail
   // verbatim.
   async compactIfOverThreshold(signal?: AbortSignal): Promise<void> {
-    const { compaction, maxContextTokens, replaceItems } = this.deps
+    const compaction = this.compaction
+    const { maxContextTokens, replaceItems } = this.deps
     if (!compaction?.auto || !maxContextTokens || maxContextTokens <= 0 || !replaceItems) return
     const usable = this.compactionTarget(maxContextTokens, compaction.buffer, this.deps.maxOutputTokens)
     let items = this.deps.getItems()
@@ -413,7 +422,8 @@ export class SessionRunner {
    * retry luôn có transcript nhỏ hơn. No-op khi không thể làm gì.
    */
   private async forceCompact(signal?: AbortSignal): Promise<void> {
-    const { compaction, replaceItems } = this.deps
+    const compaction = this.compaction
+    const { replaceItems } = this.deps
     if (!compaction?.auto || !replaceItems) return
     const usable = this.compactionTarget(
       this.deps.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
@@ -428,7 +438,8 @@ export class SessionRunner {
 
   // Phần thân compaction thật, dùng chung cho cả ngưỡng lẫn force-compact.
   private async compact(signal?: AbortSignal): Promise<void> {
-    const { compaction, replaceItems } = this.deps
+    const compaction = this.compaction
+    const { replaceItems } = this.deps
     if (!compaction?.auto || !replaceItems) return
     const usable = this.compactionTarget(
       this.deps.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
@@ -501,8 +512,8 @@ export class SessionRunner {
   // lets a `read` or a test run actually be useful to the model.
   private toLlmOpts(): ToLlmOptions {
     return {
-      toolOutputMaxChars: this.deps.compaction?.toolOutputMaxChars,
-      keepFullTurns: this.deps.compaction?.tailTurns ?? DEFAULT_KEEP_FULL_TURNS,
+      toolOutputMaxChars: this.compaction?.toolOutputMaxChars,
+      keepFullTurns: this.compaction?.tailTurns ?? DEFAULT_KEEP_FULL_TURNS,
       ...this.truncationOpts()
     }
   }

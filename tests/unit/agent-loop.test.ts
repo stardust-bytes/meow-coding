@@ -1121,3 +1121,127 @@ describe('SessionRunner system prompt', () => {
     expect(h.llm.calls[0].system).toBe('fixed prompt')
   })
 })
+
+describe('SessionRunner compaction auto-resolve', () => {
+  function autoHarness(compaction: LoopDeps['compaction'], maxContextTokens: number, seedText: string) {
+    const replaced: TranscriptItem[][] = []
+    const h = makeHarness({
+      tools: new Map<string, ToolDefinition>(),
+      maxContextTokens,
+      maxOutputTokens: 0,
+      compaction,
+      replaceItems: (items) => replaced.push(items),
+      maxSteps: 1,
+      llm: {
+        async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
+          h.llm.calls.push(opts)
+          if (opts.tools.length === 0) {
+            // compaction call
+            yield { kind: 'text', text: '## Objective\n- compacted' }
+            yield { kind: 'finish' }
+          } else {
+            yield { kind: 'text', text: 'ok' }
+            yield { kind: 'finish' }
+          }
+        }
+      } as unknown as LlmClient
+    })
+    h.items.push({ kind: 'message', message: { id: 'old', role: 'user', text: seedText, createdAt: 1 } })
+    h.items.push({ kind: 'message', message: { id: 'recent', role: 'user', text: 'latest prompt', createdAt: 2 } })
+    h.runner.run()
+    return { h, replaced }
+  }
+
+  it('compacts using ratio-derived buffer when config omits it', async () => {
+    const { h, replaced } = autoHarness(
+      { auto: true, tailTurns: 2 }, // no buffer/keepTokens/toolOutputMaxChars
+      200,
+      'old '.repeat(5000)
+    )
+    await new Promise(r => setTimeout(r, 30))
+    expect(replaced.length).toBe(1)
+    expect(h.events.some(e => e.type === 'compacted')).toBe(true)
+  })
+
+  it('override buffer wins over the ratio', async () => {
+    // With buffer 100000 on a 200000 window, usable = 100000; a 120k-token
+    // transcript exceeds it. With the ratio (30k) usable would be 170k and
+    // compaction would NOT trigger — so this distinguishes override from auto.
+    const { h, replaced } = autoHarness(
+      { auto: true, tailTurns: 2, buffer: 100000 },
+      200000,
+      'x'.repeat(120000 * 4)
+    )
+    await new Promise(r => setTimeout(r, 30))
+    expect(replaced.length).toBe(1)
+    expect(h.events.some(e => e.type === 'compacted')).toBe(true)
+  })
+})
+
+describe('SessionRunner compaction auto-resolve (no false positives)', () => {
+  it('does not compact a small transcript when knobs are auto', async () => {
+    const replaced: TranscriptItem[][] = []
+    const h = makeHarness({
+      tools: new Map<string, ToolDefinition>(),
+      maxContextTokens: 200,
+      maxOutputTokens: 0,
+      compaction: { auto: true, tailTurns: 2 }, // no buffer/keepTokens/toolOutputMaxChars
+      replaceItems: (items) => replaced.push(items),
+      maxSteps: 1,
+      llm: {
+        async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
+          h.llm.calls.push(opts)
+          yield { kind: 'text', text: 'ok' }
+          yield { kind: 'finish' }
+        }
+      } as unknown as LlmClient
+    })
+    h.items.push({ kind: 'message', message: { id: 'u', role: 'user', text: 'hi', createdAt: 1 } })
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    // A tiny transcript is far below the auto-resolved threshold; without the
+    // resolver, undefined buffer makes usable NaN and compaction fires anyway.
+    expect(replaced.length).toBe(0)
+    expect(h.events.some(e => e.type === 'compacted')).toBe(false)
+  })
+})
+
+describe('SessionRunner compaction auto-resolve (tail preservation)', () => {
+  it('keeps recent turns in the tail via auto-resolved keepTokens', async () => {
+    const replaced: TranscriptItem[][] = []
+    const h = makeHarness({
+      tools: new Map<string, ToolDefinition>(),
+      maxContextTokens: 200,
+      maxOutputTokens: 0,
+      compaction: { auto: true, tailTurns: 2 }, // no keepTokens -> auto-resolved
+      replaceItems: (items) => replaced.push(items),
+      maxSteps: 1,
+      llm: {
+        async *stream(opts: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
+          h.llm.calls.push(opts)
+          if (opts.tools.length === 0) {
+            yield { kind: 'text', text: '## Objective\n- compacted' }
+            yield { kind: 'finish' }
+          } else {
+            yield { kind: 'text', text: 'ok' }
+            yield { kind: 'finish' }
+          }
+        }
+      } as unknown as LlmClient
+    })
+    h.items.push({ kind: 'message', message: { id: 'old', role: 'user', text: 'old '.repeat(5000), createdAt: 1 } })
+    h.items.push({ kind: 'message', message: { id: 't1', role: 'user', text: 'turn1', createdAt: 2 } })
+    h.items.push({ kind: 'message', message: { id: 't2', role: 'user', text: 'turn2', createdAt: 3 } })
+    h.items.push({ kind: 'message', message: { id: 't3', role: 'user', text: 'turn3', createdAt: 4 } })
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+
+    expect(replaced.length).toBe(1)
+    const texts = replaced[0].filter(i => i.kind === 'message').map(i => i.message.text)
+    // With auto-resolved keepTokens (>= 4000 floor, clamped to 100 here), the
+    // tail keeps both recent turns. Without the resolver, keepTokens is
+    // undefined and selectHeadTail keeps only the last turn -> 'turn2' is lost.
+    expect(texts).toContain('turn2')
+    expect(texts).toContain('turn3')
+  })
+})
