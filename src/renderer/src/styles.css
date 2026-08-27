@@ -170,7 +170,6 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 }
 .title-bar { animation: meow-rise 240ms ease-out both; }
 .sidebar { animation: meow-rise 280ms 60ms ease-out both; }
-.pane-grid { animation: meow-rise 300ms 120ms ease-out both; }
 .status-bar { animation: meow-rise 260ms 200ms ease-out both; }
 @keyframes meow-pane-in {
   from { opacity: 0; transform: translateY(4px); }
@@ -388,23 +387,33 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 select.input { width: 100%; }
 .row { display: flex; gap: 6px; }
 
-/* Grid & panes */
-.pane-grid {
-  flex: 1;
-  display: grid;
-  grid-auto-rows: 1fr;
-  gap: 8px;
-  padding: 8px;
-  min-width: 0;
-  min-height: 0;
-  background: radial-gradient(1200px 700px at 50% 0%, var(--bg-panel) 0%, var(--bg) 60%);
+/* Agent/terminal tab bar (was PaneGrid split-screen).
+   NOTE: class prefix `agent-tab-*` — do NOT reuse `.pane-tab` which is the
+   native agent Chat/Trace toggle inside PaneHeader. */
+.agent-tabs-view { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.agent-tab-bar {
+  display: flex; gap: 4px; align-items: center; padding: 6px 8px 0;
+  border-bottom: 1px solid var(--hairline); overflow-x: auto; flex: 0 0 auto;
 }
-.pane-grid.zoom-mode .pane { display: none; }
-.pane-grid.zoom-mode .pane.zoomed {
-  display: flex;
-  grid-column: 1 / -1;
-  grid-row: 1 / -1;
+.agent-tab {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
+  background: var(--bg-panel); border: 1px solid var(--hairline); border-bottom: none;
+  border-radius: var(--radius) var(--radius) 0 0; color: var(--text-dim);
+  font-size: var(--fs-sm); cursor: pointer; white-space: nowrap; user-select: none;
 }
+.agent-tab:hover { background: var(--bg-hover); color: var(--text); }
+.agent-tab.active {
+  background: var(--bg-active); color: var(--text-strong);
+  border-top: 2px solid var(--accent);
+}
+.agent-tab-name { font-weight: var(--fw-semibold); }
+.agent-tab-close {
+  appearance: none; border: none; background: transparent; color: var(--text-faint);
+  cursor: pointer; font: inherit; font-size: var(--fs-xs); padding: 0 2px; line-height: 1;
+}
+.agent-tab-close:hover { color: var(--red); }
+/* The active pane fills the remaining height below the tab bar. */
+.agent-tabs-view .pane { flex: 1; min-height: 0; }
 .pane {
   display: flex;
   flex-direction: column;
