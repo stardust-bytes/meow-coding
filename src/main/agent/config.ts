@@ -13,6 +13,8 @@ export interface MeowProviderConfig {
   keyRef?: string
   baseUrl?: string
   models: string[]
+  /** Provider type for API compatibility (e.g. 'deepseek', 'openai'). */
+  providerType?: string
 }
 
 export interface MeowAgentConfig {
@@ -64,6 +66,7 @@ export interface ResolvedAgentConfig {
   model: string
   apiKey: string | null
   baseUrl?: string
+  providerType?: string
   systemPrompt: string
 }
 
@@ -405,6 +408,7 @@ export function resolveAgentConfig(
     model,
     apiKey: resolveApiKey(provider, env, getSecret),
     baseUrl: provider.baseUrl,
+    providerType: provider.providerType,
     systemPrompt: agent.systemPrompt
   }
 }
@@ -416,7 +420,8 @@ export function configToSettings(cfg: MeowConfig): MeowSettings {
       apiKey: p.apiKey ?? '',
       keyRef: p.keyRef,
       baseUrl: p.baseUrl,
-      models: p.models
+      models: p.models,
+      providerType: p.providerType
     })),
     defaultProvider: cfg.model,
     agents: Object.entries(cfg.agents).map(([name, a]) => ({
@@ -451,6 +456,7 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
       keyRef: p.keyRef || undefined,
       baseUrl: p.baseUrl || undefined,
       models,
+      providerType: p.providerType || undefined,
       apiKeyEnv: p.apiKey || p.keyRef ? undefined : `${p.id.trim().toUpperCase()}_API_KEY`
     }
   }

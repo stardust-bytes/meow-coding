@@ -56,7 +56,7 @@ export interface MeowAgentManagerDeps {
   trace?: TraceStore
   onTrace?: (e: TraceEvent) => void
   tools: Map<string, ToolDefinition>
-  createLlm?: (provider: string, apiKey: string, baseUrl?: string, retry?: RetryOptions) => LlmClient
+  createLlm?: (provider: string, apiKey: string, baseUrl?: string, retry?: RetryOptions, providerType?: string) => LlmClient
   learnedLimits?: LearnedLimitsStore
   env?: NodeJS.ProcessEnv
   userSkillsDir?: string
@@ -670,7 +670,7 @@ export class MeowAgentManager {
     return this.deps.catalog.list()
   }
 
-  async connectProvider(providerId: string, apiKey: string, baseUrl?: string, models?: string[]): Promise<MeowSettings> {
+  async connectProvider(providerId: string, apiKey: string, baseUrl?: string, models?: string[], providerType?: string): Promise<MeowSettings> {
     const catalog = await this.deps.catalog?.fetch() ?? {}
     const catalogModels = catalog[providerId]?.models ?? []
     const settings = this.getSettings()
@@ -725,7 +725,7 @@ export class MeowAgentManager {
     }
     const nextProviders = [
       ...settings.providers.filter(p => p.id !== providerId),
-      { id: providerId, apiKey: plainKey, keyRef, baseUrl: base, models: finalModels }
+      { id: providerId, apiKey: plainKey, keyRef, baseUrl: base, models: finalModels, providerType }
     ]
     const defaultProvider = settings.providers.some(p => p.id === settings.defaultProvider)
       ? settings.defaultProvider
@@ -980,18 +980,17 @@ export class MeowAgentManager {
       resolved.baseUrl,
       {
         onReducedBudget: (realLimit) => this.learnedLimits.recordMaxTokensLimit(learnedKey, realLimit),
-        // Retry của main agent hiện dòng "Retrying…" trong chat (Claude CLI-style);
-        // subagent llm không gắn — retry của nó vẫn chạy, chỉ không surface.
         onRetry: ({ attempt, maxAttempts, delayMs }) =>
           this.emit({ type: 'retry', agentId: agent.id, attempt, maxAttempts, delayMs })
-      }
+      },
+      resolved.providerType
     )
     const resolveSubagent = (type: SubagentType): ResolvedSubagentModel | undefined => {
       const ref = cfg.subagentModels?.[type]
       if (!ref) return undefined
       const subResolved = this.resolveAgentConfig(cfg, agent.name, `${ref.provider}/${ref.model}`, ref.accountId)
       if (!subResolved.provider || !subResolved.model || !subResolved.apiKey) return undefined // fallback main
-      const subLlm = (this.deps.createLlm ?? createLlm)(subResolved.provider, subResolved.apiKey, subResolved.baseUrl)
+      const subLlm = (this.deps.createLlm ?? createLlm)(subResolved.provider, subResolved.apiKey, subResolved.baseUrl, undefined, subResolved.providerType)
       return { provider: subResolved.provider, model: subResolved.model, llm: subLlm }
     }
     // Subagents spend real tokens, so their usage is billed to the session too,

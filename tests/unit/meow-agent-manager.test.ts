@@ -1150,7 +1150,8 @@ describe('MeowAgentManager', () => {
         'codex',
         'local-account-scoped-key',
         'http://127.0.0.1:43123/v1',
-        expect.objectContaining({ onReducedBudget: expect.any(Function) })
+        expect.objectContaining({ onReducedBudget: expect.any(Function) }),
+        undefined
       )
       expect(createLlm.mock.calls.some(c => c[0] === 'codex' && c[1] === 'local-account-scoped-key')).toBe(true)
     } finally {

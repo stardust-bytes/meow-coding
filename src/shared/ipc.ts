@@ -196,7 +196,7 @@ export interface AgentApi {
   getProviderModels(): Promise<ModelRef[]>
   fetchProviderModels(providerId: string): Promise<string[]>
   listProviderCatalog(): Promise<CatalogProviderSummary[]>
-  connectProvider(providerId: string, apiKey: string, baseUrl?: string, models?: string[]): Promise<MeowSettings>
+  connectProvider(providerId: string, apiKey: string, baseUrl?: string, models?: string[], providerType?: string): Promise<MeowSettings>
   disconnectProvider(providerId: string): Promise<MeowSettings>
   listConnections(): Promise<ConnectionAccount[]>
   connectCodex(): Promise<ConnectionAccount>

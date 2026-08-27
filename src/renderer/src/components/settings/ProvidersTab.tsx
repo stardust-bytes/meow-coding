@@ -32,6 +32,7 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [models, setModels] = useState<string[]>([])
   const [manualModels, setManualModels] = useState('')
+  const [providerType, setProviderType] = useState('')
   const [status, setStatus] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -48,6 +49,7 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
     setApiKey('')
     setBaseUrl('')
     setManualModels('')
+    setProviderType('')
     setModal({ kind: 'catalog', id, name })
   }
 
@@ -56,6 +58,7 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
     setApiKey('')
     setBaseUrl('')
     setManualModels('')
+    setProviderType('')
     setModal({ kind: 'manual' })
   }
 
@@ -64,6 +67,7 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
     setApiKey('')
     setBaseUrl(p.baseUrl ?? '')
     setManualModels(p.models.join(', '))
+    setProviderType(p.providerType ?? '')
     setModal({ kind: 'edit', id: p.id, name: p.id })
   }
 
@@ -74,10 +78,11 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
     // Connect requires a key; edit keeps the current key when left blank.
     if (!isEdit && !apiKey.trim()) return
     const modelList = manualModels.split(/[\s,]+/).map(m => m.trim()).filter(Boolean)
+    const pType = providerType.trim() || undefined
     setStatus('')
     setSaving(true)
     try {
-      const result = await window.api.connectProvider(id, apiKey.trim(), baseUrl.trim() || undefined, modelList)
+      const result = await window.api.connectProvider(id, apiKey.trim(), baseUrl.trim() || undefined, modelList, pType)
       setModal(null)
       onPersisted(result)
       onChange({ providers: result.providers, defaultProvider: result.defaultProvider })
@@ -287,9 +292,22 @@ export default function ProvidersTab({ settings, catalog, onChange, onPersisted,
             disabled={saving}
             onChange={e => setManualModels(e.target.value)}
           />
+          <select
+            className="input provider-type"
+            value={providerType}
+            disabled={saving}
+            onChange={e => setProviderType(e.target.value)}
+          >
+            <option value="">Auto-detect (default)</option>
+            <option value="deepseek">DeepSeek (requires reasoning_content echo)</option>
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="google">Google</option>
+          </select>
           <p className="settings-hint">
             Leave models blank to auto-sync from the endpoint's <code>/models</code> (or models.dev).
             Typing models here overrides the synced list — this is how you add any OpenAI-compatible API.
+            Select a provider type if your API requires special handling (e.g. DeepSend reasoning_content).
           </p>
         </Modal>
       )}

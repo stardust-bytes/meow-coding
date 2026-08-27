@@ -145,12 +145,12 @@ export function createAnthropicLlm(apiKey: string): LlmClient {
   return createLlm('anthropic', apiKey)
 }
 
-export function createOpenAICompatibleLlm(opts: { apiKey: string; baseUrl?: string }): LlmClient {
-  return createLlm('openai', opts.apiKey, opts.baseUrl)
+export function createOpenAICompatibleLlm(opts: { apiKey: string; baseUrl?: string; providerType?: string }): LlmClient {
+  return createLlm('openai', opts.apiKey, opts.baseUrl, undefined, opts.providerType)
 }
 
-export function createLlm(provider: string, apiKey: string, baseUrl?: string, retry?: RetryOptions): LlmClient {
-  const isDeepSeek = provider === 'deepseek' || isDeepSeekEndpoint(baseUrl)
+export function createLlm(provider: string, apiKey: string, baseUrl?: string, retry?: RetryOptions, providerType?: string): LlmClient {
+  const isDeepSeek = provider === 'deepseek' || providerType === 'deepseek' || isDeepSeekEndpoint(baseUrl)
   const model = (modelId: string) => {
     if (provider === 'anthropic') {
       const anthropicClient = createAnthropic({

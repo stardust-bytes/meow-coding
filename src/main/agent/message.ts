@@ -6,7 +6,7 @@ import type { ToolDefinition, ToolSchema } from './tools/types'
 
 export type TranscriptItem = ChatTranscriptItem
 
-type AssistantPart = { type: 'text'; text: string } | { type: 'tool-call'; toolCallId: string; toolName: string; input: unknown }
+type AssistantPart = { type: 'text'; text: string } | { type: 'tool-call'; toolCallId: string; toolName: string; input: unknown } | { type: 'reasoning'; text: string; provider?: string }
 
 export interface ToLlmOptions {
   toolOutputMaxChars?: number
@@ -60,13 +60,18 @@ export function normalizeToolInput(input: unknown): Record<string, unknown> {
 
 export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): ModelMessage[] {
   const result: ModelMessage[] = []
-  let pendingAssistant: { text: string; calls: ToolCallData[] } | null = null
+  let pendingAssistant: { text: string; calls: ToolCallData[]; reasoning?: string } | null = null
   let pendingResults: ModelMessage[] = []
 
   const flush = () => {
     if (pendingAssistant) {
       const content: AssistantPart[] = []
       if (pendingAssistant.text) content.push({ type: 'text', text: pendingAssistant.text })
+      // DeepSeek and other reasoning models require echoing back reasoning_content
+      // in subsequent requests. Preserve it in the assistant message content.
+      if (pendingAssistant.reasoning) {
+        content.push({ type: 'reasoning', text: pendingAssistant.reasoning, provider: 'deepseek' })
+      }
       for (const call of pendingAssistant.calls) {
         content.push({
           type: 'tool-call',

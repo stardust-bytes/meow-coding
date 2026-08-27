@@ -276,6 +276,8 @@ export interface ProviderSettings {
   keyRef?: string
   baseUrl?: string
   models: string[]
+  /** Provider type for API compatibility (e.g. 'deepseek', 'openai'). Used to handle provider-specific requirements like reasoning_content echo. */
+  providerType?: string
 }
 
 export type PermissionRule = 'allow' | 'ask' | 'deny'
