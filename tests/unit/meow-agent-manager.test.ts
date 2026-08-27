@@ -400,6 +400,40 @@ describe('MeowAgentManager', () => {
     expect(result.call.error).toMatch(/TAVILY_API_KEY/)
   })
 
+  it('getPendingPrompt returns the in-flight permission prompt so a remounted panel can restore it', async () => {
+    const { manager, events } = await makeManager({
+      partsQueue: [
+        [
+          { kind: 'tool-call', toolCallId: 'tc1', toolName: 'websearch', toolInput: { query: 'meow' } },
+          { kind: 'finish' }
+        ],
+        [{ kind: 'text', text: 'ok' }, { kind: 'finish' }]
+      ]
+    })
+    manager.newSession('a1')
+    const sendPromise = manager.send('a1', 'search web')
+    // Wait for the permission prompt to be raised, then assert it's queryable.
+    await new Promise<void>(resolve => {
+      const t = setInterval(() => {
+        const p = events.find(e => e.type === 'prompt-request') as Extract<ChatEvent, { type: 'prompt-request' }> | undefined
+        if (p) {
+          clearInterval(t)
+          const info = manager.getPendingPrompt('a1')
+          expect(info).not.toBeNull()
+          expect(info!.promptId).toBe(p.promptId)
+          expect(info!.kind).toBe('permission')
+          expect(info!.call?.tool).toBe('websearch')
+          // Resolve so the turn can finish and the test doesn't hang.
+          manager.respondPrompt('a1', p.promptId, { allow: true } satisfies PromptResponse)
+          resolve()
+        }
+      }, 5)
+    })
+    await sendPromise
+    // After resolution the prompt is no longer pending.
+    expect(manager.getPendingPrompt('a1')).toBeNull()
+  })
+
   it('newSession creates a new empty session and keeps history', async () => {
     const { manager, store } = await makeManager()
     await manager.send('a1', 'x')
@@ -785,6 +819,23 @@ describe('MeowAgentManager', () => {
       const settings = await manager.connectProvider('deepseek', 'sk-new', 'https://custom.example')
       expect(settings.providers[0].apiKey).toBe('sk-new')
       expect(settings.providers[0].baseUrl).toBe('https://custom.example')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('connectProvider persists providerType on edit', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-ptype-'))
+    try {
+      const catalog = new ModelsCatalog(path.join(dir, 'models.json'), async () =>
+        ({ ok: true, json: async () => ({
+          myapi: { name: 'My API', api: 'https://api.example.com', models: { a: {} } }
+        }) }) as unknown as Response)
+      const { manager } = await makeManager({ configPath: path.join(dir, 'meow.json'), catalog })
+      await manager.connectProvider('myapi', 'sk-abc', 'https://api.example.com/v1', ['a'], 'openai')
+      // Re-open (edit) with a different providerType — must persist the new value.
+      const settings = await manager.connectProvider('myapi', '', 'https://api.example.com/v1', ['a'], 'anthropic')
+      expect(settings.providers.find(p => p.id === 'myapi')?.providerType).toBe('anthropic')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

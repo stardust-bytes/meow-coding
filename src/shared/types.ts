@@ -271,6 +271,20 @@ export interface PromptResponse {
   always?: boolean
 }
 
+/** Content of a prompt the agent is currently waiting on, so a remounted
+ *  chat panel can restore the popup instead of leaving the agent hanging. */
+export interface PendingPromptInfo {
+  promptId: string
+  kind: 'permission' | 'question'
+  call?: ToolCallData
+  question?: string
+  options?: QuestionOption[]
+  multiple?: boolean
+  custom?: boolean
+  taskId?: string
+  subagentType?: string
+}
+
 export interface ProviderSettings {
   id: string
   apiKey: string

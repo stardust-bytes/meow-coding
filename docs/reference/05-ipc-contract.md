@@ -108,6 +108,7 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `ChatListTranscript` | `chat:list-transcript` | `listChatTranscript(agentId): ChatTranscriptItem[]` |
 | `ChatGetTodos` | `chat:get-todos` | `getChatTodos(agentId): TodoItem[]` |
 | `ChatIsRunning` | `chat:is-running` | `isChatRunning(agentId): boolean` |
+| `ChatGetPendingPrompt` | `chat:get-pending-prompt` | `getPendingPrompt(agentId): PendingPromptInfo \| null` — returns the in-flight permission/question prompt so a remounted chat panel can restore it |
 | `ChatRespondPrompt` | `chat:respond-prompt` | `respondPrompt(agentId, promptId, resp: PromptResponse)` |
 | `ChatQueueRemove` / `ChatQueueEdit` | `chat:queue-remove` / `chat:queue-edit` | `removeQueued` / `editQueued` |
 | `SessionList` / `SessionCreate` / `SessionSwitch` / `SessionDelete` / `SessionRename` | `session:*` | `listSessions` / `createSession` / `switchSession` / `deleteSession` / `renameSession` |

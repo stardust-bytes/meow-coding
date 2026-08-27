@@ -71,7 +71,7 @@ Update-dialog policy: `update-available` and `downloaded` open the dialog; `erro
 | `PopupTitleBar.tsx` | Same for the FileViewer/GitViewer popups (drag region + Linux min/max/close) |
 | `Sidebar.tsx` | Workspace list, add/remove, templates, open in editor, Providers entry, theme toggle |
 | `StatusBar.tsx` | Workspace name, git branch, running count, app version |
-| `PaneGrid.tsx` | 1–2 column grid; click to zoom full window, `Esc` to exit |
+| `PaneTabs.tsx` | Tab-bar layout of agent/terminal panes; **all panes stay mounted** (inactive hidden via CSS) so background agents keep streaming/answering |
 | `Pane.tsx` | One agent: header + `ChatPanel` (native) or `XtermHost` (pty); background badge mode |
 | `PaneHeader.tsx` | Status dot, git info, menu (inject / log / stop / zoom / new session / background / delete) |
 | `XtermHost.tsx` | xterm.js host with `@xterm/addon-fit`; wires `onData` → `writeInput`, resize → `resizePty` |

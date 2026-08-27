@@ -141,7 +141,9 @@ Notable details:
 
 1. Resolve the decision: `allow` → run; `deny` → refuse with
    `tool "<name>" is not permitted in the current mode`; `ask` → emit `prompt-request`
-   (`kind: 'permission'`) and await the user's `PromptResponse`.
+   (`kind: 'permission'`) and await the user's `PromptResponse`. The pending prompt's content is
+   stored in the manager so a remounted chat panel (tab switch) can restore it via `getPendingPrompt`
+   instead of leaving the agent waiting forever.
 2. On denial the call is marked `permission: 'denied'` with an error string; it is still appended to
    the transcript so the model sees the refusal.
 3. On allow, build the `ToolContext`:

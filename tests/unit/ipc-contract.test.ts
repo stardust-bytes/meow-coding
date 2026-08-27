@@ -25,6 +25,7 @@ describe('IPC contract', () => {
       'listSessions', 'createSession', 'switchSession', 'deleteSession', 'renameSession',
       'getChatTodos',
       'isChatRunning',
+      'getPendingPrompt',
       'minimizeWindow', 'toggleMaximizeWindow', 'closeWindow', 'isWindowMaximized', 'setTitleBarTheme', 'onWindowMaximizedChange',
       'getBrowserStatus', 'pairBrowser', 'openBrowserInstallGuide', 'openBrowserExtensionFolder', 'openBrowserChromeExtensions',
       'getBrowserConsoleLogs', 'getBrowserNetworkLogs', 'onBrowserStatus', 'onBrowserOpenInstallGuide',
@@ -105,6 +106,7 @@ describe('IPC contract', () => {
       listChatTranscript: async () => [],
       getChatTodos: async () => [],
       isChatRunning: async () => false,
+      getPendingPrompt: async () => null,
       respondPrompt: async () => {},
       removeQueued: async () => {},
       editQueued: async () => {},
@@ -168,6 +170,7 @@ describe('IPC contract', () => {
     expect(Channels.ChatListMessages).toBe('chat:list-messages')
     expect(Channels.ChatListTranscript).toBe('chat:list-transcript')
     expect(Channels.ChatIsRunning).toBe('chat:is-running')
+    expect(Channels.ChatGetPendingPrompt).toBe('chat:get-pending-prompt')
     expect(Channels.ChatRespondPrompt).toBe('chat:respond-prompt')
     expect(Channels.ChatQueueRemove).toBe('chat:queue-remove')
     expect(Channels.ChatQueueEdit).toBe('chat:queue-edit')

@@ -2,7 +2,7 @@ import type {
   AgentConfig, AgentState, ArtifactEntry, CatalogProviderSummary, ChatEvent, ChatMessage, ChatTranscriptItem, Command,
   ConnectionAccount, ContextChangedEvent, ContextInfo, DirEntry, FileContentResult, FileSuggestion, FileViewerPayload,
   GitActionResult, GitBlameLine, GitBranch, GitCommit, GitDiffResult, GitStatus, GitStatusDetail,
-  ImageAttachment, LogLevel, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PromptResponse,
+  ImageAttachment, LogLevel, McpServerStatus, MeowSettings, ModelRef, NewAgentInput, PendingPromptInfo, PromptResponse,
   SessionSummary, StatsSummary, Template, TerminalInfo, TodoItem, TraceEvent, TraceSummary, UpdaterStatusEvent, WorkspaceRuntime, WorkspaceSummary
 } from './types'
 import type { BrowserStatusInfo, PairingInfo } from './browser-types'
@@ -79,6 +79,7 @@ export const Channels = {
   ChatListTranscript: 'chat:list-transcript',
   ChatGetTodos: 'chat:get-todos',
   ChatIsRunning: 'chat:is-running',
+  ChatGetPendingPrompt: 'chat:get-pending-prompt',
   ChatRespondPrompt: 'chat:respond-prompt',
   ChatQueueRemove: 'chat:queue-remove',
   ChatQueueEdit: 'chat:queue-edit',
@@ -234,6 +235,7 @@ export interface AgentApi {
   listChatTranscript(agentId: string): Promise<ChatTranscriptItem[]>
   getChatTodos(agentId: string): Promise<TodoItem[]>
   isChatRunning(agentId: string): Promise<boolean>
+  getPendingPrompt(agentId: string): Promise<PendingPromptInfo | null>
   respondPrompt(agentId: string, promptId: string, resp: PromptResponse): Promise<void>
   removeQueued(agentId: string, id: string): Promise<void>
   editQueued(agentId: string, id: string, text: string): Promise<void>

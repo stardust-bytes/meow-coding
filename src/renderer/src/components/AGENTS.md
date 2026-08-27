@@ -9,7 +9,7 @@ terminal/chat, sidebar, status bar, title bar, and dialogs. All data flows throu
 | File | Responsibility |
 |---|---|
 | `Pane.tsx` | A single agent pane: header + either `ChatPanel` (native agent) or `XtermHost` (PTY agent); background badge mode. |
-| `PaneTabs.tsx` | Tab-bar layout of agent/terminal panes; only the active tab renders; tracks active tab; shows a confirm dialog before closing a tab. |
+| `PaneTabs.tsx` | Tab-bar layout of agent/terminal panes; all panes stay mounted (inactive ones hidden via CSS) so background agents keep streaming/answering; tracks active tab; shows a confirm dialog before closing a tab. |
 | `PaneHeader.tsx` | Pane title bar: status dot, git info, menu (inject/log/stop/new-session/background/delete); shows a confirm dialog before deleting an agent / closing a terminal. |
 | `ConfirmDialog.tsx` | Reusable confirmation dialog (title, message, confirm/cancel, danger styling). |
 | `Sidebar.tsx` | Left sidebar: workspace list, add/remove, templates, open in editor. |

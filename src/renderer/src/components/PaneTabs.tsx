@@ -49,21 +49,21 @@ export default function PaneTabs({ panes, backgrounds, isTerminal, onRemove, onR
           </div>
         ))}
       </div>
-      {active ? (
-        <div className="agent-pane-container">
+      <div className="agent-pane-container">
+        {panes.map(pane => (
           <Pane
-            key={active.agent.id}
-            pane={active}
-            background={Boolean(backgrounds[active.agent.id])}
-            isTerminal={isTerminal(active.agent.id)}
-            active
-            onFocus={() => setActiveId(active.agent.id)}
-            onRemove={() => onRemove(active.agent.id)}
+            key={pane.agent.id}
+            pane={pane}
+            background={Boolean(backgrounds[pane.agent.id])}
+            isTerminal={isTerminal(pane.agent.id)}
+            active={pane.agent.id === active?.agent.id}
+            onFocus={() => setActiveId(pane.agent.id)}
+            onRemove={() => onRemove(pane.agent.id)}
             onRegisterTerminal={onRegisterTerminal}
             onUnregisterTerminal={onUnregisterTerminal}
           />
-        </div>
-      ) : null}
+        ))}
+      </div>
       {pendingClose && (() => {
         const pane = panes.find(p => p.agent.id === pendingClose)
         if (!pane) return null
