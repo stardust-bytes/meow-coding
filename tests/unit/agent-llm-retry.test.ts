@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { classifyLlmError, reduceBudgetForMaxTokensError, withRetry } from '../../src/main/agent/llm'
+import { abortableSleep, classifyLlmError, MAX_RETRY_AFTER_MS, reduceBudgetForMaxTokensError, withRetry } from '../../src/main/agent/llm'
 import type { LlmStreamPart } from '../../src/main/agent/llm'
 
 function parts(...p: LlmStreamPart[]) {
@@ -290,5 +290,105 @@ describe('withRetry', () => {
       onReducedBudget: (n) => realLimits.push(n)
     }))).rejects.toThrow('bad api key')
     expect(realLimits).toEqual([])
+  })
+
+  it('fires onRetry before each retry with the upcoming attempt and delay', async () => {
+    const retries: Array<{ attempt: number; maxAttempts: number; delayMs: number }> = []
+    const waited: number[] = []
+    let attempts = 0
+    const make = () => {
+      attempts++
+      return attempts === 1
+        ? parts({ kind: 'error', error: 'overloaded', retryable: true })()
+        : parts({ kind: 'finish' })()
+    }
+    await collect(withRetry(make, {
+      sleep: async (ms) => { waited.push(ms) },
+      maxAttempts: 3,
+      baseDelayMs: 500,
+      onRetry: (info) => retries.push(info)
+    }))
+    expect(retries).toEqual([{ attempt: 2, maxAttempts: 3, delayMs: 500 }])
+    expect(waited).toEqual([500])
+  })
+
+  it('caps a huge retry-after to MAX_RETRY_AFTER_MS', async () => {
+    const waited: number[] = []
+    const retries: Array<{ attempt: number; maxAttempts: number; delayMs: number }> = []
+    let attempts = 0
+    const make = () => {
+      attempts++
+      return attempts === 1
+        ? parts({ kind: 'error', error: 'slow down', retryable: true, retryAfterMs: 120000 })()
+        : parts({ kind: 'finish' })()
+    }
+    await collect(withRetry(make, {
+      sleep: async (ms) => { waited.push(ms) },
+      onRetry: (info) => retries.push(info)
+    }))
+    expect(waited).toEqual([MAX_RETRY_AFTER_MS])
+    expect(retries).toEqual([{ attempt: 2, maxAttempts: 3, delayMs: MAX_RETRY_AFTER_MS }])
+  })
+
+  it('does not fire onRetry for a budget-reduction retry (no delay)', async () => {
+    const retries: unknown[] = []
+    let attempts = 0
+    const make = (budget?: number) => {
+      attempts++
+      if (attempts === 1) {
+        throw Object.assign(
+          new Error('max_tokens (131072) exceeds model\'s maximum output tokens (65536) for model deepseek-v4-flash'),
+          { statusCode: 400 }
+        )
+      }
+      return parts({ kind: 'finish' })()
+    }
+    await collect(withRetry(make, {
+      sleep: noSleep,
+      reduceBudget: reduceBudgetForMaxTokensError,
+      onRetry: (info) => retries.push(info)
+    }))
+    expect(retries).toEqual([])
+  })
+
+  it('interrupts the retry backoff when the signal aborts mid-wait (default sleep)', async () => {
+    const controller = new AbortController()
+    let attempts = 0
+    const make = () => {
+      attempts++
+      return parts({ kind: 'error', error: 'overloaded', retryable: true })()
+    }
+    const start = Date.now()
+    const pending = collect(withRetry(make, { signal: controller.signal, baseDelayMs: 1000 }))
+    setTimeout(() => controller.abort(), 20)
+    const out = await pending
+    expect(Date.now() - start).toBeLessThan(500)
+    expect(attempts).toBe(2)
+    expect(out).toEqual([{ kind: 'error', error: 'overloaded', retryable: true }])
+  })
+})
+
+describe('abortableSleep', () => {
+  it('resolves promptly when the signal aborts mid-wait', async () => {
+    const controller = new AbortController()
+    const start = Date.now()
+    const pending = abortableSleep(1000, controller.signal)
+    setTimeout(() => controller.abort(), 20)
+    await pending
+    expect(Date.now() - start).toBeLessThan(200)
+  })
+
+  it('resolves immediately when the signal is already aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const start = Date.now()
+    await abortableSleep(1000, controller.signal)
+    expect(Date.now() - start).toBeLessThan(50)
+  })
+
+  it('waits the full duration without a signal', async () => {
+    const start = Date.now()
+    await abortableSleep(30)
+    expect(Date.now() - start).toBeGreaterThanOrEqual(25)
   })
 })

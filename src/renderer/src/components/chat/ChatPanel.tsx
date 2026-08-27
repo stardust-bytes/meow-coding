@@ -18,6 +18,7 @@ type FeedItem =
   | { kind: 'tool'; id: string; call: ToolCallData }
   | { kind: 'error'; id: string; text: string }
   | { kind: 'compaction'; id: string; running?: boolean; failed?: boolean }
+  | { kind: 'retry'; id: string; attempt: number; maxAttempts: number; delayMs: number }
   | { kind: 'subagent'; taskId: string; subagentType?: string; text: string; reasoning?: string; result?: string; background?: boolean; tools: string[]; state: 'running' | 'completed' | 'cancelled' | 'error' }
 
 interface PendingPrompt {
@@ -147,6 +148,9 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   // UI thread on every token and make typing in the input lag.
   const deltaBufRef = useRef<{ text: string; reasoning: string }>({ text: '', reasoning: '' })
   const rafRef = useRef<number | null>(null)
+  // Id của dòng "Retrying…" đang hiển thị; null = không có dòng nào. Upsert giữ
+  // một dòng duy nhất, xóa khi attempt thật sự sinh output hoặc turn kết thúc.
+  const retryIdRef = useRef<string | null>(null)
 
   const refreshVariants = useCallback(() => {
     void window.api.getAgentVariants(agentId).then(list => {
@@ -313,6 +317,12 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
 
   const applyEvent = useCallback((e: ChatEvent) => {
     if (e.agentId !== agentId) return
+    // Retry đã kết thúc (attempt sinh output hoặc turn chết) → bỏ dòng tạm.
+    const clearRetry = () => {
+      if (retryIdRef.current == null) return
+      retryIdRef.current = null
+      setItems(prev => prev.filter(i => i.kind !== 'retry'))
+    }
     if (e.type === 'subagent-event') {
       setItems(prev => {
         const idx = prev.findIndex(i => i.kind === 'subagent' && i.taskId === e.taskId)
@@ -356,6 +366,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
       return
     }
     if (e.type === 'user-message') {
+      clearRetry()
       scroll.replaceActiveAnchorId(e.message.id)
       setItems(prev => {
         // The desktop UI adds user rows optimistically (local send, 'u-' ids)
@@ -410,6 +421,24 @@ if (e.type === 'usage') {
       })
       return
     }
+    if (e.type === 'retry') {
+      // Upsert một dòng duy nhất: retry liên tiếp chỉ cập nhật số attempt.
+      const id = retryIdRef.current ?? 'r-' + Date.now()
+      retryIdRef.current = id
+      setItems(prev => {
+        const idx = prev.findIndex(i => i.kind === 'retry' && i.id === id)
+        const row: FeedItem & { kind: 'retry' } = {
+          kind: 'retry', id, attempt: e.attempt, maxAttempts: e.maxAttempts, delayMs: e.delayMs
+        }
+        if (idx >= 0) {
+          const next = [...prev]
+          next[idx] = row
+          return next
+        }
+        return [...prev, row]
+      })
+      return
+    }
     if (e.type === 'message-removed') {
       setItems(prev => prev.filter(i =>
         !(i.kind === 'message' && (i.id === e.messageId || i.id === 'u-' + e.messageId))
@@ -417,6 +446,7 @@ if (e.type === 'usage') {
       return
     }
     if (e.type === 'done' || e.type === 'error') {
+      clearRetry()
       flushDeltas()
       setRunning(false)
       setPendingPrompt(null)
@@ -437,6 +467,7 @@ if (e.type === 'usage') {
       return
     }
     if (e.type === 'turn-started') {
+      clearRetry()
       setRunning(true)
       return
     }
@@ -458,6 +489,7 @@ if (e.type === 'usage') {
       return
     }
     if (e.type === 'text-delta' || e.type === 'reasoning-delta') {
+      clearRetry()
       const buf = deltaBufRef.current
       if (e.type === 'text-delta') buf.text += e.delta
       else buf.reasoning += e.delta
@@ -469,6 +501,7 @@ if (e.type === 'usage') {
       }
       return
     }
+    clearRetry()
     setItems(prev => {
       const next = [...prev]
       if (e.type === 'tool-start') {
@@ -759,6 +792,13 @@ if (e.type === 'usage') {
             return (
               <div key={item.id} className={`chat-compacted ${item.failed ? 'failed' : ''} ${item.running ? 'running' : ''}`}>
                 {item.running ? 'Compacting context…' : (item.failed ? 'Context compaction failed' : 'Context compacted')}
+              </div>
+            )
+          }
+          if (item.kind === 'retry') {
+            return (
+              <div key={item.id} className="chat-retry">
+                Retrying in {Math.max(1, Math.ceil(item.delayMs / 1000))}s… (attempt {item.attempt}/{item.maxAttempts})
               </div>
             )
           }

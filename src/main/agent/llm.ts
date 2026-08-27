@@ -319,10 +319,36 @@ export interface RetryOptions {
   sleep?: (ms: number) => Promise<void>
   /** Provider đã đích danh output cap thật khi reject max_tokens — ghi lại để turn sau khỏi lỗi lại. */
   onReducedBudget?: (realLimit: number) => void
+  /** Sắp retry sau delayMs — attempt là số attempt sắp chạy (1-based). */
+  onRetry?: (info: { attempt: number; maxAttempts: number; delayMs: number }) => void
 }
 
 const DEFAULT_MAX_ATTEMPTS = 3
 const DEFAULT_BASE_DELAY_MS = 1000
+// Trần cho Retry-After của provider: một header to (60-300s) không được phép
+// đóng băng turn im lặng từng đó giây — retry tối đa sau 60s rồi bỏ cuộc.
+export const MAX_RETRY_AFTER_MS = 60_000
+
+/**
+ * Sleep có thể bị cắt ngang bởi abort: user bấm Stop giữa backoff/Retry-After
+ * thì turn phải dừng ngay, không ngủ nốt phần còn lại. Không có signal → chờ
+ * đủ ms như setTimeout thường.
+ */
+export function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) return new Promise<void>(r => setTimeout(r, ms))
+  return new Promise<void>(resolve => {
+    if (signal.aborted) return resolve()
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = (): void => {
+      clearTimeout(timer)
+      resolve()
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+}
 
 /**
  * Re-runs a stream that failed before producing anything. A 429 or a dropped
@@ -342,7 +368,16 @@ export async function* withRetry(
 ): AsyncGenerator<LlmStreamPart> {
   const maxAttempts = opts.maxAttempts ?? DEFAULT_MAX_ATTEMPTS
   const baseDelayMs = opts.baseDelayMs ?? DEFAULT_BASE_DELAY_MS
-  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>(r => setTimeout(r, ms)))
+  const sleep = opts.sleep ?? ((ms: number) => abortableSleep(ms, opts.signal))
+  // Delay thật sắp ngủ: Retry-After của provider (nếu có) hoặc backoff nhân
+  // đôi, luôn bị chặn ở MAX_RETRY_AFTER_MS.
+  const retryDelay = (after: number | undefined, attempt: number): number =>
+    Math.min(after ?? backoff(baseDelayMs, attempt), MAX_RETRY_AFTER_MS)
+  const scheduleRetry = (after: number | undefined, attempt: number): Promise<void> => {
+    const delayMs = retryDelay(after, attempt)
+    opts.onRetry?.({ attempt: attempt + 1, maxAttempts, delayMs })
+    return sleep(delayMs)
+  }
 
   let budget: number | undefined
   for (let attempt = 1; ; attempt++) {
@@ -362,7 +397,7 @@ export async function* withRetry(
       const { retryable, retryAfterMs: after } = classifyLlmError(err)
       if (retryable) {
         if (!canRetry(retryable, attempt, maxAttempts, opts.signal)) throw err
-        await sleep(after ?? backoff(baseDelayMs, attempt))
+        await scheduleRetry(after, attempt)
         continue
       }
       const reduced = opts.reduceBudget?.(err)
@@ -377,7 +412,7 @@ export async function* withRetry(
     if (!failure) return
     if (failure.retryable === true) {
       if (!canRetry(true, attempt, maxAttempts, opts.signal)) { yield failure; return }
-      await sleep(failure.retryAfterMs ?? backoff(baseDelayMs, attempt))
+      await scheduleRetry(failure.retryAfterMs, attempt)
       continue
     }
     const reduced = opts.reduceBudget?.(failure.error)

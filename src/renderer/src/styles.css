@@ -783,6 +783,14 @@ select.input { width: 100%; }
 .chat-compacted.failed::before, .chat-compacted.failed::after { background: rgba(255, 95, 86, 0.35); }
 .chat-compacted.running { color: var(--accent); }
 .chat-compacted.running::before, .chat-compacted.running::after { background: var(--accent-border); }
+.chat-retry {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--font-mono); font-size: var(--fs-xs);
+  color: var(--accent); user-select: none; margin: 4px 0;
+}
+.chat-retry::before, .chat-retry::after {
+  content: ""; flex: 1; height: 1px; background: var(--accent-border);
+}
 .chat-msg.user { align-items: flex-end; }
 .chat-msg.assistant { align-items: flex-start; }
 .chat-text {

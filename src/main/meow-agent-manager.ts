@@ -967,7 +967,13 @@ export class MeowAgentManager {
       resolved.provider,
       resolved.apiKey ?? '',
       resolved.baseUrl,
-      { onReducedBudget: (realLimit) => this.learnedLimits.recordMaxTokensLimit(learnedKey, realLimit) }
+      {
+        onReducedBudget: (realLimit) => this.learnedLimits.recordMaxTokensLimit(learnedKey, realLimit),
+        // Retry của main agent hiện dòng "Retrying…" trong chat (Claude CLI-style);
+        // subagent llm không gắn — retry của nó vẫn chạy, chỉ không surface.
+        onRetry: ({ attempt, maxAttempts, delayMs }) =>
+          this.emit({ type: 'retry', agentId: agent.id, attempt, maxAttempts, delayMs })
+      }
     )
     const resolveSubagent = (type: SubagentType): ResolvedSubagentModel | undefined => {
       const ref = cfg.subagentModels?.[type]
