@@ -9,8 +9,8 @@ terminal/chat, sidebar, status bar, title bar, and dialogs. All data flows throu
 | File | Responsibility |
 |---|---|
 | `Pane.tsx` | A single agent pane: header + either `ChatPanel` (native agent) or `XtermHost` (PTY agent); background badge mode. |
-| `PaneGrid.tsx` | Grid layout of panes (1 or 2 columns), zoom/focus state. |
-| `PaneHeader.tsx` | Pane title bar: status dot, git info, menu (inject/log/stop/zoom/new-session/background/delete). |
+| `PaneTabs.tsx` | Tab-bar layout of agent/terminal panes; only the active tab renders; tracks active tab. |
+| `PaneHeader.tsx` | Pane title bar: status dot, git info, menu (inject/log/stop/new-session/background/delete). |
 | `Sidebar.tsx` | Left sidebar: workspace list, add/remove, templates, open in editor. |
 | `StatusBar.tsx` | Bottom bar: workspace name, git branch, running count, app version (via IPC). |
 | `TitleBar.tsx` | Custom window chrome (min/max/close) for frameless platforms. |
