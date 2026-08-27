@@ -52,6 +52,7 @@ export interface MeowConfig {
   subagentMaxSteps: number
   compaction: MeowCompactionConfig
   toolOutput: ToolOutputConfig
+  mcpOutput?: { maxTokens?: number }
   lsp: LspConfig
   notifications?: NotificationsConfig
   trace?: TraceConfig
@@ -114,6 +115,8 @@ export const DEFAULT_TOOL_OUTPUT: ToolOutputConfig = {
   maxBytes: 51200,
   maxLines: 2000
 }
+/** Default cap for MCP tool output entering context when mcpOutput.maxTokens is unset. */
+export const DEFAULT_MCP_OUTPUT_TOKENS = 25000
 export const DEFAULT_LSP: LspConfig = {
   enabled: true,
   diagnosticsTimeoutMs: 3000
@@ -228,6 +231,14 @@ function normalizeToolOutput(raw: Partial<ToolOutputConfig> | undefined): ToolOu
   }
 }
 
+function normalizeMcpOutput(raw: { maxTokens?: number } | undefined): { maxTokens?: number } | undefined {
+  if (!raw) return undefined
+  const maxTokens = typeof raw.maxTokens === 'number' && Number.isFinite(raw.maxTokens) && raw.maxTokens > 0
+    ? raw.maxTokens
+    : undefined
+  return maxTokens === undefined ? undefined : { maxTokens }
+}
+
 function normalizeTrace(raw: Partial<TraceConfig> | undefined): TraceConfig {
   return {
     enabled: raw?.enabled ?? DEFAULT_TRACE.enabled
@@ -311,6 +322,7 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     subagentMaxSteps: raw.subagentMaxSteps ?? DEFAULT_SUBAGENT_MAX_STEPS,
     compaction: normalizeCompaction(raw.compaction),
     toolOutput: normalizeToolOutput(raw.toolOutput),
+    mcpOutput: normalizeMcpOutput(raw.mcpOutput),
     lsp: normalizeLsp(raw.lsp),
     notifications: normalizeNotifications(raw.notifications),
     trace: normalizeTrace(raw.trace),
@@ -421,6 +433,7 @@ export function configToSettings(cfg: MeowConfig): MeowSettings {
     maxSteps: cfg.maxSteps,
     compaction: cfg.compaction,
     toolOutput: cfg.toolOutput,
+    mcpOutput: cfg.mcpOutput,
     lsp: cfg.lsp,
     notifications: cfg.notifications ? normalizeNotifications(cfg.notifications) : DEFAULT_NOTIFICATIONS,
     trace: normalizeTrace(cfg.trace),
@@ -466,6 +479,7 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
     subagentMaxSteps: base.subagentMaxSteps ?? DEFAULT_SUBAGENT_MAX_STEPS,
     compaction: settings.compaction ? normalizeCompaction(settings.compaction) : normalizeCompaction(base.compaction),
     toolOutput: settings.toolOutput ? normalizeToolOutput(settings.toolOutput) : normalizeToolOutput(base.toolOutput),
+    mcpOutput: normalizeMcpOutput(settings.mcpOutput ?? base.mcpOutput),
     lsp: settings.lsp ? normalizeLsp(settings.lsp) : normalizeLsp(base.lsp),
     notifications: settings.notifications
       ? normalizeNotifications(settings.notifications)

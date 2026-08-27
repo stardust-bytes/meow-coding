@@ -328,6 +328,8 @@ export interface MeowSettings {
   maxSteps: number
   compaction: CompactionSettings
   toolOutput: ToolOutputSettings
+  /** Cap on MCP tool output entering context; unset = DEFAULT_MCP_OUTPUT_TOKENS. */
+  mcpOutput?: { maxTokens?: number }
   lsp: LspSettings
   notifications?: NotificationsSettings
   trace?: { enabled: boolean }

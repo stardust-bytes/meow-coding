@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import {
   DEFAULT_COMPACTION,
+  DEFAULT_MCP_OUTPUT_TOKENS,
   DEFAULT_MEOW_CONFIG,
   MAX_OUTPUT_HARD_CAP,
   configToSettings,
@@ -560,5 +561,34 @@ describe('normalizeCompaction optional fields', () => {
     expect(DEFAULT_COMPACTION.auto).toBe(true)
     expect(DEFAULT_COMPACTION.tailTurns).toBe(2)
     expect(DEFAULT_COMPACTION.prune).toBe(true)
+  })
+})
+
+describe('mcpOutput config', () => {
+  it('defaults to undefined (auto → DEFAULT_MCP_OUTPUT_TOKENS at call site)', () => {
+    const cfg = loadMeowConfig(file)
+    expect(cfg.mcpOutput).toBeUndefined()
+    expect(DEFAULT_MCP_OUTPUT_TOKENS).toBe(25000)
+  })
+
+  it('preserves an explicit maxTokens override through loadMeowConfig', () => {
+    writeFileSync(file, JSON.stringify({ mcpOutput: { maxTokens: 50000 } }))
+    const cfg = loadMeowConfig(file)
+    expect(cfg.mcpOutput?.maxTokens).toBe(50000)
+  })
+
+  it('drops a non-number maxTokens', () => {
+    writeFileSync(file, JSON.stringify({ mcpOutput: { maxTokens: 'nope' } }))
+    const cfg = loadMeowConfig(file)
+    expect(cfg.mcpOutput?.maxTokens).toBeUndefined()
+  })
+
+  it('roundtrips through configToSettings → settingsToConfig', () => {
+    writeFileSync(file, JSON.stringify({ mcpOutput: { maxTokens: 60000 } }))
+    const cfg = loadMeowConfig(file)
+    const settings = configToSettings(cfg)
+    expect(settings.mcpOutput?.maxTokens).toBe(60000)
+    const back = settingsToConfig(settings)
+    expect(back.mcpOutput?.maxTokens).toBe(60000)
   })
 })
