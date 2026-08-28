@@ -85,6 +85,7 @@ async function makeManager(opts: StubLlmOptions & {
   const events: ChatEvent[] = []
   const llmCalls: string[][] = []
   const llmSystems: string[] = []
+  const llmMessages: Array<{ role: string; content: unknown }>[] = []
   const llmVariants: Array<Record<string, unknown> | undefined> = []
   const llmModels: string[] = []
   const hangState = { resolved: 0 }
@@ -94,6 +95,7 @@ async function makeManager(opts: StubLlmOptions & {
       async *stream(request: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
         llmCalls.push((request.tools ?? []).map(t => t.name))
         llmSystems.push(request.system)
+        llmMessages.push(request.messages as { role: string; content: unknown }[])
         llmVariants.push(request.variantOptions)
         llmModels.push(request.model)
         if (opts.hangUntilAbort) {
@@ -140,7 +142,7 @@ async function makeManager(opts: StubLlmOptions & {
   })
   manager.setOnEvent(e => events.push(e))
   await manager.init([{ ...MEOW_AGENT }, { ...PTY_AGENT }])
-  return { manager, store, events, createLlm, savedPermissions, llmCalls, llmSystems, llmVariants, llmModels, hangState }
+  return { manager, store, events, createLlm, savedPermissions, llmCalls, llmSystems, llmMessages, llmVariants, llmModels, hangState }
 }
 
 describe('MeowAgentManager', () => {
@@ -701,6 +703,27 @@ describe('MeowAgentManager', () => {
     expect(llmSystems[0]).not.toMatch(/PLAN MODE/)
     await manager.send('a1', 'second')
     expect(llmSystems[1]).toMatch(/PLAN MODE/)
+  })
+
+  it('builds a structured harness system prompt with labeled sections', async () => {
+    const { manager, llmSystems } = await makeManager({
+      partsQueue: [[{ kind: 'text', text: 'hi' }, { kind: 'finish' }]]
+    })
+    await manager.send('a1', 'hi')
+    expect(llmSystems[0]).toMatch(/# Identity & how to work/)
+    expect(llmSystems[0]).toMatch(/# Memory/)
+    expect(llmSystems[0]).toMatch(/Precedence: project instructions/)
+  })
+
+  it('injects a turn-start <system-reminder> with the environment into the messages', async () => {
+    const { manager, llmMessages } = await makeManager({
+      partsQueue: [[{ kind: 'text', text: 'hi' }, { kind: 'finish' }]]
+    })
+    await manager.send('a1', 'hi')
+    const first = llmMessages[0]?.[0] as { role?: string; content?: unknown } | undefined
+    expect(first?.role).toBe('user')
+    expect(String(first?.content ?? '')).toContain('<system-reminder>')
+    expect(String(first?.content ?? '')).toContain('Environment:')
   })
 
   it('setVariant passes a clamped variant descriptor to the llm stream', async () => {

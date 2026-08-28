@@ -26,6 +26,9 @@ import { McpManager } from './agent/mcp/manager'
 import { collectSkills, skillListText } from './agent/skill'
 import { loadUserTools } from './agent/plugin'
 import { instructionsText, loadInstructions } from './agent/instructions'
+import { snapshotEnvironment } from './agent/env'
+import { loadMemoryIndex, memoryDir, memoryRulesText } from './agent/memory'
+import { buildSystemPrompt, buildTurnReminder } from './agent/prompt'
 import { referenceHints } from './agent/references'
 import { suggestFiles } from './file-suggest'
 import { SnapshotStore } from './agent/snapshot'
@@ -1126,6 +1129,8 @@ export class MeowAgentManager {
         'write/edit/apply-patch/revert/git/todowrite tools are unavailable, and do NOT use the bash tool ' +
         'to modify the filesystem either. Produce a plan or analysis instead.'
       : ''
+    const memoryEnabled = cfg.agents[agent.name]?.memory !== false
+    const agentMemoryDir = memoryEnabled ? memoryDir(agent.cwd) : undefined
     const isCodex = resolved.provider === 'codex' && Boolean(agent.accountId)
     const modelKey = `${resolved.provider}/${resolved.model}`
     const variantOptions = isCodex
@@ -1148,11 +1153,25 @@ export class MeowAgentManager {
       // Rebuilt per turn so a skill added or an AGENTS.md edited mid-session
       // takes effect without a reload. `instructions`/`skills` above are still
       // used for the registration-time systemInstructionPaths set.
-      system: () => resolved.systemPrompt + modeNote +
-        instructionsText(loadInstructions(agent.cwd)) +
-        skillListText(collectSkills(agent.cwd, this.deps.userSkillsDir, this.deps.builtinSkillsDir)),
+      system: () => buildSystemPrompt({
+        baseSystemPrompt: resolved.systemPrompt,
+        modeNote,
+        instructionText: instructionsText(loadInstructions(agent.cwd)),
+        skillsText: skillListText(collectSkills(agent.cwd, this.deps.userSkillsDir, this.deps.builtinSkillsDir)),
+        memoryRules: memoryEnabled ? memoryRulesText(agent.cwd) : ''
+      }),
       systemInstructionPaths: new Set(instructionFiles.map(f => f.path)),
       cwd: agent.cwd,
+      turnContext: async () => {
+        const [env, memory] = await Promise.all([
+          snapshotEnvironment(agent.cwd),
+          memoryEnabled
+            ? loadMemoryIndex(agent.cwd)
+            : Promise.resolve({ path: memoryDir(agent.cwd), lines: [] as string[], truncated: false })
+        ])
+        return buildTurnReminder(env, memory)
+      },
+      memoryDir: agentMemoryDir,
       llm: llmClient,
       tools: runnerTools,
       decidePermission: (tool, input) => decidePermission(
