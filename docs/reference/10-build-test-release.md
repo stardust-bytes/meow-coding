@@ -195,7 +195,9 @@ build (matrix: windows-latest→win, macos-latest→mac, ubuntu-latest→linux)
     ▼
 publish (ubuntu-latest, on tags)
   download all artifacts (merge-multiple)
-  softprops/action-gh-release@v2 → GitHub Release
+  read docs/changelogs/changelog-<version>.md (strips the leading "v" from the
+    tag to locate the file; falls back to a generic body when the file is missing)
+  softprops/action-gh-release@v2 → GitHub Release (body = the changelog)
 ```
 
 `fail-fast: false` on the matrix, so one platform failing still produces the others.

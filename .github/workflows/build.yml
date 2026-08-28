@@ -96,7 +96,25 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
+      - name: Read changelog for this tag
+        id: changelog
+        shell: bash
+        # github.ref_name is a tag like "v0.28.1" → strip the leading "v" and
+        # read docs/changelogs/changelog-<version>.md. Fall back to a generic
+        # body when the file is missing (e.g. a detached/pre-release tag).
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          file="docs/changelogs/changelog-${version}.md"
+          if [[ -f "$file" ]]; then
+            echo "changelog<<CHANGELOG_EOF" >> "$GITHUB_OUTPUT"
+            cat "$file" >> "$GITHUB_OUTPUT"
+            echo "" >> "$GITHUB_OUTPUT"
+            echo "CHANGELOG_EOF" >> "$GITHUB_OUTPUT"
+          else
+            echo "changelog=Changelog not found (${file})" >> "$GITHUB_OUTPUT"
+          fi
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
+          body: ${{ steps.changelog.outputs.changelog }}
           files: artifacts/**/*
