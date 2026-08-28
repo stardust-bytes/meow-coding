@@ -97,9 +97,16 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
     setSaveState('saving')
     try {
       const result = await window.api.saveSettings(current)
-      draftRef.current = result
-      lastPersistedRef.current = JSON.stringify(result)
-      setDraft(result)
+      // Only adopt the normalized result if the draft hasn't moved on while
+      // the save was in flight. saveSettings can be slow (it reloads agents /
+      // reconnects MCP), so overwriting unconditionally would silently drop
+      // edits made during the save — the pending save below would then persist
+      // the stale value.
+      if (draftRef.current === current) {
+        draftRef.current = result
+        lastPersistedRef.current = JSON.stringify(result)
+        setDraft(result)
+      }
       setMcpStatus(await window.api.getMcpStatus())
       setSaveState('saved')
     } catch (err) {

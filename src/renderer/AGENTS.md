@@ -10,7 +10,10 @@ React renderer (no direct Node/Electron access).
 - `src/App.tsx` — state hub: workspaces, templates, open runtimes; defines `PaneModel`
   (agent + state + git) for each pane; owns the active pane tab per project path
   (`activeTabByPath`, persisted to localStorage `meow.activeTabByPath`) so switching
-  workspaces restores the previously active tab.
+  workspaces restores the previously active tab. Also tracks `needsInput`
+  (project path → agent ids waiting on a permission/question prompt, for the sidebar
+  badges) and handles `onActivateAgent` (OS notification click) by opening the target
+  workspace and activating the waiting agent's tab.
 - `src/components/` — `Sidebar`, `PaneTabs`, `Pane`, `PaneHeader`, `XtermHost`, `EmptyState`,
   `StatusBar`, `TitleBar`, `BackgroundPanel`, `AddProjectDialog`, `AddAgentDialog`, `UpdateDialog`,
   `BrowserDialog`, `InstallGuideDialog`, `chat/`, `settings/`.

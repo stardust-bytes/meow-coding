@@ -10,7 +10,10 @@ handlers and the app lifecycle.
 - `meow-agent-manager.ts` — `MeowAgentManager`: orchestrates the agent chat loop, sessions, commands,
   permissions, subagents, MCP/user tools, stats, settings. The only place that orchestrates the native agent.
   In-flight permission/question prompts are stored (with their content) so a remounted chat panel can restore
-  them via `getPendingPrompt` instead of leaving the agent waiting forever.
+  them via `getPendingPrompt` instead of leaving the agent waiting forever. Emits `onPromptStateChange`
+  (agent started/stopped waiting on input) and exposes `listPendingPrompts()` for the sidebar "needs input"
+  badges; notification clicks call `onActivateAgent(agentId)` so the renderer can jump to the agent's
+  project + tab.
 - `pty-manager.ts` — node-pty wrapper, emits `data`/`exit` events. `buildSpawnCommand` wraps non-`.exe`
   commands through `cmd.exe` on Windows (ConPTY cannot spawn `.cmd` shims directly). Uses `tree-kill`
   to kill the entire process tree on stop.
@@ -22,7 +25,10 @@ handlers and the app lifecycle.
 - `system-logger.ts` — appends app-wide logs (main/render/agent, INFO/WARN/ERROR) to `userData/logs/<YYYY-MM-DD>-log.txt`, prunes files older than 7 days on startup.
 - `git-status-service.ts` — `git status --porcelain=v2 -b` (5s timeout), parses branch + dirty count.
 - `alert-service.ts` — emits `idle` after a threshold (default 5 minutes) and `exit` (based on exit code).
-- `notification-service.ts` — native Electron `Notification` for events that need input/done.
+- `notification-service.ts` — native Electron `Notification` for events that need input/done. Throttles
+  per (agent × `kind`) — a fresh "needs input" is never suppressed by a recent "done" for the same agent.
+  The "Input needed" notification click is wired in `index.ts` (`onActivateAgent`) to focus the window and
+  send `Channels.EventActivateAgent` so the renderer navigates to the waiting agent's project + tab.
 - `file-suggest.ts` — file suggestions for `@`-mentions (deep search across the entire project tree, ignores
   node_modules/.git/out/dist).
 - `file-watcher.ts` — recursively watches the project, filters text files, batches changes (debounce 500ms).

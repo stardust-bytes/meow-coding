@@ -77,6 +77,8 @@ export interface MeowAgentManagerDeps {
   lsp?: LspManager
   notify?: NotificationService
   onActivateAgent?: (agentId: string) => void
+  /** Fired when an agent starts (pending=true) or stops (pending=false) waiting on user input. */
+  onPromptStateChange?: (agentId: string, pending: boolean) => void
   onBackgroundChange?: (agentId: string, background: boolean) => void
   onVariantInvalidated?: (agentId: string) => void
   onArtifact?: (entry: Omit<ArtifactEntry, 'id' | 'ts'>) => void
@@ -161,6 +163,7 @@ export class MeowAgentManager {
           title: '[meow] Done',
           body: `${this.agents.get(e.agentId)?.name ?? e.agentId}${e.reason ? ` (${e.reason})` : ''}${cost}`,
           agentId: e.agentId,
+          kind: 'done',
           onActivate: () => this.deps.onActivateAgent?.(e.agentId)
         })
       } else if (e.type === 'error' && this.deps.notifications?.onDone !== false) {
@@ -168,6 +171,7 @@ export class MeowAgentManager {
           title: '[meow] Error',
           body: `${this.agents.get(e.agentId)?.name ?? e.agentId}: ${e.message}`,
           agentId: e.agentId,
+          kind: 'error',
           onActivate: () => this.deps.onActivateAgent?.(e.agentId)
         })
       }
@@ -538,10 +542,22 @@ export class MeowAgentManager {
     return null
   }
 
+  /** Agent ids currently waiting on a permission/question prompt (any project). */
+  listPendingPrompts(): Array<{ agentId: string }> {
+    const seen = new Set<string>()
+    for (const entry of this.pendingPrompts.values()) {
+      if (!seen.has(entry.agentId)) {
+        seen.add(entry.agentId)
+      }
+    }
+    return [...seen].map(agentId => ({ agentId }))
+  }
+
   respondPrompt(agentId: string, promptId: string, resp: PromptResponse): void {
     const entry = this.pendingPrompts.get(promptId)
     if (entry && entry.agentId === agentId) {
       this.pendingPrompts.delete(promptId)
+      this.deps.onPromptStateChange?.(agentId, false)
       if (resp.always && resp.allow && entry.tool) {
         const agent = this.agents.get(agentId)
         if (agent) this.deps.savedPermissions.save(agent.cwd, entry.tool)
@@ -1211,8 +1227,10 @@ export class MeowAgentManager {
   private awaitPrompt(agentId: string, promptId: string, tool: string | undefined, info: PendingPromptInfo): Promise<PromptResponse | null> {
     return new Promise(resolve => {
       this.pendingPrompts.set(promptId, { agentId, tool, info, resolve })
+      this.deps.onPromptStateChange?.(agentId, true)
       if (this.controllers.get(agentId)?.signal.aborted) {
         this.pendingPrompts.delete(promptId)
+        this.deps.onPromptStateChange?.(agentId, false)
         resolve(null)
       }
       if (this.deps.notifications?.needsInput !== false) {
@@ -1220,6 +1238,7 @@ export class MeowAgentManager {
           title: '[meow] Input needed',
           body: `${this.agents.get(agentId)?.name ?? agentId} is waiting...`,
           agentId,
+          kind: 'input',
           onActivate: () => this.deps.onActivateAgent?.(agentId)
         })
       }
@@ -1231,6 +1250,7 @@ export class MeowAgentManager {
       if (entry.agentId !== agentId) continue
       entry.resolve(resp)
       this.pendingPrompts.delete(id)
+      this.deps.onPromptStateChange?.(agentId, false)
     }
   }
 

@@ -26,6 +26,7 @@ describe('IPC contract', () => {
       'getChatTodos',
       'isChatRunning',
       'getPendingPrompt',
+      'listPromptStates', 'onPromptState', 'onActivateAgent',
       'minimizeWindow', 'toggleMaximizeWindow', 'closeWindow', 'isWindowMaximized', 'setTitleBarTheme', 'onWindowMaximizedChange',
       'getBrowserStatus', 'pairBrowser', 'openBrowserInstallGuide', 'openBrowserExtensionFolder', 'openBrowserChromeExtensions',
       'getBrowserConsoleLogs', 'getBrowserNetworkLogs', 'onBrowserStatus', 'onBrowserOpenInstallGuide',
@@ -109,6 +110,9 @@ describe('IPC contract', () => {
       isChatRunning: async () => false,
       getPendingPrompt: async () => null,
       respondPrompt: async () => {},
+      listPromptStates: async () => [],
+      onPromptState: () => () => {},
+      onActivateAgent: () => () => {},
       removeQueued: async () => {},
       editQueued: async () => {},
       onChatEvent: () => () => {},
@@ -173,6 +177,9 @@ describe('IPC contract', () => {
     expect(Channels.ChatIsRunning).toBe('chat:is-running')
     expect(Channels.ChatGetPendingPrompt).toBe('chat:get-pending-prompt')
     expect(Channels.ChatRespondPrompt).toBe('chat:respond-prompt')
+    expect(Channels.PromptStatesList).toBe('prompt:states-list')
+    expect(Channels.EventPromptState).toBe('prompt:state-changed')
+    expect(Channels.EventActivateAgent).toBe('agent:activate')
     expect(Channels.ChatQueueRemove).toBe('chat:queue-remove')
     expect(Channels.ChatQueueEdit).toBe('chat:queue-edit')
     expect(Channels.EventChat).toBe('chat:event')

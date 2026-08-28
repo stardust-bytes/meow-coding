@@ -69,7 +69,7 @@ Update-dialog policy: `update-available` and `downloaded` open the dialog; `erro
 |---|---|
 | `TitleBar.tsx` | Custom window chrome for frameless platforms |
 | `PopupTitleBar.tsx` | Same for the FileViewer/GitViewer popups (drag region + Linux min/max/close) |
-| `Sidebar.tsx` | Workspace list, add/remove, templates, open in editor, Providers entry, theme toggle. "Open Terminal" opens a real OS terminal window (via `openSystemTerminal`), not a tab |
+| `Sidebar.tsx` | Workspace list, add/remove, templates, open in editor, Providers entry, theme toggle. "Open Terminal" opens a real OS terminal window (via `openSystemTerminal`), not a tab. Projects with agents waiting on a permission/question prompt show a red count badge (and a dot on the collapsed-rail avatar) |
 | `StatusBar.tsx` | Workspace name, git branch, running count, app version |
 | `PaneTabs.tsx` | Tab-bar layout of agent/terminal panes; **all panes stay mounted** (inactive hidden via CSS) so background agents keep streaming/answering |
 | `Pane.tsx` | One agent: header + `ChatPanel` (native) or `XtermHost` (pty); background badge mode |

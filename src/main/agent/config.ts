@@ -193,7 +193,11 @@ function normalizeProvider(raw: RawProvider): MeowProviderConfig {
     apiKey: raw.apiKey,
     keyRef: raw.keyRef,
     baseUrl: raw.baseUrl,
-    models
+    models,
+    // Must be preserved: the runtime uses it to pick provider-specific LLM
+    // handling (e.g. DeepSeek reasoning_content echo) and the settings UI
+    // shows it in the provider edit modal.
+    providerType: typeof raw.providerType === 'string' ? raw.providerType : undefined
   }
 }
 

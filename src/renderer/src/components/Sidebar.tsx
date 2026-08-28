@@ -13,6 +13,8 @@ function MoreIcon() {
 interface Props {
   workspaces: WorkspaceSummary[]
   templates: Template[]
+  /** Project path -> agent ids waiting on a permission/question prompt. */
+  needsInput: Record<string, string[]>
   activePath: string | null
   onOpen: (path: string) => void
   onRemove: (path: string) => void
@@ -25,7 +27,7 @@ interface Props {
 }
 
 export default function Sidebar({
-  workspaces, templates, activePath, onOpen, onRemove, onRefresh, onOpenSettings, onOpenProviders, onOpenGit, onCheckUpdate, updateChecking
+  workspaces, templates, needsInput, activePath, onOpen, onRemove, onRefresh, onOpenSettings, onOpenProviders, onOpenGit, onCheckUpdate, updateChecking
 }: Props) {
   const [showAddProject, setShowAddProject] = useState(false)
   const [addAgentPath, setAddAgentPath] = useState<string | null>(null)
@@ -120,22 +122,28 @@ export default function Sidebar({
       </div>
       {collapsed ? (
         <ul className="project-rail">
-          {workspaces.map(ws => (
+          {workspaces.map(ws => {
+            const inputCount = needsInput[ws.projectPath]?.length ?? 0
+            return (
             <li key={ws.projectPath} className={ws.projectPath === activePath ? 'active' : ''}>
               <button
                 className="project-avatar"
-                title={ws.name}
+                title={inputCount > 0 ? `${ws.name} — needs your reply/approval` : ws.name}
                 aria-label={ws.name}
                 onClick={() => onOpen(ws.projectPath)}
               >
                 {ws.name.charAt(0).toUpperCase()}
+                {inputCount > 0 && <span className="project-avatar-badge" aria-hidden="true" />}
               </button>
             </li>
-          ))}
+            )
+          })}
         </ul>
       ) : (
       <ul className="project-list">
-        {workspaces.map(ws => (
+        {workspaces.map(ws => {
+          const inputCount = needsInput[ws.projectPath]?.length ?? 0
+          return (
           <li key={ws.projectPath} className={ws.projectPath === activePath ? 'active' : ''}>
             <div
               className="project-row"
@@ -147,7 +155,17 @@ export default function Sidebar({
               }}
             >
               <div className="project-info">
-                <span className="project-name">{ws.name}</span>
+                <span className="project-name-row">
+                  <span className="project-name">{ws.name}</span>
+                  {inputCount > 0 && (
+                    <span
+                      className="project-badge"
+                      title={`${inputCount} agent${inputCount === 1 ? '' : 's'} need${inputCount === 1 ? 's' : ''} your reply/approval`}
+                    >
+                      {inputCount}
+                    </span>
+                  )}
+                </span>
                 <span className="project-path" title={ws.projectPath}>{ws.projectPath}</span>
                 <span className="project-count">
                   {ws.agentCount} Agent{ws.agentCount === 1 ? '' : 's'}
@@ -224,7 +242,8 @@ export default function Sidebar({
               </div>
             </div>
           </li>
-        ))}
+          )
+        })}
       </ul>
       )}
       {showAddProject && (

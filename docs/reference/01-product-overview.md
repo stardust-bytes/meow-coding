@@ -65,7 +65,7 @@ straight to the code.
 | `@`-mentions | `@path` in the composer resolves to an absolute path and is appended as a hint (the agent reads the file itself) | `agent/references.ts`, `file-suggest.ts` |
 | Images | Paste/drop up to 4 images (≤5MB each) into the composer; sent as data URLs | `ChatInput.tsx`, `agent/message.ts` |
 | Trace | Optional per-session structured event log (turn, message, tool, subagent, compaction, error, done, pty-run) with a trace panel | `agent/trace-store.ts`, `components/trace/` |
-| Notifications | Native OS notifications when the agent needs input or finishes (only while the window is unfocused) | `notification-service.ts` |
+| Notifications | Native OS notifications when the agent needs input or finishes (only while the window is unfocused). Throttled per agent × kind so a "needs input" is never suppressed by a recent "done". Clicking an "Input needed" notification jumps to the waiting agent's project + tab; the sidebar project list shows a red badge with the count of agents awaiting reply/approval per project | `notification-service.ts`, `Channels.EventPromptState` / `EventActivateAgent` |
 
 ### Providers, models & accounts
 

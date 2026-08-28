@@ -81,6 +81,9 @@ export const Channels = {
   ChatIsRunning: 'chat:is-running',
   ChatGetPendingPrompt: 'chat:get-pending-prompt',
   ChatRespondPrompt: 'chat:respond-prompt',
+  PromptStatesList: 'prompt:states-list',
+  EventPromptState: 'prompt:state-changed',
+  EventActivateAgent: 'agent:activate',
   ChatQueueRemove: 'chat:queue-remove',
   ChatQueueEdit: 'chat:queue-edit',
   SessionList: 'session:list',
@@ -155,6 +158,25 @@ export interface BrowserInstallGuideEvent {
 export interface ArtifactsChangedEvent {
   projectPath: string
   artifacts: ArtifactEntry[]
+}
+
+/** One agent in a project currently waiting on a permission/question prompt. */
+export interface PromptStateSummary {
+  projectPath: string
+  agentIds: string[]
+}
+
+/** Fired when an agent starts (pending=true) or stops (pending=false) waiting on user input. */
+export interface PromptStateEvent {
+  projectPath: string
+  agentId: string
+  pending: boolean
+}
+
+/** Fired when the user clicks an OS notification for an agent needing input; navigates to it. */
+export interface ActivateAgentEvent {
+  projectPath: string
+  agentId: string
 }
 
 export interface AgentApi {
@@ -239,6 +261,9 @@ export interface AgentApi {
   isChatRunning(agentId: string): Promise<boolean>
   getPendingPrompt(agentId: string): Promise<PendingPromptInfo | null>
   respondPrompt(agentId: string, promptId: string, resp: PromptResponse): Promise<void>
+  listPromptStates(): Promise<PromptStateSummary[]>
+  onPromptState(cb: (e: PromptStateEvent) => void): () => void
+  onActivateAgent(cb: (e: ActivateAgentEvent) => void): () => void
   removeQueued(agentId: string, id: string): Promise<void>
   editQueued(agentId: string, id: string, text: string): Promise<void>
   listSessions(agentId: string): Promise<SessionSummary[]>

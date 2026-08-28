@@ -342,7 +342,19 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   border-left-color: var(--accent);
 }
 .project-row { position: relative; }
+.project-name-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .project-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-strong); font-weight: var(--fw-medium); }
+.project-badge {
+  flex: 0 0 auto; min-width: 16px; height: 16px; padding: 0 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--red); color: #fff; font-size: var(--fs-xs); font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums; line-height: 1; border-radius: 999px;
+}
+.project-avatar-badge {
+  position: absolute; top: -2px; right: -2px; width: 9px; height: 9px;
+  background: var(--red); border: 2px solid var(--bg-panel); border-radius: 50%;
+}
+.project-avatar { position: relative; }
 .project-count { color: var(--text-faint); font-size: var(--fs-sm); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .project-menu .btn { border: none; background: transparent; padding: 2px 4px; color: var(--text-dim); }
 .project-menu .btn:hover { background: var(--bg-hover); color: var(--text-strong); }

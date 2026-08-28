@@ -47,6 +47,9 @@ export default function App() {
     return Number.isFinite(w) && w >= 240 && w <= 600 ? w : 280
   })
   const [artifacts, setArtifacts] = useState<Record<string, ArtifactEntry[]>>({})
+  // Project path -> agent ids currently waiting on a permission/question
+  // prompt (needs user reply/approval). Drives the sidebar badges.
+  const [needsInput, setNeedsInput] = useState<Record<string, string[]>>({})
   // Active tab per project path so switching workspaces and coming back restores
   // the tab that was showing (persisted across restarts too).
   const [activeTabByPath, setActiveTabByPath] = useState<Record<string, string>>(() => {
@@ -59,6 +62,9 @@ export default function App() {
   })
   const termsRef = useRef<Map<string, Terminal>>(new Map())
   const buffersRef = useRef<Map<string, string>>(new Map())
+  // Latest values for use inside stable effect subscriptions.
+  const runtimeRef = useRef(runtime)
+  runtimeRef.current = runtime
 
   const refreshWorkspaces = useCallback(async () => {
     setWorkspaces(await window.api.listWorkspaces())
@@ -161,6 +167,42 @@ export default function App() {
     }
   }, [])
 
+  // Sidebar "needs input" badges: seed from main (agents waiting from before
+  // this window mounted) then keep in sync via push events.
+  useEffect(() => {
+    const offPrompt = window.api.onPromptState(({ projectPath, agentId, pending }) => {
+      setNeedsInput(prev => {
+        const list = prev[projectPath] ?? []
+        if (pending) {
+          if (list.includes(agentId)) return prev
+          return { ...prev, [projectPath]: [...list, agentId] }
+        }
+        if (!list.includes(agentId)) return prev
+        const next = list.filter(a => a !== agentId)
+        if (next.length === 0) {
+          const copy = { ...prev }
+          delete copy[projectPath]
+          return copy
+        }
+        return { ...prev, [projectPath]: next }
+      })
+    })
+    void window.api.listPromptStates().then(states => {
+      setNeedsInput(Object.fromEntries(states.map(s => [s.projectPath, s.agentIds])))
+    })
+    // OS notification click -> jump to the project + tab of the waiting agent.
+    const offActivate = window.api.onActivateAgent(({ projectPath, agentId }) => {
+      setActiveTabByPath(prev => (prev[projectPath] === agentId ? prev : { ...prev, [projectPath]: agentId }))
+      if (runtimeRef.current?.workspace.projectPath !== projectPath) {
+        void openWorkspaceRef.current(projectPath)
+      }
+    })
+    return () => {
+      offPrompt()
+      offActivate()
+    }
+  }, [])
+
   const handleCheckUpdate = useCallback(() => {
     manualCheckRef.current = true
     window.api.checkForUpdates()
@@ -181,6 +223,8 @@ export default function App() {
       if (!rt.workspace.agents.some(a => a.id === id)) buffersRef.current.delete(id)
     }
   }, [terminals])
+  const openWorkspaceRef = useRef(openWorkspace)
+  openWorkspaceRef.current = openWorkspace
 
   const removeWorkspace = useCallback(async (path: string) => {
     if (runtime?.workspace.projectPath === path) {
@@ -285,6 +329,7 @@ export default function App() {
         <Sidebar
           workspaces={workspaces}
           templates={templates}
+          needsInput={needsInput}
           activePath={runtime?.workspace.projectPath ?? null}
           onOpen={openWorkspace}
           onRemove={removeWorkspace}

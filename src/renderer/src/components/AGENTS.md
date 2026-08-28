@@ -12,7 +12,7 @@ terminal/chat, sidebar, status bar, title bar, and dialogs. All data flows throu
 | `PaneTabs.tsx` | Tab-bar layout of agent/terminal panes; all panes stay mounted (inactive ones hidden via CSS) so background agents keep streaming/answering. The active tab is **controlled** by `App` (`activeId` + `onActiveChange`, remembered per project path so switching workspaces restores the tab that was showing); PaneTabs reports the first pane when the stored id no longer exists. Shows a confirm dialog before closing a tab. |
 | `PaneHeader.tsx` | Pane title bar: status dot, git info, menu (inject/log/stop/new-session/background/delete); shows a confirm dialog before deleting an agent / closing a terminal. |
 | `ConfirmDialog.tsx` | Reusable confirmation dialog (title, message, confirm/cancel, danger styling). |
-| `Sidebar.tsx` | Left sidebar: workspace list, add/remove, templates, open in editor. |
+| `Sidebar.tsx` | Left sidebar: workspace list, add/remove, templates, open in editor. Shows a red badge (count) per project whose agents are waiting on a permission/question prompt (`needsInput` prop). |
 | `StatusBar.tsx` | Bottom bar: workspace name, git branch, running count, app version (via IPC). |
 | `TitleBar.tsx` | Custom window chrome (min/max/close) for frameless platforms. |
 | `PopupTitleBar.tsx` | Popup window chrome for the FileViewer/GitViewer BrowserWindows: drag region + (Linux) custom min/max/close, mirroring the main TitleBar so popups match the app theme. |

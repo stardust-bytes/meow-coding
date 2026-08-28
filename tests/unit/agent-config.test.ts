@@ -102,6 +102,22 @@ describe('loadMeowConfig', () => {
     const cfg2 = settingsToConfig(configToSettings(cfg), cfg)
     expect(cfg2.provider.deepseek.keyRef).toBe('provider:deepseek')
   })
+
+  it('preserves providerType through loadMeowConfig so runtime + UI keep it', () => {
+    writeFileSync(file, JSON.stringify({
+      provider: {
+        myapi: { apiKey: 'sk', baseUrl: 'https://api.example.com/v1', models: ['a'], providerType: 'deepseek' }
+      },
+      model: 'myapi'
+    }))
+    const cfg = loadMeowConfig(file)
+    expect(cfg.provider.myapi.providerType).toBe('deepseek')
+    // The runtime uses it to pick provider-specific LLM handling.
+    const resolved = resolveAgentConfig(cfg, 'meow', {})
+    expect(resolved.providerType).toBe('deepseek')
+    // configToSettings exposes it to the settings UI.
+    expect(configToSettings(cfg).providers.find(p => p.id === 'myapi')?.providerType).toBe('deepseek')
+  })
 })
 
 describe('resolveApiKey', () => {

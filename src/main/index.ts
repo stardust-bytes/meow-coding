@@ -174,11 +174,30 @@ export class MainApp {
     connections: this.connections,
     lsp: new LspManager(),
     notify: new NotificationService(() => !win || !win.isFocused()),
-    onActivateAgent: () => {
+    // Notification click: focus the window and tell the renderer to switch to
+    // the workspace + tab of the agent that needs input.
+    onActivateAgent: (agentId) => {
       if (!win) return
       if (win.isMinimized()) win.restore()
       win.show()
       win.focus()
+      const ws = this.findWorkspaceByAgent(agentId)
+      if (ws) {
+        win.webContents.send(Channels.EventActivateAgent, {
+          projectPath: ws.projectPath,
+          agentId
+        })
+      }
+    },
+    onPromptStateChange: (agentId, pending) => {
+      const ws = this.findWorkspaceByAgent(agentId)
+      if (ws) {
+        win?.webContents.send(Channels.EventPromptState, {
+          projectPath: ws.projectPath,
+          agentId,
+          pending
+        })
+      }
     },
     onBackgroundChange: (agentId, background) => {
       win?.webContents.send(Channels.EventAgentBackground, { agentId, background })
@@ -339,7 +358,7 @@ export class MainApp {
     this.states.delete(agentId)
   }
 
-  private findWorkspaceByAgent(agentId: string): Workspace | undefined {
+  findWorkspaceByAgent(agentId: string): Workspace | undefined {
     return this.workspaces.list().map(s => this.workspaces.get(s.projectPath))
       .find(w => w && w.agents.some(a => a.id === agentId))
   }
@@ -857,6 +876,17 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(Channels.ChatGetPendingPrompt, (_e, agentId: string) => mainApp.meowAgent.getPendingPrompt(agentId))
   ipcMain.handle(Channels.ChatRespondPrompt, (_e, agentId: string, promptId: string, resp: PromptResponse) =>
     mainApp.meowAgent.respondPrompt(agentId, promptId, resp))
+  ipcMain.handle(Channels.PromptStatesList, () => {
+    const byProject = new Map<string, string[]>()
+    for (const { agentId } of mainApp.meowAgent.listPendingPrompts()) {
+      const ws = mainApp.findWorkspaceByAgent(agentId)
+      if (!ws) continue
+      const arr = byProject.get(ws.projectPath) ?? []
+      arr.push(agentId)
+      byProject.set(ws.projectPath, arr)
+    }
+    return [...byProject.entries()].map(([projectPath, agentIds]) => ({ projectPath, agentIds }))
+  })
   ipcMain.handle(Channels.ChatQueueRemove, (_e, agentId: string, id: string) =>
     mainApp.meowAgent.removeQueued(agentId, id))
   ipcMain.handle(Channels.ChatQueueEdit, (_e, agentId: string, id: string, text: string) =>

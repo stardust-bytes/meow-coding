@@ -8,7 +8,7 @@ main process config.
 
 | File | Responsibility |
 |---|---|
-| `SettingsDialog.tsx` | Full-screen shell: loads settings/MCP status/provider catalog, tab switching, `patch()` draft state, save flow. |
+| `SettingsDialog.tsx` | Full-screen shell: loads settings/MCP status/provider catalog, tab switching, `patch()` draft state, save flow. Debounced auto-save (`saveSettings` can be slow — it reloads agents/MCP), and the normalized save result is only adopted if the draft hasn't changed while the save was in flight so edits made during a save are never clobbered. |
 | `ProvidersTab.tsx` | Provider management tab (opened from the sidebar Providers menu item): add/connect (API key + base URL), fetch models from the live `/models` endpoint or the catalog, hand-enter model IDs for any OpenAI-compatible API, "Sync models", default provider. |
 | `AgentsTab.tsx` | Per-agent config (name, system prompt, provider/model). |
 | `PermissionsTab.tsx` | Tool permission rules (allow/ask/deny). |

@@ -111,6 +111,7 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 | `ChatIsRunning` | `chat:is-running` | `isChatRunning(agentId): boolean` |
 | `ChatGetPendingPrompt` | `chat:get-pending-prompt` | `getPendingPrompt(agentId): PendingPromptInfo \| null` — returns the in-flight permission/question prompt so a remounted chat panel can restore it |
 | `ChatRespondPrompt` | `chat:respond-prompt` | `respondPrompt(agentId, promptId, resp: PromptResponse)` |
+| `PromptStatesList` | `prompt:states-list` | `listPromptStates(): PromptStateSummary[]` — `{ projectPath, agentIds }` per project with agents currently waiting on a permission/question prompt (seeds the sidebar badges on startup) |
 | `ChatQueueRemove` / `ChatQueueEdit` | `chat:queue-remove` / `chat:queue-edit` | `removeQueued` / `editQueued` |
 | `SessionList` / `SessionCreate` / `SessionSwitch` / `SessionDelete` / `SessionRename` | `session:*` | `listSessions` / `createSession` / `switchSession` / `deleteSession` / `renameSession` |
 | `TraceList` / `TraceRead` / `TraceDelete` | `trace:*` | `traceList(agentId)` / `traceRead(sessionId)` / `traceDelete(sessionId)` |
@@ -187,6 +188,8 @@ captured in preload).
 | `EventBrowserStatus` | `browser:status` | `BrowserStatusInfo` | `onBrowserStatus` |
 | `EventBrowserOpenInstallGuide` | `browser:install-guide` | `BrowserInstallGuideEvent { extensionDir }` | `onBrowserOpenInstallGuide` |
 | `EventRemoteStatus` | `remote:status` | `RemoteStatus` | `onRemoteStatus` |
+| `EventPromptState` | `prompt:state-changed` | `PromptStateEvent { projectPath, agentId, pending }` — fires when an agent starts (`pending: true`) or stops (`pending: false`) waiting on user input | `onPromptState` |
+| `EventActivateAgent` | `agent:activate` | `ActivateAgentEvent { projectPath, agentId }` — sent when the user clicks an OS notification; the renderer opens that workspace and activates the agent's tab | `onActivateAgent` |
 | `EventUpdaterStatus` | `updater:status` | `UpdaterStatusEvent` | `onUpdaterStatus` |
 | `EventWindowMaximizedChange` | `window:maximized-change` | `{ maximized }` | `onWindowMaximizedChange` |
 

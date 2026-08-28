@@ -52,6 +52,9 @@ async function makeManager(opts: StubLlmOptions & {
   connections?: StubConnections
   tools?: ToolDefinition[]
   prices?: Record<string, { input?: number; output?: number }>
+  onPromptStateChange?: (agentId: string, pending: boolean) => void
+  notify?: { notify: (opts: { title: string; body: string; agentId?: string; onActivate?: () => void }) => void }
+  notifications?: { needsInput?: boolean; onDone?: boolean }
 } = {}) {
   const cfgDir = mkdtempSync(path.join(tmpdir(), 'meow-mgr-cfg-'))
   const defaultCfg = path.join(cfgDir, 'meow.json')
@@ -130,6 +133,9 @@ async function makeManager(opts: StubLlmOptions & {
     commands: new CommandStore(path.join(cfgDir, 'commands.json')),
     prices: opts.prices ?? { 'test/test-model': { input: 1, output: 2 } },
     connections,
+    onPromptStateChange: opts.onPromptStateChange,
+    notify: opts.notify as never,
+    notifications: opts.notifications as never,
     env: { ANTHROPIC_API_KEY: 'sk-test' } as NodeJS.ProcessEnv
   })
   manager.setOnEvent(e => events.push(e))
@@ -434,6 +440,108 @@ describe('MeowAgentManager', () => {
     expect(manager.getPendingPrompt('a1')).toBeNull()
   })
 
+  it('emits onPromptStateChange and listPendingPrompts while an agent waits on input', async () => {
+    const states: Array<{ agentId: string; pending: boolean }> = []
+    const { manager, events } = await makeManager({
+      partsQueue: [
+        [
+          { kind: 'tool-call', toolCallId: 'tc1', toolName: 'websearch', toolInput: { query: 'meow' } },
+          { kind: 'finish' }
+        ],
+        [{ kind: 'text', text: 'ok' }, { kind: 'finish' }]
+      ],
+      onPromptStateChange: (agentId, pending) => states.push({ agentId, pending })
+    })
+    manager.newSession('a1')
+    expect(manager.listPendingPrompts()).toEqual([])
+    const sendPromise = manager.send('a1', 'search web')
+    // Wait for the permission prompt, then assert the pending state + list.
+    await new Promise<void>(resolve => {
+      const t = setInterval(() => {
+        const p = events.find(e => e.type === 'prompt-request') as Extract<ChatEvent, { type: 'prompt-request' }> | undefined
+        if (!p) return
+        clearInterval(t)
+        expect(states.some(s => s.agentId === 'a1' && s.pending)).toBe(true)
+        expect(manager.listPendingPrompts()).toEqual([{ agentId: 'a1' }])
+        manager.respondPrompt('a1', p.promptId, { allow: true } satisfies PromptResponse)
+        resolve()
+      }, 5)
+    })
+    await sendPromise
+    expect(manager.listPendingPrompts()).toEqual([])
+    expect(states.some(s => s.agentId === 'a1' && !s.pending)).toBe(true)
+  })
+
+  it('question tool fires an OS "Input needed" notification while waiting', async () => {
+    const calls: Array<{ title: string; body: string; agentId?: string }> = []
+    const { manager, events } = await makeManager({
+      partsQueue: [
+        [
+          { kind: 'tool-call', toolCallId: 'tc1', toolName: 'question', toolInput: { question: 'Proceed?' } },
+          { kind: 'finish' }
+        ],
+        [{ kind: 'text', text: 'ok' }, { kind: 'finish' }]
+      ],
+      notify: { notify: (o) => calls.push(o) },
+      notifications: { needsInput: true, onDone: false }
+    })
+    manager.newSession('a1')
+    const sendPromise = manager.send('a1', 'ask')
+    await new Promise<void>(resolve => {
+      const t = setInterval(() => {
+        const p = events.find(e => e.type === 'prompt-request') as Extract<ChatEvent, { type: 'prompt-request' }> | undefined
+        if (!p || p.kind !== 'question') return
+        clearInterval(t)
+        // The notification must fire exactly while the agent waits on the user.
+        expect(calls.length).toBe(1)
+        expect(calls[0].title).toBe('[meow] Input needed')
+        expect(calls[0].agentId).toBe('a1')
+        manager.respondPrompt('a1', p.promptId, { text: 'yes' })
+        resolve()
+      }, 5)
+    })
+    await sendPromise
+  })
+
+  it('suppresses the needs-input notification when notifications.needsInput is false', async () => {
+    const calls: Array<{ title: string }> = []
+    const { manager, events } = await makeManager({
+      partsQueue: [
+        [
+          { kind: 'tool-call', toolCallId: 'tc1', toolName: 'question', toolInput: { question: 'Proceed?' } },
+          { kind: 'finish' }
+        ],
+        [{ kind: 'text', text: 'ok' }, { kind: 'finish' }]
+      ],
+      notify: { notify: (o) => calls.push(o) },
+      configPath: (() => {
+        // needsInput lives in meow.json and is read at construction; default
+        // is true, so write a config that disables it to exercise the gate.
+        const dir = mkdtempSync(path.join(tmpdir(), 'meow-noinput-'))
+        const p = path.join(dir, 'meow.json')
+        writeFileSync(p, JSON.stringify({
+          provider: { test: { apiKey: 'sk-test', models: ['test-model'] } },
+          model: 'test',
+          notifications: { needsInput: false, onDone: false }
+        }))
+        return p
+      })()
+    })
+    manager.newSession('a1')
+    const sendPromise = manager.send('a1', 'ask')
+    await new Promise<void>(resolve => {
+      const t = setInterval(() => {
+        const p = events.find(e => e.type === 'prompt-request') as Extract<ChatEvent, { type: 'prompt-request' }> | undefined
+        if (!p || p.kind !== 'question') return
+        clearInterval(t)
+        expect(calls).toHaveLength(0)
+        manager.respondPrompt('a1', p.promptId, { text: 'yes' })
+        resolve()
+      }, 5)
+    })
+    await sendPromise
+  })
+
   it('newSession creates a new empty session and keeps history', async () => {
     const { manager, store } = await makeManager()
     await manager.send('a1', 'x')
@@ -519,6 +627,34 @@ describe('MeowAgentManager', () => {
       expect(lastCall[1]).toBe('sk-ds')
       expect(lastCall[2]).toBe('https://api.deepseek.com/v1')
       expect(manager.isNative('a1')).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('saveSettings round-trips context/compaction settings through disk', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-ctx-'))
+    try {
+      const { manager } = await makeManager({ configPath: path.join(dir, 'meow.json') })
+      const base = manager.getSettings()
+      const draft = {
+        ...base,
+        maxSteps: 42,
+        compaction: { ...base.compaction, auto: false, buffer: 12345, keepTokens: 6789, tailTurns: 5, toolOutputMaxChars: 9999, prune: false },
+        toolOutput: { maxBytes: 11111, maxLines: 222 },
+        notifications: { needsInput: false, onDone: true },
+        mcpOutput: { maxTokens: 33333 }
+      }
+      const saved = await manager.saveSettings(draft)
+      expect(saved.maxSteps).toBe(42)
+      const reread = manager.getSettings()
+      expect(reread.maxSteps).toBe(42)
+      expect(reread.compaction).toMatchObject({
+        auto: false, buffer: 12345, keepTokens: 6789, tailTurns: 5, toolOutputMaxChars: 9999, prune: false
+      })
+      expect(reread.toolOutput).toEqual({ maxBytes: 11111, maxLines: 222 })
+      expect(reread.notifications).toEqual({ needsInput: false, onDone: true })
+      expect(reread.mcpOutput).toEqual({ maxTokens: 33333 })
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -836,6 +972,8 @@ describe('MeowAgentManager', () => {
       // Re-open (edit) with a different providerType — must persist the new value.
       const settings = await manager.connectProvider('myapi', '', 'https://api.example.com/v1', ['a'], 'anthropic')
       expect(settings.providers.find(p => p.id === 'myapi')?.providerType).toBe('anthropic')
+      // And survive a fresh read from disk (normalizeProvider must not drop it).
+      expect(manager.getSettings().providers.find(p => p.id === 'myapi')?.providerType).toBe('anthropic')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

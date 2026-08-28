@@ -39,4 +39,22 @@ describe('NotificationService', () => {
     svc.notify({ title: 't', body: 'b', agentId: 'a1' })
     expect(showMock).toHaveBeenCalledTimes(1)
   })
+
+  it('does not suppress a different kind for the same agent within 30s', () => {
+    const svc = new NotificationService(() => false)
+    svc.notify({ title: '[meow] Done', body: 'agent finished', agentId: 'a1', kind: 'done' })
+    expect(showMock).toHaveBeenCalledTimes(1)
+    // A fresh "needs input" right after "done" must not be throttled by the
+    // same-agent key — this is the case where the user replied and the agent
+    // immediately asks another question.
+    svc.notify({ title: '[meow] Input needed', body: 'a1 is waiting...', agentId: 'a1', kind: 'input' })
+    expect(showMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('still dedupes the same kind for the same agent within 30s', () => {
+    const svc = new NotificationService(() => false)
+    svc.notify({ title: 't', body: 'b', agentId: 'a1', kind: 'input' })
+    svc.notify({ title: 't', body: 'b', agentId: 'a1', kind: 'input' })
+    expect(showMock).toHaveBeenCalledTimes(1)
+  })
 })

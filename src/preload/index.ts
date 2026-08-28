@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { Channels } from '../shared/ipc'
 import type { ArtifactsChangedEvent } from '../shared/ipc'
 import type { ChatEvent, Command, ContextChangedEvent, FileViewerPayload, ImageAttachment, LogLevel, MeowSettings, ModelRef, NewAgentInput, PromptResponse, Template, TraceEvent, UpdaterStatusEvent } from '../shared/types'
-import type { AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, GitStatusEvent, PtyDataEvent, TerminalExitEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
+import type { ActivateAgentEvent, AgentApi, AgentConfigEvent, AgentStateEvent, BrowserInstallGuideEvent, GitStatusEvent, PromptStateEvent, PtyDataEvent, TerminalExitEvent, WindowMaximizedChangeEvent } from '../shared/ipc'
 import type { BrowserStatusInfo } from '../shared/browser-types'
 import type { RemoteStatus } from '../shared/remote-types'
 
@@ -137,6 +137,9 @@ const api: AgentApi = {
   getPendingPrompt: (agentId: string) => ipcRenderer.invoke(Channels.ChatGetPendingPrompt, agentId),
   respondPrompt: (agentId: string, promptId: string, resp: PromptResponse) =>
     ipcRenderer.invoke(Channels.ChatRespondPrompt, agentId, promptId, resp),
+  listPromptStates: () => ipcRenderer.invoke(Channels.PromptStatesList),
+  onPromptState: (cb: (e: PromptStateEvent) => void) => subscribe(Channels.EventPromptState, cb),
+  onActivateAgent: (cb: (e: ActivateAgentEvent) => void) => subscribe(Channels.EventActivateAgent, cb),
   removeQueued: (agentId: string, id: string) =>
     ipcRenderer.invoke(Channels.ChatQueueRemove, agentId, id),
   editQueued: (agentId: string, id: string, text: string) =>
