@@ -50,13 +50,17 @@ model, settings reload). Steps:
 The `system` prompt is passed as a **function**, re-resolved once per run:
 
 ```ts
-system: () => resolved.systemPrompt
-  + modeNote                                    // plan-mode instructions, or ''
-  + instructionsText(loadInstructions(agent.cwd))
-  + skillListText(collectSkills(...))
+system: () => buildSystemPrompt({
+  baseSystemPrompt: resolved.systemPrompt,
+  modeNote,                              // plan-mode instructions, or ''
+  instructionText: instructionsText(loadInstructions(agent.cwd)),
+  skillsText: skillListText(collectSkills(...)),
+  memoryRules: memoryEnabled ? memoryRulesText(agent.cwd) : ''
+})
 ```
 
 so a newly added skill or an edited `AGENTS.md` takes effect on the next turn without a reload.
+Each turn the runner also resolves a per-run `turnContext` (env snapshot + memory index) and prepends it to the LLM messages as a `<system-reminder>`.
 
 ## 3.3 Sending a message
 
@@ -520,3 +524,11 @@ mirrors `ChatEvent`s into `TraceStore` as `TraceEvent`s, with two refinements:
 - PTY agents also contribute `pty-run` events (start ts, end ts, exit code, duration, log path).
 
 When tracing is disabled at startup, `userData/traces` is deleted outright so nothing lingers.
+
+## 3.16 Harness prompt, environment, and memory
+
+- **Static/dynamic split:** static content (identity, project instructions, memory rules, skills, mode, precedence) goes into the system prompt via `buildSystemPrompt` (provider-cached); dynamic content (env snapshot + memory index) goes into `<system-reminder>` messages via `buildTurnReminder`, recomputed per run.
+- **Precedence:** `AGENTS.md`/`CLAUDE.md` > memory > skills > base `systemPrompt`.
+- **Environment:** `snapshotEnvironment(cwd)` captures platform, shell, cwd, date, and git `{branch, dirtyCount}` (`null` when not a repo); `GitStatusService` has a 5s timeout, so slow/missing git never blocks a turn.
+- **Memory:** per-project `<cwd>/.meow/memory/`, gitignored. `MEMORY.md` index (≤ 200 lines) shown at turn start; the agent `read`s a fact file when relevant. Fact files have frontmatter (`name`, `description`, `metadata.type`) and `[[name]]` links; the agent writes them with the existing `write`/`edit` tools (no new tool). The index is data, not instructions. Toggle: `agents.<name>.memory: false` disables memory.
+- **Reminder injection:** turn start (once per run, via `toLlmOptions.turnContext`, never written to the session store); tool results — `read` attaches nearby instructions (existing), `git` and git-like `bash` append a freshness reminder, `write`/`edit` into the memory dir append a MEMORY.md sync reminder.

@@ -10,3 +10,6 @@ release/
 test-results/
 playwright-report/
 sidecars/meow-cliproxy/meow-cliproxy*
+
+# Per-project agent memory (agent state, not project content).
+.meow/memory/
