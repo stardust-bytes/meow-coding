@@ -773,6 +773,104 @@ describe('SessionRunner', () => {
     expect(toolOutputs.join('\n')).not.toContain('<system-reminder>')
   })
 
+  it('prepends the turn-context reminder to the messages and not the transcript', async () => {
+    const h = makeHarness({ turnContext: async () => '<system-reminder>Environment: win32</system-reminder>' })
+    h.llm.queue = [textParts('done')]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 20))
+    const first = h.llm.calls[0].messages[0]
+    expect(first.role).toBe('user')
+    expect(String(first.content)).toContain('<system-reminder>')
+    expect(String(first.content)).toContain('win32')
+    const stored = h.items.filter(i => i.kind === 'message')
+    expect(stored.every(i => !i.message.text.includes('<system-reminder>'))).toBe(true)
+  })
+
+  it('appends a memory-sync reminder after writing into the memory dir', async () => {
+    const h = makeHarness({
+      memoryDir: path.join('/proj', '.meow', 'memory'),
+      tools: new Map([['write', stubTool('write', async () => ({ output: 'written' }))]])
+    })
+    h.llm.queue = [
+      [
+        { kind: 'text', text: 'saving...' },
+        { kind: 'tool-call', toolCallId: 'tc1', toolName: 'write', toolInput: { file_path: path.join('.meow', 'memory', 'fact.md'), content: 'x' } },
+        { kind: 'finish' }
+      ],
+      textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    const toolItem = h.items.find(i => i.kind === 'tool') as Extract<TranscriptItem, { kind: 'tool' }> | undefined
+    expect(toolItem).toBeDefined()
+    expect(String(toolItem!.tool.output)).toContain('<system-reminder>')
+    expect(String(toolItem!.tool.output)).toContain('MEMORY.md')
+  })
+
+  it('does not append a reminder when writing outside the memory dir', async () => {
+    const h = makeHarness({
+      memoryDir: path.join('/proj', '.meow', 'memory'),
+      tools: new Map([['write', stubTool('write', async () => ({ output: 'written' }))]])
+    })
+    h.llm.queue = [
+      [
+        { kind: 'tool-call', toolCallId: 'tc1', toolName: 'write', toolInput: { file_path: 'src/a.ts', content: 'x' } },
+        { kind: 'finish' }
+      ],
+      textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    const toolItem = h.items.find(i => i.kind === 'tool') as Extract<TranscriptItem, { kind: 'tool' }> | undefined
+    expect(String(toolItem!.tool.output)).toBe('written')
+  })
+
+  it('appends a git freshness reminder after a git tool call in a repo', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'meow-loop-git-'))
+    try {
+      execFileSync('git', ['init', '-q', '--initial-branch=main'], { cwd: dir })
+      execFileSync('git', ['config', 'user.email', 't@t'], { cwd: dir })
+      execFileSync('git', ['config', 'user.name', 't'], { cwd: dir })
+      writeFileSync(path.join(dir, 'a.txt'), 'hi')
+      execFileSync('git', ['add', '.'], { cwd: dir })
+      execFileSync('git', ['commit', '-q', '-m', 'init'], { cwd: dir })
+      writeFileSync(path.join(dir, 'a.txt'), 'changed')
+      const h = makeHarness({
+        cwd: dir,
+        tools: new Map([['git', stubTool('git', async () => ({ output: 'git status ok' }))]])
+      })
+      h.llm.queue = [
+        [
+          { kind: 'tool-call', toolCallId: 'tc1', toolName: 'git', toolInput: { command: 'status' } },
+          { kind: 'finish' }
+        ],
+        textParts('done')
+      ]
+      h.runner.run()
+      await new Promise(r => setTimeout(r, 50))
+      const toolItem = h.items.find(i => i.kind === 'tool') as Extract<TranscriptItem, { kind: 'tool' }> | undefined
+      expect(String(toolItem!.tool.output)).toContain('Git: on main')
+      expect(String(toolItem!.tool.output)).toContain('1 dirty file')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not append a freshness reminder for a plain bash call outside a repo', async () => {
+    const h = makeHarness({ tools: new Map([['bash', stubTool('bash', async () => ({ output: 'done' }))]]) })
+    h.llm.queue = [
+      [
+        { kind: 'tool-call', toolCallId: 'tc1', toolName: 'bash', toolInput: { command: 'echo hi' } },
+        { kind: 'finish' }
+      ],
+      textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    const toolItem = h.items.find(i => i.kind === 'tool') as Extract<TranscriptItem, { kind: 'tool' }> | undefined
+    expect(String(toolItem!.tool.output)).toBe('done')
+  })
+
 })
 
 describe('SessionRunner compaction fallback', () => {

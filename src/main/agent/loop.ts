@@ -9,6 +9,9 @@ import type { ToolContext, ToolDefinition } from './tools/types'
 import type { PermissionDecision } from './permission'
 import { selectHeadTail, serializeItems, buildCompactionPrompt, compactTranscript, COMPACTION_MARKER, pruneToolOutputs, hardTruncate, usableContextTokens, fitHeadToBudget, resolveCompactionSettings } from './compact'
 import { instructionFilesForFile } from './instructions'
+import { gitFreshnessReminder } from './env'
+import { isMemoryPath } from './memory'
+import { resolveCwd } from './tools/bash'
 import type { CompactionSettings, ResolvedCompaction } from './compact'
 import { estimateUsage } from './token'
 import { DEFAULT_MAX_CONTEXT_TOKENS } from './config'
@@ -29,6 +32,15 @@ export interface LoopDeps {
    */
   system: string | (() => string)
   systemInstructionPaths?: ReadonlySet<string>
+  /**
+   * Per-turn dynamic context (environment snapshot + memory index) rendered as
+   * a `<system-reminder>` block. Resolved once per run and prepended to the LLM
+   * messages on every step; never written to the session store. Return '' to
+   * inject nothing.
+   */
+  turnContext?: () => Promise<string>
+  /** Absolute path of the per-project memory dir; undefined = memory disabled. */
+  memoryDir?: string
   cwd: string
   llm: LlmClient
   tools: Map<string, ToolDefinition>
@@ -92,6 +104,8 @@ export class SessionRunner {
   // AGENTS.md paths already attached to a read output this session; cross-message
   // dedupe so instructions are not repeated across turns (opencode claims set).
   private attachedInstructions = new Set<string>()
+  // Per-turn dynamic context, resolved once per run (see LoopDeps.turnContext).
+  private turnContext = ''
 
   constructor(private deps: LoopDeps) {
     this.maxSteps = deps.maxSteps ?? DEFAULT_MAX_STEPS
@@ -109,6 +123,7 @@ export class SessionRunner {
       this.deps.maxOutputTokens ?? 0
     )
     const runUsage = { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0 }
+    this.turnContext = signal?.aborted ? '' : await this.snapshotTurnContext()
     while (true) {
       if (signal?.aborted) {
         this.deps.onEvent({ type: 'done', agentId, reason: 'stopped' })
@@ -279,6 +294,15 @@ export class SessionRunner {
     }
   }
 
+  private async snapshotTurnContext(): Promise<string> {
+    try {
+      return (await this.deps.turnContext?.()) ?? ''
+    } catch {
+      // A failed snapshot (slow git, unreadable index) must never block a turn.
+      return ''
+    }
+  }
+
   private async executeCall(call: ToolCallData, decision: PermissionDecision, signal?: AbortSignal): Promise<void> {
     const { agentId } = this.deps
     let allowed: boolean
@@ -360,6 +384,10 @@ export class SessionRunner {
           const r = await def.run(call.input, toolCtx)
           call.output = r.output
           call.error = r.error
+          if (!r.error) {
+            const reminder = await this.toolResultReminder(call)
+            if (reminder) call.output = call.output ? `${call.output}\n${reminder}` : reminder
+          }
         } catch (err) {
           call.error = String(err)
         }
@@ -367,6 +395,29 @@ export class SessionRunner {
     }
     this.deps.appendTool(call)
     this.deps.onEvent({ type: 'tool-result', agentId, call })
+  }
+
+  // A tool can change the very state the model reasons about: a `git` call (or
+  // a bash command touching git) changes the branch/dirty count, a write/edit
+  // into the memory dir needs MEMORY.md kept in sync. Nudge the model inline so
+  // its next claim is not based on stale context.
+  private async toolResultReminder(call: ToolCallData): Promise<string> {
+    if (call.tool === 'write' || call.tool === 'edit') {
+      const memDir = this.deps.memoryDir
+      if (memDir) {
+        const input = call.input as { file_path?: unknown } | undefined
+        const file = typeof input?.file_path === 'string' ? input.file_path : ''
+        if (file && isMemoryPath(memDir, resolveCwd(this.deps.cwd, file))) {
+          return '<system-reminder>\nMemory: you wrote a file under .meow/memory/. If you created a new fact, add a one-line entry to .meow/memory/MEMORY.md; if you edited an existing one, keep its frontmatter (name/description/metadata.type) valid.\n</system-reminder>'
+        }
+      }
+      return ''
+    }
+    const command = (call.input as { command?: unknown } | undefined)?.command
+    if (call.tool === 'git' || (call.tool === 'bash' && typeof command === 'string' && /\bgit\b/.test(command))) {
+      return gitFreshnessReminder(this.deps.cwd)
+    }
+    return ''
   }
 
   private visibleToolDefs(): ToolDefinition[] {
@@ -521,6 +572,7 @@ export class SessionRunner {
     return {
       toolOutputMaxChars: this.compaction?.toolOutputMaxChars,
       keepFullTurns: this.compaction?.tailTurns ?? DEFAULT_KEEP_FULL_TURNS,
+      ...(this.turnContext ? { turnContext: this.turnContext } : {}),
       ...this.truncationOpts()
     }
   }
