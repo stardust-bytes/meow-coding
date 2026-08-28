@@ -37,7 +37,7 @@ already implemented and are referenced only where the prompt must interact with 
 | Memory writing | System-prompt rules; the agent uses existing `write`/`edit` tools; **no new tool** |
 | Memory recall | Index loaded at turn start (≤ 200 lines); the agent `read`s specific files when relevant |
 | Memory in git | `.meow/memory/` gitignored (agent state, not project content) |
-| Reminder injection | Turn start (env + memory index + mode) **and** tool results (bash/git freshness; write/edit inside the memory dir) |
+| Reminder injection | Turn start (env + memory index) **and** tool results (bash/git freshness; write/edit inside the memory dir). Mode stays in the static prompt (rebuilt on `setMode`), so it is not duplicated in the reminder |
 | Precedence | `AGENTS.md`/`CLAUDE.md` > memory > skills > base `systemPrompt` |
 | Config | A single optional toggle to disable memory; kept minimal |
 | Docs language | English, per `AGENTS.md` (docs must be written in English) |
