@@ -385,8 +385,7 @@ export class SessionRunner {
           call.output = r.output
           call.error = r.error
           if (!r.error) {
-            const reminder = await this.toolResultReminder(call)
-            if (reminder) call.output = call.output ? `${call.output}\n${reminder}` : reminder
+            call.output = await this.appendToolReminder(call, call.output)
           }
         } catch (err) {
           call.error = String(err)
@@ -418,6 +417,17 @@ export class SessionRunner {
       return gitFreshnessReminder(this.deps.cwd)
     }
     return ''
+  }
+
+  // A failed reminder (slow git, weird path) must never turn a successful
+  // tool call into an errored one — the model still gets the real output.
+  private async appendToolReminder(call: ToolCallData, output: string | undefined): Promise<string | undefined> {
+    try {
+      const reminder = await this.toolResultReminder(call)
+      return reminder ? (output ? `${output}\n${reminder}` : reminder) : output
+    } catch {
+      return output
+    }
   }
 
   private visibleToolDefs(): ToolDefinition[] {
