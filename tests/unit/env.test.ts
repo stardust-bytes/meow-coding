@@ -23,7 +23,7 @@ describe('snapshotEnvironment', () => {
       expect(env.date).toBeTruthy()
       expect(env.git).toEqual({ branch: 'main', dirtyCount: 1 })
     } finally {
-      rmSync(dir, { recursive: true, force: true })
+      rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     }
   })
 
@@ -64,7 +64,7 @@ describe('gitFreshnessReminder', () => {
       expect(r).toContain('main')
       expect(r).toContain('1 dirty file')
     } finally {
-      rmSync(dir, { recursive: true, force: true })
+      rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     }
   })
 })

@@ -825,6 +825,26 @@ describe('SessionRunner', () => {
     expect(String(toolItem!.tool.output)).toBe('written')
   })
 
+  it('does not append a tool-result reminder after a failed call', async () => {
+    const h = makeHarness({
+      memoryDir: path.join('/proj', '.meow', 'memory'),
+      tools: new Map([['write', stubTool('write', async () => ({ error: 'boom' }))]])
+    })
+    h.llm.queue = [
+      [
+        { kind: 'tool-call', toolCallId: 'tc1', toolName: 'write', toolInput: { file_path: path.join('.meow', 'memory', 'fact.md'), content: 'x' } },
+        { kind: 'finish' }
+      ],
+      textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    const toolItem = h.items.find(i => i.kind === 'tool') as Extract<TranscriptItem, { kind: 'tool' }> | undefined
+    expect(toolItem).toBeDefined()
+    expect(toolItem!.tool.error).toBe('boom')
+    expect(String(toolItem!.tool.output ?? '')).not.toContain('<system-reminder>')
+  })
+
   it('appends a git freshness reminder after a git tool call in a repo', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'meow-loop-git-'))
     try {
@@ -846,13 +866,12 @@ describe('SessionRunner', () => {
         ],
         textParts('done')
       ]
-      h.runner.run()
-      await new Promise(r => setTimeout(r, 50))
+      await h.runner.run()
       const toolItem = h.items.find(i => i.kind === 'tool') as Extract<TranscriptItem, { kind: 'tool' }> | undefined
       expect(String(toolItem!.tool.output)).toContain('Git: on main')
       expect(String(toolItem!.tool.output)).toContain('1 dirty file')
     } finally {
-      rmSync(dir, { recursive: true, force: true })
+      rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     }
   })
 
