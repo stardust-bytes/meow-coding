@@ -18,7 +18,7 @@ type FeedItem =
   | { kind: 'tool'; id: string; call: ToolCallData }
   | { kind: 'error'; id: string; text: string }
   | { kind: 'compaction'; id: string; running?: boolean; failed?: boolean }
-  | { kind: 'retry'; id: string; attempt: number; maxAttempts: number; delayMs: number }
+  | { kind: 'retry'; id: string; attempt: number; maxAttempts: number; delayMs: number; unbounded?: boolean }
   | { kind: 'subagent'; taskId: string; subagentType?: string; text: string; reasoning?: string; result?: string; background?: boolean; tools: string[]; state: 'running' | 'completed' | 'cancelled' | 'error' }
 
 interface PendingPrompt {
@@ -110,7 +110,7 @@ interface Props {
   onVariantChange?: (variant: string | undefined) => void
 }
 
-function RetryCountdown({ id, attempt, maxAttempts, delayMs }: { id: string; attempt: number; maxAttempts: number; delayMs: number }) {
+function RetryCountdown({ id, attempt, maxAttempts, delayMs, unbounded }: { id: string; attempt: number; maxAttempts: number; delayMs: number; unbounded?: boolean }) {
   const [remaining, setRemaining] = useState(() => Math.max(1, Math.ceil(delayMs / 1000)))
   useEffect(() => {
     setRemaining(Math.max(1, Math.ceil(delayMs / 1000)))
@@ -119,7 +119,7 @@ function RetryCountdown({ id, attempt, maxAttempts, delayMs }: { id: string; att
   }, [delayMs])
   return (
     <div key={id} className="chat-retry">
-      {remaining > 0 ? `Retrying in ${remaining}s…` : 'Retrying now…'} (attempt {attempt}/{maxAttempts})
+      {remaining > 0 ? `Retrying in ${remaining}s…` : 'Retrying now…'} (attempt {attempt}{unbounded ? ' — waiting for the network/API to recover' : `/${maxAttempts}`})
     </div>
   )
 }
@@ -462,7 +462,7 @@ if (e.type === 'usage') {
       setItems(prev => {
         const idx = prev.findIndex(i => i.kind === 'retry' && i.id === id)
         const row: FeedItem & { kind: 'retry' } = {
-          kind: 'retry', id, attempt: e.attempt, maxAttempts: e.maxAttempts, delayMs: e.delayMs
+          kind: 'retry', id, attempt: e.attempt, maxAttempts: e.maxAttempts, delayMs: e.delayMs, unbounded: e.unbounded
         }
         if (idx >= 0) {
           const next = [...prev]
@@ -831,7 +831,7 @@ if (e.type === 'usage') {
           }
           if (item.kind === 'retry') {
             return (
-              <RetryCountdown key={item.id} id={item.id} attempt={item.attempt} maxAttempts={item.maxAttempts} delayMs={item.delayMs} />
+              <RetryCountdown key={item.id} id={item.id} attempt={item.attempt} maxAttempts={item.maxAttempts} delayMs={item.delayMs} unbounded={item.unbounded} />
             )
           }
           if (item.kind === 'message') {

@@ -198,7 +198,7 @@ export type ChatEvent =
   | { type: 'compaction-start'; agentId: string }
   | { type: 'compacted'; agentId: string; summary: string }
   | { type: 'compaction-failed'; agentId: string }
-  | { type: 'retry'; agentId: string; attempt: number; maxAttempts: number; delayMs: number }
+  | { type: 'retry'; agentId: string; attempt: number; maxAttempts: number; delayMs: number; unbounded?: boolean }
   | { type: 'usage'; agentId: string; tokens: MessageTokens; sessionCost: number; sessionTokens: { input: number; output: number } }
   | { type: 'todo-updated'; agentId: string; todos: TodoItem[] }
   | { type: 'queue-updated'; agentId: string; queue: QueuedMessage[] }

@@ -6,6 +6,8 @@ import ConfirmDialog from './ConfirmDialog'
 
 interface Props {
   panes: PaneModel[]
+  activeId: string | null
+  onActiveChange: (agentId: string) => void
   backgrounds: Record<string, boolean>
   isTerminal: (id: string) => boolean
   onRemove: (agentId: string) => void
@@ -13,16 +15,16 @@ interface Props {
   onUnregisterTerminal: (agentId: string) => void
 }
 
-export default function PaneTabs({ panes, backgrounds, isTerminal, onRemove, onRegisterTerminal, onUnregisterTerminal }: Props) {
-  const [activeId, setActiveId] = useState<string | null>(panes[0]?.agent.id ?? null)
+export default function PaneTabs({ panes, activeId, onActiveChange, backgrounds, isTerminal, onRemove, onRegisterTerminal, onUnregisterTerminal }: Props) {
   const [pendingClose, setPendingClose] = useState<string | null>(null)
 
-  // Keep active tab valid as the pane list changes (add/remove).
+  // Keep the active tab valid as the pane list changes (add/remove/project
+  // switch): report the first pane when the stored id no longer exists.
   useEffect(() => {
-    if (panes.length === 0) { setActiveId(null); return }
+    if (panes.length === 0) return
     if (activeId && panes.some(p => p.agent.id === activeId)) return
-    setActiveId(panes[0].agent.id)
-  }, [panes, activeId])
+    onActiveChange(panes[0].agent.id)
+  }, [panes, activeId, onActiveChange])
 
   const active = panes.find(p => p.agent.id === activeId) ?? panes[0]
 
@@ -35,7 +37,7 @@ export default function PaneTabs({ panes, backgrounds, isTerminal, onRemove, onR
             role="tab"
             aria-selected={pane.agent.id === (active?.agent.id ?? null)}
             className={`agent-tab ${pane.agent.id === (active?.agent.id ?? null) ? 'active' : ''}`}
-            onClick={() => setActiveId(pane.agent.id)}
+            onClick={() => onActiveChange(pane.agent.id)}
           >
             <span className={`status-dot status-${pane.state.status}`} />
             <span className="agent-tab-name">{pane.agent.name}</span>
@@ -57,7 +59,7 @@ export default function PaneTabs({ panes, backgrounds, isTerminal, onRemove, onR
             background={Boolean(backgrounds[pane.agent.id])}
             isTerminal={isTerminal(pane.agent.id)}
             active={pane.agent.id === active?.agent.id}
-            onFocus={() => setActiveId(pane.agent.id)}
+            onFocus={() => onActiveChange(pane.agent.id)}
             onRemove={() => onRemove(pane.agent.id)}
             onRegisterTerminal={onRegisterTerminal}
             onUnregisterTerminal={onUnregisterTerminal}

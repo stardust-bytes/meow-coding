@@ -39,8 +39,19 @@ describe('classifyLlmError', () => {
     expect(classifyLlmError({ statusCode: 429, responseHeaders: { 'retry-after': 'soon' } }).retryAfterMs).toBeUndefined()
   })
 
-  it('treats a dropped connection as retryable', () => {
-    expect(classifyLlmError(Object.assign(new Error('fetch failed'), { code: 'ECONNRESET' })).retryable).toBe(true)
+  it('treats a dropped connection as retryable and unbounded', () => {
+    const c = classifyLlmError(Object.assign(new Error('fetch failed'), { code: 'ECONNRESET' }))
+    expect(c.retryable).toBe(true)
+    expect(c.unbounded).toBe(true)
+  })
+
+  it('marks server errors as unbounded but rate limits as bounded', () => {
+    for (const statusCode of [500, 502, 503, 504, 529]) {
+      expect(classifyLlmError({ statusCode }).unbounded, `status ${statusCode}`).toBe(true)
+    }
+    for (const statusCode of [408, 409, 425, 429]) {
+      expect(classifyLlmError({ statusCode }).unbounded, `status ${statusCode}`).toBe(false)
+    }
   })
 
   it('unwraps AI_RetryError to classify the underlying error', () => {
@@ -114,6 +125,68 @@ describe('withRetry', () => {
     const out = await collect(withRetry(make, { sleep: noSleep, maxAttempts: 3 }))
     expect(attempts).toBe(3)
     expect(out).toEqual([{ kind: 'error', error: 'overloaded', retryable: true }])
+  })
+
+  it('keeps retrying a network error past maxAttempts until it recovers', async () => {
+    let attempts = 0
+    const make = () => {
+      attempts++
+      return attempts < 4
+        ? parts({ kind: 'error', error: 'socket hang up', retryable: true, unbounded: true })()
+        : parts({ kind: 'finish' })()
+    }
+    const out = await collect(withRetry(make, { sleep: noSleep, maxAttempts: 2 }))
+    expect(attempts).toBe(4)
+    expect(out.map(p => p.kind)).toEqual(['finish'])
+  })
+
+  it('keeps retrying a thrown connection error past maxAttempts', async () => {
+    let attempts = 0
+    const make = () => {
+      attempts++
+      if (attempts < 3) throw Object.assign(new Error('fetch failed'), { code: 'ECONNRESET' })
+      return parts({ kind: 'finish' })()
+    }
+    const out = await collect(withRetry(make, { sleep: noSleep, maxAttempts: 2 }))
+    expect(attempts).toBe(3)
+    expect(out.map(p => p.kind)).toEqual(['finish'])
+  })
+
+  it('still gives up on rate limits at maxAttempts even after many retries', async () => {
+    let attempts = 0
+    const make = () => {
+      attempts++
+      return parts({ kind: 'error', error: 'slow down', retryable: true })()
+    }
+    const out = await collect(withRetry(make, { sleep: noSleep, maxAttempts: 2 }))
+    expect(attempts).toBe(2)
+    expect(out).toEqual([{ kind: 'error', error: 'slow down', retryable: true }])
+  })
+
+  it('reports unbounded in onRetry for a network error', async () => {
+    const retries: Array<{ attempt: number; maxAttempts: number; delayMs: number; unbounded?: boolean }> = []
+    let attempts = 0
+    const make = () => {
+      attempts++
+      return attempts === 1
+        ? parts({ kind: 'error', error: 'no network', retryable: true, unbounded: true })()
+        : parts({ kind: 'finish' })()
+    }
+    await collect(withRetry(make, { sleep: noSleep, maxAttempts: 2, onRetry: (info) => retries.push(info) }))
+    expect(retries).toEqual([{ attempt: 2, maxAttempts: 2, delayMs: 1000, unbounded: true }])
+  })
+
+  it('stops an unbounded retry loop when the signal aborts', async () => {
+    const controller = new AbortController()
+    let attempts = 0
+    const make = () => {
+      attempts++
+      controller.abort()
+      return parts({ kind: 'error', error: 'no network', retryable: true, unbounded: true })()
+    }
+    const out = await collect(withRetry(make, { sleep: noSleep, signal: controller.signal, maxAttempts: 2 }))
+    expect(attempts).toBe(1)
+    expect(out).toEqual([{ kind: 'error', error: 'no network', retryable: true, unbounded: true }])
   })
 
   it('does not retry a non-retryable error', async () => {
@@ -327,7 +400,7 @@ describe('withRetry', () => {
       onRetry: (info) => retries.push(info)
     }))
     expect(waited).toEqual([MAX_RETRY_AFTER_MS])
-    expect(retries).toEqual([{ attempt: 2, maxAttempts: 3, delayMs: MAX_RETRY_AFTER_MS }])
+    expect(retries).toEqual([{ attempt: 2, maxAttempts: 10, delayMs: MAX_RETRY_AFTER_MS }])
   })
 
   it('does not fire onRetry for a budget-reduction retry (no delay)', async () => {

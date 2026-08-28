@@ -47,6 +47,16 @@ export default function App() {
     return Number.isFinite(w) && w >= 240 && w <= 600 ? w : 280
   })
   const [artifacts, setArtifacts] = useState<Record<string, ArtifactEntry[]>>({})
+  // Active tab per project path so switching workspaces and coming back restores
+  // the tab that was showing (persisted across restarts too).
+  const [activeTabByPath, setActiveTabByPath] = useState<Record<string, string>>(() => {
+    try {
+      const raw = localStorage.getItem('meow.activeTabByPath')
+      return raw ? JSON.parse(raw) as Record<string, string> : {}
+    } catch {
+      return {}
+    }
+  })
   const termsRef = useRef<Map<string, Terminal>>(new Map())
   const buffersRef = useRef<Map<string, string>>(new Map())
 
@@ -63,6 +73,9 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('meow.rightpanel.width', String(rightWidth))
   }, [rightWidth])
+  useEffect(() => {
+    localStorage.setItem('meow.activeTabByPath', JSON.stringify(activeTabByPath))
+  }, [activeTabByPath])
 
   useEffect(() => {
     return window.api.onArtifactsChanged(({ projectPath, artifacts: list }) => {
@@ -182,6 +195,12 @@ export default function App() {
       /* surface via sidebar later; still refresh list */
     }
     setRuntime(prev => prev && prev.workspace.projectPath === path ? null : prev)
+    setActiveTabByPath(prev => {
+      if (!(path in prev)) return prev
+      const next = { ...prev }
+      delete next[path]
+      return next
+    })
     void refreshWorkspaces()
   }, [runtime, refreshWorkspaces])
 
@@ -211,6 +230,12 @@ export default function App() {
     if (terminals.some(t => t.id === id)) removeTerminal(id)
     else void removeAgent(id)
   }, [terminals, removeTerminal, removeAgent])
+
+  const handleActiveChange = useCallback((id: string) => {
+    const path = runtime?.workspace.projectPath
+    if (!path) return
+    setActiveTabByPath(prev => (prev[path] === id ? prev : { ...prev, [path]: id }))
+  }, [runtime?.workspace.projectPath])
 
   const registerTerminal = useCallback((agentId: string, term: Terminal) => {
     termsRef.current.set(agentId, term)
@@ -243,6 +268,16 @@ export default function App() {
     return [...agentPanes, ...terminalPanes]
   }, [runtime, terminals])
 
+  // Effective active tab for the current project: the remembered one when it
+  // still exists among the panes, otherwise the first pane (PaneTabs syncs the
+  // stored value back via onActiveChange).
+  const activeId = useMemo(() => {
+    if (panes.length === 0) return null
+    const path = runtime?.workspace.projectPath
+    const remembered = path ? activeTabByPath[path] : undefined
+    return remembered && panes.some(p => p.agent.id === remembered) ? remembered : (panes[0]?.agent.id ?? null)
+  }, [panes, runtime?.workspace.projectPath, activeTabByPath])
+
   return (
     <div className="app">
       <TitleBar panelOpen={rightOpen} onTogglePanel={() => setRightOpen(v => !v)} />
@@ -265,6 +300,8 @@ export default function App() {
             <>
               <PaneTabs
                 panes={panes}
+                activeId={activeId}
+                onActiveChange={handleActiveChange}
                 backgrounds={backgrounds}
                 isTerminal={id => terminals.some(t => t.id === id)}
                 onRemove={handleRemovePane}

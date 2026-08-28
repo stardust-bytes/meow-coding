@@ -992,8 +992,8 @@ export class MeowAgentManager {
       resolved.baseUrl,
       {
         onReducedBudget: (realLimit) => this.learnedLimits.recordMaxTokensLimit(learnedKey, realLimit),
-        onRetry: ({ attempt, maxAttempts, delayMs }) =>
-          this.emit({ type: 'retry', agentId: agent.id, attempt, maxAttempts, delayMs })
+        onRetry: ({ attempt, maxAttempts, delayMs, unbounded }) =>
+          this.emit({ type: 'retry', agentId: agent.id, attempt, maxAttempts, delayMs, unbounded })
       },
       resolved.providerType
     )

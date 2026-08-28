@@ -8,7 +8,9 @@ React renderer (no direct Node/Electron access).
   fallback (preload not loaded). `main.tsx` also patches `console.log/info/warn/error` to forward
   each call to the system logger via `window.api.writeSystemLog` (no-op when `window.api` is missing).
 - `src/App.tsx` — state hub: workspaces, templates, open runtimes; defines `PaneModel`
-  (agent + state + git) for each pane.
+  (agent + state + git) for each pane; owns the active pane tab per project path
+  (`activeTabByPath`, persisted to localStorage `meow.activeTabByPath`) so switching
+  workspaces restores the previously active tab.
 - `src/components/` — `Sidebar`, `PaneTabs`, `Pane`, `PaneHeader`, `XtermHost`, `EmptyState`,
   `StatusBar`, `TitleBar`, `BackgroundPanel`, `AddProjectDialog`, `AddAgentDialog`, `UpdateDialog`,
   `BrowserDialog`, `InstallGuideDialog`, `chat/`, `settings/`.
@@ -30,8 +32,8 @@ React renderer (no direct Node/Electron access).
   is called. Do not remove this mechanism.
 - Input/resize: xterm `onData`/resize → `window.api.writeInput` / `window.api.resizePty` (via props
   in `Pane`).
-- Tab-bar layout: each agent/terminal pane is a tab; only the active tab renders (tracked in
-  `PaneTabs`).
+- Tab-bar layout: each agent/terminal pane is a tab; only the active tab renders. The active tab is
+  tracked in `App` per project path (passed to `PaneTabs` as `activeId`/`onActiveChange`).
 - Functional components + hooks; declare the `Props` interface in the same file.
 - UI labels in English. Use tabular-nums figures when displaying numbers.
 

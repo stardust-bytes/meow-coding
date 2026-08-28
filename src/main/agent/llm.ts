@@ -21,6 +21,8 @@ export interface LlmStreamPart {
   retryable?: boolean
   /** Set on error parts: the delay the provider asked us to wait. */
   retryAfterMs?: number
+  /** Set on error parts: network/API-down — keep retrying past maxAttempts. */
+  unbounded?: boolean
 }
 
 export interface LlmStreamOptions {
@@ -270,8 +272,12 @@ export function reduceBudgetForMaxTokensError(err: unknown): number | undefined 
 
 // Statuses where the identical request can succeed on a later attempt. 4xx
 // outside of these is a request the provider will reject just as hard next
-// time, so retrying only wastes the user's time.
-const RETRYABLE_STATUS = new Set([408, 409, 425, 429, 500, 502, 503, 504, 529])
+// time, so retrying only wastes the user's time. Rate-limit responses get a
+// bounded number of attempts; server and socket errors mean the network or the
+// API is down, so the turn keeps retrying (like Claude CLI) until it recovers.
+const RATE_LIMIT_STATUS = new Set([408, 409, 425, 429])
+const SERVER_STATUS = new Set([500, 502, 503, 504, 529])
+const RETRYABLE_STATUS = new Set([...RATE_LIMIT_STATUS, ...SERVER_STATUS])
 const RETRYABLE_CODES = new Set([
   'ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'EPIPE', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_SOCKET'
 ])
@@ -279,6 +285,8 @@ const RETRYABLE_CODES = new Set([
 export interface LlmErrorClass {
   retryable: boolean
   retryAfterMs?: number
+  /** Network/API-down failures: retry with no attempt cap until the service recovers (or the user stops). */
+  unbounded?: boolean
 }
 
 export function classifyLlmError(err: unknown): LlmErrorClass {
@@ -299,9 +307,13 @@ export function classifyLlmError(err: unknown): LlmErrorClass {
   if (e.name === 'AbortError') return { retryable: false }
   if (typeof e.statusCode === 'number') {
     if (!RETRYABLE_STATUS.has(e.statusCode)) return { retryable: false }
-    return { retryable: true, retryAfterMs: retryAfterMs(e.responseHeaders) }
+    return {
+      retryable: true,
+      unbounded: SERVER_STATUS.has(e.statusCode),
+      retryAfterMs: retryAfterMs(e.responseHeaders)
+    }
   }
-  if (e.code && RETRYABLE_CODES.has(e.code)) return { retryable: true }
+  if (e.code && RETRYABLE_CODES.has(e.code)) return { retryable: true, unbounded: true }
   return { retryable: false }
 }
 
@@ -319,11 +331,11 @@ export interface RetryOptions {
   sleep?: (ms: number) => Promise<void>
   /** Provider đã đích danh output cap thật khi reject max_tokens — ghi lại để turn sau khỏi lỗi lại. */
   onReducedBudget?: (realLimit: number) => void
-  /** Sắp retry sau delayMs — attempt là số attempt sắp chạy (1-based). */
-  onRetry?: (info: { attempt: number; maxAttempts: number; delayMs: number }) => void
+  /** Sắp retry sau delayMs — attempt là số attempt sắp chạy (1-based). `unbounded` = đang chờ mạng/API hồi phục, không có cap. */
+  onRetry?: (info: { attempt: number; maxAttempts: number; delayMs: number; unbounded?: boolean }) => void
 }
 
-const DEFAULT_MAX_ATTEMPTS = 3
+const DEFAULT_MAX_ATTEMPTS = 10
 const DEFAULT_BASE_DELAY_MS = 1000
 // Trần cho Retry-After của provider: một header to (60-300s) không được phép
 // đóng băng turn im lặng từng đó giây — retry tối đa sau 60s rồi bỏ cuộc.
@@ -357,6 +369,10 @@ export function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> 
  * been yielded the attempt is not repeated — replaying would duplicate text the
  * caller already consumed — so the error is surfaced instead.
  *
+ * Rate-limit responses retry up to `maxAttempts` (default 10). Network/server
+ * failures (`unbounded`) keep retrying past the cap, like Claude CLI, until the
+ * connection or the API comes back — the only ways out are success or Stop.
+ *
  * A non-retryable rejection can still be recoverable: when the catalog
  * overstates a model's real output limit, the provider rejects max_tokens
  * with a 400. `reduceBudget` reads the real limit from the error and the
@@ -373,9 +389,9 @@ export async function* withRetry(
   // đôi, luôn bị chặn ở MAX_RETRY_AFTER_MS.
   const retryDelay = (after: number | undefined, attempt: number): number =>
     Math.min(after ?? backoff(baseDelayMs, attempt), MAX_RETRY_AFTER_MS)
-  const scheduleRetry = (after: number | undefined, attempt: number): Promise<void> => {
+  const scheduleRetry = (after: number | undefined, attempt: number, unbounded?: boolean): Promise<void> => {
     const delayMs = retryDelay(after, attempt)
-    opts.onRetry?.({ attempt: attempt + 1, maxAttempts, delayMs })
+    opts.onRetry?.({ attempt: attempt + 1, maxAttempts, delayMs, unbounded })
     return sleep(delayMs)
   }
 
@@ -394,10 +410,10 @@ export async function* withRetry(
       }
     } catch (err) {
       if (emitted) throw err
-      const { retryable, retryAfterMs: after } = classifyLlmError(err)
+      const { retryable, retryAfterMs: after, unbounded } = classifyLlmError(err)
       if (retryable) {
-        if (!canRetry(retryable, attempt, maxAttempts, opts.signal)) throw err
-        await scheduleRetry(after, attempt)
+        if (!canRetry(retryable, attempt, maxAttempts, opts.signal, unbounded)) throw err
+        await scheduleRetry(after, attempt, unbounded)
         continue
       }
       const reduced = opts.reduceBudget?.(err)
@@ -411,8 +427,8 @@ export async function* withRetry(
     }
     if (!failure) return
     if (failure.retryable === true) {
-      if (!canRetry(true, attempt, maxAttempts, opts.signal)) { yield failure; return }
-      await scheduleRetry(failure.retryAfterMs, attempt)
+      if (!canRetry(true, attempt, maxAttempts, opts.signal, failure.unbounded)) { yield failure; return }
+      await scheduleRetry(failure.retryAfterMs, attempt, failure.unbounded)
       continue
     }
     const reduced = opts.reduceBudget?.(failure.error)
@@ -427,8 +443,8 @@ export async function* withRetry(
   }
 }
 
-function canRetry(retryable: boolean, attempt: number, maxAttempts: number, signal?: AbortSignal): boolean {
-  return retryable && attempt < maxAttempts && !signal?.aborted
+function canRetry(retryable: boolean, attempt: number, maxAttempts: number, signal?: AbortSignal, unbounded?: boolean): boolean {
+  return retryable && !signal?.aborted && (unbounded === true || attempt < maxAttempts)
 }
 
 function backoff(baseDelayMs: number, attempt: number): number {
