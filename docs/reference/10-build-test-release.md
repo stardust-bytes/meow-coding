@@ -234,6 +234,31 @@ Otherwise it installs/imports the `TrustedSigning` PowerShell module (pinned `0.
 
 ## 10.9 Release checklist
 
+### Versioning (SemVer)
+
+Versions follow [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`). While the project
+is still pre-1.0 (`0.x`), the `MINOR` position is treated as the breaking/new-feature slot:
+
+| Change | Bump | Example |
+|---|---|---|
+| Bug fix only (no behavior change) | `PATCH +1` | `0.28.0 → 0.28.1` |
+| New feature (no breaking change) | `MINOR +1`, reset `PATCH` | `0.28.1 → 0.29.0` |
+| Breaking change / pre-1.0 behavior with no backwards-compat | `MINOR +1` (or `MAJOR +1` at 1.0) | `0.29.0 → 0.30.0` |
+
+Rules that apply to every release:
+
+- **`package.json` version = git tag = changelog filename.** Bump `version` in `package.json` first,
+  tag `v<version>`, and write `docs/changelogs/changelog-<version>.md` for the same range.
+- **One version = one coherent change set.** Don't mix an unrelated feature with bug fixes in a
+  single bump; keep the changelog groupable (see `changelog-format.md`).
+- **Bump the version when releasing, not after.** The tag must land on the commit whose
+  `package.json` already carries the new version.
+- **Pre-1.0 caveat:** a `0.x.y → 0.x+1.0` is a "breaking" bump in spirit (e.g. config/API/behavior
+  with no backwards-compat). This is fine while pre-1.0; the project only commits to `1.x`
+  backwards-compatibility once it reaches `1.0.0`.
+
+### Checklist
+
 1. Land the work; `npm run typecheck` and `npm test` green.
 2. Update the relevant `AGENTS.md` files (see [11](11-conventions-and-pitfalls.md#113-documentation-sync-rule)).
 3. Write `docs/changelogs/changelog-<version>.md` following `docs/changelogs/changelog-format.md`.
