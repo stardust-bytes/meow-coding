@@ -47,6 +47,19 @@ describe('toLlmMessages', () => {
     expect(llm[1]).toEqual({ role: 'assistant', content: [{ type: 'text', text: 'hello' }] })
   })
 
+  it('prepends the turn-context reminder as the first user message when set', () => {
+    const items = [{ kind: 'message' as const, message: msg('user', 'hi') }]
+    const llm = toLlmMessages(items, { turnContext: '<system-reminder>Environment: win32</system-reminder>' })
+    expect(llm).toHaveLength(2)
+    expect(llm[0]).toEqual({ role: 'user', content: '<system-reminder>Environment: win32</system-reminder>' })
+    expect(llm[1]).toEqual({ role: 'user', content: 'hi' })
+  })
+
+  it('does not prepend anything when turnContext is absent', () => {
+    const items = [{ kind: 'message' as const, message: msg('user', 'hi') }]
+    expect(toLlmMessages(items)).toHaveLength(1)
+  })
+
   it('attaches tool calls to the preceding assistant message and emits tool results after it', () => {
     const items = [
       { kind: 'message' as const, message: msg('user', 'list files') },

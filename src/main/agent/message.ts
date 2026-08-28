@@ -18,6 +18,13 @@ export interface ToLlmOptions {
    */
   keepFullTurns?: number
   truncate?: (toolId: string, text: string) => string
+  /**
+   * Per-turn dynamic context (environment snapshot + memory index) rendered as
+   * a `<system-reminder>` block. Prepended as the first user message so the
+   * static system prompt stays provider-cached. Injected at transform time
+   * only — never written to the session store.
+   */
+  turnContext?: string
 }
 
 // Index of the first item belonging to the last `keepFullTurns` user turns.
@@ -60,6 +67,7 @@ export function normalizeToolInput(input: unknown): Record<string, unknown> {
 
 export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): ModelMessage[] {
   const result: ModelMessage[] = []
+  if (opts?.turnContext) result.push({ role: 'user', content: opts.turnContext })
   let pendingAssistant: { text: string; calls: ToolCallData[]; reasoning?: string } | null = null
   let pendingResults: ModelMessage[] = []
 
