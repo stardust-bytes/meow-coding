@@ -118,6 +118,32 @@ describe('loadMeowConfig', () => {
     // configToSettings exposes it to the settings UI.
     expect(configToSettings(cfg).providers.find(p => p.id === 'myapi')?.providerType).toBe('deepseek')
   })
+
+  it('defaults memory to enabled and honors memory:false', () => {
+    writeFileSync(file, JSON.stringify({
+      provider: { test: { apiKey: 'k', models: ['m'] } },
+      model: 'test',
+      agents: {
+        meow: { systemPrompt: 'x', memory: false },
+        other: { systemPrompt: 'y' }
+      }
+    }))
+    const cfg = loadMeowConfig(file)
+    expect(cfg.agents.meow.memory).toBe(false)
+    expect(cfg.agents.other.memory).toBeUndefined()
+  })
+
+  it('round-trips the memory toggle through settings', () => {
+    writeFileSync(file, JSON.stringify({
+      provider: { test: { apiKey: 'k', models: ['m'] } },
+      model: 'test',
+      agents: { meow: { systemPrompt: 'x', memory: false } }
+    }))
+    const cfg = loadMeowConfig(file)
+    const settings = configToSettings(cfg)
+    const back = settingsToConfig(settings)
+    expect(back.agents.meow.memory).toBe(false)
+  })
 })
 
 describe('resolveApiKey', () => {

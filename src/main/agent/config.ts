@@ -22,6 +22,8 @@ export interface MeowAgentConfig {
   model?: string
   accountId?: string
   systemPrompt: string
+  /** false disables the per-project memory system (default: enabled). */
+  memory?: boolean
 }
 
 export type MeowCompactionConfig = CompactionSettings
@@ -214,7 +216,8 @@ function normalizeAgents(raw: Record<string, unknown> | undefined): Record<strin
       provider: typeof v.provider === 'string' ? v.provider : (isProviderRef ? legacyModel : undefined),
       model: typeof v.model === 'string' && !isProviderRef ? v.model : undefined,
       accountId: typeof v.accountId === 'string' ? v.accountId : undefined,
-      systemPrompt: typeof v.systemPrompt === 'string' ? v.systemPrompt : (base[name]?.systemPrompt ?? base.meow.systemPrompt)
+      systemPrompt: typeof v.systemPrompt === 'string' ? v.systemPrompt : (base[name]?.systemPrompt ?? base.meow.systemPrompt),
+      memory: v.memory === false ? false : undefined
     }
   }
   return { ...base, ...out }
@@ -433,7 +436,8 @@ export function configToSettings(cfg: MeowConfig): MeowSettings {
       systemPrompt: a.systemPrompt,
       provider: a.provider,
       model: a.model,
-      ...(a.accountId ? { accountId: a.accountId } : {})
+      ...(a.accountId ? { accountId: a.accountId } : {}),
+      ...(a.memory === false ? { memory: false } : {})
     })),
     permission: cfg.permission,
     mcp: cfg.mcp,
@@ -472,7 +476,8 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
       provider: a.provider,
       model: a.model,
       accountId: a.accountId,
-      systemPrompt: a.systemPrompt
+      systemPrompt: a.systemPrompt,
+      memory: a.memory === false ? false : undefined
     }
   }
   return {

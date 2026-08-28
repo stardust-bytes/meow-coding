@@ -333,6 +333,8 @@ export interface AgentSettings {
   provider?: string
   model?: string
   accountId?: string
+  /** Set to false to disable the per-project memory system for this agent. */
+  memory?: boolean
 }
 
 export interface MeowSettings {
