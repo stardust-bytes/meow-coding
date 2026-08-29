@@ -276,18 +276,18 @@ function normalizeHooks(raw: HooksConfig | undefined): HooksConfig | undefined {
 ```
 
 - In `mergeDefaults`, add `hooks: normalizeHooks(raw.hooks),`.
-- In `configToSettings`, add `hooks: normalizeHooks(cfg.hooks),` — and add the matching field to the returned object literal.
-- In `settingsToConfig`, add `hooks: normalizeHooks(settings.hooks),`.
+- In `settingsToConfig`, add `hooks: normalizeHooks(base.hooks),` — carried from the **base** config, following the `subagentMaxSteps` precedent.
+- Do **not** add `hooks` to `MeowSettings` or `configToSettings`: hooks are file-edited, not a settings-UI field. Adding it there would make `src/shared` import from `src/main/agent`, and a settings save would write the round-tripped object back and wipe the user's hooks config.
 
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run: `npx vitest run tests/unit/agent-hooks.test.ts`
-Expected: PASS (9 tests). Also run `npm run typecheck` — the `MeowSettings` type in `src/shared/types.ts` needs `hooks?: HooksConfig` too (configToSettings returns it). Add that field to the `MeowSettings` interface, importing `HooksConfig` type into `src/shared/types.ts` via `import type { HooksConfig } from '../../main/agent/hooks'` guarded so `src/shared` never imports runtime Node code (type-only import is safe).
+Expected: PASS. Also run `npm run typecheck` and `npx vitest run tests/unit/agent-config.test.ts` — `src/shared/types.ts` needs no change, since `hooks` stays out of `MeowSettings`.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/main/agent/hooks.ts src/main/agent/config.ts src/shared/types.ts tests/unit/agent-hooks.test.ts
+git add src/main/agent/hooks.ts src/main/agent/config.ts tests/unit/agent-hooks.test.ts
 git commit -m "feat(agent): hooks config schema, load/merge, and matcher"
 ```
 

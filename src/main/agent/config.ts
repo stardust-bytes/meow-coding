@@ -2,6 +2,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import type { AgentSettings, CompactionSettings, MeowSettings, ModelRef, NotificationsSettings, PermissionRule, SubagentType } from '../../shared/types'
 import type { McpServerConfig } from './mcp/manager'
+import { normalizeHooks } from './hooks'
+import type { HooksConfig } from './hooks'
 
 export type { PermissionRule }
 export type { McpServerConfig }
@@ -61,6 +63,7 @@ export interface MeowConfig {
   notifications?: NotificationsConfig
   trace?: TraceConfig
   subagentModels?: Partial<Record<SubagentType, ModelRef>>
+  hooks?: HooksConfig
 }
 
 export interface ResolvedAgentConfig {
@@ -336,7 +339,8 @@ function mergeDefaults(raw: Partial<MeowConfig>): MeowConfig {
     lsp: normalizeLsp(raw.lsp),
     notifications: normalizeNotifications(raw.notifications),
     trace: normalizeTrace(raw.trace),
-    subagentModels: normalizeSubagentModels(raw.subagentModels, providers)
+    subagentModels: normalizeSubagentModels(raw.subagentModels, providers),
+    hooks: normalizeHooks(raw.hooks)
   }
 }
 
@@ -500,6 +504,9 @@ export function settingsToConfig(settings: MeowSettings, base: MeowConfig = DEFA
       ? normalizeNotifications(settings.notifications)
       : normalizeNotifications(base.notifications),
     trace: normalizeTrace(settings.trace ?? base.trace),
+    // Hooks are edited in meow.json / .meow/hooks.json, never in the settings
+    // UI, so they must survive a settings save instead of being written away.
+    hooks: normalizeHooks(base.hooks),
     ...(settings.subagentModels
       ? { subagentModels: normalizeSubagentModels(settings.subagentModels, providers) }
       : {})
