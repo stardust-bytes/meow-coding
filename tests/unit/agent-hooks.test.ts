@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { HooksExecutor, loadProjectHooks, matchHook, mergeHooksConfig } from '../../src/main/agent/hooks'
-import type { CommandHook, HookTraceRecord, HooksConfig } from '../../src/main/agent/hooks'
+import type { CommandHook, HookTraceRecord, HooksConfig, HttpHook } from '../../src/main/agent/hooks'
 import { DEFAULT_MEOW_CONFIG, loadMeowConfig, settingsToConfig, configToSettings } from '../../src/main/agent/config'
 
 let dir: string
@@ -467,6 +467,131 @@ describe('HooksExecutor Stop', () => {
     )
     expect((await ex.runStop('done', false)).block).toBe(true)
     expect(spawned.calls).toHaveLength(1)
+  })
+})
+
+describe('HooksExecutor mcp_tool handler', () => {
+  const mcpPre = (): HooksConfig => ({
+    PreToolUse: [{ matcher: '*', hooks: [{ type: 'mcp_tool', server: 'policy', tool: 'check' }] }]
+  })
+
+  it('calls the MCP tool with the hook input merged under the event payload', async () => {
+    const seen: { server: string; tool: string; input: Record<string, unknown> }[] = []
+    const ex = new HooksExecutor(
+      { PreToolUse: [{ matcher: '*', hooks: [{ type: 'mcp_tool', server: 'policy', tool: 'check', input: { strict: true } }] }] },
+      {
+        cwd: '/proj',
+        callMcpTool: async (server, tool, input) => {
+          seen.push({ server, tool, input })
+          return { output: '' }
+        }
+      }
+    )
+    await ex.runPreToolUse('write', { file_path: 'a.ts' })
+    expect(seen).toHaveLength(1)
+    expect(seen[0].server).toBe('policy')
+    expect(seen[0].tool).toBe('check')
+    expect(seen[0].input).toMatchObject({ strict: true, tool_name: 'write', hook_event_name: 'PreToolUse' })
+  })
+
+  it('reads a decision out of the MCP tool output', async () => {
+    const ex = new HooksExecutor(mcpPre(), {
+      cwd: '/proj',
+      callMcpTool: async () => ({ output: decisionJson('deny', 'mcp says no') })
+    })
+    const r = await ex.runPreToolUse('write', {})
+    expect(r.decision).toBe('deny')
+    expect(r.reason).toBe('mcp says no')
+  })
+
+  it('treats an MCP error as a block, the way exit 2 is', async () => {
+    const ex = new HooksExecutor(mcpPre(), {
+      cwd: '/proj',
+      callMcpTool: async () => ({ error: 'server not connected' })
+    })
+    const r = await ex.runPreToolUse('write', {})
+    expect(r.decision).toBe('deny')
+    expect(r.reason).toContain('server not connected')
+  })
+
+  it('yields no decision when no MCP bridge is wired', async () => {
+    const ex = new HooksExecutor(mcpPre(), { cwd: '/proj' })
+    expect(await ex.runPreToolUse('write', {})).toEqual({})
+  })
+})
+
+describe('HooksExecutor http handler', () => {
+  const httpPre = (hook: Partial<HttpHook> = {}): HooksConfig => ({
+    PreToolUse: [
+      { matcher: '*', hooks: [{ type: 'http', url: 'https://policy.test/check', ...hook } as HttpHook] }
+    ]
+  })
+
+  it('posts the event payload as JSON and reads the decision from the body', async () => {
+    const seen: { url: string; init: Record<string, unknown> }[] = []
+    const ex = new HooksExecutor(httpPre(), {
+      cwd: '/proj',
+      fetchFn: async (url: string, init: Record<string, unknown>) => {
+        seen.push({ url, init })
+        return { ok: true, status: 200, text: async () => decisionJson('ask', 'confirm') }
+      }
+    } as never)
+    const r = await ex.runPreToolUse('write', { file_path: 'a.ts' })
+    expect(seen[0].url).toBe('https://policy.test/check')
+    expect(seen[0].init.method).toBe('POST')
+    expect(JSON.parse(seen[0].init.body as string)).toMatchObject({ tool_name: 'write' })
+    expect(r.decision).toBe('ask')
+    expect(r.reason).toBe('confirm')
+  })
+
+  it('interpolates only allowlisted env vars into the url and headers', async () => {
+    process.env.MEOW_TEST_HOOK_TOKEN = 'tok'
+    process.env.MEOW_TEST_HOOK_SECRET = 'leak'
+    try {
+      const seen: { url: string; init: Record<string, unknown> }[] = []
+      const ex = new HooksExecutor(
+        httpPre({
+          url: 'https://policy.test/$MEOW_TEST_HOOK_TOKEN',
+          headers: { 'x-token': '$MEOW_TEST_HOOK_TOKEN', 'x-secret': '$MEOW_TEST_HOOK_SECRET' },
+          allowedEnvVars: ['MEOW_TEST_HOOK_TOKEN']
+        }),
+        {
+          cwd: '/proj',
+          fetchFn: async (url: string, init: Record<string, unknown>) => {
+            seen.push({ url, init })
+            return { ok: true, status: 200, text: async () => '' }
+          }
+        } as never
+      )
+      await ex.runPreToolUse('write', {})
+      expect(seen[0].url).toBe('https://policy.test/tok')
+      const headers = seen[0].init.headers as Record<string, string>
+      expect(headers['x-token']).toBe('tok')
+      expect(headers['x-secret']).toBe('')
+    } finally {
+      delete process.env.MEOW_TEST_HOOK_TOKEN
+      delete process.env.MEOW_TEST_HOOK_SECRET
+    }
+  })
+
+  it('treats a non-2xx response as a block', async () => {
+    const ex = new HooksExecutor(httpPre(), {
+      cwd: '/proj',
+      fetchFn: async () => ({ ok: false, status: 403, text: async () => 'denied by policy' })
+    } as never)
+    const r = await ex.runPreToolUse('write', {})
+    expect(r.decision).toBe('deny')
+    expect(r.reason).toContain('denied by policy')
+  })
+
+  it('yields no decision when the request throws', async () => {
+    const ex = new HooksExecutor(httpPre(), {
+      cwd: '/proj',
+      fetchFn: async () => {
+        throw new Error('ECONNREFUSED')
+      }
+    } as never)
+    expect(await ex.runPreToolUse('write', {})).toEqual({})
   })
 })
 

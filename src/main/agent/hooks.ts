@@ -176,7 +176,21 @@ export interface HooksExecutorDeps {
   spawnFn?: typeof spawn
   killFn?: (pid: number, cb: () => void) => void
   onTrace?: (record: HookTraceRecord) => void
+  // Bridges to a connected MCP server. Absent, mcp_tool hooks are inert rather
+  // than fatal, so a hooks config outlives the server it names.
+  callMcpTool?: (
+    server: string,
+    tool: string,
+    input: Record<string, unknown>
+  ) => Promise<{ output?: string; error?: string }>
+  fetchFn?: typeof fetch
 }
+
+// An http hook's timeout is short by default: it is a network call in the middle
+// of a turn, not a test suite.
+const DEFAULT_HTTP_TIMEOUT_S = 30
+
+const ENV_REFERENCE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g
 
 // Claude Code parses stdout as JSON only when it is a bare object, so a hook can
 // print human-readable notes without them being read as a decision.
@@ -298,6 +312,58 @@ export class HooksExecutor {
     })
   }
 
+  private async runMcpTool(hook: McpToolHook, payload: Record<string, unknown>): Promise<HookExecution> {
+    const call = this.deps.callMcpTool
+    // A hooks config may name a server this session never connected; that is a
+    // misconfiguration, not grounds to block every tool call.
+    if (!call) return { exitCode: 0, stdout: '', stderr: '', timedOut: false }
+    try {
+      const result = await call(hook.server, hook.tool, { ...(hook.input ?? {}), ...payload })
+      if (result.error) return { exitCode: 2, stdout: '', stderr: result.error, timedOut: false }
+      return { exitCode: 0, stdout: result.output ?? '', stderr: '', timedOut: false }
+    } catch (err) {
+      return { exitCode: 2, stdout: '', stderr: err instanceof Error ? err.message : String(err), timedOut: false }
+    }
+  }
+
+  // Only allowlisted names resolve; every other reference expands to empty, so a
+  // hook config cannot post the whole environment to a remote endpoint.
+  private interpolateEnv(template: string, allowed: string[] | undefined): string {
+    return template.replace(ENV_REFERENCE, (_match, braced: string | undefined, bare: string | undefined) => {
+      const name = braced ?? bare ?? ''
+      return allowed?.includes(name) ? (process.env[name] ?? '') : ''
+    })
+  }
+
+  private async runHttp(hook: HttpHook, payload: Record<string, unknown>): Promise<HookExecution> {
+    const doFetch = this.deps.fetchFn ?? fetch
+    try {
+      const headers: Record<string, string> = { 'content-type': 'application/json' }
+      for (const [key, value] of Object.entries(hook.headers ?? {})) {
+        headers[key] = this.interpolateEnv(value, hook.allowedEnvVars)
+      }
+      const res = await doFetch(this.interpolateEnv(hook.url, hook.allowedEnvVars), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout((hook.timeout ?? DEFAULT_HTTP_TIMEOUT_S) * 1000)
+      })
+      const text = await res.text()
+      // A policy endpoint answering 4xx/5xx is an explicit rejection, so it
+      // blocks; an unreachable endpoint (below) is a failure and does not.
+      if (!res.ok) return { exitCode: 2, stdout: '', stderr: text || `http ${res.status}`, timedOut: false }
+      return { exitCode: 0, stdout: text, stderr: '', timedOut: false }
+    } catch (err) {
+      const timedOut = err instanceof Error && err.name === 'TimeoutError'
+      return {
+        exitCode: null,
+        stdout: '',
+        stderr: err instanceof Error ? err.message : String(err),
+        timedOut
+      }
+    }
+  }
+
   private async execute(
     hook: HookEntry,
     event: HookEventName,
@@ -308,7 +374,11 @@ export class HooksExecutor {
     const startedAt = Date.now()
     const exec = hook.type === 'command'
       ? await this.runCommand(hook, payload, event)
-      : { exitCode: 0, stdout: '', stderr: '', timedOut: false }
+      : hook.type === 'mcp_tool'
+        ? await this.runMcpTool(hook, payload)
+        : hook.type === 'http'
+          ? await this.runHttp(hook, payload)
+          : { exitCode: 0, stdout: '', stderr: '', timedOut: false }
     const status: HookTraceRecord['status'] = exec.timedOut
       ? 'timeout'
       : exec.exitCode === 2
