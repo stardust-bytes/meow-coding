@@ -4,7 +4,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { HooksExecutor, loadProjectHooks, matchHook, mergeHooksConfig } from '../../src/main/agent/hooks'
-import type { CommandHook, HookTraceRecord, HooksConfig, HttpHook } from '../../src/main/agent/hooks'
+import type { CommandHook, HookTraceRecord, HooksConfig, HttpHook, PromptHook } from '../../src/main/agent/hooks'
+import type { LlmClient, LlmStreamOptions } from '../../src/main/agent/llm'
 import { DEFAULT_MEOW_CONFIG, loadMeowConfig, settingsToConfig, configToSettings } from '../../src/main/agent/config'
 
 let dir: string
@@ -592,6 +593,82 @@ describe('HooksExecutor http handler', () => {
       }
     } as never)
     expect(await ex.runPreToolUse('write', {})).toEqual({})
+  })
+})
+
+describe('HooksExecutor prompt handler', () => {
+  // A hook model call is tool-less and single-shot: it inspects the event and
+  // answers, so a text-only stub is the whole contract.
+  function stubModel(text: string): { llm: LlmClient; model: string; seen: LlmStreamOptions[] } {
+    const seen: LlmStreamOptions[] = []
+    return {
+      model: 'hook-model',
+      seen,
+      llm: {
+        // eslint-disable-next-line require-yield
+        async *stream(opts: LlmStreamOptions) {
+          seen.push(opts)
+          yield { kind: 'text' as const, text }
+        }
+      } as LlmClient
+    }
+  }
+
+  const promptPre = (hook: Partial<PromptHook> = {}): HooksConfig => ({
+    PreToolUse: [
+      { matcher: '*', hooks: [{ type: 'prompt', prompt: 'Judge: $ARGUMENTS', ...hook } as PromptHook] }
+    ]
+  })
+
+  it('substitutes $ARGUMENTS with the event payload and runs without tools', async () => {
+    const stub = stubModel(decisionJson('deny', 'model says no'))
+    const ex = new HooksExecutor(promptPre(), { cwd: '/proj', getModel: () => stub })
+    const r = await ex.runPreToolUse('write', { file_path: 'a.ts' })
+    expect(r.decision).toBe('deny')
+    expect(r.reason).toBe('model says no')
+    const sent = stub.seen[0]
+    expect(sent.tools).toEqual([])
+    const userText = String(sent.messages[0].content)
+    expect(userText).toContain('"tool_name":"write"')
+    expect(userText).not.toContain('$ARGUMENTS')
+  })
+
+  it('uses the hook model override when one is set', async () => {
+    const stub = stubModel('')
+    const ex = new HooksExecutor(promptPre({ model: 'cheap-model' }), { cwd: '/proj', getModel: () => stub })
+    await ex.runPreToolUse('write', {})
+    expect(stub.seen[0].model).toBe('cheap-model')
+  })
+
+  it('treats a non-JSON answer as no decision', async () => {
+    const stub = stubModel('Looks fine to me, carry on.')
+    const ex = new HooksExecutor(promptPre(), { cwd: '/proj', getModel: () => stub })
+    expect(await ex.runPreToolUse('write', {})).toEqual({})
+  })
+
+  it('yields no decision when no model is wired', async () => {
+    const ex = new HooksExecutor(promptPre(), { cwd: '/proj' })
+    expect(await ex.runPreToolUse('write', {})).toEqual({})
+  })
+
+  it('yields no decision when the model call throws', async () => {
+    const llm: LlmClient = {
+      // eslint-disable-next-line require-yield
+      async *stream() {
+        throw new Error('provider down')
+      }
+    }
+    const ex = new HooksExecutor(promptPre(), { cwd: '/proj', getModel: () => ({ llm, model: 'm' }) })
+    expect(await ex.runPreToolUse('write', {})).toEqual({})
+  })
+
+  it('lets an agent-type Stop hook block with {ok:false}', async () => {
+    const stub = stubModel(JSON.stringify({ ok: false, reason: 'tests not run yet' }))
+    const ex = new HooksExecutor(
+      { Stop: [{ matcher: '*', hooks: [{ type: 'agent', prompt: 'Did it finish?' }] }] },
+      { cwd: '/proj', getModel: () => stub }
+    )
+    expect(await ex.runStop('done', false)).toEqual({ block: true, reason: 'tests not run yet' })
   })
 })
 

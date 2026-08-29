@@ -6,6 +6,7 @@ import kill from 'tree-kill'
 import { buildShellCommand } from './tools/bash'
 import type { ResolvedShellCommand } from './tools/bash'
 import type { ToolRunResult } from './tools/types'
+import type { LlmClient } from './llm'
 
 export type HookEventName = 'PreToolUse' | 'PostToolUse' | 'Stop'
 
@@ -184,7 +185,16 @@ export interface HooksExecutorDeps {
     input: Record<string, unknown>
   ) => Promise<{ output?: string; error?: string }>
   fetchFn?: typeof fetch
+  // Resolved per call so a prompt hook follows the agent's current model.
+  getModel?: () => { llm: LlmClient; model: string } | undefined
 }
+
+const PROMPT_HOOK_SYSTEM = [
+  'You are a hook inspecting an agent event.',
+  'Reply with a single JSON object and nothing else.',
+  'To gate a tool call: {"hookSpecificOutput":{"permissionDecision":"allow"|"deny"|"ask","permissionDecisionReason":"..."}}.',
+  'To let a turn end: {"ok":true}. To keep it going: {"ok":false,"reason":"..."}.'
+].join('\n')
 
 // An http hook's timeout is short by default: it is a network call in the middle
 // of a turn, not a test suite.
@@ -364,6 +374,35 @@ export class HooksExecutor {
     }
   }
 
+  // A tool-less, single-shot model call: it reads the event and answers. Its
+  // answer is treated exactly like a command hook's stdout.
+  private async runPrompt(hook: PromptHook, payload: Record<string, unknown>): Promise<HookExecution> {
+    const resolved = this.deps.getModel?.()
+    if (!resolved) return { exitCode: 0, stdout: '', stderr: '', timedOut: false }
+    try {
+      const prompt = hook.prompt.replaceAll('$ARGUMENTS', JSON.stringify(payload))
+      let text = ''
+      for await (const part of resolved.llm.stream({
+        model: hook.model ?? resolved.model,
+        system: PROMPT_HOOK_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+        tools: [],
+        signal: AbortSignal.timeout((hook.timeout ?? DEFAULT_TIMEOUT_S.PreToolUse) * 1000)
+      })) {
+        if (part.kind === 'text') text += part.text ?? ''
+      }
+      return { exitCode: 0, stdout: text, stderr: '', timedOut: false }
+    } catch (err) {
+      // A model that errors or times out is a failed hook, not a denial.
+      return {
+        exitCode: null,
+        stdout: '',
+        stderr: err instanceof Error ? err.message : String(err),
+        timedOut: false
+      }
+    }
+  }
+
   private async execute(
     hook: HookEntry,
     event: HookEventName,
@@ -378,7 +417,7 @@ export class HooksExecutor {
         ? await this.runMcpTool(hook, payload)
         : hook.type === 'http'
           ? await this.runHttp(hook, payload)
-          : { exitCode: 0, stdout: '', stderr: '', timedOut: false }
+          : await this.runPrompt(hook, payload)
     const status: HookTraceRecord['status'] = exec.timedOut
       ? 'timeout'
       : exec.exitCode === 2
