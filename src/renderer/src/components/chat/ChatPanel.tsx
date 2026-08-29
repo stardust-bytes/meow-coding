@@ -372,6 +372,10 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
         if (e.sub === 'done') {
           next.state = e.state ?? 'completed'
           if (e.result) next.result = e.result
+          // A failed subagent carries the real reason on the done event; show
+          // it in place of any partial text so both the feed card and the live
+          // dialog surface the cause instead of a bare "error".
+          if (e.state === 'error' && e.text) next.text = e.text
         }
         const arr = [...prev]
         if (idx >= 0) arr[idx] = next

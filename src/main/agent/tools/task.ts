@@ -131,6 +131,10 @@ export function createTaskTool(opts: {
       if (def) safeTools.set(name, def)
     }
     let stopReason: string | undefined
+    // The subagent loop's own error (provider rejection, etc.). It used to be
+    // swallowed: the panel got state:'error' with no message and the parent got
+    // a generic "produced no answer". Thread it through so failures are real.
+    let loopError: string | undefined
     const runner = new SessionRunner({
       agentId: `sub-${role.name}-${id}`,
       taskId: id,
@@ -180,7 +184,9 @@ export function createTaskTool(opts: {
             parentTaskId: ctx.taskId
           })
         } else if (e.type === 'error') {
-          ctx.emitSubagent?.(id, { sub: 'done', state: 'error', parentTaskId: ctx.taskId })
+          // Surface the real reason on the panel instead of a bare "error".
+          loopError = e.message
+          ctx.emitSubagent?.(id, { sub: 'done', state: 'error', text: e.message, parentTaskId: ctx.taskId })
         } else if (e.type === 'prompt-request') {
           opts.onPromptRequest?.(e, { taskId: id, subagentType: role.name })
         }
@@ -200,7 +206,14 @@ export function createTaskTool(opts: {
         break
       }
     }
-    if (!text) return { text: '', error: 'task: subagent produced no answer' }
+    // Name the real cause when the loop errored, so the parent can react to it
+    // instead of guessing; the generic message stays for a silent no-answer.
+    if (!text) {
+      return {
+        text: '',
+        error: loopError ? `task: subagent error: ${loopError}` : 'task: subagent produced no answer'
+      }
+    }
     const incomplete = stopReason === 'max-steps' || stopReason === 'length' ? stopReason : undefined
     return { text, ...(incomplete ? { incomplete } : {}) }
   }
@@ -254,7 +267,7 @@ export function createTaskTool(opts: {
                 ctx.emitSubagent?.(id, { sub: 'done', state: 'completed', result: result.text, parentTaskId: ctx.taskId })
                 opts.onBackgroundResult?.(id, result.text)
               } else {
-                ctx.emitSubagent?.(id, { sub: 'done', state: 'error', parentTaskId: ctx.taskId })
+                ctx.emitSubagent?.(id, { sub: 'done', state: 'error', text: result.error, parentTaskId: ctx.taskId })
                 opts.onBackgroundResult?.(id, '', result.error)
               }
             },

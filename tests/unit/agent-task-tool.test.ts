@@ -407,3 +407,68 @@ describe('background subagent lifecycle', () => {
     expect(done?.parentTaskId).toBe('parent-task')
   })
 })
+
+describe('subagent error surfacing', () => {
+  // The subagent's LLM call is rejected up front (e.g. a provider that refuses
+  // the model, like the China-hosted opt-in rejection), so it produces no text.
+  class FailingLlm implements LlmClient {
+    async *stream(): AsyncGenerator<LlmStreamPart> {
+      yield {
+        kind: 'error',
+        error: 'The latest version of this model is only available hosted in China and requires explicit opt in: https://opencode.ai/workspace/wrk_TEST/go',
+        retryable: false
+      }
+    }
+  }
+
+  it('returns the real LLM error to the parent, not a generic no-answer', async () => {
+    const task = createTaskTool({
+      llm: new FailingLlm(),
+      model: 'm',
+      tools: new Map([['read', stubTool('read')]]),
+      permission: allowAll()
+    })
+    const r = await task.run({ prompt: 'x', subagent_type: 'research' }, { cwd: '/p', ask: async () => null })
+    expect(r.error).toBeDefined()
+    expect(r.error).toContain('only available hosted in China')
+    expect(r.error).not.toBe('task: subagent produced no answer')
+  })
+
+  it('carries the real error text on the panel done event, not just state error', async () => {
+    const events: Array<{ sub: string; state?: string; text?: string }> = []
+    const task = createTaskTool({
+      llm: new FailingLlm(),
+      model: 'm',
+      tools: new Map([['read', stubTool('read')]]),
+      permission: allowAll()
+    })
+    await task.run(
+      { prompt: 'x', subagent_type: 'research' },
+      { cwd: '/p', ask: async () => null, emitSubagent: (_id, e) => events.push(e) }
+    )
+    const done = events.find(e => e.sub === 'done')
+    expect(done?.state).toBe('error')
+    expect(done?.text).toContain('only available hosted in China')
+  })
+
+  it('delivers the real error text for a background subagent too', async () => {
+    const events: Array<{ sub: string; state?: string; text?: string }> = []
+    let delivered: { text: string; error?: string } | null = null
+    const task = createTaskTool({
+      llm: new FailingLlm(),
+      model: 'm',
+      tools: new Map([['read', stubTool('read')]]),
+      permission: allowAll(),
+      onBackgroundResult: (id, text, error) => { delivered = { text, error } }
+    })
+    await task.run(
+      { prompt: 'x', subagent_type: 'research', background: true },
+      { cwd: '/p', ask: async () => null, emitSubagent: (_id, e) => events.push(e) }
+    )
+    await new Promise(r => setTimeout(r, 20))
+    const done = events.find(e => e.sub === 'done')
+    expect(done?.state).toBe('error')
+    expect(done?.text).toContain('only available hosted in China')
+    expect(delivered?.error).toContain('only available hosted in China')
+  })
+})
