@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { SessionRunner } from '../../src/main/agent/loop'
+import { formatToolError, SessionRunner } from '../../src/main/agent/loop'
 import type { LoopDeps } from '../../src/main/agent/loop'
 import type { LlmClient, LlmStreamOptions, LlmStreamPart } from '../../src/main/agent/llm'
 import type { ToolDefinition } from '../../src/main/agent/tools/types'
@@ -78,6 +78,27 @@ function makeHarness(overrides: Partial<LoopDeps> = {}): Harness {
 function textParts(...texts: string[]): LlmStreamPart[] {
   return [...texts.map(t => ({ kind: 'text' as const, text: t })), { kind: 'finish' as const }]
 }
+
+describe('formatToolError', () => {
+  it('returns Error.message for Error instances', () => {
+    expect(formatToolError(new Error('boom'))).toBe('boom')
+  })
+
+  it('passes plain strings through', () => {
+    expect(formatToolError('boom')).toBe('boom')
+  })
+
+  it('JSON-stringifies plain objects instead of "[object Object]"', () => {
+    expect(formatToolError({ code: 42, msg: 'x' })).toBe('{"code":42,"msg":"x"}')
+  })
+
+  it('falls back to String() for unserializable values', () => {
+    expect(formatToolError(null)).toBe('null')
+    const circular: Record<string, unknown> = {}
+    circular.self = circular
+    expect(formatToolError(circular)).toBe('[object Object]')
+  })
+})
 
 describe('SessionRunner', () => {
   it('streams a text-only turn and finishes complete', async () => {
@@ -888,6 +909,34 @@ describe('SessionRunner', () => {
     await new Promise(r => setTimeout(r, 30))
     const toolItem = h.items.find(i => i.kind === 'tool') as Extract<TranscriptItem, { kind: 'tool' }> | undefined
     expect(String(toolItem!.tool.output)).toBe('done')
+  })
+
+  it('feeds back a thrown tool error as its message and still runs the sibling', async () => {
+    const boom = vi.fn(async () => { throw new Error('boom') })
+    const ok = vi.fn(async () => ({ output: 'ok result' }))
+    const h = makeHarness({
+      tools: new Map([
+        ['read', stubTool('read', ok)],
+        ['write', stubTool('write', boom)]
+      ])
+    })
+    h.llm.queue = [
+      [
+        { kind: 'tool-call', toolCallId: 'tc1', toolName: 'read', toolInput: {} },
+        { kind: 'tool-call', toolCallId: 'tc2', toolName: 'write', toolInput: {} },
+        { kind: 'finish' }
+      ],
+      textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    const writeItem = h.items.find(i => i.kind === 'tool' && i.tool.tool === 'write') as Extract<TranscriptItem, { kind: 'tool' }>
+    expect(writeItem.tool.error).toBe('boom')
+    const readItem = h.items.find(i => i.kind === 'tool' && i.tool.tool === 'read') as Extract<TranscriptItem, { kind: 'tool' }>
+    expect(readItem.tool.output).toBe('ok result')
+    // The sibling call still runs and the turn reaches a done.
+    expect(ok).toHaveBeenCalled()
+    expect(h.events.some(e => e.type === 'done')).toBe(true)
   })
 
 })

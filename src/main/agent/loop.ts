@@ -98,6 +98,20 @@ function classifyFinish(reason: string | undefined): 'complete' | 'length' | 're
   return 'complete'
 }
 
+// Tool run() calls can throw; normalize to a string the model can read instead
+// of String(err), which turns plain objects into "[object Object]".
+export function formatToolError(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (typeof err === 'string') return err
+  try {
+    const json = JSON.stringify(err)
+    if (json !== undefined) return json
+  } catch {
+    // circular reference — fall through
+  }
+  return String(err)
+}
+
 export class SessionRunner {
   private readonly maxSteps: number
   private compactedThisRun = 0
@@ -413,7 +427,7 @@ export class SessionRunner {
             call.output = await this.appendToolReminder(call, call.output)
           }
         } catch (err) {
-          call.error = String(err)
+          call.error = formatToolError(err)
         }
       }
     }

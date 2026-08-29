@@ -117,6 +117,17 @@ describe('toLlmMessages', () => {
       .toEqual({ type: 'text', value: 'ok' })
   })
 
+  it('keeps partial output alongside the error in an error-text result', () => {
+    const items = [
+      { kind: 'message' as const, message: msg('user', 'x') },
+      { kind: 'message' as const, message: msg('assistant', '') },
+      { kind: 'tool' as const, tool: { ...toolCall('bash', {}), output: 'partial', error: 'boom' } }
+    ]
+    const llm = toLlmMessages(items)
+    expect((llm[2] as { content: { output: { type: string; value: unknown } }[] }).content[0].output)
+      .toEqual({ type: 'error-text', value: 'partial\n\nERROR: boom' })
+  })
+
   it('orders tool results after the assistant message that produced them', () => {
     const items = [
       { kind: 'message' as const, message: msg('user', 'go') },

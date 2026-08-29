@@ -130,9 +130,10 @@ export function toLlmMessages(items: TranscriptItem[], opts?: ToLlmOptions): Mod
       let value = item.tool.output ?? 'ok'
       if (maxOutput !== undefined && index < fullFrom) value = truncateToolOutput(value, maxOutput)
       if (truncate) value = truncate(item.tool.id, value)
+      const error = item.tool.error
       const output: { type: 'text'; value: string } | { type: 'error-text'; value: string } =
-        item.tool.error
-          ? { type: 'error-text', value: item.tool.error }
+        error
+          ? { type: 'error-text', value: item.tool.output ? `${value}\n\nERROR: ${error}` : error }
           : { type: 'text', value }
       pendingResults.push({
         role: 'tool',
