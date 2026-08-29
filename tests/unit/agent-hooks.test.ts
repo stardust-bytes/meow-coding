@@ -1,9 +1,10 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
+import { EventEmitter } from 'node:events'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { loadProjectHooks, matchHook, mergeHooksConfig } from '../../src/main/agent/hooks'
-import type { HooksConfig } from '../../src/main/agent/hooks'
+import { HooksExecutor, loadProjectHooks, matchHook, mergeHooksConfig } from '../../src/main/agent/hooks'
+import type { CommandHook, HooksConfig } from '../../src/main/agent/hooks'
 import { DEFAULT_MEOW_CONFIG, loadMeowConfig, settingsToConfig, configToSettings } from '../../src/main/agent/config'
 
 let dir: string
@@ -125,5 +126,167 @@ describe('meow.json hooks key', () => {
     }
     const saved = settingsToConfig(configToSettings(base), base)
     expect(saved.hooks?.Stop?.[0].hooks[0]).toMatchObject({ command: 'done.sh' })
+  })
+})
+
+// --- command execution -------------------------------------------------------
+
+interface FakeScript {
+  stdout?: string
+  stderr?: string
+  exitCode?: number
+  // Never closes: lets a test drive the timeout path.
+  keepOpen?: boolean
+  spawnError?: string
+}
+
+interface SpawnRecord {
+  command: string
+  args: string[]
+  options: Record<string, unknown>
+  stdin: string
+}
+
+function fakeSpawn(script: FakeScript): { fn: (...a: never[]) => unknown; calls: SpawnRecord[] } {
+  const calls: SpawnRecord[] = []
+  const fn = (command: string, args: string[], options: Record<string, unknown>): unknown => {
+    const record: SpawnRecord = { command, args, options, stdin: '' }
+    calls.push(record)
+    const stdout = new EventEmitter()
+    const stderr = new EventEmitter()
+    const handlers = new Map<string, (...a: unknown[]) => void>()
+    return {
+      pid: 4321,
+      exitCode: null,
+      signalCode: null,
+      stdin: {
+        end: (chunk?: string) => {
+          record.stdin = chunk ?? ''
+          if (script.keepOpen) return
+          setTimeout(() => {
+            if (script.spawnError) {
+              handlers.get('error')?.(new Error(script.spawnError))
+              return
+            }
+            if (script.stdout) stdout.emit('data', Buffer.from(script.stdout))
+            if (script.stderr) stderr.emit('data', Buffer.from(script.stderr))
+            handlers.get('close')?.(script.exitCode ?? 0)
+          }, 0)
+        }
+      },
+      stdout,
+      stderr,
+      on: (event: string, cb: (...a: unknown[]) => void) => {
+        handlers.set(event, cb)
+      },
+      unref: () => {}
+    }
+  }
+  return { fn: fn as never, calls }
+}
+
+const alwaysPre = (hook: Partial<CommandHook> = {}): HooksConfig => ({
+  PreToolUse: [{ matcher: '*', hooks: [{ type: 'command', command: 'gate.sh', ...hook } as CommandHook] }]
+})
+
+describe('HooksExecutor command execution', () => {
+  it('writes the event payload to the child stdin', async () => {
+    const spawned = fakeSpawn({ exitCode: 0 })
+    const ex = new HooksExecutor(alwaysPre(), { cwd: '/proj', spawnFn: spawned.fn as never })
+    await ex.runPreToolUse('read', { file_path: 'a.ts' })
+    expect(spawned.calls).toHaveLength(1)
+    const payload = JSON.parse(spawned.calls[0].stdin)
+    expect(payload).toMatchObject({
+      hook_event_name: 'PreToolUse',
+      cwd: '/proj',
+      tool_name: 'read',
+      tool_input: { file_path: 'a.ts' }
+    })
+  })
+
+  it('treats exit 0 with non-JSON stdout as no decision', async () => {
+    const spawned = fakeSpawn({ stdout: 'looks fine to me', exitCode: 0 })
+    const ex = new HooksExecutor(alwaysPre(), { cwd: '/proj', spawnFn: spawned.fn as never })
+    expect(await ex.runPreToolUse('read', {})).toEqual({})
+  })
+
+  it('blocks on exit 2, using stderr as the reason when there is no JSON', async () => {
+    const spawned = fakeSpawn({ stderr: 'forbidden path', exitCode: 2 })
+    const ex = new HooksExecutor(alwaysPre(), { cwd: '/proj', spawnFn: spawned.fn as never })
+    const r = await ex.runPreToolUse('write', { file_path: 'a.ts' })
+    expect(r.decision).toBe('deny')
+    expect(r.reason).toContain('forbidden path')
+  })
+
+  // Claude Code's documented footgun: only 2 blocks. Any other non-zero code is
+  // a hook that failed, and a failed hook must not gate the tool.
+  it('does not block on exit 1', async () => {
+    const spawned = fakeSpawn({ stderr: 'boom', exitCode: 1 })
+    const ex = new HooksExecutor(alwaysPre(), { cwd: '/proj', spawnFn: spawned.fn as never })
+    expect((await ex.runPreToolUse('write', {})).decision).toBeUndefined()
+  })
+
+  it('parses a hookSpecificOutput JSON body on exit 0', async () => {
+    const stdout = JSON.stringify({
+      hookSpecificOutput: {
+        permissionDecision: 'allow',
+        permissionDecisionReason: 'allowlisted',
+        additionalContext: 'production database',
+        updatedInput: { file_path: 'b.ts' }
+      }
+    })
+    const spawned = fakeSpawn({ stdout, exitCode: 0 })
+    const ex = new HooksExecutor(alwaysPre(), { cwd: '/proj', spawnFn: spawned.fn as never })
+    const r = await ex.runPreToolUse('write', { file_path: 'a.ts' })
+    expect(r.decision).toBe('allow')
+    expect(r.reason).toBe('allowlisted')
+    expect(r.additionalContext).toBe('production database')
+    expect(r.updatedInput).toEqual({ file_path: 'b.ts' })
+  })
+
+  it('ignores stdout that is not a bare JSON object', async () => {
+    const noisy = 'note: {"hookSpecificOutput":{"permissionDecision":"deny"}}'
+    const spawned = fakeSpawn({ stdout: noisy, exitCode: 0 })
+    const ex = new HooksExecutor(alwaysPre(), { cwd: '/proj', spawnFn: spawned.fn as never })
+    expect(await ex.runPreToolUse('write', {})).toEqual({})
+  })
+
+  it('yields no decision when a hook times out, so the tool still proceeds', async () => {
+    const spawned = fakeSpawn({ keepOpen: true })
+    const killed: number[] = []
+    const ex = new HooksExecutor(alwaysPre({ timeout: 0.01 }), {
+      cwd: '/proj',
+      spawnFn: spawned.fn as never,
+      killFn: (pid, cb) => {
+        killed.push(pid)
+        cb()
+      }
+    })
+    expect(await ex.runPreToolUse('read', {})).toEqual({})
+    expect(killed).toEqual([4321])
+  })
+
+  it('yields no decision when the child fails to spawn', async () => {
+    const spawned = fakeSpawn({ spawnError: 'ENOENT' })
+    const ex = new HooksExecutor(alwaysPre(), { cwd: '/proj', spawnFn: spawned.fn as never })
+    expect(await ex.runPreToolUse('read', {})).toEqual({})
+  })
+
+  it('runs an async hook fire-and-forget and never waits for a decision', async () => {
+    const spawned = fakeSpawn({ exitCode: 2, keepOpen: true })
+    const ex = new HooksExecutor(alwaysPre({ async: true }), { cwd: '/proj', spawnFn: spawned.fn as never })
+    expect(await ex.runPreToolUse('read', {})).toEqual({})
+    expect(spawned.calls).toHaveLength(1)
+  })
+
+  it('uses the exec form verbatim when args are given, bypassing the shell', async () => {
+    const spawned = fakeSpawn({ exitCode: 0 })
+    const ex = new HooksExecutor(alwaysPre({ command: 'node', args: ['gate.js'] }), {
+      cwd: '/proj',
+      spawnFn: spawned.fn as never
+    })
+    await ex.runPreToolUse('read', {})
+    expect(spawned.calls[0].command).toBe('node')
+    expect(spawned.calls[0].args).toEqual(['gate.js'])
   })
 })
