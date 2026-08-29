@@ -537,3 +537,89 @@ When tracing is disabled at startup, `userData/traces` is deleted outright so no
 - **Environment:** `snapshotEnvironment(cwd)` captures platform, shell, cwd, date, and git `{branch, dirtyCount}` (`null` when not a repo); `GitStatusService` has a 5s timeout, so slow/missing git never blocks a turn.
 - **Memory:** per-project `<cwd>/.meow/memory/`, gitignored. `MEMORY.md` index (≤ 200 lines) shown at turn start; the agent `read`s a fact file when relevant. Fact files have frontmatter (`name`, `description`, `metadata.type`) and `[[name]]` links; the agent writes them with the existing `write`/`edit` tools (no new tool). The index is data, not instructions. Toggle: `agents.<name>.memory: false` disables memory.
 - **Reminder injection:** turn start (once per run, via `toLlmOptions.turnContext`, never written to the session store); tool results — `read` attaches nearby instructions (existing), `git` and git-like `bash` append a freshness reminder, `write`/`edit` into the memory dir append a MEMORY.md sync reminder.
+
+## 3.17 Hooks
+
+Hooks are user-supplied policy that runs **outside the context window**: the agent spawns a
+subprocess (or calls an MCP tool / HTTP endpoint / a tool-less model call), and only a bounded
+result — a decision, replacement output, or a short note — ever reaches the LLM. Implemented in
+`src/main/agent/hooks.ts`; design spec in
+`docs/superpowers/specs/2026-08-29-meow-hooks-system-design.md`.
+
+### Config
+
+Two scopes are **merged**, global first, and every matching hook runs — a project cannot silently
+drop a global policy hook:
+
+- `meow.json` → `hooks` key (global; `userData/meow.json`)
+- `<cwd>/.meow/hooks.json` (project)
+
+```jsonc
+{
+  "PreToolUse": [
+    {
+      "matcher": "write|edit",           // "*"/"" = all; word-char lists = exact/list; else regex
+      "hooks": [
+        { "type": "command", "command": "./scripts/gate.sh", "timeout": 30 }
+      ]
+    }
+  ]
+}
+```
+
+`matcher` mirrors Claude Code and is case-sensitive; a malformed regex matches nothing rather than
+failing the turn. `Stop` hooks ignore their matcher and always fire.
+
+Handler types: `command` (shell form via `buildShellCommand`, or exec form with `args` to skip the
+shell; `shell: "powershell"` on Windows), `mcp_tool` (`server` + `tool`), `http` (POST, with `$VAR`
+interpolation restricted to `allowedEnvVars`), and `prompt`/`agent` (a tool-less model call where
+`$ARGUMENTS` expands to the event payload). Every handler also takes `timeout` (seconds),
+`statusMessage`, and `async` (fire-and-forget: never awaited, contributes no decision).
+
+### Protocol
+
+The event payload is written to the hook's **stdin** as JSON. The **exit code** is the control
+channel and **stdout** carries the detail:
+
+| Signal | Meaning |
+|---|---|
+| exit `0` | No decision unless stdout says otherwise |
+| exit `2` | **Blocking** — stdout JSON reason, else stderr |
+| any other code | Non-blocking; a broken hook must not gate work |
+| timeout / spawn failure | **No decision** — the tool proceeds through the normal permission flow |
+
+stdout is parsed as a decision **only** when it is a bare JSON object (`{`…`}`), so a hook can print
+human-readable notes freely. Decisions are read from `hookSpecificOutput` (or the top level, for
+older hooks). Output is capped at 64 KiB. Defaults: `PreToolUse` 60s, `PostToolUse`/`Stop` 600s.
+
+### Events
+
+- **`PreToolUse`** — runs before the permission gate, concurrently across the calls in a step.
+  `permissionDecision` is `allow` | `deny` | `ask`, aggregated `deny > ask > allow` across hooks;
+  `updatedInput` replaces the **whole** tool input; `additionalContext` is concatenated and appended
+  to the tool output. **Hooks tighten, never loosen:** `allow` waives an interactive prompt but
+  cannot override a config `deny` (including plan mode).
+- **`PostToolUse`** — runs after the tool, which has already acted. `updatedToolOutput` replaces what
+  the model reads, `additionalContext` is appended, and an exit-2 stderr becomes a warning beside the
+  result (it cannot undo the call).
+- **`Stop`** — runs once before a normal end of turn (`complete`/`length`/`refusal`/`max-steps`), and
+  **not** on a user Stop or an LLM error. Exit 2, `{"decision":"block"}`, or `{"ok":false}` keeps the
+  turn going with `reason` as the next user message and a fresh step budget, the way a steer does.
+  The first blocking hook wins, `stop_hook_active` is true from the second run on, and
+  `MAX_STOP_BLOCKS` (8) stops a hook that is never satisfied from looping forever.
+
+### Wiring and visibility
+
+`MeowAgentManager.register` builds the executor and passes it as `LoopDeps.hooks`, a **function**
+resolved once per `SessionRunner.run()` — like `system`, so a config edit lands on the next turn
+without a reload. The same provider goes to `createTaskTool`, so **subagents run the same hooks**
+(same cwd, same merged config).
+
+Hooks are invisible unless they act: the model and the user see a blocked call's error, a replaced
+tool output, appended context, or a Stop reason in the feed. Lifecycle is recorded in the
+`TraceStore` as `{ type: 'hook', event, tool?, status, durationMs }` (`started` → `ok` | `blocked` |
+`failed` | `timeout`) when tracing is enabled — never in the transcript.
+
+**Out of scope** (phase 2): the other Claude Code events (`UserPromptSubmit`, `SessionStart`,
+`SessionEnd`, `PreCompact`, `Notification`, …), the `if` per-handler filter, `asyncRewake`, the
+`defer` decision, plugin/frontmatter hooks, and `disableAllHooks`.

@@ -605,7 +605,6 @@ describe('HooksExecutor prompt handler', () => {
       model: 'hook-model',
       seen,
       llm: {
-        // eslint-disable-next-line require-yield
         async *stream(opts: LlmStreamOptions) {
           seen.push(opts)
           yield { kind: 'text' as const, text }
@@ -653,7 +652,6 @@ describe('HooksExecutor prompt handler', () => {
 
   it('yields no decision when the model call throws', async () => {
     const llm: LlmClient = {
-      // eslint-disable-next-line require-yield
       async *stream() {
         throw new Error('provider down')
       }

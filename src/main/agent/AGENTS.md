@@ -33,6 +33,7 @@ commands, references, compaction and usage accounting. Orchestrated by `MeowAgen
 | `prompt.ts` | `buildSystemPrompt` assembles the labeled harness prompt (identity, project instructions, memory, skills, mode, precedence note); `buildTurnReminder` renders the per-turn `<system-reminder>` block (env snapshot + memory index). |
 | `env.ts` | `snapshotEnvironment` captures platform/shell/cwd/date/git once per run; `gitFreshnessReminder` returns fresh git state for tool-result reminders. |
 | `memory.ts` | Per-project `.meow/memory/` store: `loadMemoryIndex` (≤ 200 lines, pass-through as data), `memoryRulesText` (system-prompt rules), `parseMemoryFile`, `isMemoryPath`. |
+| `hooks.ts` | `HooksExecutor` + `HooksRunner`: `PreToolUse` / `PostToolUse` / `Stop` hooks that run **outside the context window** (subprocess, MCP tool, HTTP endpoint, or a tool-less model call). Config merges `meow.json`'s `hooks` key with `<cwd>/.meow/hooks.json`; `matchHook` mirrors Claude Code (`*`/empty = all, word-char lists = exact/list, anything else = unanchored regex). Exit code is the control channel — `2` blocks, every other code does not, and a timeout yields no decision — while stdout counts as a decision only when it is a bare JSON object. |
 | `tools/` `lsp/` `mcp/` | Tool implementations and service clients — see their own AGENTS.md. |
 
 ## Conventions
@@ -41,3 +42,6 @@ commands, references, compaction and usage accounting. Orchestrated by `MeowAgen
 - Tests use a **model stub** (`createLlm` fake) — never hit a real LLM API (see `tests/unit/agent-loop.test.ts`).
 - New tools: implement in `tools/`, register in `tools/registry.ts`, add permission default in `config.ts`.
 - Session transcript items are the single source of truth for what the LLM sees (`message.ts` rebuilds prompts from them).
+- **Hooks tighten, never loosen.** A `PreToolUse` hook may deny a call, rewrite its input, or waive a permission prompt, but it can never override a config deny (`loop.ts` applies the hook decision around `decidePermission`). A failed or timed-out hook yields *no* decision, so broken policy never blocks work.
+- Hooks run in subagents too — same cwd, same merged config — and `LoopDeps.hooks` is a **function**, resolved once per run like `system`, so editing a hooks file lands on the next turn without a reload.
+- Hook activity goes to the `TraceStore` (`{ type: 'hook' }`), never into the transcript: hooks are policy machinery, not conversation. What the model sees is only a blocked call's error, a replaced tool output, or appended context.

@@ -24,7 +24,7 @@ system. Version at the time of writing: **0.26.8**.
 |---|---|---|
 | 01 | [Product overview](01-product-overview.md) | What is the product, who uses it, what are the features, what do the domain terms mean |
 | 02 | [Architecture](02-architecture.md) | Which processes exist, what each module does, how data flows |
-| 03 | [Native agent runtime](03-agent-runtime.md) | How a chat turn actually executes: loop, steering, permissions, compaction, retries, subagents |
+| 03 | [Native agent runtime](03-agent-runtime.md) | How a chat turn actually executes: loop, steering, permissions, compaction, retries, subagents, hooks |
 | 04 | [Tool catalog](04-tool-catalog.md) | Every tool the agent can call, its schema, its permission default, its behavior |
 | 05 | [IPC contract](05-ipc-contract.md) | Every IPC channel, every `AgentApi` method, every push event |
 | 06 | [Data & storage](06-data-and-storage.md) | Every file written to disk, its format, its lifecycle; `meow.json` reference |
