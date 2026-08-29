@@ -939,6 +939,71 @@ describe('SessionRunner', () => {
     expect(h.events.some(e => e.type === 'done')).toBe(true)
   })
 
+  it('runs multiple auto-approved tool calls in parallel and feeds all results back in order', async () => {
+    const a = vi.fn(async () => ({ output: 'A' }))
+    const b = vi.fn(async () => ({ output: 'B' }))
+    const h = makeHarness({
+      tools: new Map([
+        ['read', stubTool('read', a)],
+        ['glob', stubTool('glob', b)]
+      ])
+    })
+    h.llm.queue = [
+      [
+        { kind: 'text', text: 'working...' },
+        { kind: 'tool-call', toolCallId: 'tc1', toolName: 'read', toolInput: {} },
+        { kind: 'tool-call', toolCallId: 'tc2', toolName: 'glob', toolInput: {} },
+        { kind: 'finish' }
+      ],
+      textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    expect(a).toHaveBeenCalled()
+    expect(b).toHaveBeenCalled()
+    const results = h.items
+      .filter((i): i is Extract<TranscriptItem, { kind: 'tool' }> => i.kind === 'tool')
+      .map(i => i.tool)
+    expect(results.map(r => r.id)).toEqual(['tc1', 'tc2'])
+    expect(results.map(r => r.output)).toEqual(['A', 'B'])
+    // The second LLM call carries one assistant with two tool-calls, then two
+    // ordered tool messages.
+    const secondMessages = h.llm.calls[1]?.messages ?? []
+    const toolMsgs = secondMessages.filter(m => m.role === 'tool')
+    expect(toolMsgs).toHaveLength(2)
+    expect((toolMsgs[0].content as Array<{ toolCallId: string }>)[0].toolCallId).toBe('tc1')
+    expect((toolMsgs[1].content as Array<{ toolCallId: string }>)[0].toolCallId).toBe('tc2')
+  })
+
+  it('runs auto-approved calls before prompting for an ask call', async () => {
+    const a = vi.fn(async () => ({ output: 'auto' }))
+    const h = makeHarness({
+      tools: new Map([
+        ['read', stubTool('read', a)],
+        ['bash', stubTool('bash')]
+      ]),
+      decidePermission: (tool) => (tool === 'bash' ? 'ask' : 'allow'),
+      ask: vi.fn(async () => ({ allow: true }))
+    })
+    h.llm.queue = [
+      [
+        { kind: 'tool-call', toolCallId: 'tc1', toolName: 'read', toolInput: {} },
+        { kind: 'tool-call', toolCallId: 'tc2', toolName: 'bash', toolInput: { command: 'ls' } },
+        { kind: 'finish' }
+      ],
+      textParts('done')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    const readResult = h.events.find(e => e.type === 'tool-result' && e.call.tool === 'read')
+    const bashPrompt = h.events.find(e => e.type === 'prompt-request' && e.call?.tool === 'bash')
+    expect(readResult).toBeDefined()
+    expect(bashPrompt).toBeDefined()
+    // The auto call completes before the ask prompt is shown (no concurrent ask).
+    expect(h.events.indexOf(readResult!)).toBeLessThan(h.events.indexOf(bashPrompt!))
+    expect(a).toHaveBeenCalled()
+  })
+
 })
 
 describe('SessionRunner compaction fallback', () => {

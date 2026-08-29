@@ -89,8 +89,10 @@ async function makeManager(opts: StubLlmOptions & {
   const llmVariants: Array<Record<string, unknown> | undefined> = []
   const llmModels: string[] = []
   const hangState = { resolved: 0 }
+  let onRetryCaptured: ((info: { attempt: number; maxAttempts: number; delayMs: number; unbounded?: boolean }) => void) | undefined
   let llmClient: LlmClient
-  const createLlm = vi.fn((): LlmClient => {
+  const createLlm = vi.fn((_provider?: unknown, _apiKey?: unknown, _baseUrl?: unknown, _opts?: { onRetry?: (info: { attempt: number; maxAttempts: number; delayMs: number; unbounded?: boolean }) => void }): LlmClient => {
+    onRetryCaptured = _opts?.onRetry
     llmClient = {
       async *stream(request: LlmStreamOptions): AsyncGenerator<LlmStreamPart> {
         llmCalls.push((request.tools ?? []).map(t => t.name))
@@ -142,7 +144,7 @@ async function makeManager(opts: StubLlmOptions & {
   })
   manager.setOnEvent(e => events.push(e))
   await manager.init([{ ...MEOW_AGENT }, { ...PTY_AGENT }])
-  return { manager, store, events, createLlm, savedPermissions, llmCalls, llmSystems, llmMessages, llmVariants, llmModels, hangState }
+  return { manager, store, events, createLlm, savedPermissions, llmCalls, llmSystems, llmMessages, llmVariants, llmModels, hangState, onRetryCaptured }
 }
 
 describe('MeowAgentManager', () => {
@@ -1533,6 +1535,17 @@ describe('MeowAgentManager', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+
+  it('emits a retry ChatEvent when the LLM client reports a retry', async () => {
+    const { manager, events, onRetryCaptured } = await makeManager({
+      partsQueue: [[{ kind: 'text', text: 'hi' }, { kind: 'finish' }]]
+    })
+    await manager.send('a1', 'hi')
+    onRetryCaptured?.({ attempt: 2, maxAttempts: 10, delayMs: 300, unbounded: true })
+    expect(events).toContainEqual({
+      type: 'retry', agentId: 'a1', attempt: 2, maxAttempts: 10, delayMs: 300, unbounded: true
+    })
   })
 })
 

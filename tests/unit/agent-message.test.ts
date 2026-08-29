@@ -196,6 +196,25 @@ describe('toLlmMessages', () => {
     expect((content as Array<{ type: string; text?: string; image?: string }>)[0]).toMatchObject({ type: 'text', text: 'fix this' })
     expect((content as Array<{ type: string; image?: string }>)[1]).toMatchObject({ type: 'image', image: 'data:image/png;base64,AAA' })
   })
+
+  it('emits one ordered tool message per call, mixing text and error-text outputs', () => {
+    const items = [
+      { kind: 'message' as const, message: msg('user', 'go') },
+      { kind: 'message' as const, message: msg('assistant', 'a') },
+      { kind: 'tool' as const, tool: { ...toolCall('read', {}, 't1'), output: 'x' } },
+      { kind: 'tool' as const, tool: { ...toolCall('bash', {}, 't2'), error: 'boom' } },
+      { kind: 'tool' as const, tool: { ...toolCall('glob', {}, 't3') } },
+      { kind: 'message' as const, message: msg('assistant', 'b') }
+    ]
+    const llm = toLlmMessages(items)
+    const assistant = llm[1] as { content: Array<{ type: string; toolCallId: string }> }
+    expect(assistant.content.filter(p => p.type === 'tool-call').map(p => p.toolCallId)).toEqual(['t1', 't2', 't3'])
+    const toolMsgs = llm.filter(m => m.role === 'tool')
+    expect(toolMsgs).toHaveLength(3)
+    expect((toolMsgs[0].content as Array<{ output: { type: string } }>)[0].output.type).toBe('text')
+    expect((toolMsgs[1].content as Array<{ output: { type: string } }>)[0].output.type).toBe('error-text')
+    expect((toolMsgs[2].content as Array<{ output: { type: string } }>)[0].output.type).toBe('text')
+  })
 })
 
 describe('toToolDefinition', () => {
