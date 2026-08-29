@@ -92,6 +92,9 @@ jobs:
     permissions:
       contents: write
     steps:
+      # The publish job runs in a fresh runner; we must check out the repo so
+      # docs/changelogs/changelog-<version>.md is available to read.
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
