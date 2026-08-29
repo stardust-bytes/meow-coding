@@ -121,7 +121,7 @@ export class SessionRunner {
   // Số lần đã tự sửa reject context-overflow trong một run — cùng giới hạn với
   // compact để một prompt thật sự vượt trần emit lỗi thay vì loop.
   private rejectRetriesThisRun = 0
-  // Consecutive truncation resumes in one run; caps the cost when the model
+  // Truncation resumes in one run (not reset between tool steps); caps the cost
   // keeps hitting the output limit.
   private lengthResumesThisRun = 0
   // Provider-reported usage of the last LLM call; overflow detection trusts it
