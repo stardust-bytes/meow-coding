@@ -38,7 +38,7 @@ const config: Configuration = {
     owner: 'stardust-bytes',
     repo: 'meow-coding'
   },
-  icon: 'moew-coding-logo.png',
+  icon: 'meow-coding-logo.png',
   directories: {
     output: 'release'
   },
@@ -93,7 +93,7 @@ const config: Configuration = {
       { target: 'zip', arch: ['x64', 'arm64'] }
     ],
     category: 'public.app-category.developer-tools',
-    icon: 'moew-coding-logo.png'
+    icon: 'meow-coding-logo.png'
   }
 }
 
