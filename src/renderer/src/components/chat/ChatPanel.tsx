@@ -842,6 +842,9 @@ if (e.type === 'usage') {
           }
           if (item.kind === 'message') {
             if (item.role === 'assistant' && item.text.trim() === '' && !item.reasoning) return null
+            // The truncation-resume nudge is a persisted user message; keep it
+            // out of the feed so the assistant bubble reads as one answer.
+            if (item.role === 'user' && item.text.startsWith('<system-reminder>')) return null
             return (
               <FeedMessage
                 key={item.id}
