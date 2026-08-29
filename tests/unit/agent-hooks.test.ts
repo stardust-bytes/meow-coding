@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { HooksExecutor, loadProjectHooks, matchHook, mergeHooksConfig } from '../../src/main/agent/hooks'
-import type { CommandHook, HooksConfig } from '../../src/main/agent/hooks'
+import type { CommandHook, HookTraceRecord, HooksConfig } from '../../src/main/agent/hooks'
 import { DEFAULT_MEOW_CONFIG, loadMeowConfig, settingsToConfig, configToSettings } from '../../src/main/agent/config'
 
 let dir: string
@@ -288,5 +288,200 @@ describe('HooksExecutor command execution', () => {
     await ex.runPreToolUse('read', {})
     expect(spawned.calls[0].command).toBe('node')
     expect(spawned.calls[0].args).toEqual(['gate.js'])
+  })
+})
+
+// --- aggregation across hooks ------------------------------------------------
+
+// One script per spawn, so a test can give each matching hook its own answer.
+function fakeSpawnSeq(scripts: FakeScript[]): { fn: (...a: never[]) => unknown; calls: SpawnRecord[] } {
+  const calls: SpawnRecord[] = []
+  let index = 0
+  const fn = (command: string, args: string[], options: Record<string, unknown>): unknown => {
+    const script = scripts[Math.min(index++, scripts.length - 1)]
+    const single = fakeSpawn(script)
+    const child = (single.fn as unknown as (c: string, a: string[], o: Record<string, unknown>) => unknown)(
+      command,
+      args,
+      options
+    )
+    calls.push(single.calls[0])
+    return child
+  }
+  return { fn: fn as never, calls }
+}
+
+const decisionJson = (decision: string, reason?: string): string =>
+  JSON.stringify({ hookSpecificOutput: { permissionDecision: decision, permissionDecisionReason: reason } })
+
+const twoPreHooks: HooksConfig = {
+  PreToolUse: [
+    { matcher: '*', hooks: [{ type: 'command', command: 'a.sh' }] },
+    { matcher: 'write', hooks: [{ type: 'command', command: 'b.sh' }] }
+  ]
+}
+
+describe('HooksExecutor PreToolUse aggregation', () => {
+  it('runs every matching group and lets deny beat a prior allow', async () => {
+    const spawned = fakeSpawnSeq([
+      { stdout: decisionJson('allow', 'fine'), exitCode: 0 },
+      { stdout: decisionJson('deny', 'policy'), exitCode: 0 }
+    ])
+    const ex = new HooksExecutor(twoPreHooks, { cwd: '/proj', spawnFn: spawned.fn as never })
+    const r = await ex.runPreToolUse('write', {})
+    expect(spawned.calls).toHaveLength(2)
+    expect(r.decision).toBe('deny')
+    expect(r.reason).toBe('policy')
+  })
+
+  it('keeps deny when a later hook only allows', async () => {
+    const spawned = fakeSpawnSeq([
+      { stdout: decisionJson('deny', 'policy'), exitCode: 0 },
+      { stdout: decisionJson('allow', 'fine'), exitCode: 0 }
+    ])
+    const ex = new HooksExecutor(twoPreHooks, { cwd: '/proj', spawnFn: spawned.fn as never })
+    const r = await ex.runPreToolUse('write', {})
+    expect(r.decision).toBe('deny')
+    expect(r.reason).toBe('policy')
+  })
+
+  it('lets ask beat allow but lose to deny', async () => {
+    const spawned = fakeSpawnSeq([
+      { stdout: decisionJson('allow'), exitCode: 0 },
+      { stdout: decisionJson('ask', 'confirm please'), exitCode: 0 }
+    ])
+    const ex = new HooksExecutor(twoPreHooks, { cwd: '/proj', spawnFn: spawned.fn as never })
+    expect((await ex.runPreToolUse('write', {})).decision).toBe('ask')
+  })
+
+  it('skips groups whose matcher does not match the tool', async () => {
+    const spawned = fakeSpawnSeq([{ exitCode: 0 }])
+    const ex = new HooksExecutor(twoPreHooks, { cwd: '/proj', spawnFn: spawned.fn as never })
+    await ex.runPreToolUse('read', {})
+    expect(spawned.calls).toHaveLength(1)
+  })
+
+  it('concatenates additionalContext from every hook', async () => {
+    const ctx = (text: string): string => JSON.stringify({ hookSpecificOutput: { additionalContext: text } })
+    const spawned = fakeSpawnSeq([
+      { stdout: ctx('first note'), exitCode: 0 },
+      { stdout: ctx('second note'), exitCode: 0 }
+    ])
+    const ex = new HooksExecutor(twoPreHooks, { cwd: '/proj', spawnFn: spawned.fn as never })
+    const r = await ex.runPreToolUse('write', {})
+    expect(r.additionalContext).toBe('first note\nsecond note')
+  })
+})
+
+describe('HooksExecutor PostToolUse', () => {
+  const postConfig = (): HooksConfig => ({
+    PostToolUse: [{ matcher: 'bash', hooks: [{ type: 'command', command: 'audit.sh' }] }]
+  })
+
+  it('sends the tool response in the payload', async () => {
+    const spawned = fakeSpawn({ exitCode: 0 })
+    const ex = new HooksExecutor(postConfig(), { cwd: '/proj', spawnFn: spawned.fn as never })
+    await ex.runPostToolUse('bash', { command: 'ls' }, { output: 'a.ts' })
+    const payload = JSON.parse(spawned.calls[0].stdin)
+    expect(payload).toMatchObject({
+      hook_event_name: 'PostToolUse',
+      tool_name: 'bash',
+      tool_input: { command: 'ls' },
+      tool_response: { output: 'a.ts' }
+    })
+  })
+
+  it('replaces the output via updatedToolOutput and appends additionalContext', async () => {
+    const stdout = JSON.stringify({
+      hookSpecificOutput: { updatedToolOutput: 'REDACTED', additionalContext: 'secret scrubbed' }
+    })
+    const spawned = fakeSpawn({ stdout, exitCode: 0 })
+    const ex = new HooksExecutor(postConfig(), { cwd: '/proj', spawnFn: spawned.fn as never })
+    const r = await ex.runPostToolUse('bash', { command: 'ls' }, { output: 'AKIA-SECRET' })
+    expect(r.updatedToolOutput).toBe('REDACTED')
+    expect(r.additionalContext).toBe('secret scrubbed')
+  })
+
+  it('surfaces exit-2 stderr as a warning the model can read', async () => {
+    const spawned = fakeSpawn({ stderr: 'lint failed', exitCode: 2 })
+    const ex = new HooksExecutor(postConfig(), { cwd: '/proj', spawnFn: spawned.fn as never })
+    const r = await ex.runPostToolUse('bash', { command: 'ls' }, { output: 'ok' })
+    expect(r.warning).toContain('lint failed')
+  })
+
+  it('does not run for a tool the matcher misses', async () => {
+    const spawned = fakeSpawn({ exitCode: 0 })
+    const ex = new HooksExecutor(postConfig(), { cwd: '/proj', spawnFn: spawned.fn as never })
+    expect(await ex.runPostToolUse('read', {}, { output: 'x' })).toEqual({})
+    expect(spawned.calls).toHaveLength(0)
+  })
+})
+
+describe('HooksExecutor Stop', () => {
+  const stopConfig = (): HooksConfig => ({
+    Stop: [{ matcher: '*', hooks: [{ type: 'command', command: 'verify.sh' }] }]
+  })
+
+  it('does not block on exit 0', async () => {
+    const spawned = fakeSpawn({ exitCode: 0 })
+    const ex = new HooksExecutor(stopConfig(), { cwd: '/proj', spawnFn: spawned.fn as never })
+    expect(await ex.runStop('all done', false)).toEqual({ block: false })
+  })
+
+  it('blocks on exit 2 and uses stderr as the reason', async () => {
+    const spawned = fakeSpawn({ stderr: 'tests still failing', exitCode: 2 })
+    const ex = new HooksExecutor(stopConfig(), { cwd: '/proj', spawnFn: spawned.fn as never })
+    const r = await ex.runStop('all done', false)
+    expect(r.block).toBe(true)
+    expect(r.reason).toContain('tests still failing')
+  })
+
+  it('blocks on a decision:"block" JSON body', async () => {
+    const spawned = fakeSpawn({ stdout: JSON.stringify({ decision: 'block', reason: 'more work' }), exitCode: 0 })
+    const ex = new HooksExecutor(stopConfig(), { cwd: '/proj', spawnFn: spawned.fn as never })
+    expect(await ex.runStop('all done', false)).toEqual({ block: true, reason: 'more work' })
+  })
+
+  it('sends stop_hook_active and the last assistant message', async () => {
+    const spawned = fakeSpawn({ exitCode: 0 })
+    const ex = new HooksExecutor(stopConfig(), { cwd: '/proj', spawnFn: spawned.fn as never })
+    await ex.runStop('all done', true)
+    const payload = JSON.parse(spawned.calls[0].stdin)
+    expect(payload).toMatchObject({
+      hook_event_name: 'Stop',
+      stop_hook_active: true,
+      last_assistant_message: 'all done'
+    })
+  })
+
+  it('stops at the first blocking hook instead of running the rest', async () => {
+    const spawned = fakeSpawnSeq([{ stderr: 'blocked', exitCode: 2 }, { exitCode: 0 }])
+    const ex = new HooksExecutor(
+      {
+        Stop: [
+          { matcher: '*', hooks: [{ type: 'command', command: 'a.sh' }] },
+          { matcher: '*', hooks: [{ type: 'command', command: 'b.sh' }] }
+        ]
+      },
+      { cwd: '/proj', spawnFn: spawned.fn as never }
+    )
+    expect((await ex.runStop('done', false)).block).toBe(true)
+    expect(spawned.calls).toHaveLength(1)
+  })
+})
+
+describe('HooksExecutor trace records', () => {
+  it('reports started then a terminal status for each hook', async () => {
+    const records: HookTraceRecord[] = []
+    const spawned = fakeSpawn({ stderr: 'no', exitCode: 2 })
+    const ex = new HooksExecutor(alwaysPre(), {
+      cwd: '/proj',
+      spawnFn: spawned.fn as never,
+      onTrace: r => records.push(r)
+    })
+    await ex.runPreToolUse('write', {})
+    expect(records.map(r => r.status)).toEqual(['started', 'blocked'])
+    expect(records[1]).toMatchObject({ event: 'PreToolUse', tool: 'write' })
+    expect(typeof records[1].durationMs).toBe('number')
   })
 })

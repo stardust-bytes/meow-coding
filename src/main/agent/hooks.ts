@@ -5,6 +5,7 @@ import path from 'node:path'
 import kill from 'tree-kill'
 import { buildShellCommand } from './tools/bash'
 import type { ResolvedShellCommand } from './tools/bash'
+import type { ToolRunResult } from './tools/types'
 
 export type HookEventName = 'PreToolUse' | 'PostToolUse' | 'Stop'
 
@@ -351,5 +352,55 @@ export class HooksExecutor {
       }
     }
     return result
+  }
+
+  async runPostToolUse(
+    toolName: string,
+    input: Record<string, unknown>,
+    response: ToolRunResult
+  ): Promise<PostToolUseResult> {
+    const result: PostToolUseResult = {}
+    for (const hook of this.matchingHooks('PostToolUse', toolName)) {
+      const exec = await this.execute(hook, 'PostToolUse', {
+        hook_event_name: 'PostToolUse',
+        cwd: this.deps.cwd,
+        tool_name: toolName,
+        tool_input: input,
+        tool_response: { output: response.output, error: response.error }
+      })
+      const out = hookOutput(exec.json)
+      // The tool has already run, so exit 2 cannot undo it: the stderr becomes
+      // feedback the model reads alongside the result.
+      if (exec.exitCode === 2) {
+        const warning = asString(out.reason) ?? asString(exec.stderr)
+        if (warning) result.warning = result.warning ? `${result.warning}\n${warning}` : warning
+        continue
+      }
+      const updated = asString(out.updatedToolOutput)
+      if (updated !== undefined) result.updatedToolOutput = updated
+      const context = asString(out.additionalContext)
+      if (context) {
+        result.additionalContext = result.additionalContext ? `${result.additionalContext}\n${context}` : context
+      }
+    }
+    return result
+  }
+
+  // Stop hooks always fire regardless of matcher, and the first one to block
+  // wins: the turn is already continuing, so running the rest buys nothing.
+  async runStop(lastAssistantMessage: string, stopHookActive: boolean): Promise<StopResult> {
+    for (const hook of (this.config.Stop ?? []).flatMap(group => group.hooks)) {
+      const exec = await this.execute(hook, 'Stop', {
+        hook_event_name: 'Stop',
+        cwd: this.deps.cwd,
+        last_assistant_message: lastAssistantMessage,
+        stop_hook_active: stopHookActive
+      })
+      const out = hookOutput(exec.json)
+      if (exec.exitCode === 2 || out.decision === 'block' || out.ok === false) {
+        return { block: true, reason: asString(out.reason) ?? asString(exec.stderr) }
+      }
+    }
+    return { block: false }
   }
 }
