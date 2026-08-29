@@ -220,6 +220,23 @@ describe('formatLlmError', () => {
   it('returns the raw string for plain errors', () => {
     expect(formatLlmError('boom')).toBe('boom')
   })
+
+  it('renders a bare SSE error object ({ message, type, code }) readably', () => {
+    // OpenAI-compatible providers may stream an SSE error chunk with no name/
+    // statusCode — e.g. `{ message, type, code }`. These must not collapse to
+    // "[object Object]".
+    const err = { message: 'Provider request failed.', type: 'rate_limit_error', code: 'RATE_LIMIT' }
+    expect(formatLlmError(err)).toBe('Provider request failed. (rate_limit_error RATE_LIMIT)')
+  })
+
+  it('surfaces the message of a nested { error: { message } } object', () => {
+    const err = { error: { message: 'Provider request failed.', type: 'rate_limit_error', code: 'RATE_LIMIT' } }
+    expect(formatLlmError(err)).toContain('Provider request failed.')
+  })
+
+  it('keeps a bare message with no type/code as-is', () => {
+    expect(formatLlmError({ message: 'boom' })).toBe('boom')
+  })
 })
 
 describe('createOpenAICompatibleLlm', () => {

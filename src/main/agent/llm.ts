@@ -472,6 +472,39 @@ export function formatLlmError(err: unknown): string {
       return detail || `${e.name ?? 'API'} error (${e.statusCode})${url}`
     }
     if (e.name === 'AbortError') return 'aborted'
+    // A bare structured error (e.g. an OpenAI-compatible SSE error chunk such as
+    // `{ message, type, code }`, or a nested `{ error: { message } }`) has no
+    // name/statusCode and would otherwise collapse to the useless "[object Object]".
+    // Only rescue objects that actually stringify that way, so native Errors and
+    // objects with a custom toString keep their existing formatting.
+    if (String(err) === '[object Object]') {
+      const msg = extractErrorMessage(err)
+      if (msg) return msg
+    }
   }
   return String(err)
+}
+
+// Extracts a readable message (plus optional type/code context) from a bare
+// error object. Returns undefined when there is nothing useful to show.
+function extractErrorMessage(err: unknown): string | undefined {
+  const e = err as {
+    message?: string
+    type?: string
+    code?: string | number
+    error?: unknown
+  }
+  const nested = e.error && typeof e.error === 'object'
+    ? (e.error as { message?: string; type?: string; code?: string | number })
+    : undefined
+  const message =
+    typeof e.message === 'string' ? e.message
+    : typeof nested?.message === 'string' ? nested.message
+    : typeof e.error === 'string' ? e.error
+    : undefined
+  if (!message) return undefined
+  const code = e.code ?? nested?.code
+  const type = e.type ?? nested?.type
+  const suffix = [type, code].filter(x => x !== undefined && x !== null && x !== '').join(' ')
+  return suffix ? `${message} (${suffix})` : message
 }
