@@ -18,6 +18,7 @@ import { DEFAULT_MAX_CONTEXT_TOKENS } from './config'
 import { classifyContextOverflowError } from './limits'
 import type { TruncationStore } from './truncation'
 import type { SnapshotStore } from './snapshot'
+import type { HooksRunner } from './hooks'
 
 export interface LoopDeps {
   agentId: string
@@ -81,6 +82,9 @@ export interface LoopDeps {
   onUsage?: (tokens: MessageTokens) => void
   computeCost?: (usage: { input: number; output: number; cacheRead?: number; cacheWrite?: number }) => number
   diagnostics?: (filePath: string, text: string) => Promise<string>
+  // Resolved once per run, like `system`, so edits to the hooks config take
+  // effect on the next turn rather than needing a restart.
+  hooks?: () => HooksRunner
 }
 
 const DEFAULT_MAX_STEPS = 50
@@ -88,6 +92,9 @@ const DEFAULT_KEEP_FULL_TURNS = 2
 const MAX_COMPACT_PER_RUN = 2
 const MAX_STEPS_PROMPT = 'Final step: wrap up and provide your final answer now. Tool calls are disabled.'
 const MAX_LENGTH_RESUMES = 3
+// A Stop hook that never lets go would loop the turn forever; past this many
+// consecutive blocks the turn ends regardless.
+export const MAX_STOP_BLOCKS = 8
 const CONTINUE_TRUNCATED_PROMPT =
   '<system-reminder>\nYour previous answer was cut off at the output token limit. ' +
   'Continue from where you stopped, without repeating what you already wrote.\n</system-reminder>'
@@ -112,6 +119,14 @@ export function formatToolError(err: unknown): string {
   return String(err)
 }
 
+// Hook context rides alongside the tool output rather than replacing it, so the
+// model still sees what the tool actually returned.
+function appendHookContext(output: string | undefined, ...parts: (string | undefined)[]): string | undefined {
+  const extra = parts.filter((p): p is string => Boolean(p)).join('\n')
+  if (!extra) return output
+  return output ? `${output}\n${extra}` : extra
+}
+
 export class SessionRunner {
   private readonly maxSteps: number
   private compactedThisRun = 0
@@ -133,6 +148,10 @@ export class SessionRunner {
   private attachedInstructions = new Set<string>()
   // Per-turn dynamic context, resolved once per run (see LoopDeps.turnContext).
   private turnContext = ''
+  // Hooks for this run, resolved once so config edits land on the next turn.
+  private hooks: HooksRunner | undefined
+  // Consecutive Stop-hook blocks in this run; capped by MAX_STOP_BLOCKS.
+  private stopBlocksThisRun = 0
 
   constructor(private deps: LoopDeps) {
     this.maxSteps = deps.maxSteps ?? DEFAULT_MAX_STEPS
@@ -145,6 +164,8 @@ export class SessionRunner {
     this.compactedThisRun = 0
     this.rejectRetriesThisRun = 0
     this.lengthResumesThisRun = 0
+    this.stopBlocksThisRun = 0
+    this.hooks = this.deps.hooks?.()
     this.compaction = resolveCompactionSettings(
       this.deps.compaction ?? { auto: false, tailTurns: 2 },
       this.deps.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
@@ -298,14 +319,38 @@ export class SessionRunner {
         })
       }
 
+      // PreToolUse hooks gate each call before the permission decision, and run
+      // concurrently across calls the way the calls themselves do.
+      const decided = await Promise.all(calls.map(async call => {
+        const pre = this.hooks ? await this.hooks.runPreToolUse(call.tool, call.input) : undefined
+        if (pre?.decision === 'deny') {
+          return { call, blocked: true, reason: pre.reason, decision: 'deny' as PermissionDecision }
+        }
+        // Replaces the whole input, so a hook can rewrite a path or drop a flag.
+        if (pre?.updatedInput) call.input = pre.updatedInput
+        let decision = this.deps.decidePermission(call.tool, call.input)
+        // A hook may tighten to 'ask' or waive a prompt, but it can never
+        // override a config deny — hooks tighten, they do not loosen.
+        if (pre?.decision === 'ask' && decision === 'allow') decision = 'ask'
+        else if (pre?.decision === 'allow' && decision === 'ask') decision = 'allow'
+        return { call, blocked: false, decision, preContext: pre?.additionalContext }
+      }))
+
+      for (const d of decided.filter(x => x.blocked)) {
+        d.call.permission = 'denied'
+        d.call.error = d.reason ?? `tool "${d.call.tool}" was blocked by a PreToolUse hook`
+        this.deps.appendTool(d.call)
+        this.deps.onEvent({ type: 'tool-result', agentId, call: d.call })
+      }
+
       // Parallel tool execution like opencode: run auto-approved calls
       // concurrently; permission-asking calls run serially afterwards to avoid
       // two prompts at once.
-      const decided = calls.map(call => ({ call, decision: this.deps.decidePermission(call.tool, call.input) }))
-      const autoCalls = decided.filter(d => d.decision !== 'ask')
-      const askCalls = decided.filter(d => d.decision === 'ask')
-      await Promise.all(autoCalls.map(d => this.executeCall(d.call, d.decision, signal)))
-      for (const d of askCalls) await this.executeCall(d.call, d.decision, signal)
+      const runnable = decided.filter(d => !d.blocked)
+      const autoCalls = runnable.filter(d => d.decision !== 'ask')
+      const askCalls = runnable.filter(d => d.decision === 'ask')
+      await Promise.all(autoCalls.map(d => this.executeCall(d.call, d.decision, signal, d.preContext)))
+      for (const d of askCalls) await this.executeCall(d.call, d.decision, signal, d.preContext)
 
       if (!hasToolCall) {
         // The provider cut the answer at the output cap without calling a tool.
@@ -323,14 +368,39 @@ export class SessionRunner {
           continue
         }
         const reason = classifyFinish(finishReason)
+        if (await this.blockedByStopHook(textBuffer)) {
+          steps = 0
+          continue
+        }
         this.deps.onEvent({ type: 'done', agentId, reason, tokens, cost: this.deps.computeCost?.(runUsage) })
         return
       }
       if (isLastStep) {
+        if (await this.blockedByStopHook(textBuffer)) {
+          steps = 0
+          continue
+        }
         this.deps.onEvent({ type: 'done', agentId, reason: 'max-steps', tokens, cost: this.deps.computeCost?.(runUsage) })
         return
       }
     }
+  }
+
+  // Runs Stop hooks before a normal end-of-turn. A block keeps the loop going
+  // with the hook's reason as the next instruction, the way a steer does; the
+  // cap stops a hook that is never satisfied from looping forever.
+  private async blockedByStopHook(lastAssistantMessage: string): Promise<boolean> {
+    if (!this.hooks || this.stopBlocksThisRun >= MAX_STOP_BLOCKS) return false
+    const result = await this.hooks.runStop(lastAssistantMessage, this.stopBlocksThisRun > 0)
+    if (!result.block) return false
+    this.stopBlocksThisRun++
+    this.deps.appendMessage({
+      id: randomUUID(),
+      role: 'user',
+      text: result.reason ?? 'Keep working: a Stop hook blocked the end of this turn.',
+      createdAt: Date.now()
+    })
+    return true
   }
 
   private async snapshotTurnContext(): Promise<string> {
@@ -342,7 +412,12 @@ export class SessionRunner {
     }
   }
 
-  private async executeCall(call: ToolCallData, decision: PermissionDecision, signal?: AbortSignal): Promise<void> {
+  private async executeCall(
+    call: ToolCallData,
+    decision: PermissionDecision,
+    signal?: AbortSignal,
+    preContext?: string
+  ): Promise<void> {
     const { agentId } = this.deps
     let allowed: boolean
     if (decision === 'allow') {
@@ -424,7 +499,15 @@ export class SessionRunner {
           call.output = r.output
           call.error = r.error
           if (!r.error) {
-            call.output = await this.appendToolReminder(call, call.output)
+            // The tool has already run, so PostToolUse can only reshape what the
+            // model reads: replace the output, or add context beside it.
+            let output = call.output
+            if (this.hooks) {
+              const post = await this.hooks.runPostToolUse(call.tool, call.input, r)
+              if (post.updatedToolOutput !== undefined) output = post.updatedToolOutput
+              output = appendHookContext(output, post.additionalContext, post.warning)
+            }
+            call.output = await this.appendToolReminder(call, appendHookContext(output, preContext))
           }
         } catch (err) {
           call.error = formatToolError(err)

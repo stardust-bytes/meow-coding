@@ -84,6 +84,18 @@ export interface StopResult {
   reason?: string
 }
 
+// What the tool loop depends on. Narrower than HooksExecutor so the loop is not
+// coupled to how a hook is executed.
+export interface HooksRunner {
+  runPreToolUse(toolName: string, input: Record<string, unknown>): Promise<PreToolUseResult>
+  runPostToolUse(
+    toolName: string,
+    input: Record<string, unknown>,
+    response: ToolRunResult
+  ): Promise<PostToolUseResult>
+  runStop(lastAssistantMessage: string, stopHookActive: boolean): Promise<StopResult>
+}
+
 // Claude Code's rule: a matcher of only word chars, separators and spaces is an
 // exact name or a list; anything else is a regex.
 const EXACT_OR_LIST = /^[\w\-,| ]+$/
@@ -227,7 +239,7 @@ function asString(value: unknown): string | undefined {
   return typeof value === 'string' && value !== '' ? value : undefined
 }
 
-export class HooksExecutor {
+export class HooksExecutor implements HooksRunner {
   constructor(
     private readonly config: HooksConfig,
     private readonly deps: HooksExecutorDeps

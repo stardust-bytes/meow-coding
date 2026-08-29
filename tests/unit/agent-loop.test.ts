@@ -3,10 +3,11 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { formatToolError, SessionRunner } from '../../src/main/agent/loop'
+import { formatToolError, MAX_STOP_BLOCKS, SessionRunner } from '../../src/main/agent/loop'
 import type { LoopDeps } from '../../src/main/agent/loop'
 import type { LlmClient, LlmStreamOptions, LlmStreamPart } from '../../src/main/agent/llm'
-import type { ToolDefinition } from '../../src/main/agent/tools/types'
+import type { ToolDefinition, ToolRunResult } from '../../src/main/agent/tools/types'
+import type { HooksRunner, PostToolUseResult, PreToolUseResult, StopResult } from '../../src/main/agent/hooks'
 import type { TranscriptItem } from '../../src/main/agent/message'
 import type { ChatEvent, ChatMessage, ToolCallData } from '../../src/shared/types'
 
@@ -1515,5 +1516,310 @@ describe('SessionRunner compaction auto-resolve (tail preservation)', () => {
     // undefined and selectHeadTail keeps only the last turn -> 'turn2' is lost.
     expect(texts).toContain('turn2')
     expect(texts).toContain('turn3')
+  })
+})
+
+// --- hooks -------------------------------------------------------------------
+
+class FakeHooks implements HooksRunner {
+  pre: (tool: string, input: Record<string, unknown>) => Promise<PreToolUseResult> = async () => ({})
+  post: (tool: string, response: ToolRunResult) => Promise<PostToolUseResult> = async () => ({})
+  stop: (last: string, active: boolean) => Promise<StopResult> = async () => ({ block: false })
+  stopCalls: { last: string; active: boolean }[] = []
+
+  async runPreToolUse(tool: string, input: Record<string, unknown>): Promise<PreToolUseResult> {
+    return this.pre(tool, input)
+  }
+  async runPostToolUse(
+    tool: string,
+    _input: Record<string, unknown>,
+    response: ToolRunResult
+  ): Promise<PostToolUseResult> {
+    return this.post(tool, response)
+  }
+  async runStop(last: string, active: boolean): Promise<StopResult> {
+    this.stopCalls.push({ last, active })
+    return this.stop(last, active)
+  }
+}
+
+function callParts(toolName: string, toolInput: Record<string, unknown>): LlmStreamPart[] {
+  return [
+    { kind: 'tool-call' as const, toolCallId: 'tc-1', toolName, toolInput },
+    { kind: 'finish' as const }
+  ]
+}
+
+function lastToolResult(events: ChatEvent[]): ToolCallData | undefined {
+  const found = [...events].reverse().find(e => e.type === 'tool-result')
+  return found && found.type === 'tool-result' ? found.call : undefined
+}
+
+describe('loop PreToolUse hooks', () => {
+  it('blocks a denied tool call without running the tool', async () => {
+    const llm = new StubLlm()
+    llm.queue.push(callParts('bash', { command: 'rm -rf /' }))
+    llm.queue.push(textParts('understood'))
+    const hooks = new FakeHooks()
+    hooks.pre = async () => ({ decision: 'deny', reason: 'policy blocks destructive commands' })
+    let ran = false
+    const h = makeHarness({
+      llm,
+      tools: new Map([['bash', stubTool('bash', async () => {
+        ran = true
+        return { output: 'deleted' }
+      })]]),
+      hooks: () => hooks
+    })
+
+    await h.runner.run()
+
+    expect(ran).toBe(false)
+    const call = lastToolResult(h.events)
+    expect(call?.permission).toBe('denied')
+    expect(call?.error).toContain('policy blocks destructive commands')
+  })
+
+  it('passes updatedInput to the tool in place of the model input', async () => {
+    const llm = new StubLlm()
+    llm.queue.push(callParts('write', { file_path: 'a.ts', content: 'x' }))
+    llm.queue.push(textParts('done'))
+    const hooks = new FakeHooks()
+    hooks.pre = async () => ({ updatedInput: { file_path: 'safe/a.ts', content: 'x' } })
+    let received: Record<string, unknown> = {}
+    const h = makeHarness({
+      llm,
+      tools: new Map([['write', stubTool('write', async (input) => {
+        received = input
+        return { output: 'written' }
+      })]]),
+      hooks: () => hooks
+    })
+
+    await h.runner.run()
+
+    expect(received).toEqual({ file_path: 'safe/a.ts', content: 'x' })
+  })
+
+  it('lets an allow decision skip the permission prompt', async () => {
+    const llm = new StubLlm()
+    llm.queue.push(callParts('bash', { command: 'ls' }))
+    llm.queue.push(textParts('done'))
+    const hooks = new FakeHooks()
+    hooks.pre = async () => ({ decision: 'allow' })
+    const h = makeHarness({
+      llm,
+      tools: new Map([['bash', stubTool('bash')]]),
+      decidePermission: () => 'ask',
+      hooks: () => hooks
+    })
+
+    await h.runner.run()
+
+    expect(h.ask).not.toHaveBeenCalled()
+    expect(lastToolResult(h.events)?.permission).toBe('allowed')
+  })
+
+  // Hooks tighten, never loosen: a config deny still wins over a hook allow.
+  it('cannot loosen a config deny', async () => {
+    const llm = new StubLlm()
+    llm.queue.push(callParts('bash', { command: 'ls' }))
+    llm.queue.push(textParts('done'))
+    const hooks = new FakeHooks()
+    hooks.pre = async () => ({ decision: 'allow' })
+    const h = makeHarness({
+      llm,
+      tools: new Map([['bash', stubTool('bash')]]),
+      decidePermission: () => 'deny',
+      hooks: () => hooks
+    })
+
+    await h.runner.run()
+
+    expect(lastToolResult(h.events)?.permission).toBe('denied')
+  })
+
+  it('turns an ask decision into a prompt even when config would allow', async () => {
+    const llm = new StubLlm()
+    llm.queue.push(callParts('bash', { command: 'ls' }))
+    llm.queue.push(textParts('done'))
+    const hooks = new FakeHooks()
+    hooks.pre = async () => ({ decision: 'ask' })
+    const h = makeHarness({
+      llm,
+      tools: new Map([['bash', stubTool('bash')]]),
+      hooks: () => hooks
+    })
+
+    await h.runner.run()
+
+    expect(h.ask).toHaveBeenCalled()
+  })
+
+  it('appends PreToolUse additionalContext to the tool output', async () => {
+    const llm = new StubLlm()
+    llm.queue.push(callParts('bash', { command: 'ls' }))
+    llm.queue.push(textParts('done'))
+    const hooks = new FakeHooks()
+    hooks.pre = async () => ({ additionalContext: 'repo is in production mode' })
+    const h = makeHarness({
+      llm,
+      tools: new Map([['bash', stubTool('bash', async () => ({ output: 'a.ts' }))]]),
+      hooks: () => hooks
+    })
+
+    await h.runner.run()
+
+    const output = lastToolResult(h.events)?.output ?? ''
+    expect(output).toContain('a.ts')
+    expect(output).toContain('repo is in production mode')
+  })
+})
+
+describe('loop PostToolUse hooks', () => {
+  it('replaces the tool output with updatedToolOutput', async () => {
+    const llm = new StubLlm()
+    llm.queue.push(callParts('bash', { command: 'env' }))
+    llm.queue.push(textParts('done'))
+    const hooks = new FakeHooks()
+    hooks.post = async () => ({ updatedToolOutput: 'TOKEN=[redacted]' })
+    const h = makeHarness({
+      llm,
+      tools: new Map([['bash', stubTool('bash', async () => ({ output: 'TOKEN=sk-secret' }))]]),
+      hooks: () => hooks
+    })
+
+    await h.runner.run()
+
+    const output = lastToolResult(h.events)?.output ?? ''
+    expect(output).toContain('TOKEN=[redacted]')
+    expect(output).not.toContain('sk-secret')
+  })
+
+  it('appends additionalContext and a warning to the output', async () => {
+    const llm = new StubLlm()
+    llm.queue.push(callParts('bash', { command: 'ls' }))
+    llm.queue.push(textParts('done'))
+    const hooks = new FakeHooks()
+    hooks.post = async () => ({ additionalContext: 'lint clean', warning: 'formatter changed 2 files' })
+    const h = makeHarness({
+      llm,
+      tools: new Map([['bash', stubTool('bash', async () => ({ output: 'a.ts' }))]]),
+      hooks: () => hooks
+    })
+
+    await h.runner.run()
+
+    const output = lastToolResult(h.events)?.output ?? ''
+    expect(output).toContain('lint clean')
+    expect(output).toContain('formatter changed 2 files')
+  })
+
+  it('sees the tool response and does not run for a failed tool', async () => {
+    const llm = new StubLlm()
+    llm.queue.push(callParts('bash', { command: 'nope' }))
+    llm.queue.push(textParts('done'))
+    const hooks = new FakeHooks()
+    let calls = 0
+    hooks.post = async () => {
+      calls++
+      return {}
+    }
+    const h = makeHarness({
+      llm,
+      tools: new Map([['bash', stubTool('bash', async () => ({ error: 'command not found' }))]]),
+      hooks: () => hooks
+    })
+
+    await h.runner.run()
+
+    expect(calls).toBe(0)
+    expect(lastToolResult(h.events)?.error).toBe('command not found')
+  })
+})
+
+describe('loop Stop hooks', () => {
+  it('continues the turn when a Stop hook blocks and feeds back the reason', async () => {
+    const llm = new StubLlm()
+    llm.queue.push(textParts('first answer'))
+    llm.queue.push(textParts('second answer'))
+    const hooks = new FakeHooks()
+    let blocked = false
+    hooks.stop = async () => {
+      if (blocked) return { block: false }
+      blocked = true
+      return { block: true, reason: 'run the tests before finishing' }
+    }
+    const h = makeHarness({ llm, hooks: () => hooks })
+
+    await h.runner.run()
+
+    const userTexts = h.items
+      .filter(i => i.kind === 'message' && i.message.role === 'user')
+      .map(i => (i.kind === 'message' ? i.message.text : ''))
+    expect(userTexts).toContain('run the tests before finishing')
+    expect(llm.calls).toHaveLength(2)
+    expect(h.events.filter(e => e.type === 'done')).toHaveLength(1)
+  })
+
+  it('reports stop_hook_active on the second and later runs', async () => {
+    const llm = new StubLlm()
+    for (let i = 0; i < 4; i++) llm.queue.push(textParts(`answer ${i}`))
+    const hooks = new FakeHooks()
+    let n = 0
+    hooks.stop = async () => (++n < 3 ? { block: true, reason: 'keep going' } : { block: false })
+    const h = makeHarness({ llm, hooks: () => hooks })
+
+    await h.runner.run()
+
+    expect(hooks.stopCalls.map(c => c.active)).toEqual([false, true, true])
+    expect(hooks.stopCalls[0].last).toBe('answer 0')
+  })
+
+  it('stops blocking once the cap is reached', async () => {
+    const llm = new StubLlm()
+    for (let i = 0; i < 20; i++) llm.queue.push(textParts(`answer ${i}`))
+    const hooks = new FakeHooks()
+    hooks.stop = async () => ({ block: true, reason: 'never satisfied' })
+    const h = makeHarness({ llm, hooks: () => hooks })
+
+    await h.runner.run()
+
+    expect(hooks.stopCalls).toHaveLength(MAX_STOP_BLOCKS)
+    const done = h.events.filter(e => e.type === 'done')
+    expect(done).toHaveLength(1)
+  })
+
+  it('does not run Stop hooks when the user stops the turn', async () => {
+    const llm = new StubLlm()
+    llm.queue.push(textParts('partial'))
+    const hooks = new FakeHooks()
+    const h = makeHarness({ llm, hooks: () => hooks })
+    const controller = new AbortController()
+    controller.abort()
+
+    await h.runner.run(controller.signal)
+
+    expect(hooks.stopCalls).toHaveLength(0)
+    const done = h.events.find(e => e.type === 'done')
+    expect(done && done.type === 'done' ? done.reason : '').toBe('stopped')
+  })
+
+  it('runs Stop hooks when the loop ends on max-steps', async () => {
+    const llm = new StubLlm()
+    for (let i = 0; i < 5; i++) llm.queue.push(callParts('bash', { command: 'ls' }))
+    const hooks = new FakeHooks()
+    const h = makeHarness({
+      llm,
+      maxSteps: 2,
+      tools: new Map([['bash', stubTool('bash')]]),
+      hooks: () => hooks
+    })
+
+    await h.runner.run()
+
+    expect(hooks.stopCalls).toHaveLength(1)
+    const done = h.events.find(e => e.type === 'done')
+    expect(done && done.type === 'done' ? done.reason : '').toBe('max-steps')
   })
 })
