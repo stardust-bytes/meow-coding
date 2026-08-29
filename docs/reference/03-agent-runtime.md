@@ -116,7 +116,9 @@ loop:
   decide permissions for every call
   run auto-approved calls in PARALLEL (Promise.all)
   run 'ask' calls SERIALLY afterwards (so two prompts never appear at once)
-  if no tool call → emit done{reason: finishReason === 'length' ? 'length' : 'complete'}; return
+  if no tool call:
+    if length/max_tokens and resumes < MAX_LENGTH_RESUMES → append continuation nudge (user msg), continue
+    emit done{reason: classifyFinish(finishReason)}; return   ('complete' | 'length' | 'refusal')
   if isLastStep   → emit done{reason:'max-steps'}; return
 ```
 
@@ -126,8 +128,10 @@ Notable details:
   even advertised to the model.
 - On the last step, tools are removed entirely and a final user message is appended:
   `"Final step: wrap up and provide your final answer now. Tool calls are disabled."`
-- `finishReason === 'length'` is reported as `done{reason:'length'}` rather than `complete`, so the
-  UI can tell the user the answer was cut off at the output cap.
+- A truncated answer (`finishReason === 'length'`/`'max_tokens'`, no tool calls) resumes the turn by
+  appending a continuation `<system-reminder>` user message, up to `MAX_LENGTH_RESUMES` (3) times per
+  run; past the cap it reports `done{reason:'length'}` so the UI can tell the user the answer was cut
+  off. A `refusal`/`content_filter` finish reports `done{reason:'refusal'}` — never `complete`.
 - Usage is emitted **per step**, not only at the end, so cost is recorded even if the user hits Stop.
 
 ### Constants
@@ -138,6 +142,7 @@ Notable details:
 | `DEFAULT_MAX_STEPS` (config default, what is actually passed) | 100 | `config.ts` |
 | `DEFAULT_SUBAGENT_MAX_STEPS` | 30 | `config.ts` |
 | `MAX_COMPACT_PER_RUN` | 2 | `loop.ts` |
+| `MAX_LENGTH_RESUMES` | 3 | `loop.ts` |
 | `DEFAULT_KEEP_FULL_TURNS` | 2 | `loop.ts` |
 | `MAX_QUEUE` | 5 | `meow-agent-manager.ts` |
 
@@ -165,7 +170,7 @@ Notable details:
 | `onFileRead(filePath)` | Returns a `<system-reminder>` block with nearby `AGENTS.md`/`CLAUDE.md` content, deduped across the session |
 | `onArtifact(entry)` | Records a created/edited file for the Artifacts panel |
 
-4. `await def.run(input, ctx)` → `{ output?, error? }`; thrown errors become `call.error`.
+4. `await def.run(input, ctx)` → `{ output?, error? }`; thrown errors become `call.error` formatted by `formatToolError` (Error.message / string / JSON, never `[object Object]`).
 5. Append the tool item to the transcript and emit `tool-result`.
 
 ### Instruction attachment on read
