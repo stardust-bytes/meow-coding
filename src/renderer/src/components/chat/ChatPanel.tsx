@@ -492,6 +492,12 @@ if (e.type === 'usage') {
           id: 'cut-' + Date.now(),
           text: 'The model hit its output limit, so this answer is cut off. Ask it to continue where it stopped.'
         }])
+      } else if (e.reason === 'refusal') {
+        setItems(prev => [...prev, {
+          kind: 'error',
+          id: 'refusal-' + Date.now(),
+          text: 'The model declined to answer.'
+        }])
       }
       return
     }

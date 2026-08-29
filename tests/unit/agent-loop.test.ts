@@ -938,13 +938,54 @@ describe('SessionRunner compaction fallback', () => {
 })
 
 describe('SessionRunner finish reasons', () => {
-  it('reports a cut-off answer instead of calling it complete', async () => {
+  it('resumes a truncated answer by continuing the turn', async () => {
     const h = makeHarness()
-    h.llm.queue = [[{ kind: 'text', text: 'half an ans' }, { kind: 'finish', finishReason: 'length' }]]
+    h.llm.queue = [
+      [{ kind: 'text', text: 'half an ans' }, { kind: 'finish', finishReason: 'length' }],
+      textParts('...the rest')
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+
+    // Two LLM calls: the truncated step plus the continuation step.
+    expect(h.llm.calls.length).toBe(2)
+    // The continuation nudge is persisted to the transcript as a user message.
+    const userTexts = h.items
+      .filter((i): i is { kind: 'message'; message: ChatMessage } => i.kind === 'message' && i.message.role === 'user')
+      .map(i => i.message.text)
+    expect(userTexts.some(t => t.includes('cut off'))).toBe(true)
+    // The model sees the nudge on the next step.
+    expect(JSON.stringify(h.llm.calls[1]?.messages ?? [])).toContain('cut off')
+    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
+    expect(done.reason).toBe('complete')
+  })
+
+  it('stops resuming after three consecutive truncations and reports length', async () => {
+    const h = makeHarness()
+    h.llm.queue = [
+      [{ kind: 'text', text: 'a' }, { kind: 'finish', finishReason: 'length' }],
+      [{ kind: 'text', text: 'b' }, { kind: 'finish', finishReason: 'length' }],
+      [{ kind: 'text', text: 'c' }, { kind: 'finish', finishReason: 'length' }],
+      [{ kind: 'text', text: 'd' }, { kind: 'finish', finishReason: 'length' }]
+    ]
+    h.runner.run()
+    await new Promise(r => setTimeout(r, 30))
+    const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
+    expect(done.reason).toBe('length')
+    expect(h.llm.calls.length).toBe(4)
+    const userTexts = h.items
+      .filter((i): i is { kind: 'message'; message: ChatMessage } => i.kind === 'message' && i.message.role === 'user')
+      .map(i => i.message.text)
+    expect(userTexts.filter(t => t.includes('cut off'))).toHaveLength(3)
+  })
+
+  it('reports a distinct reason when the model refuses', async () => {
+    const h = makeHarness()
+    h.llm.queue = [[{ kind: 'text', text: 'I cannot do that' }, { kind: 'finish', finishReason: 'refusal' }]]
     h.runner.run()
     await new Promise(r => setTimeout(r, 20))
     const done = h.events.find(e => e.type === 'done') as Extract<ChatEvent, { type: 'done' }>
-    expect(done.reason).toBe('length')
+    expect(done.reason).toBe('refusal')
   })
 
   it('still reports complete when the model stops on its own', async () => {

@@ -87,6 +87,16 @@ const DEFAULT_MAX_STEPS = 50
 const DEFAULT_KEEP_FULL_TURNS = 2
 const MAX_COMPACT_PER_RUN = 2
 const MAX_STEPS_PROMPT = 'Final step: wrap up and provide your final answer now. Tool calls are disabled.'
+const MAX_LENGTH_RESUMES = 3
+const CONTINUE_TRUNCATED_PROMPT =
+  '<system-reminder>\nYour previous answer was cut off at the output token limit. ' +
+  'Continue from where you stopped, without repeating what you already wrote.\n</system-reminder>'
+
+function classifyFinish(reason: string | undefined): 'complete' | 'length' | 'refusal' {
+  if (reason === 'length' || reason === 'max_tokens') return 'length'
+  if (reason === 'refusal' || reason === 'content_filter' || reason === 'content-filter') return 'refusal'
+  return 'complete'
+}
 
 export class SessionRunner {
   private readonly maxSteps: number
@@ -97,6 +107,9 @@ export class SessionRunner {
   // Số lần đã tự sửa reject context-overflow trong một run — cùng giới hạn với
   // compact để một prompt thật sự vượt trần emit lỗi thay vì loop.
   private rejectRetriesThisRun = 0
+  // Consecutive truncation resumes in one run; caps the cost when the model
+  // keeps hitting the output limit.
+  private lengthResumesThisRun = 0
   // Provider-reported usage of the last LLM call; overflow detection trusts it
   // over the transcript char estimate because it includes the system prompt and
   // tool definitions (see maybeCompact).
@@ -117,6 +130,7 @@ export class SessionRunner {
     let steps = 0
     this.compactedThisRun = 0
     this.rejectRetriesThisRun = 0
+    this.lengthResumesThisRun = 0
     this.compaction = resolveCompactionSettings(
       this.deps.compaction ?? { auto: false, tailTurns: 2 },
       this.deps.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
@@ -280,10 +294,21 @@ export class SessionRunner {
       for (const d of askCalls) await this.executeCall(d.call, d.decision, signal)
 
       if (!hasToolCall) {
-        // 'length' means the provider cut the answer off at the output cap.
-        // Reporting that as 'complete' left the user reading a truncated reply
-        // with nothing to say it was truncated.
-        const reason = finishReason === 'length' ? 'length' : 'complete'
+        // The provider cut the answer at the output cap without calling a tool.
+        // Resume the turn with a continuation nudge up to MAX_LENGTH_RESUMES
+        // times; past the cap, report 'length' so the UI can tell the user the
+        // answer is cut off.
+        if (classifyFinish(finishReason) === 'length' && this.lengthResumesThisRun < MAX_LENGTH_RESUMES) {
+          this.lengthResumesThisRun++
+          this.deps.appendMessage({
+            id: randomUUID(),
+            role: 'user',
+            text: CONTINUE_TRUNCATED_PROMPT,
+            createdAt: Date.now()
+          })
+          continue
+        }
+        const reason = classifyFinish(finishReason)
         this.deps.onEvent({ type: 'done', agentId, reason, tokens, cost: this.deps.computeCost?.(runUsage) })
         return
       }
