@@ -10,7 +10,7 @@ import type { LlmClient, LlmStreamOptions, LlmStreamPart } from '../../src/main/
 import type { ToolContext, SubagentToolEvent, ToolDefinition } from '../../src/main/agent/tools/types'
 
 const { subagentRunners } = vi.hoisted(() => ({
-  subagentRunners: [] as Array<{ agentId: string; turn?: number }>
+  subagentRunners: [] as Array<{ agentId: string; turn?: number; hasHooks: boolean }>
 }))
 
 vi.mock('../../src/main/agent/loop', async (importOriginal) => {
@@ -20,7 +20,7 @@ vi.mock('../../src/main/agent/loop', async (importOriginal) => {
     SessionRunner: class extends actual.SessionRunner {
       constructor(deps: ConstructorParameters<typeof actual.SessionRunner>[0]) {
         super(deps)
-        subagentRunners.push({ agentId: deps.agentId, turn: deps.turn })
+        subagentRunners.push({ agentId: deps.agentId, turn: deps.turn, hasHooks: Boolean(deps.hooks) })
       }
     }
   }
@@ -140,6 +140,35 @@ describe('task subagent roles', () => {
     expect(subagentRunners[0].agentId).toMatch(/^sub-(research|general|reviewer)-/)
     expect(subagentRunners[0].agentId).not.toBe('sub')
     expect(subagentRunners[0].turn).toBe(7)
+  })
+
+  // A subagent that could skip PreToolUse would be a hole in the policy.
+  it('passes the parent hooks provider to the subagent runner', async () => {
+    const hooks = () => ({
+      runPreToolUse: async () => ({}),
+      runPostToolUse: async () => ({}),
+      runStop: async () => ({ block: false })
+    })
+    const tool = createTaskTool({
+      llm: stubLlm([[{ kind: 'text', text: 'ok' }, { kind: 'finish' }]]),
+      model: 'm',
+      tools: createDefaultTools(),
+      permission: allowAll(),
+      hooks
+    })
+    await tool.run({ description: 'explore', prompt: 'find it', subagent_type: 'research' }, ctx)
+    expect(subagentRunners[0].hasHooks).toBe(true)
+  })
+
+  it('leaves the subagent without hooks when the parent has none', async () => {
+    const tool = createTaskTool({
+      llm: stubLlm([[{ kind: 'text', text: 'ok' }, { kind: 'finish' }]]),
+      model: 'm',
+      tools: createDefaultTools(),
+      permission: allowAll()
+    })
+    await tool.run({ description: 'explore', prompt: 'find it', subagent_type: 'research' }, ctx)
+    expect(subagentRunners[0].hasHooks).toBe(false)
   })
 
   it('emits subagent events with parentTaskId from the parent task context', async () => {

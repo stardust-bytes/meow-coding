@@ -96,6 +96,27 @@ export class McpManager {
     return existsSync(projectPath) ? [{ uri: pathToFileURL(projectPath).toString(), name: projectPath }] : []
   }
 
+  // Direct call by server + tool name, for callers that address a tool without
+  // going through the mcp__server__tool registry — hooks, for one. Resolves the
+  // connection at call time for the same reason getTools() does.
+  async callTool(
+    serverName: string,
+    toolName: string,
+    input: Record<string, unknown>
+  ): Promise<{ output?: string; error?: string }> {
+    const conn = this.connections.get(serverName)
+    if (!conn) return { error: `MCP server "${serverName}" is not connected` }
+    try {
+      const res = await conn.client.callTool({ name: toolName, arguments: input })
+      const content = (res.content ?? []) as Array<{ type: string; text?: string }>
+      const text = content.filter(c => c.type === 'text').map(c => c.text ?? '').join('\n')
+      if (res.isError) return { error: text || 'mcp tool error' }
+      return { output: text || JSON.stringify(content) }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err) }
+    }
+  }
+
   getTools(): Map<string, ToolDefinition> {
     const out = new Map<string, ToolDefinition>()
     for (const conn of this.connections.values()) {

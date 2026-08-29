@@ -51,6 +51,8 @@ import type { NotificationService } from './notification-service'
 import type { Vault } from './vault'
 import { TraceStore } from './agent/trace-store'
 import type { TraceEventInput } from './agent/trace-store'
+import { HooksExecutor, loadProjectHooks, mergeHooksConfig } from './agent/hooks'
+import type { HookTraceRecord } from './agent/hooks'
 
 export interface MeowAgentManagerDeps {
   configPath: string
@@ -1057,11 +1059,25 @@ export class MeowAgentManager {
       })
     }
 
+    // Re-read on every turn (SessionRunner resolves this once per run), so an
+    // edit to meow.json or .meow/hooks.json lands on the next turn without a
+    // reload. Subagents get the same provider: same cwd, same merged config.
+    const hooks = (): HooksExecutor => new HooksExecutor(
+      mergeHooksConfig(loadMeowConfig(this.deps.configPath).hooks, loadProjectHooks(agent.cwd)),
+      {
+        cwd: agent.cwd,
+        callMcpTool: (server, tool, input) => this.mcp.callTool(server, tool, input),
+        getModel: () => ({ llm: llmClient, model: resolved.model }),
+        onTrace: (record) => this.writeHookTrace(agent.id, record)
+      }
+    )
+
     const taskTool = createTaskTool({
       llm: llmClient,
       model: resolved.model,
       tools: this.tools,
       resolveSubagent,
+      hooks,
       maxContextTokens: contextTokens,
       maxOutputTokens: outputReserve,
       compaction: cfg.compaction,
@@ -1174,6 +1190,7 @@ export class MeowAgentManager {
       memoryDir: agentMemoryDir,
       llm: llmClient,
       tools: runnerTools,
+      hooks,
       decidePermission: (tool, input) => decidePermission(
         this.modes.get(agent.id) ?? 'build',
         cfg.permission,
@@ -1278,6 +1295,27 @@ export class MeowAgentManager {
     const next = (this.turnCounters.get(sessionId) ?? 0) + 1
     this.turnCounters.set(sessionId, next)
     return next
+  }
+
+  // Hooks stay out of the transcript: they are policy machinery, not part of the
+  // conversation. The trace is where their lifecycle is visible.
+  private writeHookTrace(agentId: string, record: HookTraceRecord): void {
+    const trace = this.deps.trace
+    // Called straight from the executor, so it checks the flag itself rather
+    // than relying on the gate that fronts chat-event tracing.
+    if (!trace || !this.traceEnabled) return
+    const sessionId = this.activeSessionId(agentId)
+    const full = trace.append(sessionId, {
+      type: 'hook',
+      agentId,
+      sessionId,
+      turn: this.turnCounters.get(sessionId) ?? 0,
+      event: record.event,
+      tool: record.tool,
+      status: record.status,
+      durationMs: record.durationMs
+    })
+    this.deps.onTrace?.(full)
   }
 
   private writeTrace(e: ChatEvent): void {

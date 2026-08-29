@@ -11,6 +11,7 @@ import type { ToolContext, ToolDefinition, ToolRunResult } from './types'
 import { collectSubagentRoles } from '../subagent-roles'
 import { decide, deriveSubagentContext } from '../permission'
 import type { SubagentRole, ToolPermissionContext } from '../permission'
+import type { HooksRunner } from '../hooks'
 
 export type { SubagentType } from '../../../shared/types'
 
@@ -83,6 +84,9 @@ export function createTaskTool(opts: {
   // Hands the caller a handle to cancel a background subagent after the turn
   // that spawned it has ended (the turn's own controller is gone by then).
   onBackgroundStart?: (taskId: string, cancel: () => void) => void
+  // Hooks apply inside subagents too: same cwd, so the same merged config. A
+  // subagent that could skip PreToolUse would be a hole in the policy.
+  hooks?: () => HooksRunner
 }): ToolDefinition {
   // Resumable subagent sessions, keyed by task id (SDD fix loop reuses them).
   // Bounded so a long-lived agent does not accumulate transcripts forever.
@@ -152,6 +156,7 @@ export function createTaskTool(opts: {
         toolInput
       ),
       ask: opts.ask ?? (async () => null),
+      hooks: opts.hooks,
       maxSteps: opts.maxSteps ?? 30,
       maxContextTokens: opts.maxContextTokens,
       maxOutputTokens: opts.maxOutputTokens,

@@ -55,6 +55,11 @@ export function describeEvent(e: TraceEvent): string {
       const dur = e.durationMs != null ? ` ${e.durationMs}ms` : ''
       return `pty run${exit}${dur}`
     }
+    case 'hook': {
+      const tool = e.tool ? ` ${e.tool}` : ''
+      const dur = e.durationMs != null ? ` ${e.durationMs}ms` : ''
+      return `hook ${e.event}${tool} ${e.status}${dur}`
+    }
   }
 }
 

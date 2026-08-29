@@ -242,6 +242,7 @@ export type TraceEvent =
   | { type: 'error'; seq: number; ts: number; agentId: string; sessionId: string; message: string }
   | { type: 'done'; seq: number; ts: number; agentId: string; sessionId: string; reason: string; tokens?: TokenUsage; cost?: number }
   | { type: 'pty-run'; seq: number; ts: number; agentId: string; sessionId: string; startTs: number; endTs?: number; exitCode?: number; durationMs?: number; logPath: string }
+  | { type: 'hook'; seq: number; ts: number; agentId: string; sessionId: string; turn: number; event: 'PreToolUse' | 'PostToolUse' | 'Stop'; tool?: string; status: 'started' | 'ok' | 'blocked' | 'failed' | 'timeout'; durationMs?: number }
 
 export interface QuestionOption {
   label: string

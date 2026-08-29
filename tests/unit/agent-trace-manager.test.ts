@@ -190,4 +190,32 @@ describe('MeowAgentManager trace wiring', () => {
     expect(trace.deleted).toContain(s1)
     expect(trace.deleted).toContain(s2)
   })
+
+  it('writes hook lifecycle records against the active session and turn', async () => {
+    const { manager, trace } = await makeManager()
+    manager.addAgent(MEOW_AGENT)
+    const sessionId = manager.newSession('a1').id
+    const writeHookTrace = (manager as unknown as {
+      writeHookTrace: (agentId: string, record: Record<string, unknown>) => void
+    }).writeHookTrace.bind(manager)
+
+    writeHookTrace('a1', { event: 'PreToolUse', tool: 'bash', status: 'started' })
+    writeHookTrace('a1', { event: 'PreToolUse', tool: 'bash', status: 'blocked', durationMs: 12 })
+
+    expect(trace.appends).toHaveLength(2)
+    expect(trace.appends[0]).toMatchObject({
+      sessionId, type: 'hook', agentId: 'a1', event: 'PreToolUse', tool: 'bash', status: 'started'
+    })
+    expect(trace.appends[1]).toMatchObject({ type: 'hook', status: 'blocked', durationMs: 12 })
+  })
+
+  it('skips hook trace writes when trace is disabled', async () => {
+    const { manager, trace } = await makeManager({ trace: false })
+    manager.addAgent(MEOW_AGENT)
+    manager.newSession('a1')
+    ;(manager as unknown as {
+      writeHookTrace: (agentId: string, record: Record<string, unknown>) => void
+    }).writeHookTrace('a1', { event: 'Stop', status: 'ok' })
+    expect(trace.appends).toHaveLength(0)
+  })
 })
