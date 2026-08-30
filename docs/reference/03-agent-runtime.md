@@ -396,9 +396,15 @@ Retryable: HTTP `408, 409, 425, 429, 500, 502, 503, 504, 529`, and socket errors
 `ECONNRESET, ECONNREFUSED, ETIMEDOUT, EPIPE, ENOTFOUND, EAI_AGAIN, UND_ERR_SOCKET`. `AI_RetryError`
 is unwrapped and its inner cause classified. `AbortError` is never retried.
 
+A gateway may stream a **bare SSE error chunk** with no numeric HTTP status but a rate-limit marker —
+e.g. `{ message, type: 'rate_limit_error', code: 'RATE_LIMIT' }`. The `code`/`type`/`name` fields are
+matched against `/rate[-_ ]?limit/i`, so such a chunk is treated like a 429 (bounded, not unbounded)
+rather than ending the turn.
+
 Server (5xx) and socket errors are classified as **unbounded**: the turn keeps retrying past
 `maxAttempts` until the network/API comes back (Claude CLI-style), with only success or Stop as a way
-out. Rate limits (408/409/425/429) retry up to `maxAttempts` (10) and then surface the error.
+out. Rate limits (408/409/425/429, plus a bare `RATE_LIMIT` marker) retry up to `maxAttempts` (10)
+and then surface the error.
 
 `onRetry` fires before each real retry, and the manager turns it into a `retry` `ChatEvent` so the
 chat shows a transient "Retrying…" line. That line lives only in renderer feed state — it is never

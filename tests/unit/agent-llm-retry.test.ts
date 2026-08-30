@@ -59,6 +59,25 @@ describe('classifyLlmError', () => {
     expect(classifyLlmError({ name: 'AI_RetryError', lastError: { statusCode: 401 } }).retryable).toBe(false)
   })
 
+  it('classifies a bare SSE error chunk with a RATE_LIMIT code as retryable and bounded', () => {
+    // A gateway (e.g. meow-gateway) can stream { message, type, code } with no
+    // numeric HTTP status. A rate-limit marker must retry like a 429, not end
+    // the turn.
+    const c = classifyLlmError({ message: 'Provider request failed.', type: 'rate_limit_error', code: 'RATE_LIMIT' })
+    expect(c.retryable).toBe(true)
+    expect(c.unbounded).toBe(false)
+  })
+
+  it('matches rate-limit markers on code, type, or name', () => {
+    expect(classifyLlmError({ code: 'rate_limit' }).retryable).toBe(true)
+    expect(classifyLlmError({ type: 'RateLimitError' }).retryable).toBe(true)
+    expect(classifyLlmError({ name: 'rate-limit-exceeded' }).retryable).toBe(true)
+  })
+
+  it('leaves a bare error chunk that is not a rate limit as non-retryable', () => {
+    expect(classifyLlmError({ message: 'bad request', type: 'invalid_request_error', code: 'BAD_REQUEST' }).retryable).toBe(false)
+  })
+
   it('never retries an abort', () => {
     expect(classifyLlmError({ name: 'AbortError' }).retryable).toBe(false)
   })

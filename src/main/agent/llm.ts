@@ -281,6 +281,13 @@ const RETRYABLE_STATUS = new Set([...RATE_LIMIT_STATUS, ...SERVER_STATUS])
 const RETRYABLE_CODES = new Set([
   'ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'EPIPE', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_SOCKET'
 ])
+// A gateway may return a bare SSE error chunk with no numeric HTTP status but a
+// rate-limit marker — e.g. { message, type: 'rate_limit_error', code: 'RATE_LIMIT' }.
+// Match those tokens so they retry like a 429 instead of ending the turn.
+const RATE_LIMIT_TEXT = /rate[-_ ]?limit/i
+function isRateLimitMarker(value: unknown): boolean {
+  return typeof value === 'string' && RATE_LIMIT_TEXT.test(value)
+}
 
 export interface LlmErrorClass {
   retryable: boolean
@@ -293,6 +300,7 @@ export function classifyLlmError(err: unknown): LlmErrorClass {
   if (!err || typeof err !== 'object') return { retryable: false }
   const e = err as {
     name?: string
+    type?: string
     code?: string
     statusCode?: number
     responseHeaders?: Record<string, string>
@@ -312,6 +320,12 @@ export function classifyLlmError(err: unknown): LlmErrorClass {
       unbounded: SERVER_STATUS.has(e.statusCode),
       retryAfterMs: retryAfterMs(e.responseHeaders)
     }
+  }
+  // A bare SSE error chunk (no statusCode) from a gateway may still be a rate
+  // limit: { message, type: 'rate_limit_error', code: 'RATE_LIMIT' }. Treat it
+  // like a 429 — bounded, not unbounded — so the turn retries rather than ends.
+  if (isRateLimitMarker(e.code) || isRateLimitMarker(e.type) || isRateLimitMarker(e.name)) {
+    return { retryable: true, unbounded: false }
   }
   if (e.code && RETRYABLE_CODES.has(e.code)) return { retryable: true, unbounded: true }
   return { retryable: false }
