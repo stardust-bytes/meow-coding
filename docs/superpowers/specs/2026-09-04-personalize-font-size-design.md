@@ -39,7 +39,8 @@ automatically from the root. A few hardcoded `px` values and the xterm terminal 
 - Add `'personalize'` to `TabId` and a `{ id: 'personalize', label: 'Personalize' }` entry to `TABS`.
 - New `PersonalizeTab` component rendered in the tab switch:
   - Labeled **Font size** integer input (px) with `-` / `+` stepper buttons.
-  - Live preview: applying as the user types (calls `applyFontSize`).
+  - Live preview: the field accepts the raw typed value; it is clamped to 8-40,
+    persisted, and normalized on blur or Enter (stepper and Reset apply immediately).
   - Persist to `localStorage` on change.
   - A **Reset to 14** button.
 - No `MeowSettings` / `meow.json` / main-process IPC changes.

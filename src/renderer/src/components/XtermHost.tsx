@@ -101,8 +101,8 @@ export default function XtermHost({ agentId, onReady, onDispose, onInput, onResi
     })
     ro.observe(ref.current!)
 
-    // Re-theme the terminal live when the user toggles dark/light in the
-    // sidebar (localStorage syncs across same-origin windows).
+    // Re-theme and re-size the terminal live when the user toggles dark/light or
+    // changes the app font size (localStorage syncs across same-origin windows).
     const onStorage = (e: StorageEvent) => {
       if (e.key === 'meow.theme') {
         term.options.theme = document.documentElement.getAttribute('data-theme') === 'light' ? LIGHT_THEME : DARK_THEME
