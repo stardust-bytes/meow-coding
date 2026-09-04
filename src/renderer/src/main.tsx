@@ -7,6 +7,7 @@ import '@fontsource-variable/instrument-sans'
 import '@fontsource-variable/bricolage-grotesque'
 import './styles.css'
 import { applyTheme, watchTheme } from './theme'
+import { applyFontSize, watchFontSize } from './font'
 import type { LogLevel } from '@shared/types'
 import { formatLogArg } from '@shared/log-helpers'
 
@@ -15,6 +16,11 @@ import { formatLogArg } from '@shared/log-helpers'
 // the theme in the main window (localStorage syncs across same-origin windows).
 applyTheme()
 watchTheme()
+
+// Applied before first paint so popups (Git viewer / FileViewer) inherit the
+// persisted font size, and re-applied when the main window changes it.
+applyFontSize()
+watchFontSize()
 
 function patchConsoleLogging(): void {
   if (!window.api) return
