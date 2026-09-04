@@ -26,26 +26,28 @@ export default function PersonalizeTab() {
   return (
     <section className="settings-section">
       <h4 className="settings-section-header">Personalize</h4>
-      <label className="label" htmlFor="fontSize">Font size (px)</label>
-      <div className="font-size-row">
-        <button className="btn" onClick={() => step(-1)} aria-label="Decrease font size">−</button>
-        <input
-          id="fontSize"
-          className="font-size-input"
-          type="text"
-          inputMode="numeric"
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onBlur={e => apply(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === 'Enter') apply(e.currentTarget.value)
-          }}
-        />
-        <button className="btn" onClick={() => step(1)} aria-label="Increase font size">+</button>
+      <div className="settings-field">
+        <label className="label" htmlFor="fontSize">Font size (px)</label>
+        <div className="font-size-row">
+          <button className="btn" onClick={() => step(-1)} aria-label="Decrease font size">−</button>
+          <input
+            id="fontSize"
+            className="input font-size-input"
+            type="text"
+            inputMode="numeric"
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onBlur={e => apply(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') apply(e.currentTarget.value)
+            }}
+          />
+          <button className="btn" onClick={() => step(1)} aria-label="Increase font size">+</button>
+        </div>
+        <p className="settings-hint">
+          Range {MIN_FONT_SIZE}–{MAX_FONT_SIZE}px. Default {DEFAULT_FONT_SIZE}px.
+        </p>
       </div>
-      <p className="settings-hint">
-        Range {MIN_FONT_SIZE}–{MAX_FONT_SIZE}px. Default {DEFAULT_FONT_SIZE}px.
-      </p>
       <div>
         <button className="btn" onClick={() => apply(String(DEFAULT_FONT_SIZE))}>
           Reset to {DEFAULT_FONT_SIZE}
