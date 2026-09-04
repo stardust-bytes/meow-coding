@@ -1071,7 +1071,7 @@ select.input { width: 100%; }
 /* Hover popover: session tokens in/out + cost, shown when the user hovers the
    context readout. */
 .context-footer-popover {
-  position: absolute; bottom: calc(100% + 6px); right: 0; z-index: 50;
+  position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 100;
   display: none; min-width: 200px; padding: 8px 10px; flex-direction: column; gap: 6px;
   background: var(--bg-raised); border: 1px solid var(--hairline); border-radius: var(--radius);
   box-shadow: var(--shadow-3); font-family: var(--font-mono); font-size: var(--fs-sm);
@@ -1328,8 +1328,10 @@ select.input { width: 100%; }
 .diff-line.add { background: rgba(74, 222, 159, 0.1); color: var(--green); }
 .diff-sign { flex: 0 0 auto; }
 
-/* Composer footer: context on the left, mode/model/variant selectors on the right */
-.chat-footer { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* Composer footer: context on the left, mode/model/variant selectors on the right.
+   position relative + z-index lifts the footer above the input so the context
+   hover popover (which opens upward over the input) is never painted behind it. */
+.chat-footer { display: flex; align-items: center; gap: 8px; min-width: 0; position: relative; z-index: 10; }
 .chat-footer-context { flex: 1; min-width: 0; display: flex; align-items: center; }
 .chat-footer-controls { display: flex; align-items: center; gap: 6px; margin-left: auto; min-width: 0; }
 .model-picker { position: relative; display: inline-flex; }
@@ -1416,7 +1418,7 @@ select.input { width: 100%; }
 .mode-item.mode-plan.active { color: var(--orange); }
 .mode-check { color: var(--accent); flex: 0 0 auto; }
 .mode-caret { color: var(--text-dim); font-size: var(--fs-sm); }
-.chat-mode-hint { font-size: var(--fs-base); color: var(--yellow); margin-left: 6px; }
+.chat-mode-hint { font-size: var(--fs-base); color: var(--yellow); margin-right: 6px; }
 .chat-prompt-actions button.always { color: var(--accent); }
 .chat-prompt-actions button.selected { outline: 1px solid var(--accent); outline-offset: -1px; }
 .chat-prompt-actions kbd {

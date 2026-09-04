@@ -1086,8 +1086,8 @@ if (e.type === 'usage') {
             />
           </div>
           <div className="chat-footer-controls">
-            <ModePicker value={currentMode} onChange={switchMode} />
             {currentMode === 'plan' && <span className="chat-mode-hint">read-only — edits denied</span>}
+            <ModePicker value={currentMode} onChange={switchMode} />
             <ModelPicker agentId={agentId} />
             {availableVariants.length > 0 && (
               <VariantPicker
