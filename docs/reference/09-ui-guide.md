@@ -92,7 +92,7 @@ Update-dialog policy: `update-available` and `downloaded` open the dialog; `erro
 
 | Component | Responsibility |
 |---|---|
-| `ChatPanel.tsx` | The container: subscribes to chat events, owns feed state (items / todos / queue / pendingPrompt), rAF-batches stream deltas, renders feed + composer + context footer. Memoized. |
+| `ChatPanel.tsx` | The container: subscribes to chat events, owns feed state (items / todos / queue / pendingPrompt), rAF-batches stream deltas, renders feed + composer + context footer. The permission/question prompt is a floating popup pinned just above the composer (overlays the feed, so it does not take up frame height). Memoized. |
 | `ChatInput.tsx` | Composer: textarea (Enter to send), paste/drop image chips (≤4, ≤5MB), `@` file-mention dropdown + chips, `/` command menu, edit-queued flow. Memoized, **uncontrolled**. |
 | `useChatScroll.ts` | Feed scroll controller: follow / anchored / manual modes, turn-top anchoring, jump-to-end button. Pure geometry helpers live in `chat-scroll-geometry.ts`. |
 | `SessionBar.tsx` | Session list bar: create / switch / rename / delete |

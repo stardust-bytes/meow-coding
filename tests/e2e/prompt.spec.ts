@@ -91,3 +91,35 @@ test('prompt spans the pane width', async () => {
     await app.close()
   }
 })
+
+test('prompt overlays the feed without changing its height', async () => {
+  const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
+  const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
+  writeFileSync(path.join(userData, 'workspaces.json'), JSON.stringify([{
+    projectPath: project,
+    name: 'E2E',
+    agents: [{ id: 'a1', name: 'meow', templateId: 'meow', cwd: project, kind: 'native' }]
+  }]))
+  const app = await electron.launch({ args: ['.'], env: { ...process.env as Record<string, string>, MEOW_USER_DATA: userData } })
+  const window = await app.firstWindow()
+  await window.locator('.project-row').click()
+  await expect(window.locator('.chat-panel')).toBeVisible()
+  const feed = window.locator('.chat-feed')
+  const before = await feed.boundingBox()
+  await app.evaluate(async ({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0].webContents.send('chat:event', {
+      type: 'prompt-request', agentId: 'a1', promptId: 'p1', kind: 'question',
+      question: 'Pick an option:', custom: true
+    })
+  })
+  await expect(window.locator('.chat-prompt')).toBeVisible()
+  const after = await feed.boundingBox()
+  try {
+    expect(after).not.toBeNull()
+    expect(before).not.toBeNull()
+    // The prompt floats over the feed, so the feed's height must not shrink.
+    expect(Math.abs((after!.height ?? 0) - (before!.height ?? 0))).toBeLessThan(1)
+  } finally {
+    await app.close()
+  }
+})

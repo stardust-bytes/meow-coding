@@ -823,120 +823,6 @@ if (e.type === 'usage') {
         </div>
       )}
       <div className="chat-feed-wrap">
-        <div
-          className="chat-feed"
-          ref={scroll.feedRef}
-          tabIndex={0}
-          onScroll={scroll.onScroll}
-          onWheel={scroll.onWheel}
-          onTouchMove={scroll.onTouchMove}
-          onPointerDown={scroll.onPointerDown}
-          onPointerUp={scroll.onPointerUp}
-          onKeyDown={scroll.onKeyDown}
-        >
-        <div className="chat-feed-content" ref={scroll.contentRef}>
-        {items.map(item => {
-          if (item.kind === 'compaction') {
-            return (
-              <div key={item.id} className={`chat-compacted ${item.failed ? 'failed' : ''} ${item.running ? 'running' : ''}`}>
-                {item.running ? 'Compacting context…' : (item.failed ? 'Context compaction failed' : 'Context compacted')}
-              </div>
-            )
-          }
-          if (item.kind === 'retry') {
-            return (
-              <RetryCountdown key={item.id} id={item.id} attempt={item.attempt} maxAttempts={item.maxAttempts} delayMs={item.delayMs} unbounded={item.unbounded} />
-            )
-          }
-          if (item.kind === 'message') {
-            if (item.role === 'assistant' && item.text.trim() === '' && !item.reasoning) return null
-            // The truncation-resume nudge is a persisted user message; keep it
-            // out of the feed so the assistant bubble reads as one answer.
-            if (item.role === 'user' && item.text.startsWith('<system-reminder>')) return null
-            return (
-              <FeedMessage
-                key={item.id}
-                messageId={item.id}
-                role={item.role}
-                text={item.text}
-                reasoning={item.reasoning}
-                images={item.images}
-                commands={commands}
-                onOpenImage={setLightboxUrl}
-                onOpenFile={openFile}
-              />
-            )
-          }
-          if (item.kind === 'tool') {
-            return <ToolCallCard key={item.id} call={item.call} />
-          }
-          if (item.kind === 'subagent') {
-            return (
-              <div
-                key={item.taskId}
-                className={`subagent ${item.state === 'running' ? 'running' : ''} ${item.background ? 'background' : ''}`}
-                onClick={() => setLiveTaskId(item.taskId)}
-                title="Open live view"
-              >
-                <div className="subagent-head">
-                  <span className="subagent-name">sub-agent{item.subagentType ? ` (${item.subagentType})` : ''}</span>
-                  {item.background && <span className="subagent-bg">bg</span>}
-                  <span className={`subagent-state state-${item.state}`}>{item.state}</span>
-                </div>
-                {item.tools.length > 0 && (
-                  <div className="subagent-tools">
-                    {item.tools.map(t => <code key={t}>{t}</code>)}
-                  </div>
-                )}
-                {item.text && <div className="subagent-text">{item.text}</div>}
-                {item.state === 'running' && <div className="subagent-running">…</div>}
-              </div>
-            )
-          }
-          return (
-            <div key={item.id} className="chat-error">
-              <div className="chat-error-text">{item.text}</div>
-              <button
-                className="btn small chat-error-copy"
-                onClick={() => void navigator.clipboard.writeText(item.text)}
-                title="Copy error text"
-              >
-                Copy
-              </button>
-            </div>
-          )
-        })}
-        {running && <div className="chat-running">Meow is working…</div>}
-        {queue.length > 0 && (
-          <div className="chat-queue">
-            {queue.map(q => (
-              <div key={q.id} className="chat-queue-item">
-                <span className="chat-queue-badge">queued</span>
-                <span className="chat-queue-text" onClick={() => setEditTarget({ ...q, text: q.displayText ?? q.text })} title="Edit">{q.displayText ?? q.text}</span>
-                <button
-                  className="chat-queue-remove"
-                  aria-label={`remove queued ${q.displayText ?? q.text}`}
-                  onClick={() => void window.api.removeQueued(agentId, q.id)}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="chat-latest-boundary" ref={scroll.latestRef} aria-hidden="true" />
-        <div className="chat-turn-tail" ref={scroll.tailRef} aria-hidden="true" />
-        <div ref={scroll.endRef} aria-hidden="true" />
-        </div>
-      </div>
-      {scroll.showJumpToEnd && (
-        <button className="chat-jump-to-end" onClick={scroll.jumpToEnd} title="Scroll to end" aria-label="Scroll to end">
-          <ChevronDown size={14} aria-hidden="true" />
-          <span>Scroll to end</span>
-        </button>
-      )}
-      </div>
-      <div className="chat-composer">
         {pendingPrompt && (
           <div className="chat-prompt" ref={pendingPrompt.promptType === 'permission' ? promptRef : undefined}
             tabIndex={pendingPrompt.promptType === 'permission' ? -1 : undefined}>
@@ -1060,6 +946,120 @@ if (e.type === 'usage') {
             ))}
           </div>
         )}
+        <div
+          className="chat-feed"
+          ref={scroll.feedRef}
+          tabIndex={0}
+          onScroll={scroll.onScroll}
+          onWheel={scroll.onWheel}
+          onTouchMove={scroll.onTouchMove}
+          onPointerDown={scroll.onPointerDown}
+          onPointerUp={scroll.onPointerUp}
+          onKeyDown={scroll.onKeyDown}
+        >
+        <div className="chat-feed-content" ref={scroll.contentRef}>
+        {items.map(item => {
+          if (item.kind === 'compaction') {
+            return (
+              <div key={item.id} className={`chat-compacted ${item.failed ? 'failed' : ''} ${item.running ? 'running' : ''}`}>
+                {item.running ? 'Compacting context…' : (item.failed ? 'Context compaction failed' : 'Context compacted')}
+              </div>
+            )
+          }
+          if (item.kind === 'retry') {
+            return (
+              <RetryCountdown key={item.id} id={item.id} attempt={item.attempt} maxAttempts={item.maxAttempts} delayMs={item.delayMs} unbounded={item.unbounded} />
+            )
+          }
+          if (item.kind === 'message') {
+            if (item.role === 'assistant' && item.text.trim() === '' && !item.reasoning) return null
+            // The truncation-resume nudge is a persisted user message; keep it
+            // out of the feed so the assistant bubble reads as one answer.
+            if (item.role === 'user' && item.text.startsWith('<system-reminder>')) return null
+            return (
+              <FeedMessage
+                key={item.id}
+                messageId={item.id}
+                role={item.role}
+                text={item.text}
+                reasoning={item.reasoning}
+                images={item.images}
+                commands={commands}
+                onOpenImage={setLightboxUrl}
+                onOpenFile={openFile}
+              />
+            )
+          }
+          if (item.kind === 'tool') {
+            return <ToolCallCard key={item.id} call={item.call} />
+          }
+          if (item.kind === 'subagent') {
+            return (
+              <div
+                key={item.taskId}
+                className={`subagent ${item.state === 'running' ? 'running' : ''} ${item.background ? 'background' : ''}`}
+                onClick={() => setLiveTaskId(item.taskId)}
+                title="Open live view"
+              >
+                <div className="subagent-head">
+                  <span className="subagent-name">sub-agent{item.subagentType ? ` (${item.subagentType})` : ''}</span>
+                  {item.background && <span className="subagent-bg">bg</span>}
+                  <span className={`subagent-state state-${item.state}`}>{item.state}</span>
+                </div>
+                {item.tools.length > 0 && (
+                  <div className="subagent-tools">
+                    {item.tools.map(t => <code key={t}>{t}</code>)}
+                  </div>
+                )}
+                {item.text && <div className="subagent-text">{item.text}</div>}
+                {item.state === 'running' && <div className="subagent-running">…</div>}
+              </div>
+            )
+          }
+          return (
+            <div key={item.id} className="chat-error">
+              <div className="chat-error-text">{item.text}</div>
+              <button
+                className="btn small chat-error-copy"
+                onClick={() => void navigator.clipboard.writeText(item.text)}
+                title="Copy error text"
+              >
+                Copy
+              </button>
+            </div>
+          )
+        })}
+        {running && <div className="chat-running">Meow is working…</div>}
+        {queue.length > 0 && (
+          <div className="chat-queue">
+            {queue.map(q => (
+              <div key={q.id} className="chat-queue-item">
+                <span className="chat-queue-badge">queued</span>
+                <span className="chat-queue-text" onClick={() => setEditTarget({ ...q, text: q.displayText ?? q.text })} title="Edit">{q.displayText ?? q.text}</span>
+                <button
+                  className="chat-queue-remove"
+                  aria-label={`remove queued ${q.displayText ?? q.text}`}
+                  onClick={() => void window.api.removeQueued(agentId, q.id)}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="chat-latest-boundary" ref={scroll.latestRef} aria-hidden="true" />
+        <div className="chat-turn-tail" ref={scroll.tailRef} aria-hidden="true" />
+        <div ref={scroll.endRef} aria-hidden="true" />
+        </div>
+      </div>
+      {scroll.showJumpToEnd && (
+        <button className="chat-jump-to-end" onClick={scroll.jumpToEnd} title="Scroll to end" aria-label="Scroll to end">
+          <ChevronDown size={14} aria-hidden="true" />
+          <span>Scroll to end</span>
+        </button>
+      )}
+      </div>
+      <div className="chat-composer">
         <div className="chat-mode">
           <span className="chat-mode-label">mode</span>
           <button
