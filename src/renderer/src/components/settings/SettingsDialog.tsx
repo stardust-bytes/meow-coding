@@ -11,8 +11,9 @@ import RemoteTab from './RemoteTab'
 import TemplatesTab from './TemplatesTab'
 import UpdatesTab from './UpdatesTab'
 import ProvidersTab from './ProvidersTab'
+import PersonalizeTab from './PersonalizeTab'
 
-export type TabId = 'agents' | 'permissions' | 'mcp' | 'context' | 'commands' | 'remote' | 'templates' | 'updates' | 'providers'
+export type TabId = 'agents' | 'permissions' | 'mcp' | 'context' | 'commands' | 'remote' | 'templates' | 'updates' | 'providers' | 'personalize'
 
 const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'agents', label: 'Agents' },
@@ -21,7 +22,8 @@ const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'providers', label: 'Providers' },
   { id: 'context', label: 'Context' },
   { id: 'commands', label: 'Commands' },
-  { id: 'updates', label: 'Updates' }
+  { id: 'updates', label: 'Updates' },
+  { id: 'personalize', label: 'Personalize' }
 ]
 
 interface Props {
@@ -272,6 +274,7 @@ export default function SettingsDialog({ onClose, projectPath, templates, onTemp
             {tab === 'remote' && <RemoteTab />}
             {tab === 'templates' && <TemplatesTab templates={templates} onChange={onTemplatesChange} />}
             {tab === 'updates' && <UpdatesTab />}
+            {tab === 'personalize' && <PersonalizeTab />}
           </div>
         </div>
       </div>

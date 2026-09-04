@@ -1200,6 +1200,8 @@ select.input { width: 100%; }
 }
 .settings-hint { color: var(--text-dim); font-size: var(--fs-md); line-height: 1.5; margin: 0; }
 .settings-hint code { color: var(--yellow); font-family: var(--font-mono); }
+.font-size-row { display: flex; gap: 8px; align-items: center; }
+.font-size-input { width: 72px; text-align: center; font-variant-numeric: tabular-nums; }
 .provider-row { display: grid; grid-template-columns: 110px 1fr 1fr 1fr auto auto auto; gap: 6px; align-items: center; }
 .provider-row .input { min-width: 0; }
 .provider-default { display: flex; align-items: center; gap: 4px; font-size: var(--fs-md); color: var(--text-dim); white-space: nowrap; }
