@@ -21,11 +21,11 @@ UI text and the xterm terminal.
 ## Storage & application
 
 - Key: `meow.fontSize` (default `14`).
-- New helper module (e.g. extend `theme.ts` or add `font.ts`):
+- New helper module `src/renderer/src/font.ts` (mirrors `theme.ts`):
   - `getFontSize(): number` — read from localStorage, return `14` when absent/invalid.
-  - `applyFontSize(size?: number)` — sets
-    `document.documentElement.style.fontSize = '<n>px'` (overrides the CSS `html { font-size: 14px }`
-    default) and `document.body.style.fontSize` is left at `1rem` (inherits from html).
+  - `applyFontSize(size?: number)` — sets `document.documentElement.style.fontSize = '<n>px'`
+    (overrides the CSS `html { font-size: 14px }` default) and `document.body.style.fontSize = '1rem'`
+    so the body follows the root. Together these scale `<html>` and `<body>` directly, as requested.
   - `watchFontSize()` — listen for `storage` events on `meow.fontSize`, re-apply, and notify open
     terminals so they update live (required by the terminal scaling decision).
 - Called from `main.tsx` for each renderer (main window, Git viewer, FileViewer popups) before first
@@ -61,7 +61,8 @@ automatically from the root. A few hardcoded `px` values and the xterm terminal 
 ## Scope
 
 - New `PersonalizeTab` + tab wiring in `SettingsDialog.tsx`.
-- `applyFontSize` / `watchFontSize` helper + wiring in `main.tsx`.
+- New `src/renderer/src/font.ts` helper (`getFontSize` / `applyFontSize` / `watchFontSize`) + wiring
+  in `main.tsx`.
 - `XtermHost.tsx` react to `meow.fontSize` (set + live update + re-fit).
 - Keep the CSS default `html { font-size: 14px }` in `styles.css`; the inline style overrides it.
 
