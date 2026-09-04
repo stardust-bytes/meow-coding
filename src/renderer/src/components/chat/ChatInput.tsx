@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import type { AgentMode, Command, FileSuggestion, ImageAttachment } from '@shared/types'
 import { parseCommandInput } from './parseCommandInput'
 
@@ -8,6 +9,7 @@ interface Props {
   mode: AgentMode
   commands: Command[]
   editTarget?: { id: string; text: string } | null
+  promptSlot?: ReactNode
   onSubmit(text: string, images: ImageAttachment[]): void
   onEditSubmit?(id: string, text: string): void
   onEditCancel?(): void
@@ -46,7 +48,7 @@ const CommandMenuItem = memo(function CommandMenuItem({
 })
 
 export default memo(function ChatInput({
-  agentId, running, mode, commands, editTarget, onSubmit, onEditSubmit, onEditCancel, onStop
+  agentId, running, mode, commands, editTarget, promptSlot, onSubmit, onEditSubmit, onEditCancel, onStop
 }: Props) {
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -233,6 +235,7 @@ export default memo(function ChatInput({
 
   return (
     <div className="chat-input">
+      {promptSlot}
       {menu.open && filtered.length > 0 && (
         <div className="command-menu">
           {filtered.map(c => (

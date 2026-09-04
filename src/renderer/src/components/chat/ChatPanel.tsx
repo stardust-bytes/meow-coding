@@ -824,129 +824,7 @@ if (e.type === 'usage') {
         </div>
       )}
       <div className="chat-feed-wrap">
-        {pendingPrompt && (
-          <div className="chat-prompt" ref={pendingPrompt.promptType === 'permission' ? promptRef : undefined}
-            tabIndex={pendingPrompt.promptType === 'permission' ? -1 : undefined}>
-            <div className="chat-prompt-head">
-              <span className="chat-prompt-head-label">
-                {pendingPrompt.promptType === 'permission' ? 'Permission' : 'Question'}
-              </span>
-              <button
-                className={`chat-prompt-toggle ${promptCollapsed ? 'collapsed' : ''}`}
-                title={promptCollapsed ? 'Expand' : 'Collapse'}
-                aria-label={promptCollapsed ? 'Expand prompt' : 'Collapse prompt'}
-                onClick={() => setPromptCollapsed(v => !v)}
-              >
-                <ChevronDown size={12} aria-hidden="true" />
-              </button>
-            </div>
-            {promptCollapsed && (pendingPrompt.promptType === 'permission' ? (
-              <div className="chat-prompt-collapsed-text">Meow wants to run <code>{pendingPrompt.call?.tool}</code></div>
-            ) : (
-              <div className="chat-prompt-collapsed-text">{pendingPrompt.question}</div>
-            ))}
-            {!promptCollapsed && (pendingPrompt.promptType === 'permission' ? (
-              <>
-                <div className="chat-prompt-text">
-                  Meow wants to run <code>{pendingPrompt.call?.tool}</code>:
-                </div>
-                <div className="chat-prompt-actions">
-                  {permissionActions.map((a, i) => (
-                    <button
-                      key={a.label}
-                      className={[
-                        i === 0 ? 'allow' : '',
-                        i === 1 ? 'always' : '',
-                        selectedAction === i ? 'selected' : ''
-                      ].filter(Boolean).join(' ')}
-                      onClick={a.run}
-                    >
-                      {a.label} <kbd>{a.key}</kbd>
-                    </button>
-                  ))}
-                </div>
-                <div className="chat-prompt-hint">←/→ or Tab to select, Enter to confirm</div>
-              </>
-            ) : (
-              <>
-                <div className="chat-prompt-text">
-                  {pendingPrompt.question}
-                  {pendingPrompt.multiple && <span className="chat-prompt-multi-hint"> (select all that apply)</span>}
-                </div>
-                {pendingPrompt.options && pendingPrompt.options.length > 0 && (
-                  <div className="chat-options">
-                    {pendingPrompt.options.map((opt, i) => {
-                      const selected = selectedOptions.includes(opt.label)
-                      const mark = pendingPrompt.multiple ? (selected ? '[✓]' : '[ ]') : `${i + 1}.`
-                      return (
-                        <button
-                          key={opt.label + i}
-                          className={`chat-option ${selected ? 'selected' : ''} ${questionIndex === i ? 'focused' : ''}`}
-                          onClick={() => (pendingPrompt.multiple
-                            ? toggleOption(opt.label)
-                            : respond(pendingPrompt.promptId, true, opt.label))}
-                        >
-                          <span className="chat-option-mark">{mark}</span>
-                          <span className="chat-option-text">
-                            <span className="chat-option-label">{opt.label}</span>
-                            {opt.description && <span className="chat-option-desc">{opt.description}</span>}
-                          </span>
-                        </button>
-                      )
-                    })}
-                    {pendingPrompt.custom !== false && (
-                      <button
-                        className={`chat-option custom ${customInput ? 'selected' : ''} ${questionIndex === (pendingPrompt.options?.length ?? 0) ? 'focused' : ''}`}
-                        onClick={startCustomInput}
-                      >
-                        <span className="chat-option-mark">
-                          {pendingPrompt.multiple
-                            ? (customInput ? '[✓]' : '[ ]')
-                            : `${(pendingPrompt.options?.length ?? 0) + 1}.`}
-                        </span>
-                        <span className="chat-option-text">
-                          <span className="chat-option-label">Type your own answer</span>
-                        </span>
-                      </button>
-                    )}
-                  </div>
-                )}
-                {(customInput || !pendingPrompt.options?.length) && (
-                  <div className="chat-prompt-actions">
-                    <input
-                      autoFocus
-                      className="chat-prompt-input"
-                      value={questionText}
-                      placeholder="Answer..."
-                      onChange={e => setQuestionText(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          submitQuestion()
-                        }
-                      }}
-                    />
-                    <button onClick={submitQuestion}>Send</button>
-                  </div>
-                )}
-                {!!pendingPrompt.options?.length && pendingPrompt.multiple && !customInput && (
-                  <div className="chat-prompt-actions">
-                    <button
-                      className={questionIndex === (pendingPrompt.options?.length ?? 0) + (pendingPrompt.custom !== false ? 1 : 0) ? 'focused' : ''}
-                      onClick={submitQuestion}
-                      disabled={selectedOptions.length === 0}
-                    >
-                      Send
-                    </button>
-                  </div>
-                )}
-                {!!pendingPrompt.options?.length && !customInput && (
-                  <div className="chat-prompt-hint">↑/↓ to navigate, Enter to select</div>
-                )}
-              </>
-            ))}
-          </div>
-        )}
+
         <div
           className="chat-feed"
           ref={scroll.feedRef}
@@ -1073,6 +951,129 @@ if (e.type === 'usage') {
             setEditTarget(null)
           }}
           onEditCancel={() => setEditTarget(null)}
+          promptSlot={pendingPrompt && (
+          <div className="chat-prompt" ref={pendingPrompt.promptType === 'permission' ? promptRef : undefined}
+            tabIndex={pendingPrompt.promptType === 'permission' ? -1 : undefined}>
+            <div className="chat-prompt-head">
+              <span className="chat-prompt-head-label">
+                {pendingPrompt.promptType === 'permission' ? 'Permission' : 'Question'}
+              </span>
+              <button
+                className={`chat-prompt-toggle ${promptCollapsed ? 'collapsed' : ''}`}
+                title={promptCollapsed ? 'Expand' : 'Collapse'}
+                aria-label={promptCollapsed ? 'Expand prompt' : 'Collapse prompt'}
+                onClick={() => setPromptCollapsed(v => !v)}
+              >
+                <ChevronDown size={12} aria-hidden="true" />
+              </button>
+            </div>
+            {promptCollapsed && (pendingPrompt.promptType === 'permission' ? (
+              <div className="chat-prompt-collapsed-text">Meow wants to run <code>{pendingPrompt.call?.tool}</code></div>
+            ) : (
+              <div className="chat-prompt-collapsed-text">{pendingPrompt.question}</div>
+            ))}
+            {!promptCollapsed && (pendingPrompt.promptType === 'permission' ? (
+              <>
+                <div className="chat-prompt-text">
+                  Meow wants to run <code>{pendingPrompt.call?.tool}</code>:
+                </div>
+                <div className="chat-prompt-actions">
+                  {permissionActions.map((a, i) => (
+                    <button
+                      key={a.label}
+                      className={[
+                        i === 0 ? 'allow' : '',
+                        i === 1 ? 'always' : '',
+                        selectedAction === i ? 'selected' : ''
+                      ].filter(Boolean).join(' ')}
+                      onClick={a.run}
+                    >
+                      {a.label} <kbd>{a.key}</kbd>
+                    </button>
+                  ))}
+                </div>
+                <div className="chat-prompt-hint">←/→ or Tab to select, Enter to confirm</div>
+              </>
+            ) : (
+              <>
+                <div className="chat-prompt-text">
+                  {pendingPrompt.question}
+                  {pendingPrompt.multiple && <span className="chat-prompt-multi-hint"> (select all that apply)</span>}
+                </div>
+                {pendingPrompt.options && pendingPrompt.options.length > 0 && (
+                  <div className="chat-options">
+                    {pendingPrompt.options.map((opt, i) => {
+                      const selected = selectedOptions.includes(opt.label)
+                      const mark = pendingPrompt.multiple ? (selected ? '[✓]' : '[ ]') : `${i + 1}.`
+                      return (
+                        <button
+                          key={opt.label + i}
+                          className={`chat-option ${selected ? 'selected' : ''} ${questionIndex === i ? 'focused' : ''}`}
+                          onClick={() => (pendingPrompt.multiple
+                            ? toggleOption(opt.label)
+                            : respond(pendingPrompt.promptId, true, opt.label))}
+                        >
+                          <span className="chat-option-mark">{mark}</span>
+                          <span className="chat-option-text">
+                            <span className="chat-option-label">{opt.label}</span>
+                            {opt.description && <span className="chat-option-desc">{opt.description}</span>}
+                          </span>
+                        </button>
+                      )
+                    })}
+                    {pendingPrompt.custom !== false && (
+                      <button
+                        className={`chat-option custom ${customInput ? 'selected' : ''} ${questionIndex === (pendingPrompt.options?.length ?? 0) ? 'focused' : ''}`}
+                        onClick={startCustomInput}
+                      >
+                        <span className="chat-option-mark">
+                          {pendingPrompt.multiple
+                            ? (customInput ? '[✓]' : '[ ]')
+                            : `${(pendingPrompt.options?.length ?? 0) + 1}.`}
+                        </span>
+                        <span className="chat-option-text">
+                          <span className="chat-option-label">Type your own answer</span>
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                )}
+                {(customInput || !pendingPrompt.options?.length) && (
+                  <div className="chat-prompt-actions">
+                    <input
+                      autoFocus
+                      className="chat-prompt-input"
+                      value={questionText}
+                      placeholder="Answer..."
+                      onChange={e => setQuestionText(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          submitQuestion()
+                        }
+                      }}
+                    />
+                    <button onClick={submitQuestion}>Send</button>
+                  </div>
+                )}
+                {!!pendingPrompt.options?.length && pendingPrompt.multiple && !customInput && (
+                  <div className="chat-prompt-actions">
+                    <button
+                      className={questionIndex === (pendingPrompt.options?.length ?? 0) + (pendingPrompt.custom !== false ? 1 : 0) ? 'focused' : ''}
+                      onClick={submitQuestion}
+                      disabled={selectedOptions.length === 0}
+                    >
+                      Send
+                    </button>
+                  </div>
+                )}
+                {!!pendingPrompt.options?.length && !customInput && (
+                  <div className="chat-prompt-hint">↑/↓ to navigate, Enter to select</div>
+                )}
+              </>
+            ))}
+          </div>
+        )}
           onStop={handleStop}
         />
         <div className="chat-footer">

@@ -79,20 +79,23 @@ test('text-only question submits the typed answer', async () => {
   }
 })
 
-test('prompt spans the pane width', async () => {
+test('prompt is rendered inside the chat input card', async () => {
   const { app, window } = await launchPrompt()
   try {
-    const panel = await window.locator('.chat-panel').boundingBox()
+    const input = await window.locator('.chat-input').boundingBox()
     const prompt = await window.locator('.chat-prompt').boundingBox()
     expect(prompt).not.toBeNull()
-    expect(panel).not.toBeNull()
-    expect(prompt!.width).toBeGreaterThan(panel!.width * 0.95)
+    expect(input).not.toBeNull()
+    // The prompt is in-flow at the top of the input card, so it sits inside it.
+    expect(prompt!.x).toBeGreaterThanOrEqual(input!.x)
+    expect(prompt!.x + prompt!.width).toBeLessThanOrEqual(input!.x + input!.width + 1)
+    expect(prompt!.y).toBeGreaterThanOrEqual(input!.y)
   } finally {
     await app.close()
   }
 })
 
-test('prompt overlays the feed without changing its height', async () => {
+test('prompt does not overlay the chat feed', async () => {
   const userData = mkdtempSync(path.join(tmpdir(), 'meow-ud-'))
   const project = mkdtempSync(path.join(tmpdir(), 'meow-e2e-'))
   writeFileSync(path.join(userData, 'workspaces.json'), JSON.stringify([{
@@ -104,8 +107,6 @@ test('prompt overlays the feed without changing its height', async () => {
   const window = await app.firstWindow()
   await window.locator('.project-row').click()
   await expect(window.locator('.chat-panel')).toBeVisible()
-  const feed = window.locator('.chat-feed')
-  const before = await feed.boundingBox()
   await app.evaluate(async ({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0].webContents.send('chat:event', {
       type: 'prompt-request', agentId: 'a1', promptId: 'p1', kind: 'question',
@@ -113,12 +114,14 @@ test('prompt overlays the feed without changing its height', async () => {
     })
   })
   await expect(window.locator('.chat-prompt')).toBeVisible()
-  const after = await feed.boundingBox()
+  const feedBox = await window.locator('.chat-feed').boundingBox()
+  const prompt = await window.locator('.chat-prompt').boundingBox()
   try {
-    expect(after).not.toBeNull()
-    expect(before).not.toBeNull()
-    // The prompt floats over the feed, so the feed's height must not shrink.
-    expect(Math.abs((after!.height ?? 0) - (before!.height ?? 0))).toBeLessThan(1)
+    expect(feedBox).not.toBeNull()
+    expect(prompt).not.toBeNull()
+    // The prompt lives in the composer card below the feed, so it must not
+    // overlap the feed region.
+    expect(prompt!.y).toBeGreaterThanOrEqual(feedBox!.y + feedBox!.height)
   } finally {
     await app.close()
   }
