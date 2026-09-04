@@ -27,6 +27,10 @@ React renderer (no direct Node/Electron access).
   localStorage) and `watchTheme` (re-apply on `storage` events). `main.tsx` calls both for EVERY
   renderer — including the Git viewer and FileViewer popup windows (separate BrowserWindows) — so
   they inherit the theme from the main window automatically.
+- `src/font.ts` — shared font-size helpers: `applyFontSize` (set `font-size` on `<html>`/`<body>`,
+  default 14, range 8-40px, dispatches a `meow:fontsize` CustomEvent) and `watchFontSize` (re-apply
+  on `storage` events). `main.tsx` calls both for EVERY renderer (main window + Git viewer +
+  FileViewer popups) so they inherit the persisted font size.
 
 ## Conventions
 

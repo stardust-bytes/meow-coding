@@ -192,6 +192,10 @@ string edits fail. Edit them with a script (e.g. python) if the edit tool cannot
   in light mode).
 - `watchTheme()` listens for `storage` events, which fire across same-origin windows — this is how
   the Git viewer and File viewer popups re-theme when the main window toggles.
+- App-wide font size persists in `localStorage` under `meow.fontSize` (default 14, range 8–40px,
+  integer). `applyFontSize()` in `font.ts` sets `font-size` on `<html>`/`<body>` and dispatches a
+  `meow:fontsize` CustomEvent so open xterm terminals re-`fit()` live; `watchFontSize()` re-applies
+  on `storage` events across same-origin popups. The control lives in the Settings → Personalize tab.
 
 ## 9.7 Performance rules
 

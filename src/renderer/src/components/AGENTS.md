@@ -16,7 +16,7 @@ terminal/chat, sidebar, status bar, title bar, and dialogs. All data flows throu
 | `StatusBar.tsx` | Bottom bar: workspace name, git branch, running count, app version (via IPC). |
 | `TitleBar.tsx` | Custom window chrome (min/max/close) for frameless platforms. |
 | `PopupTitleBar.tsx` | Popup window chrome for the FileViewer/GitViewer BrowserWindows: drag region + (Linux) custom min/max/close, mirroring the main TitleBar so popups match the app theme. |
-| `XtermHost.tsx` | PTY terminal host via xterm.js. |
+| `XtermHost.tsx` | PTY terminal host via xterm.js; font size follows the app's `meow.fontSize` preference (re-fits live on change). |
 | `EmptyState.tsx` | Shown when no pane is open (workspace vs. no-workspace hint). |
 | `BackgroundPanel.tsx` | Lists background agents; open/stop/delete them (delete shows a confirm dialog). |
 | `UpdateDialog.tsx` | Auto-update status + install prompt. |
