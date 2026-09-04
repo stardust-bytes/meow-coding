@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
+import { getFontSize, FONT_SIZE_STORAGE_KEY, FONT_SIZE_CHANGE_EVENT } from '../font'
 
 interface Props {
   agentId: string
@@ -67,7 +68,7 @@ export default function XtermHost({ agentId, onReady, onDispose, onInput, onResi
     const isLight = document.documentElement.getAttribute('data-theme') === 'light'
     const term = new Terminal({
       fontFamily: "'JetBrainsMonoNerdFontMono', 'JetBrains Mono', 'JetBrainsMono Nerd Font Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-      fontSize: 14,
+      fontSize: getFontSize(),
       scrollback: 5000,
       cursorStyle: 'bar',
       cursorBlink: true,
@@ -78,6 +79,10 @@ export default function XtermHost({ agentId, onReady, onDispose, onInput, onResi
     term.open(ref.current!)
     term.onData(d => onInput(d))
     term.onResize(({ cols, rows }) => onResize(cols, rows))
+    const applyFontSize = () => {
+      term.options.fontSize = getFontSize()
+      try { fit.fit() } catch { /* RO will self-correct */ }
+    }
     onReady(term)
     try {
       fit.fit()
@@ -99,13 +104,20 @@ export default function XtermHost({ agentId, onReady, onDispose, onInput, onResi
     // Re-theme the terminal live when the user toggles dark/light in the
     // sidebar (localStorage syncs across same-origin windows).
     const onStorage = (e: StorageEvent) => {
-      if (e.key !== 'meow.theme') return
-      term.options.theme = document.documentElement.getAttribute('data-theme') === 'light' ? LIGHT_THEME : DARK_THEME
+      if (e.key === 'meow.theme') {
+        term.options.theme = document.documentElement.getAttribute('data-theme') === 'light' ? LIGHT_THEME : DARK_THEME
+      } else if (e.key === FONT_SIZE_STORAGE_KEY) {
+        applyFontSize()
+      }
     }
+    const onFontSizeChange = () => applyFontSize()
+    window.addEventListener(FONT_SIZE_CHANGE_EVENT, onFontSizeChange)
+
     window.addEventListener('storage', onStorage)
 
     return () => {
       ro.disconnect()
+      window.removeEventListener(FONT_SIZE_CHANGE_EVENT, onFontSizeChange)
       window.removeEventListener('storage', onStorage)
       term.dispose()
       onDispose(agentId)
