@@ -38,7 +38,7 @@ test('click allow closes the prompt', async () => {
 test('keyboard 1 triggers allow when panel focused', async () => {
   const { app, window } = await launchPrompt()
   try {
-    await window.locator('.chat-mode').click()
+    await window.locator('.chat-panel').click()
     await window.keyboard.press('1')
     await expect(window.locator('.chat-prompt')).toHaveCount(0)
   } finally {

@@ -20,23 +20,34 @@ export default memo(function ContextFooter({ tokens, limit, compactThreshold, co
   const pct = contextPercent(tokens, limit)
   const level = contextLevel(tokens, compactThreshold)
   return (
-    <div className="context-footer-stack">
+    <div className="context-footer-wrap">
       <div className={`context-footer ${level}`}>
         <span className="context-footer-label">context</span>
         <span>{tokens.toLocaleString()}</span>
         {pct !== null && <span>({pct}%)</span>}
         {level === 'danger' && <span className="context-footer-note">· compacting soon</span>}
-        {cost > 0 && <span className="context-footer-cost">· ${cost.toFixed(4)}</span>}
       </div>
-      {sessionTokens && (
-        <div className="context-footer-tokens">
-          <span className="context-footer-label">Tokens</span>
-          <span>{(sessionTokens.input + sessionTokens.output).toLocaleString()}</span>
-          <span className="context-footer-dim">
-            ({sessionTokens.input.toLocaleString()} in / {sessionTokens.output.toLocaleString()} out)
-          </span>
+      <div className="context-footer-popover" role="tooltip">
+        <div className="context-popover-row">
+          <span className="context-popover-label">context</span>
+          <span>{tokens.toLocaleString()}</span>
+          {pct !== null && <span className="context-popover-dim">({pct}%)</span>}
         </div>
-      )}
+        {sessionTokens && (
+          <div className="context-popover-row">
+            <span className="context-popover-label">tokens</span>
+            <span className="context-popover-tokens">
+              {sessionTokens.input.toLocaleString()} in / {sessionTokens.output.toLocaleString()} out
+            </span>
+          </div>
+        )}
+        {cost > 0 && (
+          <div className="context-popover-row">
+            <span className="context-popover-label">cost</span>
+            <span>${cost.toFixed(4)}</span>
+          </div>
+        )}
+      </div>
     </div>
   )
 })

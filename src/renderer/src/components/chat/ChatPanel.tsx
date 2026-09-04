@@ -11,6 +11,7 @@ import MarkdownText from './MarkdownText'
 import SessionBar from './SessionBar'
 import ModelPicker from './ModelPicker'
 import VariantPicker from './VariantPicker'
+import ModePicker from './ModePicker'
 import ContextFooter from './ContextFooter'
 
 type FeedItem =
@@ -1060,35 +1061,6 @@ if (e.type === 'usage') {
       )}
       </div>
       <div className="chat-composer">
-        <div className="chat-mode">
-          <span className="chat-mode-label">mode</span>
-          <button
-            className={`btn small mode-build ${currentMode === 'build' ? 'active' : ''}`}
-            onClick={() => switchMode('build')}
-          >
-            Build
-          </button>
-          <button
-            className={`btn small mode-plan ${currentMode === 'plan' ? 'active' : ''}`}
-            onClick={() => switchMode('plan')}
-          >
-            Plan
-          </button>
-          {currentMode === 'plan' && <span className="chat-mode-hint">read-only — edits denied</span>}
-          <div className="chat-mode-tools">
-            <ModelPicker agentId={agentId} />
-            {availableVariants.length > 0 && (
-              <VariantPicker
-                variants={availableVariants}
-                value={currentVariant}
-                onChange={v => {
-                  setCurrentVariant(v)
-                  onVariantChange?.(v === '' ? undefined : v)
-                }}
-              />
-            )}
-          </div>
-        </div>
         <ChatInput
           agentId={agentId}
           running={running}
@@ -1103,13 +1075,32 @@ if (e.type === 'usage') {
           onEditCancel={() => setEditTarget(null)}
           onStop={handleStop}
         />
-        <ContextFooter
-          tokens={contextUsed}
-          limit={contextLimit}
-          compactThreshold={compactThreshold}
-          cost={sessionCost}
-          sessionTokens={sessionTokens}
-        />
+        <div className="chat-footer">
+          <div className="chat-footer-context">
+            <ContextFooter
+              tokens={contextUsed}
+              limit={contextLimit}
+              compactThreshold={compactThreshold}
+              cost={sessionCost}
+              sessionTokens={sessionTokens}
+            />
+          </div>
+          <div className="chat-footer-controls">
+            <ModePicker value={currentMode} onChange={switchMode} />
+            {currentMode === 'plan' && <span className="chat-mode-hint">read-only — edits denied</span>}
+            <ModelPicker agentId={agentId} />
+            {availableVariants.length > 0 && (
+              <VariantPicker
+                variants={availableVariants}
+                value={currentVariant}
+                onChange={v => {
+                  setCurrentVariant(v)
+                  onVariantChange?.(v === '' ? undefined : v)
+                }}
+              />
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )

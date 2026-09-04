@@ -7,6 +7,7 @@ interface DropdownProps {
   onToggle: () => void
   onClose: () => void
   title?: string
+  ariaLabel?: string
   menuClassName?: string
   children: ReactNode
 }
@@ -14,7 +15,7 @@ interface DropdownProps {
 // Reusable popup dropdown: button trigger + absolutely positioned menu.
 // Closes on outside mousedown (containment check) and on Escape.
 export default function Dropdown({
-  trigger, open, onToggle, onClose, title, menuClassName = '', children
+  trigger, open, onToggle, onClose, title, ariaLabel, menuClassName = '', children
 }: DropdownProps) {
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -40,6 +41,7 @@ export default function Dropdown({
       <button
         className="dropdown-trigger"
         title={title}
+        aria-label={ariaLabel ?? title}
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={onToggle}
