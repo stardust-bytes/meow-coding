@@ -219,7 +219,7 @@ git commit -m "feat(font): wire applyFontSize/watchFontSize into renderer startu
 - Consumes: `getFontSize`, `setFontSize`, `clampFontSize`, `DEFAULT_FONT_SIZE`, `MIN_FONT_SIZE`, `MAX_FONT_SIZE` from `../../font`.
 - Produces: the `PersonalizeTab` component (no props); a new `TabId` value `'personalize'`.
 
-- [ ] **Step 1: Create `PersonalizeTab.tsx`**
+- [ ] **Step 1: Create `PersonalizeTab.tsx`** (reuse the existing `.settings-section` / `.settings-section-header` / `.label` / `.settings-hint` classes used by `ContextTab.tsx`; do NOT define new classes):
 
 ```tsx
 import { useState } from 'react'
@@ -243,9 +243,9 @@ export default function PersonalizeTab() {
   const step = (delta: number) => commit(String(clampFontSize(size + delta)))
 
   return (
-    <div className="settings-section">
-      <div className="settings-section-header">Personalize</div>
-      <label className="settings-label" htmlFor="fontSize">Font size (px)</label>
+    <section className="settings-section">
+      <h4 className="settings-section-header">Personalize</h4>
+      <label className="label" htmlFor="fontSize">Font size (px)</label>
       <div className="font-size-row">
         <button className="btn" onClick={() => step(-1)} aria-label="Decrease font size">−</button>
         <input
@@ -258,26 +258,26 @@ export default function PersonalizeTab() {
         />
         <button className="btn" onClick={() => step(1)} aria-label="Increase font size">+</button>
       </div>
-      <div className="settings-hint">
+      <p className="settings-hint">
         Range {MIN_FONT_SIZE}–{MAX_FONT_SIZE}px. Default {DEFAULT_FONT_SIZE}px.
+      </p>
+      <div>
+        <button className="btn" onClick={() => commit(String(DEFAULT_FONT_SIZE))}>
+          Reset to {DEFAULT_FONT_SIZE}
+        </button>
       </div>
-      <button className="btn" onClick={() => commit(String(DEFAULT_FONT_SIZE))}>
-        Reset to {DEFAULT_FONT_SIZE}
-      </button>
-    </div>
+    </section>
   )
 }
 ```
 
-- [ ] **Step 2: Add styles**
+- [ ] **Step 2: Add the new `font-size-row` / `font-size-input` styles only**
 
-`styles.css` is CRLF. Add these near the other `.settings-*` rules. If the edit tool cannot match, use a python one-liner:
+`styles.css` is CRLF — `.settings-section`, `.settings-section-header`, `.label`, `.settings-hint` already exist, so only add the two truly-new classes. Use a python one-liner if the edit tool cannot match (these lines exist near the `.settings-*` block, e.g. after line 1201):
 
 ```css
 .font-size-row { display: flex; gap: 8px; align-items: center; }
 .font-size-input { width: 72px; text-align: center; font-variant-numeric: tabular-nums; }
-.settings-hint { color: var(--text-faint); font-size: var(--fs-sm); margin-top: 8px; }
-.settings-label { display: block; font-size: var(--fs-sm); color: var(--text-dim); margin-bottom: 8px; }
 ```
 
 - [ ] **Step 3: Register the tab in `SettingsDialog.tsx`**
