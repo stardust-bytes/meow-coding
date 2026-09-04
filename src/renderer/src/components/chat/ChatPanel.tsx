@@ -140,6 +140,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
   const [selectedOptions, setSelectedOptions] = useState<string[]>([])
   const [customInput, setCustomInput] = useState(false)
   const [questionIndex, setQuestionIndex] = useState(0)
+  const [promptCollapsed, setPromptCollapsed] = useState(false)
   const [contextUsed, setContextUsed] = useState<number | null>(null)
   const [sessionCost, setSessionCost] = useState(0)
   const [sessionTokens, setSessionTokens] = useState<{ input: number; output: number } | null>(null)
@@ -247,6 +248,7 @@ function ChatPanel({ agentId, cwd, mode = 'build', variant, onModeChange, onVari
     setQuestionText('')
     setSelectedOptions([])
     setCustomInput(false)
+    setPromptCollapsed(false)
     setContextUsed(null)
     setSessionCost(0)
     setSessionTokens(null)
@@ -530,6 +532,7 @@ if (e.type === 'usage') {
       setCustomInput(false)
       setQuestionText('')
       setQuestionIndex(0)
+      setPromptCollapsed(false)
       return
     }
     if (e.type === 'text-delta' || e.type === 'reasoning-delta') {
@@ -638,6 +641,7 @@ if (e.type === 'usage') {
     setSelectedOptions([])
     setCustomInput(false)
     setQuestionIndex(0)
+    setPromptCollapsed(false)
   }, [agentId])
 
   const toggleOption = useCallback((label: string) => {
@@ -936,7 +940,25 @@ if (e.type === 'usage') {
         {pendingPrompt && (
           <div className="chat-prompt" ref={pendingPrompt.promptType === 'permission' ? promptRef : undefined}
             tabIndex={pendingPrompt.promptType === 'permission' ? -1 : undefined}>
-            {pendingPrompt.promptType === 'permission' ? (
+            <div className="chat-prompt-head">
+              <span className="chat-prompt-head-label">
+                {pendingPrompt.promptType === 'permission' ? 'Permission' : 'Question'}
+              </span>
+              <button
+                className={`chat-prompt-toggle ${promptCollapsed ? 'collapsed' : ''}`}
+                title={promptCollapsed ? 'Expand' : 'Collapse'}
+                aria-label={promptCollapsed ? 'Expand prompt' : 'Collapse prompt'}
+                onClick={() => setPromptCollapsed(v => !v)}
+              >
+                <ChevronDown size={12} aria-hidden="true" />
+              </button>
+            </div>
+            {promptCollapsed && (pendingPrompt.promptType === 'permission' ? (
+              <div className="chat-prompt-collapsed-text">Meow wants to run <code>{pendingPrompt.call?.tool}</code></div>
+            ) : (
+              <div className="chat-prompt-collapsed-text">{pendingPrompt.question}</div>
+            ))}
+            {!promptCollapsed && (pendingPrompt.promptType === 'permission' ? (
               <>
                 <div className="chat-prompt-text">
                   Meow wants to run <code>{pendingPrompt.call?.tool}</code>:
@@ -1035,7 +1057,7 @@ if (e.type === 'usage') {
                   <div className="chat-prompt-hint">↑/↓ to navigate, Enter to select</div>
                 )}
               </>
-            )}
+            ))}
           </div>
         )}
         <div className="chat-mode">
